@@ -573,10 +573,15 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
         }
         const edges = callerEdges.get(st.fnKey) ?? [];
         for (const e of edges) {
-          const calleeShortName = e.callee.includes("#")
-            ? e.callee.split("#")[1]!.split(".")[0]!
-            : e.callee;
-          if (text.includes(calleeShortName)) {
+          // Hạt giống "câu lệnh chứa call site tới callee giữ": so theo TÊN ĐƯỢC GỌI (phần cuối khóa
+          // `file#Class.method` ⇒ `method`) đi kèm `(`, vì call site viết qua biến instance
+          // (`categoryRepo.findById(…)`), không viết tên lớp `CategoryRepo`.
+          const local = e.callee.includes("#") ? e.callee.slice(e.callee.indexOf("#") + 1) : e.callee;
+          if (local.startsWith("<")) continue; // <module>, handler ẩn danh: không có tên gọi
+          const calledName = local.slice(local.lastIndexOf(".") + 1).replace(/~\d+$/, "");
+          if (!calledName) continue;
+          const escaped = calledName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (new RegExp(`(^|[^\\w$])${escaped}\\s*\\(`).test(text)) {
             keptLines.add(l);
           }
         }
@@ -605,11 +610,14 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
             for (let prevL = l - 1; prevL >= startLine; prevL--) {
               const prevText = allLines[prevL - 1] ?? "";
               const isVarDecl = new RegExp(`\\b(const|let|var)\\s+[^=;]*\\b${v}\\b`).test(prevText);
-              const isAssign = new RegExp(`\\b${v}\\s*(=|\\+=|-=|\\*=)`).test(prevText);
+              // Gán thường và gán phức hợp (`+=`, `-=`, `??=`…), không nhầm phép so sánh `==`.
+              const ASSIGN_OP = `([-+*/%&|^]|\\*\\*|<<|>>|\\?\\?|&&|\\|\\|)?=(?!=)`;
+              const isAssign = new RegExp(`\\b${v}\\s*${ASSIGN_OP}`).test(prevText);
               const isDestruct = new RegExp(`[\\{\\[][^\\}\\]]*\\b${v}\\b[^\\}\\]]*[\\}\\]]\\s*=`).test(prevText);
               const isLoop = new RegExp(`\\bfor\\s*\\([^;]*\\b${v}\\b`).test(prevText);
               const isCatch = new RegExp(`\\bcatch\\s*\\(\\s*${v}\\b`).test(prevText);
-              const isMutate = new RegExp(`\\b${v}\\.(push|set|add|append)\\b|\\b${v}\\.[a-zA-Z0-9_$]+\\s*=`).test(prevText);
+              // Mục 8 ý 6: `v.push(…)`, `v.x = …`, kể cả `v.x -= …`
+              const isMutate = new RegExp(`\\b${v}\\.(push|set|add|append)\\b|\\b${v}\\.[a-zA-Z0-9_$]+\\s*${ASSIGN_OP}`).test(prevText);
 
               if (isVarDecl || isAssign || isDestruct || isLoop || isCatch || isMutate) {
                 defLine = prevL;
