@@ -193,7 +193,7 @@ export function parseNodeAnalysisRaw(json: unknown): NodeAnalysisRaw | null {
   };
 }
 
-export function buildAnalyzeUserPrompt(
+export function renderRepoInfo(
   graph: StaticEngineResult,
   node: HybridArchitecturalNode,
 ): string {
@@ -210,12 +210,26 @@ export function buildAnalyzeUserPrompt(
     `files_cua_node: ${node.files.join(", ")}`,
   ];
 
+  return repoInfoLines.join("\n");
+}
+
+export function renderNodeInfo(node: HybridArchitecturalNode): string {
   const nodeLines = [
     `id: ${node.id}`,
     `ten: ${node.title}`,
     `loai: ${node.node_type}`,
     `so_buoc: ${node.trace_steps.length}`,
   ];
+
+  return nodeLines.join("\n");
+}
+
+export function buildAnalyzeUserPrompt(
+  graph: StaticEngineResult,
+  node: HybridArchitecturalNode,
+): string {
+  const fp = graph.fingerprint;
+  const report = graph.ingestion_report;
 
   const forbiddenList = forbiddenKeywords(fp, nodeCodeText(node));
   const forbiddenText = forbiddenList.length > 0 ? forbiddenList.join(", ") : "(không có)";
@@ -224,8 +238,8 @@ export function buildAnalyzeUserPrompt(
   const intersecting = node.files.filter((f) => suspicious.includes(f));
 
   const parts: string[] = [
-    wrapData("repo_info", repoInfoLines.join("\n")),
-    wrapData("node", nodeLines.join("\n")),
+    wrapData("repo_info", renderRepoInfo(graph, node)),
+    wrapData("node", renderNodeInfo(node)),
     wrapData("skill_catalogue", SKILL_CATALOGUE),
     wrapData("pattern_catalogue", ARCHITECTURE_PATTERNS.join(", ")),
     wrapData("forbidden_tech", forbiddenText),
