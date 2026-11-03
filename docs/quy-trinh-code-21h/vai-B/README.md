@@ -58,8 +58,13 @@ Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --n
 
 - **Hàm spec không nhận `report` nhưng luật cần đếm `skipped.*` hoặc ghi warning** (vd. `readCentralDirectory`, `classifyEntry`, `detectScope`, `computeSnapshot`): thêm tham số tùy chọn `report?: IngestionReport` ở **cuối** chữ ký, giữ nguyên thứ tự và kiểu các tham số spec đã ghi. Cách này cũng dùng cho `runEngine(src, signal?)` ở B07.
 - **Spec không ghi con số** ⇒ không tự đặt, lấy từ `CONFIG`. **Spec ghi "+ warning" mà không có câu chữ** ⇒ dùng câu tạm (số trong câu lấy từ `CONFIG`), đặt comment ngay trên `// Câu tạm, spec chưa có câu chữ, chờ người giữ spec chốt` và liệt kê trong báo cáo task.
-- **Khóa giả trong test** (T-ING-26, T-ING-27…): hook pre-commit của ai-kit (`quet-khoa.mjs`) chặn mọi chuỗi giống khóa thật (`-----BEGIN … PRIVATE KEY-----`, `AKIA…`, `ghp_…`, `sk-…`, `AIza…`). Trong test dựng bằng cách ghép chuỗi (vd. `"-----BEGIN RSA " + "PRIVATE KEY-----"`) kèm comment "khóa giả". Không bỏ qua hook bằng `--no-verify`.
+- **Khóa giả trong test** (T-ING-26, T-ING-27…): hook pre-commit của ai-kit (`quet-khoa.mjs`) chặn mọi chuỗi giống khóa thật (`-----BEGIN … PRIVATE KEY-----`, `AKIA…`, `ghp_…`, `sk-…`, `AIza…`). Trong test dựng bằng cách ghép chuỗi (vd. `"-----BEGIN RSA " + "PRIVATE KEY-----"`) kèm comment "khóa giả". Hook còn chặn cả **phép gán** `secret|token|password|api_key = "<chuỗi ≥ 16 ký tự>"`, trừ khi giá trị chứa `example`, `your`, `placeholder`, `xxxx`, `changeme`: giá trị giả trong test đặt dạng `"example-jwt-secret"`. Không bỏ qua hook bằng `--no-verify`.
 - **Zip mẫu trong test có segment đầu chung** (vd. mọi file đều trong `src/`) ⇒ ING-60.3 cắt segment đó, path thành `index.ts` chứ không phải `src/index.ts`. Muốn giữ `src/` thì thêm 1 file ở gốc zip (vd. `README.md`).
+- **API `web-tree-sitter` 0.27 (bản đã pin), dùng cho B05–B10:** kiểu nút là `Node` (`import { Node, Query, Tree, Language } from "web-tree-sitter"`), không có `SyntaxNode`; tạo truy vấn bằng `new Query(language, source)` rồi `query.captures(node)` / `query.matches(node)`, không có `language.query()`. AI hay viết theo API cũ (≤ 0.20) ⇒ `tsc` đỏ. Viết query `.scm` thì in `tree.rootNode.toString()` của đoạn code mẫu để xem cây thật trước (vd. decorator NestJS nằm trước `method_definition` trong `class_body`).
+- **Index của `web-tree-sitter` (JS) là đơn vị UTF-16, không phải byte UTF-8** (đo thật với 0.27.1, dù typings ghi "byte"): `node.startIndex/endIndex` cắt thẳng được bằng `source.slice()`. Mọi tỉ lệ, độ dài so với node (ENG-12, snippet, cửa sổ dòng ở B06) phải dùng `source.length`, không `Buffer.byteLength`, kẻo code có tiếng Việt bị tính sai.
+- **Test từng hàm không đủ: B06, B07 phải có test chạy thật `runEngine`** trên zip dựng trong RAM: repo mẫu theo code spec 50 Mục 1.2 (Express + TypeORM, router mount `app.use("/api/orders", router)`) và 1 repo nhỏ cho mỗi framework ✅ (FastAPI, Flask, NestJS), kiểm tên node, thứ tự `layer` các bước, snippet có dòng gọi bước kế. Lần tập, toàn bộ test từng hàm xanh mà chạy thật lộ 7 lỗi (xem `src/server/engine/graph/__tests__/shop-mau.test.ts`, `framework-mau.test.ts`).
+- **Service/repo import dạng instance** (`export const svc = new Svc()` rồi `import { svc }`, mẫu phổ biến nhất của Express): phân giải `svc.m()` phải tra kiểu ở **file nguồn** (ENG-22) rồi tìm `Svc.m`; không có đích thật thì ghi `ExternalCall`, không tạo cạnh tới khóa không tồn tại. Lần tập lỗi này lọt qua B05–B07, chỉ lộ ra ở B08. Phải test đủ **6 kiểu export**: `export const svc = new Svc()`, `export default new Svc()` (ghi `field_types[file#default]`), CommonJS `module.exports = new Svc()` + `require`, method `static`, `import * as ns`, instance tạo trong file container (xem `framework-mau.test.ts`).
+- **Test không so `warnings` rỗng** khi chạy thật `runEngine`: warning vượt `CONFIG.ENGINE_BUDGET_MS` (ENG-02) xuất hiện khi CI tải nặng; lọc đúng câu cần kiểm.
 - **Sort chuỗi để tất định (ING-02, ENG-01):** dùng `.sort()` mặc định (UTF-16), không dùng `localeCompare` (phụ thuộc locale máy).
 - **Thử lại và hẹn giờ của Tầng 0** (ING-40, ING-44) nằm ở `runIngest` (B04), vì zip hỏng chỉ phát hiện được khi đọc mục lục (B03). Hàm con chỉ nhận `signal` và ném `IngestionError`.
 - **Tên test:** tên đầy đủ (gồm `describe` bọc ngoài) bắt đầu bằng mã luật hoặc mã test (`T-ING-07 …`, `ING-45 …`), không bắt đầu bằng tên task.
@@ -67,6 +72,38 @@ Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --n
 - **Câu chữ spec mâu thuẫn với bảng test** ⇒ bảng test thắng (số kỳ vọng lấy từ bảng); ghi cách hiểu đã chốt vào phiếu (vd. ROLE theo thư mục ở B03).
 - **Mỗi phiếu chạy lại toàn bộ `npx vitest run src/server/engine`** và `npx eslint src/server/engine` (0 error, 0 warning) trước khi commit, để chắc không làm hỏng phiếu trước và CI không đỏ vì lint.
 - **Kết quả Bước 0 của B01 (03/11):** codeload trả đúng mã cho `HEAD`; comment EOCD là SHA 40 hex; `archive/HEAD.zip` chuyển hướng tới **SHA** chứ không phải tên nhánh ⇒ `ref_label` hiện là SHA (giữ theo spec, chờ nhóm chốt).
+
+## Việc cần chốt (gom từ lần tập B01–B07)
+
+Các chỗ spec tự mâu thuẫn, chưa nói, hoặc code phải làm khác câu chữ spec. "Chốt" = nhóm chọn 1 cách, ghi `D-xx` vào `docs/spec/00_QUYET_DINH.md` và sửa câu chữ spec chỗ đó, rồi sửa code/phiếu theo. Chốt xong thì gạch dòng ở đây.
+
+**Nên chốt trước buổi demo**
+
+| # | Chỗ | Hiện code làm gì | Đề xuất | Ảnh hưởng |
+| :-: | :-- | :-- | :-- | :-- |
+| 1 | `11` Mục 8 ý 6 (dòng giữ trong lát cắt): middleware `try { req.user = jwt.verify(…); next(); } catch { 401 }` | Đúng luật hiện tại: dòng `jwt.verify` không phải hạt giống ⇒ bị lược, snippet chỉ còn `next()` trong `try` | Thêm luật: đã giữ `catch` thì giữ mọi câu lệnh cấp 1 trong `try` | Bước MIDDLEWARE của hầu hết repo Express (cả `shop-api` N2, N5) mất dòng quan trọng nhất; AI hỏi vào chỗ trống |
+| 2 | `10` ING-32 `ref_label` | `archive/HEAD.zip` chuyển hướng tới SHA ⇒ `ref_label` = SHA 40 ký tự | Ref khớp 40 hex ⇒ `ref_label = null`, UI chỉ hiện `@ sha7` (hoặc gọi API lấy `default_branch`, tốn quota) | Màn hình "Tiếp tục học" hiện `shop-api · 43fca52d…(40 ký tự) @ 43fca52` |
+
+**Không gấp (code đã chạy được, chỉ cần sửa câu chữ spec cho khớp)**
+
+| # | Chỗ | Mâu thuẫn | Code đang làm | Việc cần làm |
+| :-: | :-- | :-- | :-- | :-- |
+| 3 | `11` Mục 13 ý 1 vs bảng T-ENG-18 | `TECH_TOKENS` có `route` nhưng bảng kỳ vọng `algo-find-shortest-route-acfab3` | Theo luật Mục 13 ⇒ `algo-find-shortest-acfab3` | Chọn: bỏ `route` khỏi `TECH_TOKENS` cho node thuật toán, hoặc sửa bảng T-ENG-18 |
+| 4 | `10` Mục 8 ý 7 (ROLE theo thư mục) vs bảng T-ENG-16 | `server` ∈ ROLE_NAMES nhưng `server/tests/order.test.ts` kỳ vọng 1.3333 | Theo bảng test: file trong scope chỉ xét thư mục **sau** scope | Sửa câu chữ Mục 8 ý 7 |
+| 5 | `11` Mục 0 chữ ký `buildGraph(input): StaticEngineResult` | Phải gọi `parseAll` (async) | `buildGraph(…): Promise<StaticEngineResult>` | Sửa chữ ký trong spec |
+| 6 | `11` Mục 0 chữ ký `runEngine(src)` | `runIngest(src, signal)` cần `AbortSignal` | `runEngine(src, signal?)` | Sửa chữ ký trong spec; báo A06 |
+| 7 | `11` ENG-12 "byte node ERROR / byte file" | `web-tree-sitter` (JS) trả index **UTF-16**, không phải byte | Tính ρ bằng đơn vị UTF-16 (`source.length`) | Sửa câu chữ ENG-12 |
+| 8 | Chữ ký spec không nhận `report` (`readCentralDirectory`, `classifyEntry`, `detectScope`, `computeSnapshot`…) nhưng luật bắt đếm `skipped.*`/warning | — | Thêm `report?` ở cuối chữ ký | Ghi luật này vào spec `10` Mục 0 |
+| 9 | Câu chữ warning spec chỉ ghi "+ warning" | Không có câu | Câu tạm, có comment `// Câu tạm…`: (a) GitHub rơi vào `ARCHIVE_HASH` (T-ING-33); (b) file lệch dòng sau khi che ⇒ bỏ (`10` Mục 11 ý 2); (c) manifest > `MAX_MANIFEST_BYTES` (`10` Mục 9 ý 2) | Chốt 3 câu, ghi vào spec |
+| 10 | Phạm vi ngôn ngữ | `11` Mục 1 có Java/Go/Dart (`RESOLVED`), 9 ngôn ngữ `STRUCTURAL`, màn hình Flutter/Android/iOS (D-57) | Chưa phiếu nào làm; B01 chỉ có 4 grammar (TS, TSX, JS, Python); ca test các ngôn ngữ này là `it.todo` ở B10 | Chọn: thêm phiếu B11 hay ghi vào `07` Mục 3 là cắt |
+
+**Việc vai khác cần làm (không phải chốt spec, đã báo)**
+
+| Vai | Việc | Vì sao |
+| :-- | :-- | :-- |
+| ~~A (A09)~~ | ~~Thêm `./queries/*.scm` vào `outputFileTracingIncludes` của `/api/ingest` trong `next.config.ts` và vào Dockerfile~~ **Xong (PR #91)** | Engine đọc `.scm` bằng `fs`; thiếu thì Tầng 1 chết trên Vercel/Docker, test ở máy vẫn xanh |
+| ~~A (A06)~~ | ~~Đổi `IngestionError` (`code`, `details`) sang `ApiHttpError` trước khi trả; `toErrorResponse` hiện coi lỗi lạ là `ERR_PERSISTENCE_UNAVAILABLE` | Link sai, repo rỗng… sẽ báo nhầm lỗi CSDL~~ **Xong (PR #93)** |
+| ~~A (A06)~~ | ~~Dùng đúng chữ ký `runEngine(src, signal?)` + `toClientResult(result)`, không gọi `runIngest` riêng | Gọi cả hai là ingest 2 lần~~ **Xong (PR #93)** |
 
 ## Bạn chờ ai, ai chờ bạn
 

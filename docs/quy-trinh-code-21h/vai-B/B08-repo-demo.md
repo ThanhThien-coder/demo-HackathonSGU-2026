@@ -38,14 +38,18 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Phối hợp sửa các lỗi phát hiện khi chạy engine trên repo demo Q-03 và `shop-api` đối chiếu `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5 dòng 1–3 và các lỗi engine tôi dán dưới đây; chỉ sửa lỗi trong `src/server/engine/`.
-   <dán số Issue nhãn `engine` và mô tả từng lỗi Vai E báo>
+2. B1: (Nếu E06 đã có Issue thì dán vào; chưa có thì làm theo các ý dưới.) Phối hợp sửa các lỗi phát hiện khi chạy engine trên repo demo Q-03 và `shop-api` đối chiếu `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5 dòng 1–3 và các lỗi engine tôi dán dưới đây; chỉ sửa lỗi trong `src/server/engine/`.
+   - Lượt này (03/11): E06 (#54) chưa báo lỗi nào, repo demo Q-03 chưa chọn ⇒ theo mặc định Q-03 dùng repo `shop-api` tự viết theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 1. Tự dựng repo đó **trong RAM ngay trong test** (zip bằng `fflate`, không ghi đĩa, không sửa `__fixtures__/` của Vai E): đủ các file trong `file_index` của `src/server/engine/__fixtures__/shop-api.json` (17 file: routes auth/cart/order/user, controllers product/report, middleware auth, services, repos, clients/mailer) và 7 luồng như bản vẽ tay (Đăng ký, Hồ sơ, Giỏ hàng, Danh sách sản phẩm, Thanh toán, Báo cáo doanh thu, Gửi email), router mount kiểu `app.use("/api/orders", router)`, dùng nguyên code bước N2, N3, N5 của Mục 1.2. Chạy `runEngine`, so với DoD `50` Mục 5 dòng 1–3; lỗi engine tìm thấy thì sửa trong `src/server/engine/` và ghi vào báo cáo.
+   - `shop-api.json` là bản vẽ tay (Mục 1.1: "khi chạy engine thật, đồ thị engine sinh là chuẩn") ⇒ KHÔNG so khớp từng chữ id/tên; chỉ so hình dạng: mỗi luồng có lát cắt, tầng bước hợp lý, số node trong khoảng DoD.
+   - Khi E06 mở Issue `bug` + `engine` thì làm lượt 2 trên nhánh `b/fix-<issue>`.
 3. B2: Viết test trong `src/server/engine/__tests__/repo-demo.test.ts` kiểm tra tính tất định X-01 (chạy engine 2 lần cùng zip, so `JSON.stringify`) và kiểm tra bố cục bản đồ X-07 (hàng điểm bắt đầu, cạnh thuật toán D-55, D-56).
 4. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
 - Test X-01 (tất định) và test X-07 (hàng điểm bắt đầu) chạy xanh.
+- Có test DoD dòng 1–3 trên repo shop-api trong RAM: `CONFIG.DISPLAY_MIN_NODES` ≤ số node ≤ `CONFIG.DISPLAY_MAX_NODES`; chạy 2 lần cùng `id` và cùng `position`; mọi node `prerequisites = []` cùng `position.y` nhỏ nhất; node `algo-*` được lát cắt gọi tới có cạnh nối (nếu repo có).
+- `npm run typecheck`, `npx vitest run src/server/engine`, `npx eslint src/server/engine` (0 warning) đều sạch.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -53,6 +57,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
+- Test chạy thật `runEngine` đặt `vi.setConfig({ testTimeout: 30_000 })` (tránh đỏ chập chờn khi máy tải nặng). Tên test bắt đầu bằng mã X-01, X-07 hoặc ENG. Giá trị giả giống khóa theo luật README (hook quét khóa). Không `Math.random`, không `localeCompare`.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
 ```
 
@@ -70,6 +75,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
+- [ ] Soi bản đồ repo `shop-api` (in tóm tắt node và bước): mỗi lát cắt đi tới DATA_ACCESS, không chỉ đếm số node. Lần tập, đủ 7 node mà lát cắt cụt ở ENTRY/MIDDLEWARE.
 - [ ] Test X-01 và X-07 chạy xanh.
 - [ ] Tự chạy engine trên repo demo xác nhận số node trong khoảng `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` và mọi điểm bắt đầu nằm cùng hàng trên cùng.
 
