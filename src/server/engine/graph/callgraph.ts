@@ -92,18 +92,23 @@ function findEnclosingFunctionKey(
   let cur: Node | null = node.parent;
   while (cur) {
     if (FUNCTION_NODE_TYPES.has(cur.type)) {
+      // ENG-20: line_start của symbol tính từ decorator đầu tiên (NestJS @Post + @UseGuards, Flask @route +
+      // @login_required…) nên có thể nằm trên node hàm nhiều dòng. Khớp theo dòng kết thúc trùng khít,
+      // line_start ≤ dòng đầu node, ưu tiên trùng tên; nhiều ứng viên ⇒ line_start lớn nhất, rồi khóa nhỏ.
+      const rowStart = cur.startPosition.row + 1;
+      const rowEnd = cur.endPosition.row + 1;
+      const nodeName = cur.childForFieldName("name")?.text ?? null;
+      let best: { key: string; start: number; named: boolean } | null = null;
       for (const [key, func] of idx.functions.entries()) {
-        if (func.file_path === filePath) {
-          const rowStart = cur.startPosition.row + 1;
-          const rowEnd = cur.endPosition.row + 1;
-          if (
-            Math.abs(func.line_start - rowStart) <= 1 &&
-            Math.abs(func.line_end - rowEnd) <= 1
-          ) {
-            return key;
-          }
-        }
+        if (func.file_path !== filePath || func.line_end !== rowEnd || func.line_start > rowStart) continue;
+        const named = nodeName !== null && func.name === nodeName;
+        const better =
+          !best ||
+          (named && !best.named) ||
+          (named === best.named && (func.line_start > best.start || (func.line_start === best.start && key < best.key)));
+        if (better) best = { key, start: func.line_start, named };
       }
+      if (best) return best.key;
     }
     cur = cur.parent;
   }
@@ -466,29 +471,43 @@ export function buildCallGraph(
 
       // 3. Nhận diện Flask / FastAPI Route (Python ENG-40)
       if (lang === "PYTHON" && node.type === "decorated_definition") {
+        // `12` Mục 1 Flask/FastAPI: `@X.route(path, methods=…)`, `@X.get/post/…(path)`; decorator khác
+        // (`@login_required`) = middleware; FastAPI `Depends(fn)` ⇒ middleware theo thứ tự tham số.
         let routeVerb: string | null = null;
         let routePath: string | null = null;
+        let routeReceiver = "app";
+        let routeDecorator = "";
         const middlewares: string[] = [];
 
         for (let i = 0; i < node.childCount; i++) {
           const c = node.child(i);
-          if (c && c.type === "decorator") {
-            const decCall = c.namedChild(0);
-            if (decCall && decCall.type === "call") {
-              const fn = decCall.childForFieldName("function");
-              if (fn && fn.type === "attribute") {
-                const attr = fn.childForFieldName("attribute")?.text?.toLowerCase();
-                if (attr && (HTTP_VERBS.has(attr) || attr === "route")) {
-                  routeVerb = attr === "route" ? "GET" : attr.toUpperCase();
-                  const args = decCall.childForFieldName("arguments");
-                  if (args && args.namedChildCount > 0) {
-                    routePath = extractStaticString(args.namedChild(0));
-                  }
+          if (!c || c.type !== "decorator") continue;
+          const expr = c.namedChild(0);
+          const fn = expr?.type === "call" ? expr.childForFieldName("function") : expr;
+          const attr = fn?.type === "attribute" ? fn.childForFieldName("attribute")?.text?.toLowerCase() : undefined;
+          if (expr?.type === "call" && fn?.type === "attribute" && attr && (HTTP_VERBS.has(attr) || attr === "route")) {
+            routeReceiver = fn.childForFieldName("object")?.text ?? "app";
+            routeDecorator = attr;
+            routeVerb = attr === "route" ? "GET" : attr.toUpperCase();
+            const args = expr.childForFieldName("arguments");
+            for (let k = 0; k < (args?.namedChildCount ?? 0); k++) {
+              const a = args!.namedChild(k);
+              if (!a) continue;
+              if (a.type === "keyword_argument") {
+                // Flask methods=["POST", …] ⇒ verb đầu tiên
+                if (a.childForFieldName("name")?.text === "methods") {
+                  const list = a.childForFieldName("value");
+                  const first = list?.namedChild(0) ?? null;
+                  const m = extractStaticString(first);
+                  if (m) routeVerb = m.toUpperCase();
                 }
+              } else if (routePath === null) {
+                routePath = extractStaticString(a);
               }
-            } else if (c.text.includes("login_required") || c.text.includes("auth")) {
-              middlewares.push(c.text.replace(/^@/, ""));
             }
+          } else if (fn) {
+            // Decorator khác ⇒ middleware (tên hàm decorator, bỏ đối số)
+            middlewares.push(fn.text);
           }
         }
 
@@ -497,6 +516,17 @@ export function buildCallGraph(
           if (defNode && defNode.type === "function_definition") {
             const fnName = defNode.childForFieldName("name")?.text ?? "";
             const handlerKey = `${filePath}#${fnName}`;
+
+            // FastAPI: tham số `x = Depends(fn)` ⇒ middleware `fn`, theo thứ tự tham số
+            const params = defNode.childForFieldName("parameters");
+            for (let k = 0; k < (params?.namedChildCount ?? 0); k++) {
+              const p = params!.namedChild(k);
+              const value = p?.childForFieldName("value");
+              if (value?.type === "call" && value.childForFieldName("function")?.text === "Depends") {
+                const dep = value.childForFieldName("arguments")?.namedChild(0);
+                if (dep && (dep.type === "identifier" || dep.type === "attribute")) middlewares.push(dep.text);
+              }
+            }
 
             bindings.push({
               file_path: filePath,
@@ -507,7 +537,7 @@ export function buildCallGraph(
               path: routePath,
               handler: handlerKey,
               middlewares,
-              display_name: `@app.${routeVerb.toLowerCase()}('${routePath ?? ""}')`,
+              display_name: `@${routeReceiver}.${routeDecorator}('${routePath ?? ""}')`,
             });
           }
         }
@@ -855,7 +885,140 @@ export function buildCallGraph(
     return 0;
   });
 
+  applyMountPrefixes(files, idx, bindings);
   return { edges, external, bindings };
+}
+
+function joinRoutePath(prefix: string, p: string): string {
+  const joined = `${prefix.replace(/\/+$/, "")}/${p.replace(/^\/+/, "")}`;
+  return joined.length > 1 ? joined.replace(/\/+$/, "") : "/";
+}
+
+/**
+ * `12` Mục 1 (Express/Koa): `R.use(prefix, R2)` = tiền tố của `R2`; `11` ENG-40 ý 2: `path` = tiền tố mount
+ * (`visited`), mount nhiều nơi ⇒ path nhỏ nhất. `R2` là router cùng file (so theo tên receiver) hoặc router
+ * import mặc định từ file khác (mọi binding trong file đó). Chỉ đổi `binding.path` (dùng cho đặt tên);
+ * `display_name` và khóa handler giữ path viết trong code nên id node không đổi.
+ */
+function applyMountPrefixes(files: ParsedFile[], idx: SymbolIndex, bindings: RouteBinding[]): void {
+  type Mount = { prefix: string; fromFile: string; fromReceiver: string };
+  const fileMounts = new Map<string, Mount[]>(); // router import từ file khác: file đích ⇒ các chỗ mount
+  const localMounts = new Map<string, Mount[]>(); // router cùng file: `${file}::${receiver}` ⇒ các chỗ mount
+
+  // Python: tiền tố riêng của router (`X = APIRouter(prefix=…)`, `X = Blueprint(…, url_prefix=…)`) ⇒ ownPrefix;
+  // `R.include_router(T, prefix=…)` / `R.register_blueprint(T, url_prefix=…)` ⇒ mount của T (T = tên import,
+  // hoặc `mod.router` với `mod` là module import) ⇒ ghép: tiền tố ngoài + tiền tố riêng + path.
+  const ownPrefix = new Map<string, string>(); // `${file}::${receiver}` ⇒ tiền tố riêng
+  const kwString = (args: Node | null, names: string[]): string | null => {
+    for (let k = 0; k < (args?.namedChildCount ?? 0); k++) {
+      const a = args!.namedChild(k);
+      if (a?.type === "keyword_argument" && names.includes(a.childForFieldName("name")?.text ?? "")) {
+        return extractStaticString(a.childForFieldName("value"));
+      }
+    }
+    return null;
+  };
+  const addMount = (map: Map<string, Mount[]>, key: string, m: Mount) => {
+    const list = map.get(key) ?? [];
+    list.push(m);
+    map.set(key, list);
+  };
+  for (const file of files) {
+    if (file.language !== "PYTHON") continue;
+    const visit = (node: Node): void => {
+      if (node.type === "assignment") {
+        const left = node.childForFieldName("left");
+        const right = node.childForFieldName("right");
+        const ctor = right?.type === "call" ? right.childForFieldName("function")?.text : undefined;
+        if (left?.type === "identifier" && (ctor === "APIRouter" || ctor === "Blueprint")) {
+          const p = kwString(right!.childForFieldName("arguments"), ["prefix", "url_prefix"]);
+          if (p) ownPrefix.set(`${file.path}::${left.text}`, p);
+        }
+      } else if (node.type === "call") {
+        const fn = node.childForFieldName("function");
+        const method = fn?.type === "attribute" ? fn.childForFieldName("attribute")?.text : undefined;
+        if (method === "include_router" || method === "register_blueprint") {
+          const args = node.childForFieldName("arguments");
+          const target = args?.namedChild(0) ?? null;
+          const prefix = kwString(args, ["prefix", "url_prefix"]) ?? "";
+          const mount: Mount = { prefix, fromFile: file.path, fromReceiver: fn!.childForFieldName("object")?.text ?? "" };
+          if (target?.type === "identifier") {
+            const imp = idx.imports.get(file.path)?.get(target.text);
+            if (imp?.source_file) addMount(localMounts, `${imp.source_file}::${imp.symbol_name || target.text}`, mount);
+            else addMount(localMounts, `${file.path}::${target.text}`, mount);
+          } else if (target?.type === "attribute") {
+            const mod = target.childForFieldName("object")?.text ?? "";
+            const recv = target.childForFieldName("attribute")?.text ?? "";
+            const imp = idx.imports.get(file.path)?.get(mod);
+            if (imp?.source_file) addMount(localMounts, `${imp.source_file}::${recv}`, mount);
+          }
+        }
+      }
+      for (let i = 0; i < node.namedChildCount; i++) {
+        const c = node.namedChild(i);
+        if (c) visit(c);
+      }
+    };
+    visit(file.tree.rootNode);
+  }
+
+  for (const file of files) {
+    if (file.language !== "TYPESCRIPT" && file.language !== "TSX" && file.language !== "JAVASCRIPT") continue;
+    const visit = (node: Node): void => {
+      if (node.type === "call_expression") {
+        const fn = node.childForFieldName("function");
+        const args = node.childForFieldName("arguments");
+        if (fn?.type === "member_expression" && fn.childForFieldName("property")?.text === "use" && args && args.namedChildCount >= 2) {
+          const prefix = extractStaticString(args.namedChild(0));
+          const target = args.namedChild(args.namedChildCount - 1);
+          const receiver = fn.childForFieldName("object")?.text ?? "";
+          if (prefix !== null && target?.type === "identifier") {
+            const mount: Mount = { prefix, fromFile: file.path, fromReceiver: receiver };
+            const imported = idx.imports.get(file.path)?.get(target.text);
+            if (imported?.source_file) {
+              const list = fileMounts.get(imported.source_file) ?? [];
+              list.push(mount);
+              fileMounts.set(imported.source_file, list);
+            } else {
+              const key = `${file.path}::${target.text}`;
+              const list = localMounts.get(key) ?? [];
+              list.push(mount);
+              localMounts.set(key, list);
+            }
+          }
+        }
+      }
+      for (let i = 0; i < node.namedChildCount; i++) {
+        const c = node.namedChild(i);
+        if (c) visit(c);
+      }
+    };
+    visit(file.tree.rootNode);
+  }
+  if (fileMounts.size === 0 && localMounts.size === 0 && ownPrefix.size === 0) return;
+
+  // Tiền tố đầy đủ của router `receiver` trong `file`: tiền tố ngoài (đệ quy qua chỗ mount, visited chống vòng,
+  // mount nhiều nơi ⇒ path nhỏ nhất) + tiền tố riêng của router.
+  const resolvePrefix = (file: string, receiver: string, visited: Set<string>): string => {
+    const key = `${file}::${receiver}`;
+    if (visited.has(key)) return "";
+    visited.add(key);
+    const own = ownPrefix.get(key) ?? "";
+    const mounts = [...(localMounts.get(key) ?? []), ...(fileMounts.get(file) ?? [])];
+    if (mounts.length === 0) return own;
+    const outer = mounts
+      .map((m) => joinRoutePath(resolvePrefix(m.fromFile, m.fromReceiver, new Set(visited)), m.prefix))
+      .sort((a, b) => (a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0))[0] ?? "";
+    return own ? joinRoutePath(outer || "/", own) : outer;
+  };
+
+  for (const b of bindings) {
+    if (b.path === null || b.kind !== "HTTP") continue;
+    // display_name: `router.post('/x')` (Express) hoặc `@router.post('/x')` (Python) ⇒ receiver `router`
+    const receiver = b.display_name.slice(0, b.display_name.lastIndexOf(".")).replace(/^@/, "");
+    const prefix = resolvePrefix(b.file_path, receiver, new Set());
+    if (prefix && prefix !== "/") b.path = joinRoutePath(prefix, b.path);
+  }
 }
 
 // ENG-35: Đồ thị file từ đồ thị cạnh hàm
