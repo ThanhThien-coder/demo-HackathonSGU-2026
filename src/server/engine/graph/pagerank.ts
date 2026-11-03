@@ -141,7 +141,8 @@ export function rankFiles(
   }
 
   let largestScc = findLargestScc(sccs);
-  const giantThreshold = n * CONFIG.GIANT_SCC_RATIO;
+  // SCC 1 file không có vòng phụ thuộc ⇒ không bao giờ là "cụm vòng lớn" (repo nhỏ: 0.4 × 2 file = 0.8 < 1).
+  const giantThreshold = Math.max(1, n * CONFIG.GIANT_SCC_RATIO);
 
   for (
     let removalCount = 0;
