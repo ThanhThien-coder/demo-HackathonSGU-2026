@@ -9,6 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // Ghim gốc dự án để Next không lấy nhầm package-lock.json ở thư mục cha.
   outputFileTracingRoot: __dirname,
   // 04 Mục 16, D-70: route ingest đọc grammar .wasm và truy vấn .scm bằng fs,
