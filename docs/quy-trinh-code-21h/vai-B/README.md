@@ -63,6 +63,8 @@ Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --n
 - **API `web-tree-sitter` 0.27 (bản đã pin), dùng cho B05–B10:** kiểu nút là `Node` (`import { Node, Query, Tree, Language } from "web-tree-sitter"`), không có `SyntaxNode`; tạo truy vấn bằng `new Query(language, source)` rồi `query.captures(node)` / `query.matches(node)`, không có `language.query()`. AI hay viết theo API cũ (≤ 0.20) ⇒ `tsc` đỏ. Viết query `.scm` thì in `tree.rootNode.toString()` của đoạn code mẫu để xem cây thật trước (vd. decorator NestJS nằm trước `method_definition` trong `class_body`).
 - **Index của `web-tree-sitter` (JS) là đơn vị UTF-16, không phải byte UTF-8** (đo thật với 0.27.1, dù typings ghi "byte"): `node.startIndex/endIndex` cắt thẳng được bằng `source.slice()`. Mọi tỉ lệ, độ dài so với node (ENG-12, snippet, cửa sổ dòng ở B06) phải dùng `source.length`, không `Buffer.byteLength`, kẻo code có tiếng Việt bị tính sai.
 - **Test từng hàm không đủ: B06, B07 phải có test chạy thật `runEngine`** trên zip dựng trong RAM: repo mẫu theo code spec 50 Mục 1.2 (Express + TypeORM, router mount `app.use("/api/orders", router)`) và 1 repo nhỏ cho mỗi framework ✅ (FastAPI, Flask, NestJS), kiểm tên node, thứ tự `layer` các bước, snippet có dòng gọi bước kế. Lần tập, toàn bộ test từng hàm xanh mà chạy thật lộ 7 lỗi (xem `src/server/engine/graph/__tests__/shop-mau.test.ts`, `framework-mau.test.ts`).
+- **Service/repo import dạng instance** (`export const svc = new Svc()` rồi `import { svc }`, mẫu phổ biến nhất của Express): phân giải `svc.m()` phải tra kiểu ở **file nguồn** (ENG-22) rồi tìm `Svc.m`; không có đích thật thì ghi `ExternalCall`, không tạo cạnh tới khóa không tồn tại. Lần tập lỗi này lọt qua B05–B07, chỉ lộ ra ở B08.
+- **Test không so `warnings` rỗng** khi chạy thật `runEngine`: warning vượt `CONFIG.ENGINE_BUDGET_MS` (ENG-02) xuất hiện khi CI tải nặng; lọc đúng câu cần kiểm.
 - **Sort chuỗi để tất định (ING-02, ENG-01):** dùng `.sort()` mặc định (UTF-16), không dùng `localeCompare` (phụ thuộc locale máy).
 - **Thử lại và hẹn giờ của Tầng 0** (ING-40, ING-44) nằm ở `runIngest` (B04), vì zip hỏng chỉ phát hiện được khi đọc mục lục (B03). Hàm con chỉ nhận `signal` và ném `IngestionError`.
 - **Tên test:** tên đầy đủ (gồm `describe` bọc ngoài) bắt đầu bằng mã luật hoặc mã test (`T-ING-07 …`, `ING-45 …`), không bắt đầu bằng tên task.
@@ -100,8 +102,8 @@ Các chỗ spec tự mâu thuẫn, chưa nói, hoặc code phải làm khác câ
 | Vai | Việc | Vì sao |
 | :-- | :-- | :-- |
 | ~~A (A09)~~ | ~~Thêm `./queries/*.scm` vào `outputFileTracingIncludes` của `/api/ingest` trong `next.config.ts` và vào Dockerfile~~ **Xong (PR #91)** | Engine đọc `.scm` bằng `fs`; thiếu thì Tầng 1 chết trên Vercel/Docker, test ở máy vẫn xanh |
-| A (A06) | Đổi `IngestionError` (`code`, `details`) sang `ApiHttpError` trước khi trả; `toErrorResponse` hiện coi lỗi lạ là `ERR_PERSISTENCE_UNAVAILABLE` | Link sai, repo rỗng… sẽ báo nhầm lỗi CSDL |
-| A (A06) | Dùng đúng chữ ký `runEngine(src, signal?)` + `toClientResult(result)`, không gọi `runIngest` riêng | Gọi cả hai là ingest 2 lần |
+| ~~A (A06)~~ | ~~Đổi `IngestionError` (`code`, `details`) sang `ApiHttpError` trước khi trả; `toErrorResponse` hiện coi lỗi lạ là `ERR_PERSISTENCE_UNAVAILABLE` | Link sai, repo rỗng… sẽ báo nhầm lỗi CSDL~~ **Xong (PR #93)** |
+| ~~A (A06)~~ | ~~Dùng đúng chữ ký `runEngine(src, signal?)` + `toClientResult(result)`, không gọi `runIngest` riêng | Gọi cả hai là ingest 2 lần~~ **Xong (PR #93)** |
 
 ## Bạn chờ ai, ai chờ bạn
 
