@@ -38,6 +38,7 @@ vi.mock("@google/genai", () => ({
 }));
 
 import {
+  aiCostUsd,
   assertGeminiEnv,
   callLLMOnce,
   callLLMWithRetry,
@@ -367,5 +368,10 @@ describe("AI-12 — Phân loại lỗi, gọi lại và tính token", () => {
     // FATAL => không chờ
     await retryDelay({ ok: false, kind: "FATAL", status: 404, tokens_in: 0, tokens_out: 0 }, sleepFn);
     expect(sleepFn).not.toHaveBeenCalled();
+  });
+
+  it("aiCostUsd tính đúng theo đơn vị 1M token (D-69)", () => {
+    expect(aiCostUsd(1_000_000, 0)).toBe(CONFIG.LLM_PRICE_INPUT_USD_PER_M);
+    expect(aiCostUsd(0, 1_000_000)).toBe(CONFIG.LLM_PRICE_OUTPUT_USD_PER_M);
   });
 });

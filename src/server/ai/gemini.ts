@@ -263,3 +263,13 @@ export async function callLLMWithRetry<T>(
     tokens_out: totalTokensOut,
   };
 }
+
+/**
+ * Tính chi phí ước tính bằng USD từ số token vào và ra (D-69).
+ */
+export function aiCostUsd(tokensIn: number, tokensOut: number): number {
+  return (
+    (tokensIn * CONFIG.LLM_PRICE_INPUT_USD_PER_M) / 1e6 +
+    (tokensOut * CONFIG.LLM_PRICE_OUTPUT_USD_PER_M) / 1e6
+  );
+}
