@@ -5,8 +5,9 @@ import { getSessionProgress } from "@/server/progress";
 
 export const dynamic = "force-dynamic";
 
+// Next 15: params cua route dong luon la Promise (kieu khac lam next build bao loi).
 type RouteContext = {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 };
 
 // 03_API_VA_LUU_TRU Muc 2 dong 13: GET /api/sessions/{session_id}/progress
@@ -17,7 +18,7 @@ export async function GET(
 ): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
-    const { id: sessionId } = await Promise.resolve(context.params);
+    const { id: sessionId } = await context.params;
 
     const progress = await getSessionProgress(sessionId, user.id);
 
