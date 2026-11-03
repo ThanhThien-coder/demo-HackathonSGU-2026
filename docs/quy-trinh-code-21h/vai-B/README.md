@@ -99,7 +99,7 @@ Các chỗ spec tự mâu thuẫn, chưa nói, hoặc code phải làm khác câ
 
 | Vai | Việc | Vì sao |
 | :-- | :-- | :-- |
-| A (A09) | Thêm `./queries/*.scm` vào `outputFileTracingIncludes` của `/api/ingest` trong `next.config.ts` và vào Dockerfile | Engine đọc `.scm` bằng `fs`; thiếu thì Tầng 1 chết trên Vercel/Docker, test ở máy vẫn xanh |
+| ~~A (A09)~~ | ~~Thêm `./queries/*.scm` vào `outputFileTracingIncludes` của `/api/ingest` trong `next.config.ts` và vào Dockerfile~~ **Xong (PR #91)** | Engine đọc `.scm` bằng `fs`; thiếu thì Tầng 1 chết trên Vercel/Docker, test ở máy vẫn xanh |
 | A (A06) | Đổi `IngestionError` (`code`, `details`) sang `ApiHttpError` trước khi trả; `toErrorResponse` hiện coi lỗi lạ là `ERR_PERSISTENCE_UNAVAILABLE` | Link sai, repo rỗng… sẽ báo nhầm lỗi CSDL |
 | A (A06) | Dùng đúng chữ ký `runEngine(src, signal?)` + `toClientResult(result)`, không gọi `runIngest` riêng | Gọi cả hai là ingest 2 lần |
 
