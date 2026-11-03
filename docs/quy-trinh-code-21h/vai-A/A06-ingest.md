@@ -24,7 +24,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 4, 6.6
-- `.kb/spec/02_CONTRACTS.md` Mục 3, 7, 8
+- `.kb/spec/02_CONTRACTS.md` Mục 3, 7, 8, 9
+- `.kb/spec/10_ENGINE_INGEST.md` Mục 1 (`IngestionError`)
+- `.kb/spec/11_ENGINE_DO_THI.md` Mục 0 (chữ ký `runEngine`)
 - `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-09
 - `.kb/spec/00_QUYET_DINH.md` D-27, D-31, D-42, D-59, D-64
 - `package.json`
@@ -37,16 +39,19 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Xử lý link GitHub: giới hạn đồng thời `CONFIG.MAX_CONCURRENT_INGESTIONS` ⇒ gọi `runIngest` ⇒ gọi `runEngine` ⇒ ghi `learning_sessions`, `session_snapshots` (D-59) ⇒ trả về `IngestResponse` qua hàm `toClientResult`; cấu hình `export const runtime = "nodejs"`.
+2. B1: Xử lý link GitHub: giới hạn đồng thời `CONFIG.MAX_CONCURRENT_INGESTIONS` ⇒ gọi `runEngine` (bên trong `runEngine` đã gọi `runIngest` rồi `buildGraph`, `.kb/spec/11_ENGINE_DO_THI.md` Mục 0; route KHÔNG gọi `runIngest` riêng, gọi cả hai là ingest 2 lần) ⇒ ghi `learning_sessions`, `session_snapshots` (D-59) ⇒ trả về `IngestResponse` qua hàm `toClientResult`; cấu hình `export const runtime = "nodejs"`.
 3. B2: Xử lý mở lại phiên `{ session_id }` từ snapshot đã lưu trong CSDL, không tải lại file zip; xử lý tùy chọn `restart` (D-42); xử lý `subdir_override`.
 4. B3: Xử lý upload file `.zip` qua trường `archive`, kiểm tra trần kích thước `CONFIG.MAX_UPLOAD_BYTES` (D-27).
-5. Viết test trong `src/app/api/__tests__/ingest.test.ts`: dùng `vi.mock` hàm `runEngine` trả về fixture `src/server/engine/__fixtures__/shop-api.json`.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+5. B4: Bắt lỗi engine. Bọc lời gọi `runEngine` trong `try/catch`: lỗi là `IngestionError` (engine ném, mang mã `IngestionErrorCode`, `.kb/spec/10_ENGINE_INGEST.md` Mục 1) ⇒ đổi thành `ApiError` bằng hàm của `src/server/errors.ts` (A04): giữ nguyên `code`, mã HTTP và `retryable` theo bảng `.kb/spec/02_CONTRACTS.md` Mục 9, chuyển tiếp `details` nếu có (VD `language`, `hint`). Không viết lại bảng mã HTTP trong route. Lỗi khác không phải `IngestionError` thì ném tiếp, không gắn mã ingest. Lớp `IngestionError` lấy từ code engine trong `src/server/engine/`; chưa có trên nhánh thì đổi trạng thái `kẹt`, không tự tạo lớp mới.
+6. Viết test trong `src/app/api/__tests__/ingest.test.ts`: dùng `vi.mock` hàm `runEngine` trả về fixture `src/server/engine/__fixtures__/shop-api.json`. Thêm 1 test cho `runEngine` ném `IngestionError("ERR_INVALID_GITHUB_URL")` ⇒ response HTTP 400, body là `ApiError` có `error.code = "ERR_INVALID_GITHUB_URL"`.
+7. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/app/api/__tests__/ingest.test.ts`
 - Response trả về không chứa các trường nội bộ `symbol_whitelist`, `suspicious_instruction_files` (API-03).
 - Mở lại phiên `{ session_id }` không thực hiện bất kỳ lệnh tải file zip nào.
+- Lệnh `grep -n "runIngest" src/app/api/ingest/route.ts src/server/session.ts` không có kết quả (chỉ gọi `runEngine`).
+- `IngestionError` từ `runEngine` trả về `ApiError` đúng mã HTTP của `.kb/spec/02_CONTRACTS.md` Mục 9 (có test).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -73,6 +78,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Phản hồi API không chứa các trường nhạy cảm `symbol_whitelist` hay `suspicious_instruction_files`.
 - [ ] Khi gửi yêu cầu mở lại phiên `{ session_id }`, hệ thống đọc từ snapshot và không tải lại zip.
+- [ ] Gõ `grep -n "runIngest" src/app/api/ingest/route.ts src/server/session.ts`, không có kết quả: route chỉ gọi `runEngine`, không ingest 2 lần.
+- [ ] Có test `runEngine` ném `IngestionError` ⇒ trả `ApiError` đúng mã HTTP (VD `ERR_INVALID_GITHUB_URL` ⇒ 400), và test đó xanh.
 
 ```text
 Task "A06 — Nối POST /api/ingest" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
