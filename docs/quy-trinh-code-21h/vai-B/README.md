@@ -65,6 +65,9 @@ Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --n
 - **Test từng hàm không đủ: B06, B07 phải có test chạy thật `runEngine`** trên zip dựng trong RAM: repo mẫu theo code spec 50 Mục 1.2 (Express + TypeORM, router mount `app.use("/api/orders", router)`) và 1 repo nhỏ cho mỗi framework ✅ (FastAPI, Flask, NestJS), kiểm tên node, thứ tự `layer` các bước, snippet có dòng gọi bước kế. Lần tập, toàn bộ test từng hàm xanh mà chạy thật lộ 7 lỗi (xem `src/server/engine/graph/__tests__/shop-mau.test.ts`, `framework-mau.test.ts`).
 - **Service/repo import dạng instance** (`export const svc = new Svc()` rồi `import { svc }`, mẫu phổ biến nhất của Express): phân giải `svc.m()` phải tra kiểu ở **file nguồn** (ENG-22) rồi tìm `Svc.m`; không có đích thật thì ghi `ExternalCall`, không tạo cạnh tới khóa không tồn tại. Lần tập lỗi này lọt qua B05–B07, chỉ lộ ra ở B08. Phải test đủ **6 kiểu export**: `export const svc = new Svc()`, `export default new Svc()` (ghi `field_types[file#default]`), CommonJS `module.exports = new Svc()` + `require`, method `static`, `import * as ns`, instance tạo trong file container (xem `framework-mau.test.ts`).
 - **Test không so `warnings` rỗng** khi chạy thật `runEngine`: warning vượt `CONFIG.ENGINE_BUDGET_MS` (ENG-02) xuất hiện khi CI tải nặng; lọc đúng câu cần kiểm.
+- **Mẫu entry dựa đường dẫn (Next.js `app/**`, `pages/api/**`, Expo Router `app/**`) chỉ áp cho file TS/JS**: lần tập (B10) áp cả file Python trong `app/` ⇒ làm đỏ test Flask/FastAPI.
+- **`jsx_attribute` của grammar tsx không có field `name`/`value`**: đọc qua `namedChild(0)`/`namedChild(1)` (`<Tab.Screen name=…>`, `<Route path=…>`).
+- **ENG-81 cài đúng spec**: giữ callee khi giá trị trả về được dùng ở call site (gán, return, đối số, điều kiện) hoặc có `throw` trong **thân** callee; lần tập cài thành "callee có gọi tiếp" ⇒ lát cắt màn hình mobile cụt.
 - **Sort chuỗi để tất định (ING-02, ENG-01):** dùng `.sort()` mặc định (UTF-16), không dùng `localeCompare` (phụ thuộc locale máy).
 - **Thử lại và hẹn giờ của Tầng 0** (ING-40, ING-44) nằm ở `runIngest` (B04), vì zip hỏng chỉ phát hiện được khi đọc mục lục (B03). Hàm con chỉ nhận `signal` và ném `IngestionError`.
 - **Tên test:** tên đầy đủ (gồm `describe` bọc ngoài) bắt đầu bằng mã luật hoặc mã test (`T-ING-07 …`, `ING-45 …`), không bắt đầu bằng tên task.
@@ -96,6 +99,14 @@ Các chỗ spec tự mâu thuẫn, chưa nói, hoặc code phải làm khác câ
 | 8 | Chữ ký spec không nhận `report` (`readCentralDirectory`, `classifyEntry`, `detectScope`, `computeSnapshot`…) nhưng luật bắt đếm `skipped.*`/warning | — | Thêm `report?` ở cuối chữ ký | Ghi luật này vào spec `10` Mục 0 |
 | 9 | Câu chữ warning spec chỉ ghi "+ warning" | Không có câu | Câu tạm, có comment `// Câu tạm…`: (a) GitHub rơi vào `ARCHIVE_HASH` (T-ING-33); (b) file lệch dòng sau khi che ⇒ bỏ (`10` Mục 11 ý 2); (c) manifest > `MAX_MANIFEST_BYTES` (`10` Mục 9 ý 2) | Chốt 3 câu, ghi vào spec |
 | 10 | Phạm vi ngôn ngữ | `11` Mục 1 có Java/Go/Dart (`RESOLVED`), 9 ngôn ngữ `STRUCTURAL`, màn hình Flutter/Android/iOS (D-57) | Chưa phiếu nào làm; B01 chỉ có 4 grammar (TS, TSX, JS, Python); ca test các ngôn ngữ này là `it.todo` ở B10 | Chọn: thêm phiếu B11 hay ghi vào `07` Mục 3 là cắt |
+
+**Thêm sau khi kiểm B09, B10**
+
+| # | Chỗ | Hiện code làm gì | Đề xuất |
+| :-: | :-- | :-- | :-- |
+| 11 | `12` Mục 2 (entry `PROGRAM`): Python có `def main()` và `if __name__ == "__main__": main()` | Cả `<module>` và `main` đều là entry ⇒ 2 node gần trùng ("Tool", "Tool #2"); ENG-110 không gộp tập con | File có khối `__main__` gọi `main` cùng file ⇒ chỉ lấy `<module>` làm entry |
+| 12 | `11` Mục 13 (tên ROUTE) với Next.js `pages/api/**` | Handler nhận mọi method ⇒ `method = "ALL"` ⇒ tên "ALL User" | Method `ALL` ⇒ bỏ động từ, chỉ lấy tài nguyên ("User") |
+| 13 | `11` ENG-81 "cây con G có DATA_SINK" | Mới xét con trực tiếp; bù bằng heuristic "G có gọi tiếp ⇒ giữ" | Xét cả cây con (BFS) rồi bỏ heuristic |
 
 **Việc vai khác cần làm (không phải chốt spec, đã báo)**
 
