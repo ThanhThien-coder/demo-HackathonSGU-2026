@@ -204,6 +204,11 @@ function toZipEntryMeta(e: ClassifiedEntry): ZipEntryMeta {
 /**
  * Xếp ứng viên và lọc quá khổ theo docs/spec/10_ENGINE_INGEST.md Mục 8 (ING-88)
  */
+// ING-02: so sánh theo mã UTF-16 như Array.prototype.sort mặc định; không dùng localeCompare (phụ thuộc locale máy).
+function cmpUtf16(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function selectFiles(
   entries: ClassifiedEntry[],
   scope: ScopeDecision,
@@ -212,7 +217,7 @@ export function selectFiles(
   const manifests = entries
     .filter((e) => e.cls === "MANIFEST")
     .map(toZipEntryMeta);
-  manifests.sort((a, b) => a.path.localeCompare(b.path));
+  manifests.sort((a, b) => cmpUtf16(a.path, b.path));
 
   const codeCandidates = entries.filter(
     (e) => e.cls === "CODE" || e.cls === "SPECIAL"
@@ -249,7 +254,7 @@ export function selectFiles(
     if (b.score !== a.score) {
       return b.score - a.score;
     }
-    return a.entry.path.localeCompare(b.entry.path);
+    return cmpUtf16(a.entry.path, b.entry.path);
   });
 
   const ordered_candidates = scored.map((s) => s.entry);
