@@ -19,7 +19,13 @@ import { probeRepo } from "./probe";
 import { resolveRef } from "./refs";
 import { downloadArchive } from "./download";
 import { computeSnapshot } from "./snapshot";
-import { listEntries, inflateSelected, decodeAndFilter } from "./unzip";
+import { selectiveFetch } from "./selective";
+import {
+  listEntries,
+  listEntriesStreaming,
+  inflateSelected,
+  decodeAndFilter,
+} from "./unzip";
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
 import { selectFiles } from "./priority";
 import { detectScope, buildFingerprint, assertNotEmpty } from "./fingerprint";
@@ -32,6 +38,7 @@ export * from "./probe";
 export * from "./refs";
 export * from "./download";
 export * from "./snapshot";
+export * from "./selective";
 export * from "./unzip";
 export * from "./prune";
 export * from "./priority";
@@ -70,6 +77,7 @@ export async function runIngest(
     suspicious_instruction_files: [],
   };
 
+  let owner = "";
   let repo_name = "";
   let repo_key = "";
   let ref: string | null = null;
@@ -83,6 +91,7 @@ export async function runIngest(
     const probe = await probeRepo(repoInfo);
     const resolvedRef = await resolveRef(probe.owner, probe.repo);
 
+    owner = probe.owner;
     repo_name = probe.repo;
     repo_key = `${probe.owner}/${probe.repo}`;
     ref = resolvedRef.ref;
@@ -90,6 +99,7 @@ export async function runIngest(
     explicit_subdir = src.subdir_override ?? "";
     downloadUrl = resolvedRef.download_url;
   } else if (src.kind === "GITHUB_COMMIT") {
+    owner = src.owner;
     repo_name = src.repo;
     repo_key = `${src.owner}/${src.repo}`;
     ref = src.sha;
@@ -114,6 +124,7 @@ export async function runIngest(
   let scopeDecision: ScopeDecision | null = null;
   let rawCodeMap: Map<string, string> | null = null;
   let manifests: Map<string, string> | null = null;
+  let snapshot: RepoSnapshotKey | null = null;
   let inflated_cap_hit = false;
   let lastError: unknown = null;
 
@@ -134,7 +145,7 @@ export async function runIngest(
 
     const attemptController = new AbortController();
     let attemptTimedOut = false;
-    const timeoutId = setTimeout(() => {
+    let timeoutId = setTimeout(() => {
       attemptTimedOut = true;
       attemptController.abort();
     }, CONFIG.STREAM_TIMEOUT_MS);
@@ -166,44 +177,109 @@ export async function runIngest(
         }
       }
 
-      // Đọc mục lục zip: nếu zip hỏng ném ERR_STREAM_CORRUPTED (ING-63)
-      // Đúng chữ ký: listEntries(a, signal, report)
-      entryMetas = listEntries(rawArchive, attemptController.signal, report);
+      let selectiveSuccess = false;
+      if (rawArchive.stream_cut && isGitHub && owner && repo_name) {
+        // Hủy timer STREAM_TIMEOUT_MS của attemptController trước khi chạy selectiveFetch (Mục 4A có trần SELECTIVE_TIMEOUT_MS riêng)
+        clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", onParentAbort);
 
-      // Phân loại entry (Mục 7)
-      classifiedEntries = entryMetas.map((e) => {
-        const { cls, language } = classifyEntry(
-          e,
-          DEFAULT_LANGUAGE_REGISTRY,
+        const selectiveRes = await selectiveFetch({
+          owner,
+          repo: repo_name,
+          ref,
+          ref_label,
+          explicit_subdir,
+          report,
+          signal,
+        });
+
+        if (selectiveRes) {
+          selectiveSuccess = true;
+          report.selective_fetch = true;
+          snapshot = selectiveRes.snapshot;
+          entryMetas = selectiveRes.entryMetas;
+          classifiedEntries = selectiveRes.classifiedEntries;
+          scopeDecision = selectiveRes.scopeDecision;
+          rawCodeMap = selectiveRes.rawCodeMap;
+          manifests = selectiveRes.manifests;
+          inflated_cap_hit = selectiveRes.inflated_cap_hit;
+        } else {
+          // ING-49 Lùi: cảnh báo + khôi phục timer để đọc zip đã giữ
+          const warn = "Không lấy được danh sách file, có thể thiếu thư mục chính.";
+          if (!report.warnings.includes(warn)) {
+            report.warnings.push(warn);
+          }
+          timeoutId = setTimeout(() => {
+            attemptTimedOut = true;
+            attemptController.abort();
+          }, CONFIG.STREAM_TIMEOUT_MS);
+          signal?.addEventListener("abort", onParentAbort);
+        }
+      }
+
+      if (!selectiveSuccess) {
+        // Đọc mục lục zip: zip bị cắt (stream_cut) phải đọc bằng listEntriesStreaming (chỉ entry trọn vẹn), ING-49 lùi về đọc zip đã giữ
+        entryMetas = rawArchive.stream_cut
+          ? listEntriesStreaming(rawArchive.bytes, attemptController.signal, report)
+          : listEntries(rawArchive, attemptController.signal, report);
+
+        if (entryMetas.length === 0) {
+          if (rawArchive.source === "GITHUB") {
+            throw new IngestionError(
+              "ERR_STREAM_CORRUPTED",
+              "No valid zip entries found in GitHub archive"
+            );
+          } else {
+            throw new IngestionError(
+              "ERR_UPLOAD_INVALID",
+              "No valid zip entries found in uploaded archive"
+            );
+          }
+        }
+
+        // Phân loại entry (Mục 7)
+        classifiedEntries = entryMetas.map((e) => {
+          const { cls, language } = classifyEntry(
+            e,
+            DEFAULT_LANGUAGE_REGISTRY,
+            report
+          );
+          return {
+            ...e,
+            cls,
+            language,
+          };
+        });
+
+        // Phạm vi monorepo & xếp file (Mục 8)
+        scopeDecision = detectScope(
+          classifiedEntries,
+          explicit_subdir || null,
           report
         );
-        return {
-          ...e,
-          cls,
-          language,
-        };
-      });
 
-      // Phạm vi monorepo & xếp file (Mục 8)
-      scopeDecision = detectScope(
-        classifiedEntries,
-        explicit_subdir || null,
-        report
-      );
+        const plan = selectFiles(classifiedEntries, scopeDecision, report);
 
-      const plan = selectFiles(classifiedEntries, scopeDecision, report);
+        // Giải nén trong cùng lượt thử và dùng attemptController.signal (ING-40)
+        const inflated = inflateSelected(
+          rawArchive.bytes,
+          plan,
+          report,
+          attemptController.signal
+        );
 
-      // Giải nén trong cùng lượt thử và dùng attemptController.signal (ING-40)
-      const inflated = inflateSelected(
-        rawArchive.bytes,
-        plan,
-        report,
-        attemptController.signal
-      );
+        rawCodeMap = inflated.code;
+        manifests = inflated.manifests;
+        inflated_cap_hit = inflated.inflated_cap_hit;
 
-      rawCodeMap = inflated.code;
-      manifests = inflated.manifests;
-      inflated_cap_hit = inflated.inflated_cap_hit;
+        // Định danh phiên bản Snapshot (Mục 5)
+        snapshot = computeSnapshot(rawArchive, {
+          repo_key,
+          ref,
+          ref_label,
+          explicit_subdir,
+        });
+      }
 
       if (attemptTimedOut) {
         throw new IngestionError(
@@ -264,7 +340,8 @@ export async function runIngest(
     !classifiedEntries ||
     !scopeDecision ||
     !rawCodeMap ||
-    !manifests
+    !manifests ||
+    !snapshot
   ) {
     if (lastError instanceof IngestionError) {
       throw lastError;
@@ -277,16 +354,9 @@ export async function runIngest(
     );
   }
 
-  // 3. Định danh phiên bản Snapshot (Mục 5)
-  const snapshot: RepoSnapshotKey = computeSnapshot(rawArchive, {
-    repo_key,
-    ref,
-    ref_label,
-    explicit_subdir,
-  });
-
   // Warning khi GitHub rơi vào ARCHIVE_HASH (T-ING-33)
   if (
+    !report.selective_fetch &&
     rawArchive.source === "GITHUB" &&
     snapshot.snapshot_id_kind === "ARCHIVE_HASH"
   ) {
@@ -306,9 +376,11 @@ export async function runIngest(
   // Cập nhật truncated: stream_cut ∨ inflated_cap_hit ∨ skipped.quota > 0 (Mục 9 ý 5)
   if (rawArchive.stream_cut || inflated_cap_hit || report.skipped.quota > 0) {
     report.truncated = true;
-    const warn = `Repository lớn — chỉ phân tích ${rawCodeMap.size} tệp mã nguồn được ưu tiên.`;
-    if (!report.warnings.includes(warn)) {
-      report.warnings.push(warn);
+    if (!report.selective_fetch) {
+      const warn = `Repository lớn — chỉ phân tích ${rawCodeMap.size} tệp mã nguồn được ưu tiên.`;
+      if (!report.warnings.includes(warn)) {
+        report.warnings.push(warn);
+      }
     }
   }
 
