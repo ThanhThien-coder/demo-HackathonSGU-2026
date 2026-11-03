@@ -23,13 +23,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/11_ENGINE_DO_THI.md` Mục 9, 10, 11, 12, 13, 14, 15, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
-- `.kb/spec/00_QUYET_DINH.md` D-07, D-08, D-12, D-55, D-56
+- `docs/spec/11_ENGINE_DO_THI.md` Mục 0, 9, 10, 11, 12, 13, 14, 15, Test bắt buộc
+- `docs/spec/10_ENGINE_INGEST.md` Mục 0 (chữ ký `runIngest`)
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
+- `docs/spec/00_QUYET_DINH.md` D-07, D-08, D-12, D-55, D-56
 - `package.json`
 - `src/`
 
 ## Được ghi
+- `src/server/engine/graph/types.ts`
 - `src/server/engine/graph/nodes.ts`
 - `src/server/engine/graph/degraded.ts`
 - `src/server/engine/graph/naming.ts`
@@ -42,21 +44,22 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết node thuật toán theo D-56 trong `nodes.ts` (ENG-90, ENG-91), hoàn thiện chế độ suy biến `PROCEDURAL` trong `degraded.ts` (ENG-102), ghép node, sinh id tất định theo D-08, dựng cạnh theo D-07, Display Budget tối đa `CONFIG.DISPLAY_MAX_NODES` node và bầu chọn Capstone theo D-12 trong `nodes.ts` theo `.kb/spec/11_ENGINE_DO_THI.md` Mục 9, 10, 11 (ENG-110, ENG-111, ENG-112, ENG-114).
+2. B1: Viết node thuật toán theo D-56 trong `nodes.ts` (ENG-90, ENG-91), hoàn thiện chế độ suy biến `PROCEDURAL` trong `degraded.ts` (ENG-102), ghép node, sinh id tất định theo D-08, dựng cạnh theo D-07, Display Budget tối đa `CONFIG.DISPLAY_MAX_NODES` node và bầu chọn Capstone theo D-12 trong `nodes.ts` theo `docs/spec/11_ENGINE_DO_THI.md` Mục 9, 10, 11 (ENG-110, ENG-111, ENG-112, ENG-114).
 3. B2: Viết chẩn đoán Uncle Bob trong `unclebob.ts` theo Mục 12 (ENG-120), đặt tên tất định 0 token AI qua 5 bậc thang trong `naming.ts` theo Mục 13, tính toán bố cục Dagre với hàng điểm bắt đầu trên cùng theo D-55 trong `layout.ts` theo Mục 14.
-4. B3: Xây dựng whitelist symbol `buildSymbolWhitelist` trong `whitelist.ts` (D-19), thu thập `file_index`, viết hàm `mainPath` (ENG-155), điều phối `buildGraph` trong `src/server/engine/graph/index.ts`, hàm `runEngine` và `toClientResult` trong `src/server/engine/index.ts` theo Mục 15.
-5. Viết test trong `src/server/engine/graph/__tests__/node.test.ts` bao phủ các ca T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+4. B3: Xây dựng whitelist symbol `buildSymbolWhitelist` trong `whitelist.ts` (D-19), thu thập `file_index`, viết hàm `mainPath` (ENG-155), điều phối `buildGraph` trong `src/server/engine/graph/index.ts` (gọi lần lượt `parseAll`, `collectSymbols`, `buildCallGraph`, chọn chế độ, Tarjan, PageRank, độ phức tạp, `buildSlice` mà B05, B06 đã viết, không viết lại), hàm `runEngine` và `toClientResult` trong `src/server/engine/index.ts` theo Mục 15. `runEngine` = `runIngest` (B04) rồi `buildGraph`, chỉ ingest 1 lần. Spec chưa ghi `runEngine` lấy `AbortSignal` ở đâu để truyền cho `runIngest(src, signal)`: thêm tham số thứ hai tùy chọn `signal?: AbortSignal` và ghi vào báo cáo để Vai A (A06) truyền vào. Vượt `CONFIG.ENGINE_BUDGET_MS` chỉ sinh warning (ENG-02). Lỗi `ERR_NO_ARCHITECTURAL_SLICE` ném `IngestionError` của `src/server/engine/ingest/types.ts`.
+5. Viết test trong `src/server/engine/graph/__tests__/node.test.ts` bao phủ các ca T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-25, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-31, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38 (T-ENG-25, T-ENG-31 chạy đủ đường `buildGraph`; B05 mới kiểm phần chọn chế độ và `parseAll`).
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine`
-- Có đủ các test T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38 và tất cả chạy xanh.
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
+- Có đủ các test T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-25, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-31, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38 và tất cả chạy xanh.
 - Mọi điểm bắt đầu nằm cùng hàng trên cùng (D-55, T-ENG-37).
 - Bản đồ giới hạn tối đa `CONFIG.DISPLAY_MAX_NODES` node (ENG-114).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
@@ -74,9 +77,10 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Có đầy đủ 18 test T-ENG từ T-ENG-14 đến T-ENG-38: T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38.
+- [ ] Có đầy đủ 20 test T-ENG từ T-ENG-14 đến T-ENG-38: T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-25, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-31, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38.
+- [ ] `runEngine` chỉ gọi `runIngest` 1 lần. Báo Vai A chữ ký thật của `runEngine` (có `signal` hay không).
 - [ ] Bố cục Dagre đặt mọi node có `prerequisites = []` ở cùng tọa độ `position.y` nhỏ nhất (D-55).
 - [ ] Hàm `toClientResult` loại bỏ hoàn toàn `symbol_whitelist` và `suspicious_instruction_files` (T-ENG-33).
 
@@ -89,7 +93,7 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/server/engine/graph/nodes.ts src/server/engine/graph/degraded.ts
+git add src/server/engine/graph/types.ts src/server/engine/graph/nodes.ts src/server/engine/graph/degraded.ts
 git commit -m "feat(engine): ghép node, node thuật toán"
 git add src/server/engine/graph/naming.ts src/server/engine/graph/unclebob.ts src/server/engine/graph/layout.ts
 git commit -m "feat(engine): tên tất định, bố cục"

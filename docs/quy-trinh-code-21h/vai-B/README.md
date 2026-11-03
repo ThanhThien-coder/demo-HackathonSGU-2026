@@ -2,7 +2,7 @@
 
 Bạn chịu trách nhiệm toàn bộ tầng lõi phân tích mã nguồn (Engine Tầng 0–2): tiếp nhận và tải kho mã nguồn GitHub hoặc tệp zip trong RAM, lọc rác và che dữ liệu nhạy cảm, phân tích cú pháp AST bằng Tree-sitter, xây dựng đồ thị gọi hàm, cắt lát hành vi theo các entry point, xếp hạng bằng PageRank và Cognitive Complexity, ghép node kiến trúc và tính toán bố cục trực quan hóa tất định mà không tiêu tốn token AI.
 
-Đọc chung: [README tổng](../README.md) · lịch gốc [`07`](../../../doc-de-hieu/07_ke_hoach_21h.md)
+Đọc chung: [README tổng](../README.md) · lịch gốc [`07`](../../doc-de-hieu/07_ke_hoach_21h.md)
 
 ## Một phiếu làm thế nào
 
@@ -40,18 +40,34 @@ Máy không có Antigravity (agy) hoặc không có ai-kit: làm cùng phiếu n
 - **Phối hợp đầu ra:** Bất kỳ thay đổi nào về cấu trúc kết quả đầu ra engine (`StaticEngineResult`, `ClientStaticEngineResult`, định dạng node, cạnh, thuộc tính) đều phải thông báo ngay cho Vai D (hiển thị canvas) và Vai E (kiểm thử fixture).
 - **Ưu tiên xử lý lỗi:** Sau mốc 20:00, ưu tiên số một là xử lý các Issue có nhãn `engine` do Vai E báo khi chạy thử nghiệm trên các kho mã nguồn thực tế.
 
+## Kiểu dữ liệu: để ở đâu, phiếu nào tạo
+
+Spec ghi nhiều kiểu là `// nội bộ` (chỉ engine dùng, không có trong `src/contracts`). Để các phiếu không tự khai báo mỗi nơi một kiểu, mọi kiểu nội bộ chỉ nằm ở 2 file. Phiếu sau chỉ thêm kiểu mới, không sửa kiểu phiếu trước đã tạo.
+
+| File | Phiếu tạo | Kiểu | Phiếu thêm sau |
+| :-- | :-- | :-- | :-- |
+| `src/contracts/*` (Vai A, A02) | A02 | `CONFIG`, `LanguageAdapter`, `SymbolDefinition`, `FunctionCallEdge`, `IngestSource`, `IngestOutput`, `IngestionReport`, `IngestionErrorCode`, `StaticEngineResult`… | Không ai trong vai B được sửa. Thiếu thì báo Vai A |
+| `src/server/engine/ingest/types.ts` | B02 | `ResolvedRef`, `RawArchive`, lớp `IngestionError` (có `code: IngestionErrorCode`) | B03: `ZipEntryMeta`, `EntryClass`, `ClassifiedEntry`, `ScopeDecision` · B04, B09 nếu cần |
+| `src/server/engine/graph/types.ts` | B05 | `ExternalCall`, `RouteBinding`, `EntryPoint`, `Candidate`, `FunctionInfo`, `ParsedFile`, `SymbolIndex` | B06: `EngineContext` · B07, B10 nếu cần |
+
+Lỗi của cả Tầng 0 và Tầng 1–2 (kể cả `ERR_NO_ARCHITECTURAL_SLICE`) đều ném `IngestionError`. Vai A (A06) bắt lỗi này và đổi `code` thành `ApiError`.
+
+Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --noEmit` trước `vitest`, để bắt sớm chỗ hai phiếu hiểu một kiểu khác nhau.
+
 ## Bạn chờ ai, ai chờ bạn
 
 - **Bạn chờ các vai khác:**
   - Chờ A01 (12:30) để có cấu hình package và khung code trước khi nạp grammar.
-  - Chờ A02 (13:00) để có đầy đủ contracts và bảng `CONFIG` trước khi viết code ingest.
+  - Chờ A02 (13:00) để có đầy đủ contracts và bảng `CONFIG`. B01 `import type` từ `@/contracts` nên `tsc` đỏ tới khi A02 merge: viết trước được, nhưng mở PR B01 sau A02.
   - Chờ E03 để lấy hàm `maskSensitive` phục vụ che dữ liệu nhạy cảm ở B04.
+- **Trong vai B:** B03 cần `LANGUAGE_REGISTRY`, `KNOWN_NO_GRAMMAR` của B01 để phân loại đuôi file. B05 viết tiếp `parseAll` vào `parser.ts` của B01.
+- **Phạm vi ngôn ngữ:** B01 chỉ lấy 4 grammar (TS, TSX, JS, Python). Resolver Java / Go / Dart, tầng `STRUCTURAL`, màn hình Flutter / Android / iOS **chưa có phiếu nào làm**. Ca test của các ngôn ngữ này trong T-ENT-01, T-ENT-02 để `it.todo` ở B10.
 - **Các vai khác chờ bạn:**
-  - Vai A chờ B04 (`runIngest`) và B07 (`runEngine`) để hoàn thiện route `POST /api/ingest` (A06).
+  - Vai A chờ B04 (`runIngest`) và B07 (`runEngine`) để hoàn thiện route `POST /api/ingest` (A06). `runEngine` đã gọi `runIngest` bên trong, nên A06 chỉ gọi `runEngine`.
   - Vai D và Vai E chờ bản đồ thực tế từ B07 lúc 20:00 để chuyển từ fixture sang hiển thị và kiểm thử hệ thống thật.
 - **Phương án dự phòng nếu trễ mốc 20:00:**
   - Nếu đến 20:00 chưa có B07, cả nhóm tiếp tục chạy trên fixture `shop-api.json`.
-  - Vai B kích hoạt cắt giảm phạm vi theo [`07`](../../../doc-de-hieu/07_ke_hoach_21h.md) Mục 3 bước 1: bỏ resolver Java / Go / Dart, bỏ tầng `STRUCTURAL`, bỏ màn hình Flutter / Android / iOS, bỏ tải chọn lọc repo lớn (D-63). Bộ phân giải TS/JS và Python là trọng tâm bắt buộc, không bao giờ cắt.
+  - Vai B kích hoạt cắt giảm phạm vi theo [`07`](../../doc-de-hieu/07_ke_hoach_21h.md) Mục 3 bước 1: bỏ resolver Java / Go / Dart, bỏ tầng `STRUCTURAL`, bỏ màn hình Flutter / Android / iOS, bỏ tải chọn lọc repo lớn (D-63). Bộ phân giải TS/JS và Python là trọng tâm bắt buộc, không bao giờ cắt.
 
 ## Về đích (05:00 → 09:00)
 

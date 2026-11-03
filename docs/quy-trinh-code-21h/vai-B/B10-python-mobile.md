@@ -23,40 +23,44 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/11_ENGINE_DO_THI.md` Mục 2, Test bắt buộc
-- `.kb/spec/12_ENGINE_MAU_ENTRY.md` Mục 1, 2, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
-- `.kb/spec/00_QUYET_DINH.md` D-57, D-58
+- `docs/spec/11_ENGINE_DO_THI.md` Mục 2, Test bắt buộc
+- `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 1, 2, Test bắt buộc
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
+- `docs/spec/00_QUYET_DINH.md` D-57, D-58
 - `package.json`
 - `queries/`
 - `src/`
 
 ## Được ghi
+- `src/server/engine/graph/types.ts`
+- `src/server/engine/graph/registry.ts`
 - `src/server/engine/graph/resolvers/`
 - `src/server/engine/graph/callgraph.ts`
+- `src/server/engine/ingest/fingerprint.ts`
 - `queries/`
 - `src/server/engine/graph/__tests__/entry.test.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Hoàn thiện bộ phân giải import cho Python trong `src/server/engine/graph/resolvers/` và truy vấn Tree-sitter trong `queries/` theo `.kb/spec/11_ENGINE_DO_THI.md` Mục 2 (ENG-25).
-3. B2: Bổ sung nhận diện entry chương trình `main` (cả khối `if __name__ == "__main__":` trong Python và hàm `main` có thân của các ngôn ngữ) trong `callgraph.ts` theo D-58 và `.kb/spec/12_ENGINE_MAU_ENTRY.md` Mục 2.
-4. B3: Bổ sung nhận diện entry màn hình React Native (Stack, Tab, Drawer, Expo Router) trong `callgraph.ts` theo D-57 và `.kb/spec/12_ENGINE_MAU_ENTRY.md` Mục 1.
-5. Viết test trong `src/server/engine/graph/__tests__/entry.test.ts` bao phủ các ca T-ENG-39, T-ENG-40, T-ENT-01, T-ENT-02.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B1: Hoàn thiện bộ phân giải import cho Python trong `src/server/engine/graph/resolvers/` và truy vấn Tree-sitter trong `queries/` theo `docs/spec/11_ENGINE_DO_THI.md` Mục 2 (ENG-25).
+3. B2: Bổ sung nhận diện entry chương trình `main` (khối `if __name__ == "__main__":` trong Python, hàm `main` có thân trong TS/JS) trong `callgraph.ts` theo D-58 và `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 2.
+4. B3: Bổ sung nhận diện entry màn hình React Native (Stack, Tab, Drawer, Expo Router) trong `callgraph.ts` theo D-57 và `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 1. Ở `registry.ts` chỉ sửa `ingress_patterns` của 4 ngôn ngữ đã có, không thêm ngôn ngữ. Chỉ sửa `src/server/engine/ingest/fingerprint.ts` khi T-ENG-39 đỏ vì archetype `MOBILE_APP` (B04) chưa đúng; khi đó ghi rõ vào báo cáo.
+5. Viết test trong `src/server/engine/graph/__tests__/entry.test.ts` bao phủ các ca T-ENG-39, T-ENG-40, và phần TS/JS, Python của T-ENT-01 (`Tab.Screen`, `app/(tabs)/settings.tsx`) và T-ENT-02 (Python `_helper`). Các ca Dart, Kotlin, Swift, C, C#, Go của T-ENT-01, T-ENT-02 viết `it.todo` ghi lý do "chưa có grammar ở `public/grammars/`" (chỉ có 4 grammar TS, TSX, JS, Python của B01; INV-09).
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine`
-- Có đủ các test T-ENG-39, T-ENG-40, T-ENT-01, T-ENT-02 và tất cả chạy xanh.
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
+- Có đủ các test T-ENG-39, T-ENG-40, phần TS/JS, Python của T-ENT-01, T-ENT-02 và tất cả chạy xanh; các ca ngôn ngữ khác là `it.todo` có ghi lý do.
 - Repo Expo Router và repo Python có entry `main` nhận diện chính xác các entry point tương ứng.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
-- Cấm riêng: không làm Flutter / Android / iOS trước khi 3 bước trên xanh ([`07`](../../../doc-de-hieu/07_ke_hoach_21h.md) Mục 3 bước 1).
+- Cấm riêng: không làm Flutter / Android / iOS, resolver Java / Go / Dart, tầng `STRUCTURAL` trong phiếu này: cần thêm grammar `.wasm` nên phải có phiếu riêng (`docs/doc-de-hieu/07_ke_hoach_21h.md` Mục 3 bước 1).
 ```
 
 Đọc task Claude tạo, thấy khớp với phiếu này thì sang Bước 2.
@@ -71,9 +75,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Có đầy đủ các test T-ENG-39, T-ENG-40, T-ENT-01, T-ENT-02.
+- [ ] Có đầy đủ các test T-ENG-39, T-ENG-40, phần TS/JS, Python của T-ENT-01, T-ENT-02; ca ngôn ngữ khác là `it.todo`.
 - [ ] Repo Python đơn thuần và ứng dụng React Native trích xuất được entry point hợp lệ.
 
 ```text
@@ -85,9 +89,9 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/server/engine/graph/resolvers/ queries/
+git add src/server/engine/graph/types.ts src/server/engine/graph/registry.ts src/server/engine/graph/resolvers/ queries/
 git commit -m "feat(engine): hoàn thiện resolver Python"
-git add src/server/engine/graph/callgraph.ts src/server/engine/graph/__tests__/entry.test.ts
+git add src/server/engine/graph/callgraph.ts src/server/engine/ingest/fingerprint.ts src/server/engine/graph/__tests__/entry.test.ts
 git commit -m "feat(engine): entry chương trình, entry màn hình React Native"
 git pull --rebase origin main
 git push -u origin b/B10-python-mobile

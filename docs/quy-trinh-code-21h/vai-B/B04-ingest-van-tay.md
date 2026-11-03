@@ -25,14 +25,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/10_ENGINE_INGEST.md` Mục 0, 10, 11, 12, 13, Test bắt buộc
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 dòng D25
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
+- `docs/spec/10_ENGINE_INGEST.md` Mục 0, 10, 11, 12, 13, Test bắt buộc
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 dòng D25
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
 - `package.json`
 - `src/`
 
 ## Được ghi
+- `src/server/engine/ingest/types.ts`
 - `src/server/engine/ingest/special.ts`
 - `src/server/engine/ingest/secrets.ts`
 - `src/server/engine/ingest/fingerprint.ts`
@@ -41,20 +42,21 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết `special.ts` trích xuất file ảo từ `.ipynb`, `.vue`, `.svelte` theo `.kb/spec/10_ENGINE_INGEST.md` Mục 10 (ING-100, ING-101, ING-102).
-3. B2: Viết `secrets.ts`: hàm `redactSecrets`, kiểm tra cờ injection `hasInjectionText`, gọi hàm `maskSensitive` từ `src/lib/moderation.ts` do Vai E viết, cộng dồn `redacted_secret_count` theo `.kb/spec/10_ENGINE_INGEST.md` Mục 11 (ING-110, ING-113) và `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5.
-4. B3: Viết phần còn lại của `fingerprint.ts` (vân tay dự án, archetype, framework, tech_stack), kiểm tra kết quả rỗng `assertNotEmpty`, và hoàn thiện hàm điều phối `runIngest` trong `src/server/engine/ingest/index.ts` theo Mục 0, 12, 13 (ING-131).
-5. Viết test trong `src/server/engine/ingest/__tests__/van-tay.test.ts` bao phủ các ca T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của `.kb/spec/50_TEST_VA_FIXTURE.md`.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B1: Viết `special.ts` trích xuất file ảo từ `.ipynb`, `.vue`, `.svelte` theo `docs/spec/10_ENGINE_INGEST.md` Mục 10 (ING-100, ING-101, ING-102).
+3. B2: Viết `secrets.ts`: hàm `redactSecrets`, kiểm tra cờ injection `hasInjectionText`, gọi hàm `maskSensitive` từ `src/lib/moderation.ts` do Vai E viết, cộng dồn `redacted_secret_count` theo `docs/spec/10_ENGINE_INGEST.md` Mục 11 (ING-110, ING-113) và `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5.
+4. B3: Viết phần còn lại của `fingerprint.ts` (vân tay dự án, archetype, framework, tech_stack), kiểm tra kết quả rỗng `assertNotEmpty`, và hoàn thiện hàm điều phối `runIngest` trong `src/server/engine/ingest/index.ts` theo Mục 0, 12, 13 (ING-02 tất định, ING-03 `ingest_ms`, ING-131). `runIngest` gọi lại các hàm B02, B03 đã viết (không viết lại), dùng kiểu trong `ingest/types.ts`, lỗi ném `IngestionError` của `ingest/types.ts`. Cache (ING-04) là việc của Vai A (A05), không làm ở đây.
+5. Viết test trong `src/server/engine/ingest/__tests__/van-tay.test.ts` bao phủ các ca T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của `docs/spec/50_TEST_VA_FIXTURE.md`.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine/ingest`
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest`
 - Có đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và test D25 của spec 50 (số dòng `\n` không đổi), tất cả chạy xanh.
 - Toàn bộ secret và PII được che đúng định dạng `<REDACTED_SECRET>` và `***`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
@@ -73,7 +75,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine/ingest` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine/ingest` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của spec 50.
 - [ ] Số dòng `\n` của file mã nguồn được bảo toàn trước và sau khi che secret (D25).
@@ -91,7 +93,7 @@ git add src/server/engine/ingest/special.ts
 git commit -m "feat(engine): notebook, vue, định dạng đặc biệt"
 git add src/server/engine/ingest/secrets.ts
 git commit -m "feat(engine): che secret và PII"
-git add src/server/engine/ingest/fingerprint.ts src/server/engine/ingest/index.ts src/server/engine/ingest/__tests__/van-tay.test.ts
+git add src/server/engine/ingest/types.ts src/server/engine/ingest/fingerprint.ts src/server/engine/ingest/index.ts src/server/engine/ingest/__tests__/van-tay.test.ts
 git commit -m "feat(engine): vân tay dự án, runIngest"
 git pull --rebase origin main
 git push -u origin b/B04-ingest-van-tay

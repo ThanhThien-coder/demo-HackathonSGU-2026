@@ -23,13 +23,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/10_ENGINE_INGEST.md` Mục 1, 2, 3, 4, 5, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 4
-- `.kb/spec/00_QUYET_DINH.md` D-38
+- `docs/spec/10_ENGINE_INGEST.md` Mục 0, 1, 2, 3, 4, 5, Test bắt buộc
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3 (`IngestionErrorCode`, `IngestionReport`), Mục 4
+- `docs/spec/00_QUYET_DINH.md` D-38
 - `package.json`
 - `src/`
 
 ## Được ghi
+- `src/server/engine/ingest/types.ts`
 - `src/server/engine/ingest/url.ts`
 - `src/server/engine/ingest/probe.ts`
 - `src/server/engine/ingest/refs.ts`
@@ -39,20 +40,22 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết `url.ts` chuẩn hóa và phân tích link GitHub theo `.kb/spec/10_ENGINE_INGEST.md` Mục 1 (D-38, ING-10, ING-11, ING-12, ING-13).
-3. B2: Viết `probe.ts` và `refs.ts` thăm dò repo và tìm nhánh mặc định theo `.kb/spec/10_ENGINE_INGEST.md` Mục 2, 3 (ING-20, ING-21, ING-22, ING-30, ING-31, ING-32, ING-33, ING-34).
-4. B3: Viết `download.ts` tải zip trong RAM có trần byte và timer theo `.kb/spec/10_ENGINE_INGEST.md` Mục 4 (chỉ RAM, ING-01, ING-40, ING-42, ING-43, ING-44, ING-45), viết `snapshot.ts` định danh phiên bản theo Mục 5 (ING-50, ING-52).
-5. Viết test trong `src/server/engine/ingest/__tests__/tai.test.ts` bao phủ các ca T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 bằng mock `fetch`.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B0: Tạo `src/server/engine/ingest/types.ts` chứa kiểu nội bộ Tầng 0 mà phiếu này sinh ra: `ResolvedRef` (Mục 3), `RawArchive` (Mục 4), và lớp `IngestionError extends Error` có thuộc tính `code: IngestionErrorCode` (`docs/spec/02_CONTRACTS.md` Mục 3). Mọi lỗi Tầng 0 ném `IngestionError` với đúng mã trong spec, không ném `Error` thường. Kiểu đã có trong `@/contracts` thì `import type`, không khai báo lại.
+3. B1: Viết `url.ts` chuẩn hóa và phân tích link GitHub theo `docs/spec/10_ENGINE_INGEST.md` Mục 1 (D-38, ING-10, ING-11, ING-12, ING-13).
+4. B2: Viết `probe.ts` và `refs.ts` thăm dò repo và tìm nhánh mặc định theo `docs/spec/10_ENGINE_INGEST.md` Mục 2, 3 (ING-20, ING-21, ING-22, ING-30, ING-31, ING-32, ING-33, ING-34).
+5. B3: Viết `download.ts` tải zip trong RAM có trần byte và timer theo `docs/spec/10_ENGINE_INGEST.md` Mục 4 (chỉ RAM, ING-01, ING-40, ING-42, ING-43, ING-44, ING-45), viết `snapshot.ts` định danh phiên bản theo Mục 5 (ING-50, ING-52).
+6. Viết test trong `src/server/engine/ingest/__tests__/tai.test.ts` bao phủ các ca T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 bằng mock `fetch`.
+7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine/ingest/__tests__/tai.test.ts`
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest/__tests__/tai.test.ts`
 - Có test T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 (mạng giả bằng mock `fetch`).
 - Zero-Disk: toàn bộ xử lý tải và buffer zip chỉ thực hiện trong RAM (ING-01).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
@@ -70,7 +73,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine/ingest/__tests__/tai.test.ts` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine/ingest/__tests__/tai.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ các test T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33.
 - [ ] Xác nhận code tải không ghi bất kỳ file tạm nào ra đĩa (ING-01).
@@ -84,8 +87,8 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/server/engine/ingest/url.ts
-git commit -m "feat(engine): phân tích link GitHub"
+git add src/server/engine/ingest/types.ts src/server/engine/ingest/url.ts
+git commit -m "feat(engine): kiểu nội bộ Tầng 0, phân tích link GitHub"
 git add src/server/engine/ingest/probe.ts src/server/engine/ingest/refs.ts
 git commit -m "feat(engine): thăm dò repo, tìm nhánh mặc định"
 git add src/server/engine/ingest/download.ts src/server/engine/ingest/snapshot.ts src/server/engine/ingest/__tests__/tai.test.ts

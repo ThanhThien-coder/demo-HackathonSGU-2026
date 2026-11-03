@@ -23,15 +23,17 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/11_ENGINE_DO_THI.md` Mục 1, 2, 3, 4, 5, Test bắt buộc
-- `.kb/spec/12_ENGINE_MAU_ENTRY.md` Mục 1, 2, 3
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
+- `docs/spec/11_ENGINE_DO_THI.md` Mục 0, 1, 2, 3, 4, 5, Test bắt buộc
+- `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 1, 2, 3
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3, 4
 - `package.json`
 - `queries/`
 - `src/`
 
 ## Được ghi
+- `src/server/engine/graph/types.ts`
 - `src/server/engine/graph/registry.ts`
+- `src/server/engine/graph/parser.ts`
 - `src/server/engine/graph/symbols.ts`
 - `src/server/engine/graph/resolvers/`
 - `src/server/engine/graph/callgraph.ts`
@@ -41,19 +43,22 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Xây dựng bảng symbol `collectSymbols`, giải quyết import `resolveImports` trong `symbols.ts`, hoàn thiện `registry.ts` và các resolver cho TS/JS và Python trong `src/server/engine/graph/resolvers/` kèm truy vấn Tree-sitter trong `queries/` theo `.kb/spec/11_ENGINE_DO_THI.md` Mục 1, 2 (ENG-20, ENG-21, ENG-22, ENG-23, ENG-24, ENG-25).
-3. B2: Xây dựng đồ thị gọi hàm `buildCallGraph` trong `callgraph.ts` theo Mục 3 (ENG-30, ENG-31, ENG-32, ENG-33, ENG-34, ENG-35), nhận diện entry point theo mẫu của `.kb/spec/12_ENGINE_MAU_ENTRY.md` Mục 1–3 (ưu tiên TS/JS và Python trước) và Mục 4 (ENG-40), hiện thực phần chọn chế độ trong `degraded.ts` theo Mục 5 (ENG-51).
-4. Viết test trong `src/server/engine/graph/__tests__/tang1.test.ts` bao phủ các ca T-ENG-08, T-ENG-09, T-ENG-12, T-ENG-25, T-ENG-31.
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B0: Tạo `src/server/engine/graph/types.ts` chứa kiểu nội bộ Tầng 1–2: các kiểu của `docs/spec/11_ENGINE_DO_THI.md` Mục 0 (`ExternalCall`, `RouteBinding`, `EntryPoint`, `Candidate`, `FunctionInfo` = `SymbolDefinition` thêm `params`, `locals`, `complexity`), `ParsedFile` (Mục 1: `{ path, language, tier, tree, source }`), `SymbolIndex` (Mục 2: `SymbolTable`, `ImportMap`, `FieldTypeMap`, `InterfaceImplMap`, `LocalSymbolIndex`). Kiểu có trong `@/contracts` (`SymbolDefinition`, `FunctionCallEdge`, `HybridArchitecturalNode`, `IngestionReport`…) thì `import type`, không khai báo lại.
+3. B1: Viết `parseAll` trong `parser.ts` (B01 đã có `initParsers`, giữ nguyên) theo Mục 1 (ENG-12: tỉ lệ byte `ERROR` > `CONFIG.PARSE_ERROR_RATIO_MAX` ⇒ bỏ file, `skipped.parse_error++`, warning). Xây dựng bảng symbol `collectSymbols`, giải quyết import `resolveImports` trong `symbols.ts`, hoàn thiện `registry.ts` (chỉ điền `query_file`, `ingress_patterns`, `abstraction_kinds` cho 4 ngôn ngữ B01 đã có) và các resolver cho TS/JS và Python trong `src/server/engine/graph/resolvers/` kèm truy vấn Tree-sitter trong `queries/` theo Mục 2 (ENG-20, ENG-21, ENG-21b `is_exported` theo `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 3, ENG-22, ENG-23, ENG-24, ENG-25 phần `TS_JS` và `PYTHON`, ENG-27 ghi `import_source` cho import gói ngoài). Không làm resolver `JAVA`, `GO`, `DART` và Universal ENG-26 (chưa có grammar, xem `docs/doc-de-hieu/07_ke_hoach_21h.md` Mục 3 bước 1).
+4. B2: Xây dựng đồ thị gọi hàm `buildCallGraph` trong `callgraph.ts` theo Mục 3 (ENG-30, ENG-31, ENG-32, ENG-33, ENG-34, ENG-35), nhận diện entry point theo `docs/spec/11_ENGINE_DO_THI.md` Mục 4 (ENG-40) với mẫu ở `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 1–2 (chỉ mẫu TS/JS và Python; React Native và `main` để B10), hiện thực phần chọn chế độ trong `degraded.ts` theo Mục 5 (ENG-51). Chỉ dùng cây Tree-sitter, không regex văn bản thô (ENG-04); duyệt khóa đã sort (ENG-01); entry chỉ lấy trong scope (ENG-05).
+5. Viết test trong `src/server/engine/graph/__tests__/tang1.test.ts`: T-ENG-12; test tên bắt đầu `ENG-12` cho `parseAll` (file 40% byte trong `ERROR` ⇒ bị bỏ, `parse_error` = 1, lấy input từ T-ENG-31); test tên bắt đầu `ENG-40` cho route Express và NestJS (input `router.post('/checkout', …)` của T-ENG-08, kỳ vọng `RouteBinding.display_name` = `"router.post('/checkout')"`, có `middlewares`); test tên bắt đầu `ENG-51` cho chọn chế độ (input của T-ENG-25: 1 file Express 5 route ⇒ NORMAL, `main.py` không route 5 hàm ⇒ `PROCEDURAL`). T-ENG-08, T-ENG-09 làm ở B06; T-ENG-25, T-ENG-31 đầy đủ làm ở B07 (cần lát cắt, node).
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine/graph/__tests__/tang1.test.ts`
-- Có đủ các test T-ENG-08, T-ENG-09, T-ENG-12, T-ENG-25, T-ENG-31 và tất cả chạy xanh.
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/graph/__tests__/tang1.test.ts`
+- Có đủ test T-ENG-12 và các test `ENG-12`, `ENG-40`, `ENG-51` nêu ở Việc cần làm, tất cả chạy xanh.
 - Đồ thị gọi hàm và danh sách entry nhận diện chính xác các route handler của Express và NestJS.
+- Kiểu nội bộ Tầng 1–2 chỉ khai báo ở `graph/types.ts`, không file nào khai báo lại.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
@@ -71,9 +76,10 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine/graph/__tests__/tang1.test.ts` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine/graph/__tests__/tang1.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Có đầy đủ các test T-ENG-08, T-ENG-09, T-ENG-12, T-ENG-25, T-ENG-31.
+- [ ] Có test T-ENG-12 và các test `ENG-12`, `ENG-40`, `ENG-51`.
+- [ ] `src/server/engine/graph/types.ts` có các kiểu Mục 0, `ParsedFile`, `SymbolIndex`.
 - [ ] Đồ thị gọi hàm giải quyết chính xác các cuộc gọi qua interface và import tương đối trong TS/JS.
 
 ```text
@@ -85,7 +91,7 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/server/engine/graph/registry.ts src/server/engine/graph/symbols.ts src/server/engine/graph/resolvers/ queries/
+git add src/server/engine/graph/types.ts src/server/engine/graph/parser.ts src/server/engine/graph/registry.ts src/server/engine/graph/symbols.ts src/server/engine/graph/resolvers/ queries/
 git commit -m "feat(engine): bảng symbol, resolver TS/JS, Python"
 git add src/server/engine/graph/callgraph.ts src/server/engine/graph/degraded.ts src/server/engine/graph/__tests__/tang1.test.ts
 git commit -m "feat(engine): đồ thị gọi hàm, entry, chế độ"
