@@ -1,4 +1,10 @@
-import type { IngestionErrorCode, LanguageAdapter, LanguageId } from "@/contracts";
+import type {
+  IngestionErrorCode,
+  IngestionReport,
+  LanguageAdapter,
+  LanguageId,
+  RepoSnapshotKey,
+} from "@/contracts";
 
 export interface ResolvedRef {
   download_url: string;
@@ -63,4 +69,25 @@ export interface ScopeDecision {
 export interface LanguageRegistry {
   adapters: readonly LanguageAdapter[];
   known_no_grammar: Record<string, LanguageId>;
+}
+
+export interface SelectiveFetchInput {
+  owner: string;
+  repo: string;
+  ref: string | null;
+  ref_label: string | null;
+  explicit_subdir: string;
+  report: IngestionReport;
+  signal?: AbortSignal;
+  token?: string;
+}
+
+export interface SelectiveFetchResult {
+  snapshot: RepoSnapshotKey;
+  entryMetas: ZipEntryMeta[];
+  classifiedEntries: ClassifiedEntry[];
+  scopeDecision: ScopeDecision;
+  rawCodeMap: Map<string, string>;
+  manifests: Map<string, string>;
+  inflated_cap_hit: boolean;
 }
