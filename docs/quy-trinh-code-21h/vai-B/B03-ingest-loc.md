@@ -4,7 +4,7 @@
 | :-- | :-- |
 | Giờ | 14:30–16:00 (H+2.5 → H+4) · **Mốc H+4: tải và lọc repo demo trong RAM** |
 | Nhánh | `b/B03-ingest-loc` |
-| Cần có trước | B02 |
+| Cần có trước | B02, B01 (`LANGUAGE_REGISTRY`, `KNOWN_NO_GRAMMAR` để phân loại đuôi file) |
 | Mở đường cho | B04 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
@@ -19,16 +19,18 @@ git checkout main; git pull; npm ci; git checkout -b b/B03-ingest-loc
 ```text
 Dùng skill tao-task để tạo task tên "B03 — Ingest 2: mục lục zip, phân loại, phạm vi, giải nén". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
-Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: B02. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: B02, B01 (`LANGUAGE_REGISTRY`, `KNOWN_NO_GRAMMAR` để phân loại đuôi file). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/10_ENGINE_INGEST.md` Mục 6, 7, 8, 9, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 4
+- `docs/spec/10_ENGINE_INGEST.md` Mục 0, 6, 7, 8, 9, Test bắt buộc
+- `docs/spec/11_ENGINE_DO_THI.md` Mục 1 (bảng đuôi file của registry)
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG`), Mục 3 (`IngestionReport`), Mục 4
 - `package.json`
 - `src/`
 
 ## Được ghi
+- `src/server/engine/ingest/types.ts`
 - `src/server/engine/ingest/unzip.ts`
 - `src/server/engine/ingest/prune.ts`
 - `src/server/engine/ingest/priority.ts`
@@ -37,20 +39,22 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết `unzip.ts` đọc mục lục zip Central-Directory-First hoặc streaming và chuẩn hóa đường dẫn theo `.kb/spec/10_ENGINE_INGEST.md` Mục 6 (ING-60, ING-61, ING-63).
-3. B2: Viết `prune.ts` phân loại entry theo Mục 7 (ING-70, ING-71, ING-72, ING-73, ING-74, ING-75, ING-76, ING-77), viết `priority.ts` tính điểm ưu tiên file FPS và xếp ứng viên theo Mục 8 (ING-84, ING-87, ING-88), viết phần `detectScope` trong `fingerprint.ts` xác định monorepo scope theo Mục 8 (ING-80).
-4. B3: Hoàn thiện giải nén có giới hạn, chống zip bomb và lọc nội dung trong `unzip.ts` theo Mục 9.
-5. Viết test trong `src/server/engine/ingest/__tests__/loc.test.ts` bao phủ các ca T-ING-12, T-ING-13, T-ING-14, T-ING-15, T-ING-16, T-ING-17, T-ING-18, T-ING-19, T-ING-20, T-ING-21.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B0: Thêm vào `src/server/engine/ingest/types.ts` (B02 đã tạo, giữ nguyên kiểu cũ) các kiểu nội bộ: `ZipEntryMeta` (Mục 6), `EntryClass` (Mục 7), `ClassifiedEntry` = `ZipEntryMeta` kèm kết quả `classifyEntry` (`cls`, `language`), `ScopeDecision` (Mục 8). Tham số `registry: LanguageRegistry` của `classifyEntry` là `LANGUAGE_REGISTRY` và `KNOWN_NO_GRAMMAR` import từ `src/server/engine/graph/registry.ts` (B01); không chép bảng đuôi file sang `ingest/`.
+3. B1: Viết `unzip.ts` đọc mục lục zip Central-Directory-First hoặc streaming và chuẩn hóa đường dẫn theo `docs/spec/10_ENGINE_INGEST.md` Mục 6 (ING-60, ING-61, ING-63).
+4. B2: Viết `prune.ts` phân loại entry theo Mục 7 (ING-70, ING-71, ING-72, ING-73, ING-74, ING-75, ING-76, ING-77), viết `priority.ts` tính điểm ưu tiên file FPS và xếp ứng viên theo Mục 8 (ING-84, ING-87, ING-88), viết phần `detectScope` trong `fingerprint.ts` xác định monorepo scope theo Mục 8 (ING-80).
+5. B3: Hoàn thiện giải nén có giới hạn, chống zip bomb và lọc nội dung trong `unzip.ts` theo Mục 9.
+6. Viết test trong `src/server/engine/ingest/__tests__/loc.test.ts` bao phủ các ca T-ING-12, T-ING-13, T-ING-14, T-ING-15, T-ING-16, T-ING-17, T-ING-18, T-ING-19, T-ING-20, T-ING-21.
+7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine/ingest/__tests__/loc.test.ts`
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest/__tests__/loc.test.ts`
 - Có đủ các test T-ING-12, T-ING-13, T-ING-14, T-ING-15, T-ING-16, T-ING-17, T-ING-18, T-ING-19, T-ING-20, T-ING-21 và tất cả chạy xanh.
 - Giải nén tuân thủ đúng trần `CONFIG.MAX_INFLATED_BYTES` và `CONFIG.MAX_CLEAN_FILES`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
@@ -68,7 +72,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine/ingest/__tests__/loc.test.ts` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine/ingest/__tests__/loc.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ 10 test từ T-ING-12 đến T-ING-21: T-ING-12, T-ING-13, T-ING-14, T-ING-15, T-ING-16, T-ING-17, T-ING-18, T-ING-19, T-ING-20, T-ING-21.
 - [ ] Bạn tự chạy tay một script nhỏ tải repo demo trong RAM và in ra số file giữ lại phù hợp.
@@ -82,7 +86,7 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/server/engine/ingest/prune.ts src/server/engine/ingest/priority.ts src/server/engine/ingest/fingerprint.ts
+git add src/server/engine/ingest/types.ts src/server/engine/ingest/prune.ts src/server/engine/ingest/priority.ts src/server/engine/ingest/fingerprint.ts
 git commit -m "feat(engine): phân loại entry, chọn phạm vi"
 git add src/server/engine/ingest/unzip.ts src/server/engine/ingest/__tests__/loc.test.ts
 git commit -m "feat(engine): mục lục zip, chuẩn hóa đường dẫn, giải nén và lọc nội dung"
