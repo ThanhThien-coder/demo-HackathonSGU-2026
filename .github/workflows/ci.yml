@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Cài đặt phụ thuộc
+        run: npm ci
+
+      - name: Kiểm tra kiểu dữ liệu
+        run: npm run typecheck
+
+      - name: Kiểm tra quy chuẩn mã nguồn
+        run: npm run lint
+
+      - name: Chạy kiểm thử tự động
+        run: npm test
