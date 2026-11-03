@@ -25,10 +25,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/10_ENGINE_INGEST.md` toàn bộ
-- `.kb/spec/11_ENGINE_DO_THI.md` toàn bộ
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 (X-01, X-07), Mục 5 dòng 1–3
-- `.kb/spec/00_QUYET_DINH.md` D-55, D-56, Q-03
+- `docs/spec/10_ENGINE_INGEST.md` toàn bộ
+- `docs/spec/11_ENGINE_DO_THI.md` toàn bộ
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 (X-01, X-07), Mục 5 dòng 1–3
+- `docs/spec/00_QUYET_DINH.md` D-55, D-56, Q-03
 - `package.json`
 - `src/`
 
@@ -38,18 +38,19 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Phối hợp sửa các lỗi phát hiện khi chạy engine trên repo demo Q-03 và `shop-api` đối chiếu `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 5 dòng 1–3 và các lỗi engine tôi dán dưới đây; chỉ sửa lỗi trong `src/server/engine/`.
+2. B1: Phối hợp sửa các lỗi phát hiện khi chạy engine trên repo demo Q-03 và `shop-api` đối chiếu `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5 dòng 1–3 và các lỗi engine tôi dán dưới đây; chỉ sửa lỗi trong `src/server/engine/`.
    <dán số Issue nhãn `engine` và mô tả từng lỗi Vai E báo>
 3. B2: Viết test trong `src/server/engine/__tests__/repo-demo.test.ts` kiểm tra tính tất định X-01 (chạy engine 2 lần cùng zip, so `JSON.stringify`) và kiểm tra bố cục bản đồ X-07 (hàng điểm bắt đầu, cạnh thuật toán D-55, D-56).
-4. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+4. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/engine`
+- Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
 - Test X-01 (tất định) và test X-07 (hàng điểm bắt đầu) chạy xanh.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
 - Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
@@ -67,7 +68,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/engine` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Test X-01 và X-07 chạy xanh.
 - [ ] Tự chạy engine trên repo demo xác nhận số node trong khoảng `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` và mọi điểm bắt đầu nằm cùng hàng trên cùng.
