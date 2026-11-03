@@ -57,7 +57,10 @@ Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --n
 ## Luật chung khi spec để hở (rút ra từ lần tập B01–B03)
 
 - **Hàm spec không nhận `report` nhưng luật cần đếm `skipped.*` hoặc ghi warning** (vd. `readCentralDirectory`, `classifyEntry`, `detectScope`, `computeSnapshot`): thêm tham số tùy chọn `report?: IngestionReport` ở **cuối** chữ ký, giữ nguyên thứ tự và kiểu các tham số spec đã ghi. Cách này cũng dùng cho `runEngine(src, signal?)` ở B07.
-- **Spec không ghi câu chữ warning hay con số** ⇒ không tự đặt; ghi vào báo cáo task để người giữ spec chốt.
+- **Spec không ghi con số** ⇒ không tự đặt, lấy từ `CONFIG`. **Spec ghi "+ warning" mà không có câu chữ** ⇒ dùng câu tạm (số trong câu lấy từ `CONFIG`), đặt comment ngay trên `// Câu tạm, spec chưa có câu chữ, chờ người giữ spec chốt` và liệt kê trong báo cáo task.
+- **Khóa giả trong test** (T-ING-26, T-ING-27…): hook pre-commit của ai-kit (`quet-khoa.mjs`) chặn mọi chuỗi giống khóa thật (`-----BEGIN … PRIVATE KEY-----`, `AKIA…`, `ghp_…`, `sk-…`, `AIza…`). Trong test dựng bằng cách ghép chuỗi (vd. `"-----BEGIN RSA " + "PRIVATE KEY-----"`) kèm comment "khóa giả". Không bỏ qua hook bằng `--no-verify`.
+- **Zip mẫu trong test có segment đầu chung** (vd. mọi file đều trong `src/`) ⇒ ING-60.3 cắt segment đó, path thành `index.ts` chứ không phải `src/index.ts`. Muốn giữ `src/` thì thêm 1 file ở gốc zip (vd. `README.md`).
+- **Sort chuỗi để tất định (ING-02, ENG-01):** dùng `.sort()` mặc định (UTF-16), không dùng `localeCompare` (phụ thuộc locale máy).
 - **Thử lại và hẹn giờ của Tầng 0** (ING-40, ING-44) nằm ở `runIngest` (B04), vì zip hỏng chỉ phát hiện được khi đọc mục lục (B03). Hàm con chỉ nhận `signal` và ném `IngestionError`.
 - **Tên test:** tên đầy đủ (gồm `describe` bọc ngoài) bắt đầu bằng mã luật hoặc mã test (`T-ING-07 …`, `ING-45 …`), không bắt đầu bằng tên task.
 - **Test không đụng đĩa, không gọi mạng thật:** zip mẫu dựng trong RAM bằng `fflate`, mạng giả bằng mock `fetch`. File lớn trong test dùng nội dung giả ngẫu nhiên tất định (LCG, không `Math.random`): nội dung lặp lại nén vượt `CONFIG.MAX_COMPRESSION_RATIO` và bị chống zip bomb loại.
