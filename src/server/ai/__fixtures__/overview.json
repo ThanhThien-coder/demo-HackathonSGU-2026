@@ -1,0 +1,30 @@
+{
+  "architecture_style": "LAYERED",
+  "summary": "Web bán hàng chia 3 tầng. Các trang cần đăng nhập đi qua `authMiddleware` kiểm tra JWT.",
+  "layers": [
+    {
+      "layer": "MIDDLEWARE",
+      "role": "Kiểm tra token trước khi vào trang cần đăng nhập",
+      "nodes": [
+        "<id N2>",
+        "<id N5>"
+      ]
+    }
+  ],
+  "main_flow": "Đăng ký, xem hồ sơ, thêm vào giỏ rồi thanh toán; thanh toán xong gửi email xác nhận.",
+  "notes": [
+    {
+      "text": "Hai chỗ truy vấn database trong vòng lặp, sẽ chậm khi dữ liệu lớn.",
+      "nodes": [
+        "<id N3>",
+        "<id N5>"
+      ]
+    },
+    {
+      "text": "Báo cáo doanh thu cũng truy vấn trong vòng lặp.",
+      "nodes": [
+        "<id N7>"
+      ]
+    }
+  ]
+}
