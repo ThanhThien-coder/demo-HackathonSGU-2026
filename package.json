@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "1.1.8",
-    "@google/genai": "1.52.0",
+    "@google/genai": "2.32.0",
     "@monaco-editor/react": "4.7.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.118.0",
