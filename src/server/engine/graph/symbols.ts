@@ -605,6 +605,27 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
         return;
       }
 
+      // ENG-22 "biến export có new T()" cho export mặc định: `export default new T()` và CommonJS
+      // `module.exports = new T()` ⇒ field_types[`${file}#default`] = T, để `import x from` / `require()`
+      // rồi `x.m()` ở file khác phân giải được tới `T.m` (cùng khóa "default" mà ImportMap ghi).
+      const recordDefaultInstance = (valueNode: Node | null) => {
+        if (valueNode?.type !== "new_expression") return;
+        const ctor = valueNode.childForFieldName("constructor");
+        if (ctor) field_types.set(`${filePath}#default`, ctor.text);
+      };
+      if (type === "export_statement" && node.children.some((ch) => ch?.type === "default")) {
+        recordDefaultInstance(node.childForFieldName("value"));
+      }
+      if (type === "expression_statement") {
+        const asg = node.namedChild(0);
+        if (asg?.type === "assignment_expression") {
+          const left = asg.childForFieldName("left")?.text;
+          if (left === "module.exports" || left === "exports.default") {
+            recordDefaultInstance(asg.childForFieldName("right"));
+          }
+        }
+      }
+
       // Export statement bao ngoài
       if (type === "export_statement") {
         for (let i = 0; i < node.childCount; i++) {

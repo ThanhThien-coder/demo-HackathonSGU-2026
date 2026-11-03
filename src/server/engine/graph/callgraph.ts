@@ -767,20 +767,40 @@ export function buildCallGraph(
               const imported = idx.imports.get(filePath)?.get(baseReceiver);
 
               if (imported && imported.source_file) {
-                // Đích trong file nội bộ
-                const targetMethodKey = `${imported.source_file}#${imported.symbol_name}.${method}`;
-                const simpleMethodKey = `${imported.source_file}#${method}`;
-                const chosenKey = idx.symbols.has(targetMethodKey)
-                  ? targetMethodKey
-                  : simpleMethodKey;
+                // Đích trong file nội bộ. Thứ tự: (a) `C.m()` lớp/đối tượng import; (b) biến import giữ
+                // `new T()` (`export const svc = new Svc()`, ENG-22 "biến export có new T()") ⇒ tra kiểu ở file
+                // nguồn rồi tìm `T.m`; (c) namespace import `ns.f()`. Chỉ tạo cạnh khi đích có thật.
+                const src = imported.source_file;
+                const symName = imported.symbol_name === "default" ? baseReceiver : imported.symbol_name;
+                const exists = (k: string) => idx.symbols.has(k) || idx.functions.has(k);
+                let target: string | null = null;
+                if (exists(`${src}#${symName}.${method}`)) target = `${src}#${symName}.${method}`;
+                if (!target) {
+                  const typeName =
+                    idx.field_types.get(`${src}#${symName}`) ??
+                    (imported.symbol_name === "default" ? idx.field_types.get(`${src}#default`) : undefined);
+                  if (typeName) {
+                    if (exists(`${src}#${typeName}.${method}`)) target = `${src}#${typeName}.${method}`;
+                    const typeImp = idx.imports.get(src)?.get(typeName);
+                    if (!target && typeImp?.source_file) {
+                      const tName = typeImp.symbol_name === "default" ? typeName : typeImp.symbol_name;
+                      if (exists(`${typeImp.source_file}#${tName}.${method}`)) target = `${typeImp.source_file}#${tName}.${method}`;
+                    }
+                  }
+                }
+                if (!target && exists(`${src}#${method}`)) target = `${src}#${method}`;
 
-                rawEdges.push({
-                  caller: callerKey,
-                  callee: chosenKey,
-                  confidence: "RESOLVED",
-                  ambiguous: false,
-                  call_count: 1,
-                });
+                if (target) {
+                  rawEdges.push({
+                    caller: callerKey,
+                    callee: target,
+                    confidence: "RESOLVED",
+                    ambiguous: false,
+                    call_count: 1,
+                  });
+                } else {
+                  external.push({ caller: callerKey, line, receiver_chain: receiverChain, method, import_source: null });
+                }
               } else if (imported && imported.import_source) {
                 external.push({
                   caller: callerKey,
