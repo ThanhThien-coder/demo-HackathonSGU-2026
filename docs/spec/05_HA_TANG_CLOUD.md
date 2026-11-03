@@ -64,7 +64,7 @@ Quy chuẩn cấu hình dịch vụ SimpliFey trên Google Cloud Run:
 - **Yêu cầu Dockerfile multi-stage & Promote Image:**
   - Image gốc `node:22-slim` cho cả 3 stage (D-68); sử dụng multi-stage build gồm 3 stage: `deps` (`npm ci` cài đặt đầy đủ dependencies bao gồm cả devDependencies), `builder` (`npm run build` với Next.js cấu hình `output: "standalone"`), và `runner` (chỉ sao chép kết quả build và file tĩnh cần thiết).
   - Khởi tạo người dùng riêng không có quyền root (`USER nextjs:nodejs`, UID/GID 1001) trong stage runner.
-  - Sao chép toàn bộ thư mục `public/` (chứa các grammar Tree-sitter WebAssembly `public/grammars/*.wasm`) vào stage runner để adapter phân tích cú pháp truy cập file `.wasm` cục bộ qua `fs.readFile`.
+  - Sao chép toàn bộ thư mục `public/` (chứa các grammar Tree-sitter WebAssembly `public/grammars/*.wasm`) vào stage runner để adapter phân tích cú pháp truy cập file `.wasm` cục bộ qua `fs.readFile`; chép thêm thư mục `queries/` (truy vấn Tree-sitter `queries/<lang>.scm`, D-70) vào cùng thư mục làm việc của stage runner.
   - Thiết lập `.dockerignore` loại bỏ: `.git`, `.next`, `node_modules`, `.env*`, `archive`, `.kb`, `review`, `pitch`.
   - Sau khi Dockerfile được merge: Build image 1 lần duy nhất bằng Dockerfile, push lên Artifact Registry (`asia-southeast1-docker.pkg.dev/$PROJECT_ID/simplifey/app:$GITHUB_SHA`), deploy staging bằng `--image` rồi promote **cùng image digest** lên production sau khi được duyệt.
 
