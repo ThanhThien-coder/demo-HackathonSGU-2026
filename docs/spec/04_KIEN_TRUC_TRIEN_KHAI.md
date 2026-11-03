@@ -430,7 +430,7 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
 ```
 .
 ├── README.md · LICENSE                          # README có mục "Tự cài đặt" (D-45); LICENSE MIT (D-49)
-├── package.json · tsconfig.json · next.config.ts · postcss.config.mjs · .env.example
+├── package.json · tsconfig.json · next.config.ts · postcss.config.mjs · .env.example · .nvmrc
 ├── supabase/migrations/0001_init.sql            # 03 Mục 3
 ├── scripts/{review-run,record-bundle}.ts        # Duyệt tay output AI + ghi mock_bundle (21)
 ├── review/                                      # Bảng kiểm & kết quả duyệt tay (21) — không chứa code repo demo
@@ -472,6 +472,7 @@ Chốt **phiên bản chính xác ở giờ H+0** bằng lệnh cài đặt, ghi
 
 | Gói | Dòng | Dùng cho |
 | :-- | :-- | :-- |
+| Node.js | 22 LTS (`engines` `>=22 <23`, `.nvmrc`) | Runtime dev, CI, Cloud Run, Vercel (D-68) |
 | `next`, `react`, `react-dom` | Next 15 App Router, React 19 | Khung |
 | `typescript` | 5.x, `strict: true` | Không `any` |
 | `@xyflow/react` | 12.x (ReactFlow) | Canvas |

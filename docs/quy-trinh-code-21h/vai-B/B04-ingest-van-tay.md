@@ -44,14 +44,24 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1: Viết `special.ts` trích xuất file ảo từ `.ipynb`, `.vue`, `.svelte` theo `docs/spec/10_ENGINE_INGEST.md` Mục 10 (ING-100, ING-101, ING-102).
 3. B2: Viết `secrets.ts`: hàm `redactSecrets`, kiểm tra cờ injection `hasInjectionText`, gọi hàm `maskSensitive` từ `src/lib/moderation.ts` do Vai E viết, cộng dồn `redacted_secret_count` theo `docs/spec/10_ENGINE_INGEST.md` Mục 11 (ING-110, ING-113) và `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5.
-4. B3: Viết phần còn lại của `fingerprint.ts` (vân tay dự án, archetype, framework, tech_stack), kiểm tra kết quả rỗng `assertNotEmpty`, và hoàn thiện hàm điều phối `runIngest` trong `src/server/engine/ingest/index.ts` theo Mục 0, 12, 13 (ING-02 tất định, ING-03 `ingest_ms`, ING-131). `runIngest` gọi lại các hàm B02, B03 đã viết (không viết lại), dùng kiểu trong `ingest/types.ts`, lỗi ném `IngestionError` của `ingest/types.ts`. Cache (ING-04) là việc của Vai A (A05), không làm ở đây.
-5. Viết test trong `src/server/engine/ingest/__tests__/van-tay.test.ts` bao phủ các ca T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của `docs/spec/50_TEST_VA_FIXTURE.md`.
+   - **Đếm số lần `maskSensitive` che:** hàm của Vai E chỉ trả chuỗi (đúng chữ ký spec 04), không trả số lần. Không sửa `src/lib/moderation.ts`; số lần che = (số chuỗi `***` sau khi che) − (số `***` có sẵn trước khi che), cộng vào `redacted_secret_count` (Mục 11 ý 3). Thứ tự: `redactSecrets` ⇒ kiểm bảo toàn dòng ⇒ `maskSensitive`.
+4. B3: Viết phần còn lại của `fingerprint.ts` (vân tay dự án, archetype, framework, tech_stack), kiểm tra kết quả rỗng `assertNotEmpty`, và hoàn thiện hàm điều phối `runIngest` trong `src/server/engine/ingest/index.ts` theo Mục 0, 12, 13 (ING-02 tất định, ING-03 `ingest_ms`, ING-131). `runIngest` gọi lại các hàm B02, B03 đã viết (không viết lại), dùng kiểu trong `ingest/types.ts`, lỗi ném `IngestionError` của `ingest/types.ts`. Cache (ING-04) là việc của Vai A (A05), không làm ở đây. Ba việc B02, B03 để lại cho `runIngest`:
+   - **Hẹn giờ và thử lại (ING-40, ING-44):** mỗi lần thử tạo 1 `AbortController` hết hạn sau `CONFIG.STREAM_TIMEOUT_MS`, truyền `signal` đó cho cả `downloadArchive` (B02) lẫn `listEntries`, `inflateSelected` (B03). Nguồn GitHub gặp lỗi tải hoặc zip hỏng (`ERR_STREAM_CORRUPTED` từ `listEntries`, ING-63) ⇒ chờ `CONFIG.STREAM_RETRY_DELAY_MS`, làm lại cả lượt 1 lần với timer mới. Upload không thử lại. Giải nén (`inflateSelected`) nằm **trong** lượt thử và dùng `signal` của lượt đó, không dùng `signal` của người gọi. Không thử lại lồng nhau: `downloadArchive` (B02) đã tự thử lại 1 lần, nên `runIngest` chỉ thử lại khi lỗi đến từ `listEntries` (zip hỏng) hoặc hết giờ cả lượt; lỗi từ `downloadArchive` ném thẳng.
+   - **`truncated`:** cộng thêm `stream_cut` (Mục 9 ý 5: `truncated = stream_cut ∨ inflated_cap_hit ∨ skipped.quota > 0`), vì `inflateSelected` của B03 không biết `stream_cut`.
+   - **Minified cho file `SPECIAL`** (Mục 9 ý 4.6): B03 giải nén `.ipynb`/`.vue`/`.svelte` không kiểm minified ⇒ `runIngest` kiểm trên code ảo sau `extractNotebook`/`extractSfcScript` (dùng lại `decodeAndFilter` với `check_minified: true`). Ứng viên code không có `language` thì bỏ, không gán bừa ngôn ngữ.
+   - **`has_submodules`:** có `.gitmodules` ở gốc (`10` Mục 7) ⇒ cờ nội bộ, dùng ở ING-131.
+   - **Warning khi GitHub rơi vào `ARCHIVE_HASH`** (T-ING-33 ghi "+ warning"): `computeSnapshot` không nhận `report` nên `runIngest` ghi. Spec chưa có câu chữ warning ⇒ câu tạm theo luật chung README (comment `// Câu tạm…` + ghi báo cáo). Cùng luật cho warning "lệch dòng sau khi che ⇒ bỏ file" (Mục 11 ý 2).
+   - Hàm nào trong spec không nhận `report` mà luật cần đếm `skipped.*` hoặc ghi warning: thêm `report?: IngestionReport` ở cuối chữ ký (luật chung, xem README vai B).
+   - **Tier của ngôn ngữ trong `buildFingerprint`** (Mục 12 ý 6, 7) lấy từ registry. Registry thật (B01) chỉ có TS, TSX, JS, Python nên ca 2 của T-ING-31 (C# `STRUCTURAL`) không dựng được bằng file thật: thêm tham số tùy chọn `registry?: LanguageRegistry` ở CUỐI chữ ký `buildFingerprint` (mặc định `DEFAULT_LANGUAGE_REGISTRY` của B03); test T-ING-31 ca 2 truyền registry có adapter `CSHARP` không `import_resolver` (tier `STRUCTURAL`).
+   - **Luồng `runIngest` theo `IngestSource.kind`:** `GITHUB_URL` ⇒ `parseGithubUrl` ⇒ `probeRepo` ⇒ `resolveRef` ⇒ `downloadArchive`; `GITHUB_COMMIT` ⇒ `downloadArchive` URL `https://codeload.github.com/{owner}/{repo}/zip/{sha}`; `ZIP_UPLOAD` ⇒ `bytes` có sẵn (route A06 đã gọi `receiveUpload`), `repo_name` = tên file bỏ `.zip`. Sau đó cùng một đường: `computeSnapshot` ⇒ `listEntries` ⇒ `classifyEntry` ⇒ `detectScope` ⇒ `selectFiles` ⇒ `inflateSelected` ⇒ `special.ts` ⇒ `secrets.ts` ⇒ `buildFingerprint` ⇒ `assertNotEmpty`.
+5. Viết test trong `src/server/engine/ingest/__tests__/van-tay.test.ts` bao phủ các ca T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của `docs/spec/50_TEST_VA_FIXTURE.md`, thêm ca `runIngest` thử lại 1 lần khi zip hỏng. Tên test bắt đầu bằng mã T-ING hoặc ING. Khóa và token giả trong test T-ING-26, T-ING-27 dựng bằng ghép chuỗi (luật README) để hook quét khóa không chặn commit. Test D25: kiểm **dòng comment** không còn email và SĐT; không kiểm cả đoạn `not.toContain("0912345678")` vì `10912345678` (phải giữ) chứa chuỗi đó. Zip mẫu dựng trong RAM bằng `fflate`, mạng giả bằng mock `fetch`.
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest`
 - Có đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và test D25 của spec 50 (số dòng `\n` không đổi), tất cả chạy xanh.
 - Toàn bộ secret và PII được che đúng định dạng `<REDACTED_SECRET>` và `***`.
+- `npx vitest run src/server/engine` vẫn xanh (không làm hỏng B01–B03) và `npx eslint src/server/engine` 0 error, 0 warning.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -59,6 +69,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
+- Không ghi file ra đĩa ở bất kỳ đâu (ING-01), kể cả trong test. Không `Math.random`, không dùng đồng hồ trừ `performance.now()` cho `ingest_ms` (ING-02, ING-03).
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
 - Không tự viết `maskSensitive`; dùng hàm `maskSensitive` từ `src/lib/moderation.ts` của Vai E; E03 chưa merge thì ghi `kẹt`.
 ```
@@ -77,6 +88,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine/ingest` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
+- [ ] `npx vitest run src/server/engine` và `npx eslint src/server/engine` đều sạch.
 - [ ] Có đầy đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của spec 50.
 - [ ] Số dòng `\n` của file mã nguồn được bảo toàn trước và sau khi che secret (D25).
 

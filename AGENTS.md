@@ -19,7 +19,7 @@ Repo **code tập dượt** cho dự án SimpliFey (hackathon SGU 2026), copy t�
 4. Không bịa số đo (độ trễ, chi phí, số người dùng). Số chưa đo ⇒ ghi "mục tiêu / ước tính, chưa đo".
 5. Thông tin bên ngoài phải có URL nguồn chính thức; không có ⇒ ghi "CHƯA KIỂM CHỨNG".
 6. Code phải khớp `spec/02` (kiểu, API, mã lỗi, `CONFIG`), không tự đặt tên hay con số. AI không tự commit, không push; người kiểm xong mới commit, commit nhỏ như luật thi.
-7. Viết tiếng Việt, sơ đồ Mermaid, đường dẫn tương đối. File spec ≤ 40 000 byte (riêng `spec/20` ≤ 47 433, `spec/02` ≤ 45 000, `spec/21` ≤ 43 000).
+7. Viết tiếng Việt, sơ đồ Mermaid, đường dẫn tương đối. File spec ≤ 40 000 byte (riêng `spec/20` ≤ 47 433, `spec/02` ≤ 45 500, `spec/21` ≤ 43 000).
 
 ## Cần X ⇒ đọc
 | Cần | Đọc |
