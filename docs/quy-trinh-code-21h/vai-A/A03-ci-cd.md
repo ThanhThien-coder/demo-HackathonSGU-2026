@@ -38,14 +38,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `.github/dependabot.yml`
 
 ## Việc cần làm
-1. B1: Viết `.github/workflows/ci.yml` (kích hoạt trên mọi PR và push vào `main`: chạy `npm ci`, typecheck `tsc --noEmit`, lint `eslint`, unit test `vitest run`).
+1. B1: Viết `.github/workflows/ci.yml` (kích hoạt trên mọi PR và push vào `main`: dùng `actions/setup-node` với `node-version-file: .nvmrc` (D-68), chạy `npm ci`, typecheck `tsc --noEmit`, lint `eslint`, unit test `vitest run`).
 2. B2: Viết `.github/workflows/security.yml` (chạy `npm audit --omit=dev --audit-level=critical` trên PR và lịch cron `0 0 * * 1`) và viết `.github/dependabot.yml` cấu hình quét định kỳ hằng tuần cho npm theo `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 17.
 3. B3: Viết `.github/workflows/deploy.yml` theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 5 và `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 12: xác thực GCP qua Workload Identity Federation (dự phòng secret key JSON `GCP_SA_KEY`), deploy `gcloud run deploy --source` lên staging S2 với cấu hình của `.kb/spec/05_HA_TANG_CLOUD.md` Mục 1, chạy smoke test X-09 (`/api/health` và ingest repo demo với token bot), job deploy production gắn GitHub Environment `production` (cổng duyệt thủ công của Vai A).
 4. Đối chiếu từng workflow với đúng mục spec đã ghi (task này không có code dùng contracts nên không cần kiem-contract).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `git diff --stat`
-- Có đủ 4 file ở Được ghi; `ci.yml` có đủ 4 bước `npm ci`, typecheck, lint, vitest; `security.yml` có lệnh audit và lịch cron như B2; `deploy.yml` có job staging, smoke test X-09, job production gắn Environment `production`.
+- Có đủ 4 file ở Được ghi; `ci.yml` có bước `actions/setup-node` đọc `.nvmrc` và đủ 4 bước `npm ci`, typecheck, lint, vitest; `security.yml` có lệnh audit và lịch cron như B2; `deploy.yml` có job staging, smoke test X-09, job production gắn Environment `production`.
 - Không có giá trị bí mật nào viết thẳng trong file, chỉ dùng `${{ secrets.* }}`.
 - Smoke test ingest không bị tắt hay bỏ qua (trước 20:00 bước này đỏ vì chưa có engine, đó là bình thường).
 

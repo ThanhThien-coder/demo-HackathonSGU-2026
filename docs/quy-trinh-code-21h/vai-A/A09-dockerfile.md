@@ -37,12 +37,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `next.config.ts`
 
 ## Việc cần làm
-1. B1: Viết `Dockerfile` multi-stage gồm 3 stage `deps`, `builder`, `runner`, tạo người dùng không có quyền root `USER nextjs:nodejs` UID/GID 1001, sao chép thư mục `public/` (chứa grammar `.wasm` của Tree-sitter), viết `.dockerignore` đúng theo danh sách quy định tại `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3. Cấu hình `next.config.ts` chỉ trên nhánh này với tùy chọn `output: "standalone"`.
+1. B1: Viết `Dockerfile` multi-stage dùng image `node:22-slim` (D-68) gồm 3 stage `deps`, `builder`, `runner`, tạo người dùng không có quyền root `USER nextjs:nodejs` UID/GID 1001, sao chép thư mục `public/` (chứa grammar `.wasm` của Tree-sitter), viết `.dockerignore` đúng theo danh sách quy định tại `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3. Cấu hình `next.config.ts` chỉ trên nhánh này với tùy chọn `output: "standalone"`.
 2. Không chạy build hay deploy (việc đó bạn tự làm ở Bước 3).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `git diff --stat`
-- `Dockerfile` có đủ 3 stage `deps`, `builder`, `runner`, chạy bằng `USER nextjs:nodejs` (UID/GID 1001), chép thư mục `public/`.
+- `Dockerfile` dùng `node:22-slim`, có đủ 3 stage `deps`, `builder`, `runner`, chạy bằng `USER nextjs:nodejs` (UID/GID 1001), chép thư mục `public/`.
 - `.dockerignore` có đủ danh sách ở `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3.
 - `next.config.ts` có `output: "standalone"`, giữ nguyên các phần cũ (headers, `outputFileTracingIncludes`).
 
