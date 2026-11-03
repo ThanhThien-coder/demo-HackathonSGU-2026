@@ -6,7 +6,7 @@
 
 ## Đọc nhanh
 
-- **Mục 1 — Quyết định đang có hiệu lực:** gồm mọi D chưa hủy, xếp theo mã tăng dần (D-01 … D-10, D-12, D-13, D-15, D-16, D-18 … D-20, D-22, D-23, D-27 … D-69). Viết thẳng theo nội dung hiện hành, không giữ chữ cũ đã bị bãi bỏ.
+- **Mục 1 — Quyết định đang có hiệu lực:** gồm mọi D chưa hủy, xếp theo mã tăng dần (D-01 … D-10, D-12, D-13, D-15, D-16, D-18 … D-20, D-22, D-23, D-27 … D-70). Viết thẳng theo nội dung hiện hành, không giữ chữ cũ đã bị bãi bỏ.
 - **Mục 2 — Chờ chốt:** hiện không còn quyết định nào.
 - **Mục 3 — Câu hỏi còn mở:** Q-03, Q-10, Q-13. Không chặn việc code; có người chịu trách nhiệm và mặc định nếu chưa trả lời.
 - **Mục 4 — Lịch sử:** các D đã hủy hoặc thay thế (D-11, D-14, D-17, D-21, D-24, D-25, D-26) và các câu hỏi đã đóng (Q-01, Q-02, Q-04 … Q-09, Q-11, Q-12).
@@ -87,6 +87,7 @@
 | **D-67** | **Tailwind 4, không có `tailwind.config.ts`** (chốt 03/11/2026): repo thi dùng `tailwindcss` 4.x do `create-next-app@15 --tailwind` tạo (plugin `@tailwindcss/postcss` trong `postcss.config.mjs`, `@import "tailwindcss"` trong `src/app/globals.css`). Token màu (`30` Mục 11) map vào khối `@theme` trong `src/app/globals.css`. Không tạo `tailwind.config.ts`. | `04`, `30`, `docs/quy-trinh-code-21h/` |
 | **D-68** | **Node.js 22 LTS cho mọi môi trường** (chốt 03/11/2026): máy dev, CI, Cloud Run, Vercel đều chạy Node 22. Lý do: `@supabase/supabase-js` 2.x khai báo `engines.node >=22`. Ghi `"engines": { "node": ">=22 <23" }` trong `package.json` và file `.nvmrc` chứa `22`; Buildpacks (`gcloud run deploy --source`) và Vercel đọc `engines` để chọn bản Node; CI dùng `actions/setup-node` với `node-version-file: .nvmrc`; Dockerfile dùng image `node:22-slim`. | `04`, `05`, `docs/quy-trinh-code-21h/` |
 | **D-69** | **Đơn giá token là hằng `CONFIG`** (chốt 03/11/2026): `CONFIG.LLM_PRICE_INPUT_USD_PER_M = 0.30`, `CONFIG.LLM_PRICE_OUTPUT_USD_PER_M = 2.50` (USD / 1 triệu token, Gemini 3.5 Flash-Lite; khớp ước tính chi phí của Google AI Studio đo 03/11). `cost_usd` của log L1 và bảng `ai_usage` (D-66) = `tokens_in × LLM_PRICE_INPUT_USD_PER_M / 1e6 + tokens_out × LLM_PRICE_OUTPUT_USD_PER_M / 1e6`; `tokens_out` gồm token suy nghĩ (AI-07). Trần `spec/02` từ 45 000 lên 45 500 byte. | `02`, `AGENTS.md`, `CLAUDE.md` |
+| **D-70** | **Đóng gói `queries/*.scm` cùng grammar** (chốt 03/11/2026): Tầng 1 đọc truy vấn Tree-sitter bằng `fs` theo `LanguageAdapter.query_file` (`queries/<lang>.scm` ở gốc repo), nên phải đóng gói như grammar `.wasm`: `outputFileTracingIncludes["/api/ingest"]` trong `next.config.ts` thêm `"./queries/*.scm"` (dùng cho cả Vercel và build `standalone`); Dockerfile stage `runner` chép thêm thư mục `queries/` cạnh `public/`. Thiếu ⇒ ingest lỗi trên Vercel/Docker dù chạy được ở máy dev. | `04`, `05`, `docs/quy-trinh-code-21h/` |
 
 ---
 
