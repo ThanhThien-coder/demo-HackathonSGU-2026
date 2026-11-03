@@ -47,6 +47,14 @@ const GENERIC_ENTRY_TOKENS = new Set([
   "commands",
 ]);
 
+const FUNCTION_NODE_TYPES = new Set([
+  "function_declaration",
+  "function_expression",
+  "arrow_function",
+  "method_definition",
+  "function_definition",
+]);
+
 // Thu thập decorator cho node (gồm con trực tiếp, con của export_statement, và sibling đứng trước)
 function getDecorators(n: Node): Node[] {
   const decs: Node[] = [];
@@ -83,15 +91,17 @@ function findEnclosingFunctionKey(
 ): string {
   let cur: Node | null = node.parent;
   while (cur) {
-    for (const [key, func] of idx.functions.entries()) {
-      if (func.file_path === filePath) {
-        const rowStart = cur.startPosition.row + 1;
-        const rowEnd = cur.endPosition.row + 1;
-        if (
-          Math.abs(func.line_start - rowStart) <= 1 &&
-          Math.abs(func.line_end - rowEnd) <= 1
-        ) {
-          return key;
+    if (FUNCTION_NODE_TYPES.has(cur.type)) {
+      for (const [key, func] of idx.functions.entries()) {
+        if (func.file_path === filePath) {
+          const rowStart = cur.startPosition.row + 1;
+          const rowEnd = cur.endPosition.row + 1;
+          if (
+            Math.abs(func.line_start - rowStart) <= 1 &&
+            Math.abs(func.line_end - rowEnd) <= 1
+          ) {
+            return key;
+          }
         }
       }
     }
@@ -279,14 +289,19 @@ export function buildCallGraph(
                   bindings.push(binding);
 
                   // ENG-34: Hàm chứa câu lệnh đăng ký route gọi handler & middlewares
-                  const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: handlerKey,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
-                  });
+                  let callerKey = findEnclosingFunctionKey(node, filePath, idx);
+                  if (callerKey === handlerKey) {
+                    callerKey = `${filePath}#<module>`;
+                  }
+                  if (callerKey !== handlerKey) {
+                    rawEdges.push({
+                      caller: callerKey,
+                      callee: handlerKey,
+                      confidence: "RESOLVED",
+                      ambiguous: false,
+                      call_count: 1,
+                    });
+                  }
                   for (const mw of middlewares) {
                     const mwDirectKey = `${filePath}#${mw}`;
                     const mwKey = idx.symbols.has(mwDirectKey)
@@ -299,13 +314,15 @@ export function buildCallGraph(
                           idx,
                           anonCounter
                         );
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: mwKey,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
+                    if (callerKey !== mwKey) {
+                      rawEdges.push({
+                        caller: callerKey,
+                        callee: mwKey,
+                        confidence: "RESOLVED",
+                        ambiguous: false,
+                        call_count: 1,
+                      });
+                    }
                   }
                 }
               }
@@ -363,7 +380,7 @@ export function buildCallGraph(
                 let methodSubPath: string | null = null;
                 const middlewares: string[] = [];
 
-                // Gom tất cả decorator của method (cả pending trước đó và con bên trong nếu có)
+                // Gom tất cả decorator của method
                 const methodDecorators: Node[] = [...pendingDecorators];
                 for (let j = 0; j < member.childCount; j++) {
                   const mc = member.child(j);
@@ -515,26 +532,81 @@ export function buildCallGraph(
             // (1) f() gọi trực tiếp
             const name = fnNode.text;
             const localKey = `${filePath}#${name}`;
-            if (idx.symbols.has(localKey)) {
-              rawEdges.push({
-                caller: callerKey,
-                callee: localKey,
-                confidence: "RESOLVED",
-                ambiguous: false,
-                call_count: 1,
-              });
-            } else {
-              // (2) f import trực tiếp
-              const imported = idx.imports.get(filePath)?.get(name);
-              if (imported && imported.source_file) {
-                const targetKey = `${imported.source_file}#${imported.symbol_name === "default" ? name : imported.symbol_name}`;
+            const localSym = idx.symbols.get(localKey);
+
+            if (localSym) {
+              if (localSym.kind === "CLASS") {
+                // ENG-30: new T() chỉ trỏ tới constructor nếu có, không trỏ tới CLASS
+                if (node.type === "new_expression") {
+                  const ctorKey = `${filePath}#${name}.constructor`;
+                  const initKey = `${filePath}#${name}.__init__`;
+                  if (idx.functions.has(ctorKey) || idx.symbols.has(ctorKey)) {
+                    rawEdges.push({
+                      caller: callerKey,
+                      callee: ctorKey,
+                      confidence: "RESOLVED",
+                      ambiguous: false,
+                      call_count: 1,
+                    });
+                  } else if (idx.functions.has(initKey) || idx.symbols.has(initKey)) {
+                    rawEdges.push({
+                      caller: callerKey,
+                      callee: initKey,
+                      confidence: "RESOLVED",
+                      ambiguous: false,
+                      call_count: 1,
+                    });
+                  }
+                }
+              } else if (localSym.kind === "FUNCTION" || localSym.kind === "METHOD") {
                 rawEdges.push({
                   caller: callerKey,
-                  callee: targetKey,
+                  callee: localKey,
                   confidence: "RESOLVED",
                   ambiguous: false,
                   call_count: 1,
                 });
+              }
+            } else {
+              // (2) f import trực tiếp
+              const imported = idx.imports.get(filePath)?.get(name);
+              if (imported && imported.source_file) {
+                const targetSymName =
+                  imported.symbol_name === "default" ? name : imported.symbol_name;
+                const targetKey = `${imported.source_file}#${targetSymName}`;
+                const targetSym = idx.symbols.get(targetKey);
+
+                if (targetSym?.kind === "CLASS") {
+                  if (node.type === "new_expression") {
+                    const ctorKey = `${imported.source_file}#${targetSymName}.constructor`;
+                    const initKey = `${imported.source_file}#${targetSymName}.__init__`;
+                    if (idx.functions.has(ctorKey) || idx.symbols.has(ctorKey)) {
+                      rawEdges.push({
+                        caller: callerKey,
+                        callee: ctorKey,
+                        confidence: "RESOLVED",
+                        ambiguous: false,
+                        call_count: 1,
+                      });
+                    } else if (idx.functions.has(initKey) || idx.symbols.has(initKey)) {
+                      rawEdges.push({
+                        caller: callerKey,
+                        callee: initKey,
+                        confidence: "RESOLVED",
+                        ambiguous: false,
+                        call_count: 1,
+                      });
+                    }
+                  }
+                } else {
+                  rawEdges.push({
+                    caller: callerKey,
+                    callee: targetKey,
+                    confidence: "RESOLVED",
+                    ambiguous: false,
+                    call_count: 1,
+                  });
+                }
               } else if (imported && imported.import_source) {
                 external.push({
                   caller: callerKey,
@@ -549,9 +621,34 @@ export function buildCallGraph(
             const { receiverChain, method } = parseMemberExpression(fnNode);
             const receiverText = receiverChain.join(".");
 
+            // Hàm tìm method của một class type (ENG-31 (3))
+            const resolveMethodOnType = (typeStr: string): string | null => {
+              // 1. Kiểm tra qua import
+              const imp = idx.imports.get(filePath)?.get(typeStr);
+              if (imp && imp.source_file) {
+                const symName = imp.symbol_name === "default" ? typeStr : imp.symbol_name;
+                const k = `${imp.source_file}#${symName}.${method}`;
+                if (idx.symbols.has(k) || idx.functions.has(k)) return k;
+                const simpleK = `${imp.source_file}#${method}`;
+                if (idx.symbols.has(simpleK) || idx.functions.has(simpleK)) return simpleK;
+              }
+              // 2. Cùng file
+              const loc = `${filePath}#${typeStr}.${method}`;
+              if (idx.symbols.has(loc) || idx.functions.has(loc)) return loc;
+              // 3. Quét toàn bộ symbols
+              for (const [sKey, sym] of idx.symbols) {
+                if (
+                  sym.kind === "METHOD" &&
+                  (sKey.endsWith(`#${typeStr}.${method}`) || sKey.includes(`#${typeStr}.${method}~`))
+                ) {
+                  return sKey;
+                }
+              }
+              return null;
+            };
+
             if (receiverText === "this" || receiverText === "self") {
               // this.m() cùng file / class
-              // Tìm class chứa callerKey
               const callerSym = idx.symbols.get(callerKey);
               if (callerSym && callerKey.includes(".")) {
                 const classPart = callerKey.split("#")[1]?.split(".")[0];
@@ -583,7 +680,6 @@ export function buildCallGraph(
               }
 
               if (fieldType) {
-                // Kiểm tra xem fieldType có trong interface_impls không (ENG-32)
                 const impls = idx.interface_impls.get(fieldType);
                 if (impls && impls.length === 1) {
                   const implClassKey = impls[0]!;
@@ -607,22 +703,16 @@ export function buildCallGraph(
                     });
                   }
                 } else {
-                  // Tìm method trong symbols
-                  let found = false;
-                  for (const [sKey] of idx.symbols) {
-                    if (sKey.endsWith(`#${fieldType}.${method}`)) {
-                      rawEdges.push({
-                        caller: callerKey,
-                        callee: sKey,
-                        confidence: "RESOLVED",
-                        ambiguous: false,
-                        call_count: 1,
-                      });
-                      found = true;
-                      break;
-                    }
-                  }
-                  if (!found) {
+                  const resolvedKey = resolveMethodOnType(fieldType);
+                  if (resolvedKey) {
+                    rawEdges.push({
+                      caller: callerKey,
+                      callee: resolvedKey,
+                      confidence: "RESOLVED",
+                      ambiguous: false,
+                      call_count: 1,
+                    });
+                  } else {
                     external.push({
                       caller: callerKey,
                       line,
@@ -670,7 +760,7 @@ export function buildCallGraph(
                   import_source: imported.import_source,
                 });
               } else {
-                // Kiểm tra field_types cho biến cục bộ / module
+                // Kiểm tra field_types cho biến cục bộ / module (ENG-22, ENG-31 (3))
                 const fieldType =
                   idx.field_types.get(`${filePath}#${baseReceiver}`) ??
                   idx.field_types.get(baseReceiver);
@@ -696,13 +786,24 @@ export function buildCallGraph(
                       });
                     }
                   } else {
-                    external.push({
-                      caller: callerKey,
-                      line,
-                      receiver_chain: receiverChain,
-                      method,
-                      import_source: null,
-                    });
+                    const resolvedKey = resolveMethodOnType(fieldType);
+                    if (resolvedKey) {
+                      rawEdges.push({
+                        caller: callerKey,
+                        callee: resolvedKey,
+                        confidence: "RESOLVED",
+                        ambiguous: false,
+                        call_count: 1,
+                      });
+                    } else {
+                      external.push({
+                        caller: callerKey,
+                        line,
+                        receiver_chain: receiverChain,
+                        method,
+                        import_source: null,
+                      });
+                    }
                   }
                 } else {
                   external.push({
@@ -728,9 +829,13 @@ export function buildCallGraph(
     visit(root);
   }
 
-  // ENG-33: Gộp cạnh theo (caller, callee)
+  // ENG-33: Gộp cạnh theo (caller, callee), loại bỏ self-loop và cạnh tới CLASS (ENG-30, ENG-60)
   const edgeMap = new Map<string, FunctionCallEdge>();
   for (const e of rawEdges) {
+    if (e.caller === e.callee) continue; // Bỏ self-loop
+    const calleeSym = idx.symbols.get(e.callee);
+    if (calleeSym && calleeSym.kind === "CLASS") continue; // ENG-30: Không tới CLASS
+
     const pairKey = `${e.caller}==>${e.callee}`;
     const existing = edgeMap.get(pairKey);
     if (!existing) {
