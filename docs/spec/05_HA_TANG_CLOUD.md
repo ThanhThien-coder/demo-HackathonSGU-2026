@@ -62,7 +62,7 @@ Quy chuẩn cấu hình dịch vụ SimpliFey trên Google Cloud Run:
   - Viết và thử nghiệm `Dockerfile` trên **nhánh riêng** (ví dụ `feature/docker-packaging`), không commit trực tiếp lên `main` vì Cloud Build sẽ tự động ưu tiên build theo `Dockerfile` thay vì Buildpack nếu phát hiện file này trong thư mục gốc.
   - **Giờ cắt H+15 (03:00 sáng):** Nếu `Dockerfile` build và chạy ổn định trên nhánh riêng trước H+15 thì tiến hành merge vào nhánh chính; nếu đến mốc H+15 chưa hoàn thiện thì dừng lại và giữ nguyên phương thức deploy `--source` qua Buildpacks để bảo toàn thời gian kiểm thử trước mốc đóng băng H+17.
 - **Yêu cầu Dockerfile multi-stage & Promote Image:**
-  - Sử dụng multi-stage build gồm 3 stage: `deps` (`npm ci` cài đặt đầy đủ dependencies bao gồm cả devDependencies), `builder` (`npm run build` với Next.js cấu hình `output: "standalone"`), và `runner` (chỉ sao chép kết quả build và file tĩnh cần thiết).
+  - Image gốc `node:22-slim` cho cả 3 stage (D-68); sử dụng multi-stage build gồm 3 stage: `deps` (`npm ci` cài đặt đầy đủ dependencies bao gồm cả devDependencies), `builder` (`npm run build` với Next.js cấu hình `output: "standalone"`), và `runner` (chỉ sao chép kết quả build và file tĩnh cần thiết).
   - Khởi tạo người dùng riêng không có quyền root (`USER nextjs:nodejs`, UID/GID 1001) trong stage runner.
   - Sao chép toàn bộ thư mục `public/` (chứa các grammar Tree-sitter WebAssembly `public/grammars/*.wasm`) vào stage runner để adapter phân tích cú pháp truy cập file `.wasm` cục bộ qua `fs.readFile`.
   - Thiết lập `.dockerignore` loại bỏ: `.git`, `.next`, `node_modules`, `.env*`, `archive`, `.kb`, `review`, `pitch`.
@@ -72,6 +72,7 @@ Quy chuẩn cấu hình dịch vụ SimpliFey trên Google Cloud Run:
 
 ## 4. Bản dự phòng Vercel (Phương án C)
 
+- **Bản Node:** Vercel chọn Node 22.x theo `engines` trong `package.json` (D-68).
 - **Biến môi trường:** Cấu hình trên Vercel Project Settings; riêng AI sử dụng `GEMINI_BACKEND="studio"` kèm `GEMINI_API_KEY` (AI Studio), không dùng service account.
 - **Redirect URLs Supabase:** Bắt buộc khai báo cả 2 domain trong Supabase Auth (Authentication > URL Configuration > Redirect URLs): `https://<app>.run.app/auth/callback` và `https://<app>.vercel.app/auth/callback` (kèm `http://localhost:3000/**`).
 - **Dấu hiệu chuyển:** Cloud Run gặp lỗi 5xx liên tiếp 2 lần, tài khoản GCP bị khóa thanh toán / vượt quota, hoặc gián đoạn kết nối > 15s.
