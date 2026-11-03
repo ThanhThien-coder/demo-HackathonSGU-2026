@@ -3,11 +3,13 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useUserStore } from "@/stores/userStore";
 
 export interface NavbarProps {
   user?: {
@@ -21,15 +23,20 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
   const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [supabaseUser, setSupabaseUser] = useState<{
-    name: string;
-    avatarUrl?: string;
-  } | null>(null);
+
+  // Lấy state từ User Store (quản lý tập trung hồ sơ BKT và thông báo)
+  const {
+    user: storeUser,
+    profile,
+    isLoading,
+    toast,
+    hideToast,
+    fetchProfile,
+    setUser,
+  } = useUserStore();
 
   useEffect(() => {
-    // Nếu có propUser truyền vào tường minh, ưu tiên propUser
-    if (propUser !== undefined) return;
-
+    // 1. Tự động đồng bộ phiên Supabase Auth và thông tin người dùng
     try {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data }) => {
@@ -43,9 +50,7 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
             u.email?.split("@")[0] ||
             "User";
           const avatarUrl = u.user_metadata?.avatar_url;
-          setSupabaseUser({ name, avatarUrl });
-        } else {
-          setSupabaseUser(null);
+          setUser({ name, avatarUrl, email: u.email });
         }
       });
 
@@ -62,21 +67,29 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
             u.email?.split("@")[0] ||
             "User";
           const avatarUrl = u.user_metadata?.avatar_url;
-          setSupabaseUser({ name, avatarUrl });
-        } else {
-          setSupabaseUser(null);
+          setUser({ name, avatarUrl, email: u.email });
+        } else if (process.env.NEXT_PUBLIC_BYPASS_AUTH !== "true") {
+          setUser(null);
         }
       });
+
+      // 2. Tự động gọi Bước 1: GET /api/me để nạp hồ sơ BKT & tier
+      fetchProfile();
 
       return () => {
         subscription.unsubscribe();
       };
     } catch {
-      // Bỏ qua lỗi kết nối trong môi trường test/SSR
+      // Bỏ qua lỗi kết nối trong môi trường SSR/test
+      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
+        fetchProfile();
+      }
     }
-  }, [propUser]);
+  }, [fetchProfile, setUser]);
 
-  const user = propUser !== undefined ? propUser : supabaseUser;
+  // Ưu tiên propUser truyền vào tường minh (dành cho storybook, test hoặc report page mockup)
+  const activeUser =
+    propUser !== undefined ? propUser : storeUser;
 
   const navLinks = [
     { label: "Trang chủ", href: "/" },
@@ -128,19 +141,51 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
 
         {/* User Actions & Settings */}
         <div className="flex items-center gap-3 sm:gap-5">
-          {user ? (
+          {isLoading && !activeUser ? (
+            /* Loading State: Skeleton Shimmer */
+            <div
+              className="flex items-center gap-2 animate-pulse py-1"
+              aria-label="Đang tải thông tin người dùng"
+            >
+              <div className="size-9 rounded-full bg-[#f3f4f6]" />
+              <div className="h-4 w-24 rounded bg-[#f3f4f6] hidden sm:block" />
+            </div>
+          ) : activeUser ? (
+            /* Success State: User Profile with Tier Badge */
             <div className="flex items-center gap-3">
               <Avatar
-                src={user.avatarUrl}
-                alt={user.name}
-                fallback={user.name[0]}
+                src={activeUser.avatarUrl}
+                alt={activeUser.name}
+                fallback={activeUser.name ? activeUser.name[0] : "U"}
                 size="md"
               />
-              <span className="hidden sm:inline-block text-[15px] font-bold text-[#131b2e]">
-                Xin chào {user.name}!
-              </span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <span className="hidden sm:inline-block text-[15px] font-bold text-[#131b2e]">
+                  Xin chào {activeUser.name}!
+                </span>
+                {profile?.overall_tier && (
+                  <Badge
+                    variant={
+                      profile.overall_tier === "ARCHITECT"
+                        ? "bkt"
+                        : profile.overall_tier === "PRACTITIONER"
+                        ? "info"
+                        : "brand"
+                    }
+                    size="sm"
+                    className="hidden lg:inline-flex"
+                  >
+                    {profile.overall_tier === "ARCHITECT"
+                      ? "Kiến trúc sư"
+                      : profile.overall_tier === "PRACTITIONER"
+                      ? "Thực hành"
+                      : "Tập sự"}
+                  </Badge>
+                )}
+              </div>
             </div>
           ) : (
+            /* Empty / Guest State: Login CTA buttons */
             <>
               <Link
                 href="/login"
@@ -229,7 +274,7 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
               </Link>
             );
           })}
-          {!user && (
+          {!activeUser && (
             <div className="border-t border-[#f3f4f6] mt-2 pt-2 flex flex-col gap-2">
               <Link
                 href="/login"
@@ -240,6 +285,42 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
               </Link>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Toast Notification Container */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "fixed top-20 right-4 sm:right-9 z-50 flex items-center gap-3 rounded-[12px] px-4 py-3 shadow-lg border transition-all animate-in slide-in-from-top-3 duration-200 max-w-[380px]",
+            toast.type === "success" &&
+              "bg-white border-[#00bc7d]/30 text-[#131b2e] drop-shadow-[0_8px_16px_rgba(0,188,125,0.15)]",
+            toast.type === "error" &&
+              "bg-white border-[#e7000b]/30 text-[#131b2e] drop-shadow-[0_8px_16px_rgba(231,0,11,0.15)]",
+            toast.type === "info" &&
+              "bg-white border-[#004cff]/30 text-[#131b2e] drop-shadow-[0_8px_16px_rgba(0,76,255,0.15)]"
+          )}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 className="size-5 text-[#00bc7d] shrink-0" />
+          ) : toast.type === "error" ? (
+            <AlertCircle className="size-5 text-[#e7000b] shrink-0" />
+          ) : (
+            <Info className="size-5 text-[#004cff] shrink-0" />
+          )}
+          <span className="text-[13px] font-semibold flex-1 leading-snug">
+            {toast.message}
+          </span>
+          <button
+            type="button"
+            onClick={hideToast}
+            aria-label="Đóng thông báo"
+            className="text-[#99a1af] hover:text-[#131b2e] p-1 rounded-md transition-colors"
+          >
+            <X className="size-4" />
+          </button>
         </div>
       )}
     </header>

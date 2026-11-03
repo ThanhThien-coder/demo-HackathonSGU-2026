@@ -1,8 +1,95 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "./supabase/client";
-import type { ErrorCode, ApiError } from "@/contracts";
+import type {
+  ErrorCode,
+  ApiError,
+  MeResponse,
+  PersonaRequest,
+  PersonaResponse,
+  PersonaMode,
+  IngestRequest,
+  IngestResponse,
+  SessionsResponse,
+  LearningSessionSummary,
+  ProgressResponse,
+  SessionProgress,
+  HistoryResponse,
+  AttemptHistoryItem,
+  AnalyzeNodeRequest,
+  AnalyzeNodeResponse,
+  AnalyzeOverviewRequest,
+  AnalyzeOverviewResponse,
+  EnrichNodeRequest,
+  EnrichNodeResponse,
+  QuestionView,
+  EvaluateFeynmanRequest,
+  EvaluateFeynmanResponse,
+  FollowUp,
+  RevealRequest,
+  RevealResponse,
+  ReportWrongRequest,
+  ReportWrongResponse,
+  RunMode,
+  LearnerCognitiveProfile,
+  NodeStateView,
+  NodeAnalysisView,
+  RepoOverviewView,
+  QuestionState,
+  SkillChange,
+  SWESkill,
+  LearnerTier,
+} from "@/contracts";
 
-export type { ErrorCode, ApiError };
+export type {
+  ErrorCode,
+  ApiError,
+  MeResponse,
+  PersonaRequest,
+  PersonaResponse,
+  PersonaMode,
+  IngestRequest,
+  IngestResponse,
+  SessionsResponse,
+  LearningSessionSummary,
+  ProgressResponse,
+  SessionProgress,
+  HistoryResponse,
+  AttemptHistoryItem,
+  AnalyzeNodeRequest,
+  AnalyzeNodeResponse,
+  AnalyzeOverviewRequest,
+  AnalyzeOverviewResponse,
+  EnrichNodeRequest,
+  EnrichNodeResponse,
+  QuestionView,
+  EvaluateFeynmanRequest,
+  EvaluateFeynmanResponse,
+  FollowUp,
+  RevealRequest,
+  RevealResponse,
+  ReportWrongRequest,
+  ReportWrongResponse,
+  RunMode,
+  LearnerCognitiveProfile,
+  NodeStateView,
+  NodeAnalysisView,
+  RepoOverviewView,
+  QuestionState,
+  SkillChange,
+  SWESkill,
+  LearnerTier,
+};
+
+// Aliases matching prompt conventions & dispatch specifications
+export type UserProfileResponse = MeResponse;
+export type PersonaId = PersonaMode;
+export type SwitchPersonaRequest = PersonaRequest | { persona: PersonaMode };
+export type SwitchPersonaResponse = PersonaResponse;
+export type DeleteUserResponse = void;
+export type SessionListResponse = SessionsResponse;
+export type SessionProgressResponse = ProgressResponse;
+export type SessionHistoryResponse = HistoryResponse;
+export type SessionStatus = "ACTIVE" | "COMPLETED" | "ARCHIVED" | string;
 
 /**
  * Lớp lỗi chuẩn hóa cho client API SimpliFey.
@@ -279,3 +366,402 @@ export async function apiFetchSafe<T>(
     };
   }
 }
+
+/* =========================================================================
+ * 13 API ENDPOINT CLIENT WRAPPERS (Steps 1 to 13)
+ * Tuân thủ quy cách spec/02_CONTRACTS, spec/03_API_VA_LUU_TRU và API_INTEGRATION_PROMPTS
+ * ========================================================================= */
+
+// -------------------------------------------------------------------------
+// Bước 1: GET /api/me (Lấy hồ sơ người học & 16 kỹ năng BKT)
+// -------------------------------------------------------------------------
+export async function getMe(): Promise<UserProfileResponse> {
+  return apiFetch<UserProfileResponse>("/api/me", {
+    method: "GET",
+  });
+}
+
+export async function getMeSafe(): Promise<ApiResult<UserProfileResponse>> {
+  return apiFetchSafe<UserProfileResponse>("/api/me", {
+    method: "GET",
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 2: POST /api/demo/persona (Chuyển đổi Persona Demo D-09)
+// -------------------------------------------------------------------------
+export async function switchPersona(
+  persona: PersonaId | SwitchPersonaRequest
+): Promise<SwitchPersonaResponse> {
+  const mode: PersonaMode =
+    typeof persona === "string"
+      ? persona
+      : "mode" in persona
+      ? persona.mode
+      : persona.persona;
+
+  return apiFetch<SwitchPersonaResponse>("/api/demo/persona", {
+    method: "POST",
+    body: JSON.stringify({ mode }),
+  });
+}
+
+export async function switchPersonaSafe(
+  persona: PersonaId | SwitchPersonaRequest
+): Promise<ApiResult<SwitchPersonaResponse>> {
+  const mode: PersonaMode =
+    typeof persona === "string"
+      ? persona
+      : "mode" in persona
+      ? persona.mode
+      : persona.persona;
+
+  return apiFetchSafe<SwitchPersonaResponse>("/api/demo/persona", {
+    method: "POST",
+    body: JSON.stringify({ mode }),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 3: DELETE /api/me (Xóa dữ liệu & reset tài khoản, 204 No Content)
+// -------------------------------------------------------------------------
+export async function deleteMe(): Promise<DeleteUserResponse> {
+  return apiFetch<DeleteUserResponse>("/api/me", {
+    method: "DELETE",
+  });
+}
+
+export const deleteAccount = deleteMe;
+
+export async function deleteMeSafe(): Promise<ApiResult<DeleteUserResponse>> {
+  return apiFetchSafe<DeleteUserResponse>("/api/me", {
+    method: "DELETE",
+  });
+}
+
+export const deleteAccountSafe = deleteMeSafe;
+
+// -------------------------------------------------------------------------
+// Bước 4: POST /api/ingest (Quét repo GitHub hoặc upload zip mở phiên học)
+// -------------------------------------------------------------------------
+export async function ingestRepo(
+  data: IngestRequest | FormData
+): Promise<IngestResponse> {
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+  return apiFetch<IngestResponse>("/api/ingest", {
+    method: "POST",
+    body: isFormData ? data : JSON.stringify(data),
+  });
+}
+
+export async function ingestRepoSafe(
+  data: IngestRequest | FormData
+): Promise<ApiResult<IngestResponse>> {
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+  return apiFetchSafe<IngestResponse>("/api/ingest", {
+    method: "POST",
+    body: isFormData ? data : JSON.stringify(data),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 5: GET /api/sessions (Danh sách các phiên học gần đây)
+// -------------------------------------------------------------------------
+export async function getSessions(params?: {
+  status?: SessionStatus;
+  limit?: number;
+  offset?: number;
+}): Promise<SessionListResponse> {
+  let endpoint = "/api/sessions";
+  if (params) {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", String(params.status));
+    if (typeof params.limit === "number") query.set("limit", String(params.limit));
+    if (typeof params.offset === "number") query.set("offset", String(params.offset));
+    const qs = query.toString();
+    if (qs) {
+      endpoint += `?${qs}`;
+    }
+  }
+  return apiFetch<SessionListResponse>(endpoint, {
+    method: "GET",
+  });
+}
+
+export async function getSessionsSafe(params?: {
+  status?: SessionStatus;
+  limit?: number;
+  offset?: number;
+}): Promise<ApiResult<SessionListResponse>> {
+  let endpoint = "/api/sessions";
+  if (params) {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", String(params.status));
+    if (typeof params.limit === "number") query.set("limit", String(params.limit));
+    if (typeof params.offset === "number") query.set("offset", String(params.offset));
+    const qs = query.toString();
+    if (qs) {
+      endpoint += `?${qs}`;
+    }
+  }
+  return apiFetchSafe<SessionListResponse>(endpoint, {
+    method: "GET",
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 6: GET /api/sessions/{session_id}/progress (Tiến độ đồ thị bài học)
+// -------------------------------------------------------------------------
+export async function getSessionProgress(
+  sessionId: string
+): Promise<SessionProgressResponse> {
+  return apiFetch<SessionProgressResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/progress`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+export async function getSessionProgressSafe(
+  sessionId: string
+): Promise<ApiResult<SessionProgressResponse>> {
+  return apiFetchSafe<SessionProgressResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/progress`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+// -------------------------------------------------------------------------
+// Bước 7: GET /api/sessions/{session_id}/history (Lịch sử nộp bài)
+// -------------------------------------------------------------------------
+export async function getSessionHistory(
+  sessionId: string
+): Promise<SessionHistoryResponse> {
+  return apiFetch<SessionHistoryResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/history`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+export async function getSessionHistorySafe(
+  sessionId: string
+): Promise<ApiResult<SessionHistoryResponse>> {
+  return apiFetchSafe<SessionHistoryResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/history`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+// -------------------------------------------------------------------------
+// Bước 8: POST /api/analyze-node (Phân tích kiến trúc node bằng AI)
+// -------------------------------------------------------------------------
+export async function analyzeNode(
+  data: AnalyzeNodeRequest
+): Promise<AnalyzeNodeResponse>;
+export async function analyzeNode(
+  sessionId: string,
+  nodeId: string
+): Promise<AnalyzeNodeResponse>;
+export async function analyzeNode(
+  dataOrSessionId: AnalyzeNodeRequest | string,
+  nodeId?: string
+): Promise<AnalyzeNodeResponse> {
+  const payload: AnalyzeNodeRequest =
+    typeof dataOrSessionId === "string"
+      ? { session_id: dataOrSessionId, node_id: nodeId! }
+      : dataOrSessionId;
+
+  return apiFetch<AnalyzeNodeResponse>("/api/analyze-node", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function analyzeNodeSafe(
+  data: AnalyzeNodeRequest
+): Promise<ApiResult<AnalyzeNodeResponse>>;
+export async function analyzeNodeSafe(
+  sessionId: string,
+  nodeId: string
+): Promise<ApiResult<AnalyzeNodeResponse>>;
+export async function analyzeNodeSafe(
+  dataOrSessionId: AnalyzeNodeRequest | string,
+  nodeId?: string
+): Promise<ApiResult<AnalyzeNodeResponse>> {
+  const payload: AnalyzeNodeRequest =
+    typeof dataOrSessionId === "string"
+      ? { session_id: dataOrSessionId, node_id: nodeId! }
+      : dataOrSessionId;
+
+  return apiFetchSafe<AnalyzeNodeResponse>("/api/analyze-node", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 9: POST /api/analyze-overview (Tổng quan toàn cảnh repo)
+// -------------------------------------------------------------------------
+export async function analyzeOverview(
+  data: AnalyzeOverviewRequest
+): Promise<AnalyzeOverviewResponse>;
+export async function analyzeOverview(
+  sessionId: string
+): Promise<AnalyzeOverviewResponse>;
+export async function analyzeOverview(
+  dataOrSessionId: AnalyzeOverviewRequest | string
+): Promise<AnalyzeOverviewResponse> {
+  const payload: AnalyzeOverviewRequest =
+    typeof dataOrSessionId === "string"
+      ? { session_id: dataOrSessionId }
+      : dataOrSessionId;
+
+  return apiFetch<AnalyzeOverviewResponse>("/api/analyze-overview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function analyzeOverviewSafe(
+  data: AnalyzeOverviewRequest
+): Promise<ApiResult<AnalyzeOverviewResponse>>;
+export async function analyzeOverviewSafe(
+  sessionId: string
+): Promise<ApiResult<AnalyzeOverviewResponse>>;
+export async function analyzeOverviewSafe(
+  dataOrSessionId: AnalyzeOverviewRequest | string
+): Promise<ApiResult<AnalyzeOverviewResponse>> {
+  const payload: AnalyzeOverviewRequest =
+    typeof dataOrSessionId === "string"
+      ? { session_id: dataOrSessionId }
+      : dataOrSessionId;
+
+  return apiFetchSafe<AnalyzeOverviewResponse>("/api/analyze-overview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 10: POST /api/enrich-node (Sinh câu hỏi Feynman cho bài học)
+// -------------------------------------------------------------------------
+export async function enrichNode(
+  data: EnrichNodeRequest
+): Promise<EnrichNodeResponse>;
+export async function enrichNode(
+  sessionId: string,
+  nodeId: string,
+  mode?: RunMode
+): Promise<EnrichNodeResponse>;
+export async function enrichNode(
+  dataOrSessionId: EnrichNodeRequest | string,
+  nodeId?: string,
+  mode: RunMode = "LEARN"
+): Promise<EnrichNodeResponse> {
+  const payload: EnrichNodeRequest =
+    typeof dataOrSessionId === "string"
+      ? { session_id: dataOrSessionId, node_id: nodeId!, mode }
+      : dataOrSessionId;
+
+  return apiFetch<EnrichNodeResponse>("/api/enrich-node", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function enrichNodeSafe(
+  data: EnrichNodeRequest
+): Promise<ApiResult<EnrichNodeResponse>>;
+export async function enrichNodeSafe(
+  sessionId: string,
+  nodeId: string,
+  mode?: RunMode
+): Promise<ApiResult<EnrichNodeResponse>>;
+export async function enrichNodeSafe(
+  dataOrSessionId: EnrichNodeRequest | string,
+  nodeId?: string,
+  mode: RunMode = "LEARN"
+): Promise<ApiResult<EnrichNodeResponse>> {
+  const payload: EnrichNodeRequest =
+    typeof dataOrSessionId === "string"
+      ? { session_id: dataOrSessionId, node_id: nodeId!, mode }
+      : dataOrSessionId;
+
+  return apiFetchSafe<EnrichNodeResponse>("/api/enrich-node", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 11: POST /api/evaluate-feynman (Chấm bài Feynman & cập nhật BKT)
+// -------------------------------------------------------------------------
+export async function evaluateFeynman(
+  data: EvaluateFeynmanRequest
+): Promise<EvaluateFeynmanResponse> {
+  return apiFetch<EvaluateFeynmanResponse>("/api/evaluate-feynman", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function evaluateFeynmanSafe(
+  data: EvaluateFeynmanRequest
+): Promise<ApiResult<EvaluateFeynmanResponse>> {
+  return apiFetchSafe<EvaluateFeynmanResponse>("/api/evaluate-feynman", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 12: POST /api/reveal (Bỏ qua câu hỏi & mở đáp án mẫu AI D-15)
+// -------------------------------------------------------------------------
+export async function reveal(data: RevealRequest): Promise<RevealResponse> {
+  return apiFetch<RevealResponse>("/api/reveal", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export const revealAnswer = reveal;
+
+export async function revealSafe(
+  data: RevealRequest
+): Promise<ApiResult<RevealResponse>> {
+  return apiFetchSafe<RevealResponse>("/api/reveal", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export const revealAnswerSafe = revealSafe;
+
+// -------------------------------------------------------------------------
+// Bước 13: POST /api/report-wrong (Báo sai kết quả chấm của AI & rollback BKT D-22)
+// -------------------------------------------------------------------------
+export async function reportWrong(
+  data: ReportWrongRequest
+): Promise<ReportWrongResponse> {
+  return apiFetch<ReportWrongResponse>("/api/report-wrong", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function reportWrongSafe(
+  data: ReportWrongRequest
+): Promise<ApiResult<ReportWrongResponse>> {
+  return apiFetchSafe<ReportWrongResponse>("/api/report-wrong", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
