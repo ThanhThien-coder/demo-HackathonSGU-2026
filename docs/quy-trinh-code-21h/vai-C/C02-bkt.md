@@ -35,7 +35,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. Viết các hàm cập nhật BKT: `updateSkill`, `computeSkillChange`, `revertSkillChange` theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 3, 7. Chữ ký theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 10.
-3. Viết decay, tier, `isDecaying`, `outcomeOf` theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 4, 7.
+3. Viết `getDecayedMastery` (decay), `tierOf`, `overallTier` (tier), `isDecaying`, `outcomeOf` theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 4, 7. Chữ ký theo Mục 10. Không viết `applyBkt` (thuộc `src/server/progress.ts`, việc của Vai A).
 4. Viết test cho nhóm T-BKT, T-CHAIN, T-UPD, T-REV, T-DEC, T-TIER, T-MM, T-OUT của .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Test bắt buộc. Số kỳ vọng chép đúng spec.
 5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 

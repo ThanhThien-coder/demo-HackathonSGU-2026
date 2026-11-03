@@ -27,17 +27,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `.kb/spec/02_CONTRACTS.md` Mục 1
 - `package.json`
 - `src/`
-- `tailwind.config.ts`
 
 ## Được ghi
 - `src/app/layout.tsx`
 - `src/app/page.tsx`
 - `src/app/globals.css`
-- `tailwind.config.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Thiết lập token CSS var trong `src/app/globals.css` (`--bg`, `--panel`, `--line`, `--text`, `--muted`, `--amber`, `--green`, `--red`, `--locked`, `--violet`, `--blue`), cấu hình font Plus Jakarta Sans và JetBrains Mono qua `next/font/google` trong `src/app/layout.tsx`, map các biến màu vào `tailwind.config.ts` theo `.kb/spec/30_UI.md` Mục 11.
+2. Thiết lập token CSS var trong `src/app/globals.css` (`--bg`, `--panel`, `--line`, `--text`, `--muted`, `--amber`, `--green`, `--red`, `--locked`, `--violet`, `--blue`), cấu hình font Plus Jakarta Sans và JetBrains Mono qua `next/font/google` trong `src/app/layout.tsx`, map các biến màu vào khối `@theme` trong `src/app/globals.css` theo `.kb/spec/30_UI.md` Mục 11 (repo dùng Tailwind 4: cấu hình nằm trong CSS, không tạo `tailwind.config.ts`).
 3. Dựng khung header và 3 cột tĩnh trong `src/app/page.tsx`, chia tỉ lệ theo `CONFIG.UI_PANE_WIDTHS_PCT` ([25, 45, 30]) theo `.kb/spec/30_UI.md` Mục 2.2; nếu contracts chưa merge thì để chỗ đó lại, nối ở D02.
 4. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
@@ -69,7 +67,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npm run build` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Chạy tay `npm run dev`, mở trình duyệt thấy 3 cột tĩnh hiển thị trên nền `--bg`.
-- [ ] `tailwind.config.ts` map đủ các biến CSS token thiết kế của `.kb/spec/30_UI.md` Mục 11.
+- [ ] Khối `@theme` trong `src/app/globals.css` map đủ các biến CSS token thiết kế của `.kb/spec/30_UI.md` Mục 11.
 
 ```text
 Task "D01 — Token thiết kế, khung 3 cột tĩnh" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -80,7 +78,7 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/app/layout.tsx src/app/globals.css tailwind.config.ts
+git add src/app/layout.tsx src/app/globals.css
 git commit -m "feat(ui): token thiết kế, font"
 git add src/app/page.tsx
 git commit -m "feat(ui): khung 3 cột"

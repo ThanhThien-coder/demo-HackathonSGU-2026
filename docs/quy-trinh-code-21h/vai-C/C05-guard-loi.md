@@ -4,7 +4,7 @@
 | :-- | :-- |
 | Giờ | 17:30–18:30 (H+5.5 → H+6.5) |
 | Nhánh | `c/C05-guard-loi` |
-| Cần có trước | C04, E03 (`src/server/ai/guard/forbidden.ts` đã merge) |
+| Cần có trước | C04, E03 (`src/server/ai/guard/forbidden.ts` đã merge), E02 (fixture AI đã merge) |
 | Mở đường cho | C06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
@@ -19,7 +19,7 @@ git checkout main; git pull; npm ci; git checkout -b c/C05-guard-loi
 ```text
 Dùng skill tao-task để tạo task tên "C05 — Cổng gác lõi: chuẩn hóa, chốt tên, số dòng, kiểm phân tích". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
-Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C04, E03 (`src/server/ai/guard/forbidden.ts` đã merge). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C04, E03 (`src/server/ai/guard/forbidden.ts` đã merge), E02 (fixture AI đã merge). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
 
 ## Được đọc
 - `.kb/README.md`
@@ -42,7 +42,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1 `text.ts`, `names.ts`, `lines.ts` (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 2: GUARD-02, GUARD-04, GUARD-05, GUARD-08, GUARD-09): chuẩn hóa chuỗi norm, normText, bóc tách backticks; kiểm tra tên isValidName, checkNames; cơ chế Relaxed mode (GUARD-05); kiểm tra số dòng invalidLineRefs (GUARD-08); kiểm tra bằng chứng nằm đúng bước symbolInStep (GUARD-09).
 3. B2 `checkAnalysis` và ghi mã lỗi (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 3 GUARD-10, Mục 6 GUARD-22): hàm checkAnalysis kiểm tra kỹ năng (A1), mẫu (A2), điểm dở (A3), điểm hay (A4), số bước (A5), từ cấm/tên/dòng (A6), hạ cấp thành skeleton_only (A7); hàm logGuardBlock trong log.ts ghi nhận sự kiện guard_blocked.
-4. Viết test trong `src/server/ai/guard/__tests__/loi.test.ts` cho các trường hợp GUARD-04, GUARD-05, GUARD-10, GUARD-22 dùng fixture 2.1 của .kb/spec/50_TEST_VA_FIXTURE.md của Vai E.
+4. Viết test trong `src/server/ai/guard/__tests__/loi.test.ts` cho các trường hợp GUARD-04, GUARD-05, GUARD-10, GUARD-22 dùng file fixture có sẵn `src/server/ai/__fixtures__/analysis-n3.json` (fixture 2.1 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Từ cấm lấy bằng hàm của `src/server/ai/guard/forbidden.ts` (E03), không viết lại.
 5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong

@@ -44,8 +44,8 @@ Máy không có Antigravity (agy) hoặc không có ai-kit: làm cùng phiếu n
 ## Bạn chờ ai, ai chờ bạn
 
 - **Bạn chờ ai:**
-  - Chờ Vai A: [A02](../vai-A/A02-contracts.md) (contracts đã merge) để có kiểu dữ liệu và `CONFIG`.
-  - Chờ Vai E: E02 (fixture AI) để viết test, E03 (`forbidden.ts`) để gác từ cấm ở C05, E08 (kết quả duyệt lần 1) để đối soát ở C10.
+  - Chờ Vai A: [A02](../vai-A/A02-contracts.md) (contracts đã merge) để có kiểu dữ liệu và `CONFIG` (C02, C04); [A05](../vai-A/A05-phien-session.md) và [A07](../vai-A/A07-analyze-node.md) để viết route tổng quan ở C09.
+  - Chờ Vai E: E02 (fixture AI) để viết test từ C05, E03 (`forbidden.ts`) để gác từ cấm ở C05, E04 (`injection.ts`) để chặn câu tấn công ở C08, E08 (kết quả duyệt lần 1) để đối soát ở C10.
 - **Ai chờ bạn:**
   - Vai A chờ bạn: C03 (`deriveNodeStates`), C06 (hàm phân tích cho `analyze-node`), C07 (hàm đặt câu hỏi cho `enrich-node`), C08 (hàm chấm cho `evaluate-feynman`).
   - Vai D chờ bạn: C02 (`bkt-engine.ts`), C03 (`plan.ts`, `derive.ts`) để phục vụ hiển thị bản đồ, tính mài mòn và chạy chế độ Offline.
