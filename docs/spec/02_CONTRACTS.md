@@ -122,6 +122,8 @@ export const CONFIG = {
   GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
   GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
   LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 600, QUESTIONS: 900, GRADE: 500 },
+  LLM_PRICE_INPUT_USD_PER_M: 0.30,    // USD / 1 triệu token vào (D-69)
+  LLM_PRICE_OUTPUT_USD_PER_M: 2.50,   // USD / 1 triệu token ra, gồm token suy nghĩ (D-69)
   ANALYZE_CONCURRENCY: 3,             // Số lời gọi analyze-node chạy cùng lúc / phiên
   SESSION_TOKEN_QUOTA: 200000,        // Tổng token vào + ra / phiên học, đếm ở server
   ANALYSIS_MIN_SKILLS: 1,
@@ -188,7 +190,7 @@ export const CONFIG = {
 | `evaluate-feynman` | chưa đo, dự kiến cùng bậc | |
 | Đọc hồ sơ `GET /api/me` | 0.05 – 0.1 s | Server và Supabase cùng vùng |
 | Token: phân tích / tổng quan / đặt câu hỏi / chấm | ~2,000→700 · ~1,500→400 · ~1,600→650 · ~800→200 (vào→ra) | Mỗi lời gọi ra ≤ `LLM_MAX_OUTPUT_TOKENS` |
-| **Người học đầu tiên của 1 repo (7 node, ~15 câu)** | ~37 lời gọi · **~58,500 token** · ~$0.05 | Giá Gemini 3.5 Flash-Lite ($0.30 / 1M vào, $2.50 / 1M ra) |
+| **Người học đầu tiên của 1 repo (7 node, ~15 câu)** | ~37 lời gọi · **~58,500 token** · ~$0.05 | Đơn giá `CONFIG.LLM_PRICE_*` (D-69) |
 | Người học sau cùng repo (trúng cache phân tích) | ~29 lời gọi · ~38,000 token · ~$0.03 | Tốn lượt đặt câu hỏi + chấm (câu hỏi không cache, D-37) |
 | **Người học đầu tiên của repo 20 node** | ~106 lời gọi · **~167,000 token** · ~$0.14 | Tính tỉ lệ từ dòng 7 node, chưa đo |
 | Người học sau, repo 20 node | ~83 lời gọi · ~109,000 token · ~$0.09 | Tính tỉ lệ từ dòng 7 node, chưa đo |
