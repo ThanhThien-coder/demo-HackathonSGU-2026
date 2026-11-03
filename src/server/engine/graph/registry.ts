@@ -2,9 +2,6 @@
 // Kiểu LanguageAdapter / LanguageId lấy từ contracts (spec 02 Mục 4), chỉ import kiểu.
 import type { LanguageAdapter, LanguageId, LanguageSupportTier } from "@/contracts";
 
-// B01 mới có grammar cho 4 ngôn ngữ RESOLVED đã kiểm chứng (INV-09: TS/JS và Python).
-// Thêm ngôn ngữ khác (ENG-10) = 1 phần tử ở đây + public/grammars/<lang>.wasm + queries/<lang>.scm.
-// ingress_patterns, abstraction_kinds bổ sung ở các phiếu sau (B05, B07, B10).
 const JS_FAMILY_MANIFESTS = ["package.json", "tsconfig.json", "jsconfig.json"];
 
 export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
@@ -15,6 +12,12 @@ export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
     query_file: "queries/typescript.scm",
     manifest_files: JS_FAMILY_MANIFESTS,
     import_resolver: "TS_JS",
+    ingress_patterns: ["EXPRESS", "NESTJS", "FASTIFY", "KOA"],
+    abstraction_kinds: [
+      "interface_declaration",
+      "abstract_class_declaration",
+      "type_alias_declaration",
+    ],
     comment_prefix: "//",
   },
   {
@@ -24,6 +27,12 @@ export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
     query_file: "queries/tsx.scm",
     manifest_files: JS_FAMILY_MANIFESTS,
     import_resolver: "TS_JS",
+    ingress_patterns: ["EXPRESS", "NESTJS", "FASTIFY", "KOA"],
+    abstraction_kinds: [
+      "interface_declaration",
+      "abstract_class_declaration",
+      "type_alias_declaration",
+    ],
     comment_prefix: "//",
   },
   {
@@ -33,6 +42,8 @@ export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
     query_file: "queries/javascript.scm",
     manifest_files: JS_FAMILY_MANIFESTS,
     import_resolver: "TS_JS",
+    ingress_patterns: ["EXPRESS", "FASTIFY", "KOA"],
+    abstraction_kinds: [],
     comment_prefix: "//",
   },
   {
@@ -42,6 +53,8 @@ export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
     query_file: "queries/python.scm",
     manifest_files: ["requirements.txt", "pyproject.toml", "setup.py", "Pipfile"],
     import_resolver: "PYTHON",
+    ingress_patterns: ["FLASK", "FASTAPI"],
+    abstraction_kinds: ["class_definition"],
     comment_prefix: "#",
   },
 ];
