@@ -346,3 +346,81 @@ describe("ENG-12: tỉ lệ lỗi cú pháp với chuỗi tiếng Việt", () =>
     expect(report.skipped.parse_error).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ENG-31: Phân giải lời gọi phương thức qua biến module và không tự trỏ (spec 11 Mục 3)
+// ---------------------------------------------------------------------------
+describe("ENG-31: Phân giải biến module new T() và kiểm tra không tự trỏ", () => {
+  beforeAll(async () => {
+    await initParsers();
+  });
+
+  it("ENG-31: Handler ẩn danh gọi orderService.checkout(...) sinh cạnh tới OrderService.checkout, không tự trỏ, không sinh cạnh tới CLASS", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const serviceCode = `
+export class OrderService {
+  checkout(data: any): any {
+    return { ok: true };
+  }
+}
+`;
+    code.set("src/service.ts", serviceCode);
+    langs.set("src/service.ts", "TYPESCRIPT");
+
+    const routeCode = `
+import express from 'express';
+import { OrderService } from './service';
+
+const router = express.Router();
+const orderService = new OrderService();
+
+function authMiddleware(req: any, res: any, next: any) {
+  next();
+}
+
+router.post('/checkout', authMiddleware, async (req: any, res: any) => {
+  orderService.checkout(req.body);
+  res.json({ success: true });
+});
+`;
+    code.set("src/route.ts", routeCode);
+    langs.set("src/route.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const graph = buildCallGraph(parsed, idx);
+
+    // 1. Kiểm tra có cạnh từ <POST /checkout> tới OrderService.checkout
+    const checkoutCall = graph.edges.find(
+      (e) =>
+        e.caller.includes("<POST /checkout>") &&
+        e.callee.includes("OrderService.checkout")
+    );
+    expect(checkoutCall).toBeDefined();
+    expect(checkoutCall?.confidence).toBe("RESOLVED");
+
+    // 2. Kiểm tra KHÔNG CÓ cạnh tự trỏ (caller === callee)
+    for (const e of graph.edges) {
+      expect(e.caller).not.toBe(e.callee);
+    }
+    const selfLoop = graph.edges.find((e) => e.caller === e.callee);
+    expect(selfLoop).toBeUndefined();
+
+    // 3. Kiểm tra KHÔNG CÓ cạnh trỏ tới CLASS (ENG-30)
+    for (const e of graph.edges) {
+      const sym = idx.symbols.get(e.callee);
+      expect(sym?.kind).not.toBe("CLASS");
+    }
+    const classEdge = graph.edges.find((e) => e.callee === "src/service.ts#OrderService");
+    expect(classEdge).toBeUndefined();
+  });
+});
