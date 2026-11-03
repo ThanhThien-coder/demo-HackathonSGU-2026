@@ -8,6 +8,7 @@
 # Hệ điều hành
 Thumbs.db
 .DS_Store
+desktop.ini
 
 # Cấu hình IDE
 .idea/
