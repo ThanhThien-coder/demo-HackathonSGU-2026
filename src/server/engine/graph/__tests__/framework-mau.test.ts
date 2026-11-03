@@ -43,3 +43,47 @@ it("ENG-40: cả 3 repo ra đúng tên, middleware và bước DATA_ACCESS", asy
   expect(steps(ne.nodes[0]!)).toEqual(["ENTRY_POINT:@Post('/orders/checkout')", "MIDDLEWARE:AuthGuard.canActivate", "DATA_ACCESS:OrdersService.checkout"]);
 });
 });
+
+// ENG-22, ENG-31: 6 cách viết service hay gặp ở Express. Lần tập (B08) chỉ cách "export const svc = new Svc()" được
+// sửa, còn `export default new Svc()` và CommonJS `module.exports = new Svc()` vẫn làm lát cắt cụt.
+describe("ENG-31: lát cắt đi qua service viết theo 6 kiểu export khác nhau", () => {
+  const route = (imp: string, call: string) =>
+    `import express from "express";\n${imp}\nconst router = express.Router();\nrouter.post("/orders/checkout", async (req, res) => {\n  const o = await ${call}(req.body);\n  res.json(o);\n});\nexport default router;\n`;
+  const svcBody = `  async checkout(dto) {\n    const order = await orderRepo.save(dto);\n    return order;\n  }\n`;
+  const cases: Record<string, Record<string, string>> = {
+    "export const": {
+      "src/routes/order.routes.ts": route(`import { orderService } from "../services/order.service";`, "orderService.checkout"),
+      "src/services/order.service.ts": `export class OrderService {\n${svcBody}}\nexport const orderService = new OrderService();\n`,
+    },
+    "export default new": {
+      "src/routes/order.routes.ts": route(`import orderService from "../services/order.service";`, "orderService.checkout"),
+      "src/services/order.service.ts": `class OrderService {\n${svcBody}}\nexport default new OrderService();\n`,
+    },
+    "module.exports = new": {
+      "src/routes/order.routes.js": route(`const orderService = require("../services/order.service");`, "orderService.checkout")
+        .replace(`import express from "express";`, `const express = require("express");`)
+        .replace("export default router;", "module.exports = router;"),
+      "src/services/order.service.js": `class OrderService {\n${svcBody}}\nmodule.exports = new OrderService();\n`,
+    },
+    static: {
+      "src/routes/order.routes.ts": route(`import { OrderService } from "../services/order.service";`, "OrderService.checkout"),
+      "src/services/order.service.ts": `export class OrderService {\n  static${svcBody.slice(1)}}\n`,
+    },
+    "import * as": {
+      "src/routes/order.routes.ts": route(`import * as orderService from "../services/order.service";`, "orderService.checkout"),
+      "src/services/order.service.ts": `export async function checkout(dto) {\n  const order = await orderRepo.save(dto);\n  return order;\n}\n`,
+    },
+    container: {
+      "src/routes/order.routes.ts": route(`import { orderService } from "../container";`, "orderService.checkout"),
+      "src/container.ts": `import { OrderService } from "./services/order.service";\nexport const orderService = new OrderService();\n`,
+      "src/services/order.service.ts": `export class OrderService {\n${svcBody}}\n`,
+    },
+  };
+  for (const [name, files] of Object.entries(cases)) {
+    it(`ENG-31: ${name} ⇒ Order Checkout có bước DATA_ACCESS`, async () => {
+      const r = await run(name.replace(/\W+/g, "-"), files);
+      const node = r.nodes.find((n) => n.title === "Order Checkout");
+      expect(node?.trace_steps.map((s) => s.layer)).toEqual(["ENTRY_POINT", "DATA_ACCESS"]);
+    });
+  }
+});

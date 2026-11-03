@@ -415,6 +415,9 @@ describe("ENG / X-01 / X-07: Repo demo shop-api trong RAM và kiểm thử xuyê
     });
 
     // 1. Số node trong khoảng [CONFIG.DISPLAY_MIN_NODES, CONFIG.DISPLAY_MAX_NODES] (6..20)
+    // DoD dòng 1: đồng hồ đo hiện ingest_ms + engine_ms thật
+    expect(res.ingestion_report.ingest_ms).toBeGreaterThan(0);
+    expect(res.ingestion_report.engine_ms).toBeGreaterThan(0);
     expect(res.nodes.length).toBeGreaterThanOrEqual(CONFIG.DISPLAY_MIN_NODES);
     expect(res.nodes.length).toBeLessThanOrEqual(CONFIG.DISPLAY_MAX_NODES);
 
