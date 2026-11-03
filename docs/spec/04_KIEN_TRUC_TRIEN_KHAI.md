@@ -430,7 +430,7 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
 ```
 .
 ├── README.md · LICENSE                          # README có mục "Tự cài đặt" (D-45); LICENSE MIT (D-49)
-├── package.json · tsconfig.json · next.config.ts · tailwind.config.ts · .env.example
+├── package.json · tsconfig.json · next.config.ts · postcss.config.mjs · .env.example
 ├── supabase/migrations/0001_init.sql            # 03 Mục 3
 ├── scripts/{review-run,record-bundle}.ts        # Duyệt tay output AI + ghi mock_bundle (21)
 ├── review/                                      # Bảng kiểm & kết quả duyệt tay (21) — không chứa code repo demo
@@ -478,7 +478,7 @@ Chốt **phiên bản chính xác ở giờ H+0** bằng lệnh cài đặt, ghi
 | `@dagrejs/dagre` | 1.x | Layout |
 | `@monaco-editor/react` | 4.x | Code viewer (read-only) |
 | `zustand` | 5.x | Store |
-| `tailwindcss` | 3.4 hoặc 4.x | Giao diện |
+| `tailwindcss` | 4.x | Giao diện; cấu hình bằng `@theme` trong `globals.css`, không có `tailwind.config.ts` (D-67) |
 | `web-tree-sitter` + file `.wasm` của từng grammar | Cùng ABI với grammar | Parser |
 | `fflate` | 0.8.x | Giải nén zip trong RAM |
 | `@google/genai` | 1.x | Gemini, structured output |
