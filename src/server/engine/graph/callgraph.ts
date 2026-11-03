@@ -776,7 +776,9 @@ export function buildCallGraph(
                 let target: string | null = null;
                 if (exists(`${src}#${symName}.${method}`)) target = `${src}#${symName}.${method}`;
                 if (!target) {
-                  const typeName = idx.field_types.get(`${src}#${symName}`);
+                  const typeName =
+                    idx.field_types.get(`${src}#${symName}`) ??
+                    (imported.symbol_name === "default" ? idx.field_types.get(`${src}#default`) : undefined);
                   if (typeName) {
                     if (exists(`${src}#${typeName}.${method}`)) target = `${src}#${typeName}.${method}`;
                     const typeImp = idx.imports.get(src)?.get(typeName);
