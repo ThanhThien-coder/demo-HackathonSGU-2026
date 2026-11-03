@@ -19,7 +19,7 @@ import { probeRepo } from "./probe";
 import { resolveRef } from "./refs";
 import { downloadArchive } from "./download";
 import { computeSnapshot } from "./snapshot";
-import { listEntries, inflateSelected } from "./unzip";
+import { listEntries, inflateSelected, decodeAndFilter } from "./unzip";
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
 import { selectFiles } from "./priority";
 import { detectScope, buildFingerprint, assertNotEmpty } from "./fingerprint";
@@ -317,29 +317,33 @@ export async function runIngest(
   const source_map = new Map<string, VirtualFileOrigin>();
   const file_language = new Map<string, LanguageId>();
 
+  // Mục 9 ý 4.6: file SPECIAL được B03 giải nén không kiểm minified ⇒ kiểm trên code ảo sau trích xuất.
+  // decodeAndFilter tự cộng skipped.oversized khi bị loại.
+  const passesMinifiedCheck = (code: string): boolean =>
+    decodeAndFilter(new TextEncoder().encode(code), report, { check_minified: true }) !== null;
+  const languageByPath = new Map(classifiedEntries.map((c) => [c.path, c.language] as const));
+
   for (const [filePath, rawContent] of rawCodeMap.entries()) {
     if (filePath.endsWith(".ipynb")) {
       const nbRes = extractNotebook(filePath, rawContent, report);
-      if (nbRes) {
+      if (nbRes && passesMinifiedCheck(nbRes.code)) {
         codeMap.set(nbRes.virtual_path, nbRes.code);
         source_map.set(nbRes.virtual_path, nbRes.origin);
         file_language.set(nbRes.virtual_path, "PYTHON");
       }
     } else if (filePath.endsWith(".vue") || filePath.endsWith(".svelte")) {
       const sfcRes = extractSfcScript(filePath, rawContent);
-      if (sfcRes) {
+      if (sfcRes && passesMinifiedCheck(sfcRes.code)) {
         codeMap.set(sfcRes.virtual_path, sfcRes.code);
         source_map.set(sfcRes.virtual_path, sfcRes.origin);
         file_language.set(sfcRes.virtual_path, sfcRes.language);
       }
     } else {
+      // Ứng viên code luôn có language từ classifyEntry (ING-76); không có thì bỏ, không đoán.
+      const language = languageByPath.get(filePath);
+      if (!language) continue;
       codeMap.set(filePath, rawContent);
-      const matched = classifiedEntries.find((c) => c.path === filePath);
-      if (matched?.language) {
-        file_language.set(filePath, matched.language);
-      } else {
-        file_language.set(filePath, "TYPESCRIPT");
-      }
+      file_language.set(filePath, language);
     }
   }
 

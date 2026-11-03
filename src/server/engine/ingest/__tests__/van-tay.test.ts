@@ -798,3 +798,28 @@ describe("runIngest thử lại", () => {
     expect(out.repo_name).toBe("my-repo");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Mục 9 ý 4.6: file SPECIAL kiểm minified sau khi trích xuất
+// ---------------------------------------------------------------------------
+describe("ING-101 kiểm minified sau trích xuất SFC", () => {
+  it("ING-101: App.vue có script 1 dòng dài hơn CONFIG.MAX_LINE_LENGTH bị loại, skipped.oversized tăng", async () => {
+    const longLine = "const a=" + "1+".repeat(CONFIG.MAX_LINE_LENGTH) + "1;";
+    const vue = `<template><div/></template>\n<script>\n${longLine}\n</script>\n`;
+    const zipBytes = fflate.zipSync({
+      "src/App.vue": fflate.strToU8(vue),
+      "src/index.ts": fflate.strToU8("export const ok = 1;\n".repeat(20)),
+      // File ở gốc để zip không có segment đầu chung (ING-60.3 sẽ cắt "src/").
+      "README.md": fflate.strToU8("# sfc\n"),
+    });
+
+    const out = await runIngest(
+      { kind: "ZIP_UPLOAD", file_name: "sfc.zip", bytes: zipBytes, subdir_override: null },
+      new AbortController().signal
+    );
+
+    expect(out.code.has("src/App.vue.js")).toBe(false);
+    expect(out.code.has("src/index.ts")).toBe(true);
+    expect(out.report.skipped.oversized).toBeGreaterThanOrEqual(1);
+  });
+});
