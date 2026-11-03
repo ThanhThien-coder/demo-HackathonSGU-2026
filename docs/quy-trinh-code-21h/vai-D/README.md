@@ -8,7 +8,7 @@ Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập hệ
 
 Mỗi phiếu đọc từ trên xuống, làm đúng thứ tự:
 1. Bước 0: tự gõ lệnh cập nhật `main`, cài thư viện, tạo nhánh.
-2. Bước 1: copy prompt, dán cho Claude trên máy bạn. Claude tạo task trong `.kb/tasks/`. Đọc task, thấy khớp phiếu thì đi tiếp.
+2. Bước 1: copy prompt, dán cho Claude trên máy bạn. Claude kiểm các phiếu cần có trước đã có trên nhánh. **Thiếu thì Claude dừng**, báo thiếu gì và đó là việc của vai nào: bạn nhắn vai đó, không bảo Claude làm thay. Đủ thì Claude tạo task trong `.kb/tasks/`. Đọc task, thấy khớp phiếu thì đi tiếp.
 3. Bước 2: copy prompt, dán cho Claude. Claude giao agy viết file, rồi tự kiểm và báo kết quả. Claude không commit.
 4. Bước 3: bạn tự kiểm theo danh sách ô. Đủ hết ô mới là xong. Chưa đạt thì dán prompt làm lại (tối đa 1 lần).
 5. Bước 4: bạn tự gõ lệnh commit, push, mở PR. Vai A merge.

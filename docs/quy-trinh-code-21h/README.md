@@ -153,7 +153,7 @@ flowchart LR
 ## 7. Cách dùng một phiếu
 
 **Trước ngày thi, trên máy mỗi người:**
-1. Clone repo thi, chạy `ak bat-dau`, chép `spec/` và `doc-de-hieu/` vào `.kb/` ([`01_deploy`](../../doc-de-hieu/01_deploy.md) Mục 3.8–3.9). Chạy `node cai-dat.mjs --kiem` trong `ai-kit` để chắc có đủ skill `tao-task`, `giao-task-agy`, `kiem-task`, `doc-spec`, `kiem-contract`.
+1. Clone repo thi, chạy `ak bat-dau`, chép `spec/` và `doc-de-hieu/` vào `.kb/` ([`01_deploy`](../../doc-de-hieu/01_deploy.md) Mục 3.8–3.9). Chép thêm [`phieu-can-co.md`](phieu-can-co.md) vào `.kb/phieu-can-co.md`, vì Claude cần file này để kiểm phiếu cần có trước. Chạy `node cai-dat.mjs --kiem` trong `ai-kit` để chắc có đủ skill `tao-task`, `giao-task-agy`, `kiem-task`, `doc-spec`, `kiem-contract`.
    Máy **không có Antigravity (agy)** hoặc **không cài được ai-kit**: làm thêm phần chuẩn bị và đổi Bước 1–2 theo [`khong-co-ai-kit.md`](khong-co-ai-kit.md).
 2. Đọc hết `vai-X/README.md` và lướt các phiếu của mình một lượt. Phiếu **không** chép vào `.kb/`; cứ mở phiếu ở repo tài liệu (hoặc bản in) mà làm theo.
 
@@ -162,10 +162,12 @@ flowchart LR
 | Bước | Ai làm | Việc |
 | :-- | :-- | :-- |
 | 0 | Bạn | Tự gõ lệnh cập nhật `main`, `npm ci`, tạo nhánh `<vai>/<mã>-<tên-ngắn>` |
-| 1 | Bạn dán prompt ⇒ Claude | Claude dùng `tao-task` tạo task trong `.kb/tasks/` với nội dung chốt sẵn trong phiếu. Bạn đọc, thấy khớp phiếu thì đi tiếp |
+| 1 | Bạn dán prompt ⇒ Claude | **Trước khi tạo task**, Claude kiểm các phiếu cần có trước đã có trên nhánh hiện tại. **Thiếu phiếu nào thì DỪNG**, báo bạn thiếu gì và đó là việc của vai nào. **KHÔNG tự làm thay, KHÔNG tạo task**. Đủ thì Claude dùng `tao-task` tạo task trong `.kb/tasks/` với nội dung chốt sẵn trong phiếu. Bạn đọc, thấy khớp phiếu thì đi tiếp |
 | 2 | Bạn dán prompt ⇒ Claude ⇒ agy | Claude dùng `giao-task-agy` giao agy viết file, rồi `kiem-task` chạy lệnh kiểm, đọc diff, báo kết quả. **Không `ak xong`, không commit, không push** |
 | 3 | Bạn | Tự kiểm theo danh sách ô "thế nào là xong". Chưa đạt thì dán prompt làm lại (tối đa 1 lần, vẫn sai thì tự sửa tay). Đạt hết thì tự gõ `ak xong` |
 | 4 | Bạn | Tự gõ `git add` từng file, `git commit` theo message có sẵn, `git push`, `gh pr create`. Vai A merge khi CI xanh |
+
+**Luật kiểm phiếu cần có trước:** prompt Bước 1 của mọi phiếu đã có dòng "Trước khi tạo task: …" kèm danh sách phiếu cần có. Cách kiểm và các ngoại lệ (mock, fixture, nhánh riêng, phiếu làm tay) nằm ở [`phieu-can-co.md`](phieu-can-co.md). Claude báo thiếu thì bạn nhắn vai đó, đừng bảo Claude làm thay. Sửa mục "Cần có trước" hay "Được ghi" của phiếu nào thì chạy lại `node .kb/tools/phieu-can-co.mjs docs/quy-trinh-code-21h --ghi` trong repo tài liệu, rồi chép lại bảng vào `.kb/`.
 
 **Kỷ luật thời gian** (lấy từ 07): agy chạy quá 30 phút thì dừng lại và chia nhỏ theo các nhóm commit của phiếu. Đừng tin một mình `.kb/TIEN_DO.md`, việc đã xong hay chưa phải xem `git log` và kết quả test.
 

@@ -90,7 +90,9 @@ Phiếu "chỉ người làm" (dạng C) không đổi gì. Trong các prompt d�
 ### 4.3. Thay Bước 1: ghi task thành file
 
 ```text
-Ghi nguyên văn phần nội dung tôi dán dưới đây vào file `.kb/tasks/<MÃ>.md`. Dòng đầu file ghi `# <MÃ> — <tên phiếu>`, dòng thứ hai ghi `Trạng thái: chưa làm`. Không thêm bớt nội dung, chưa làm gì khác. Ghi xong thì báo tôi.
+Trước khi ghi task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: <dán dòng "Phiếu này cần" trong prompt Bước 1 của phiếu>. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG ghi task.
+
+Đủ thì ghi nguyên văn phần nội dung tôi dán dưới đây vào file `.kb/tasks/<MÃ>.md`. Dòng đầu file ghi `# <MÃ> — <tên phiếu>`, dòng thứ hai ghi `Trạng thái: chưa làm`. Không thêm bớt nội dung, chưa làm gì khác. Ghi xong thì báo tôi.
 
 <dán phần từ dòng "## Được đọc" tới hết mục "## Cấm" trong prompt Bước 1 của phiếu>
 ```
