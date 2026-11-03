@@ -1,42 +1,28 @@
-import type { ReportWrongRequest } from "@/contracts";
 import { authenticateRequest } from "@/server/auth";
 import { ApiHttpError, toErrorResponse } from "@/server/errors";
-import { reportWrong } from "@/server/report";
+import { reportWrong, toReportWrongRequest } from "@/server/report";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 03_API_VA_LUU_TRU Muc 2 dong 11, Muc 6.4: POST /api/report-wrong -> ReportWrongResponse
+// 03_API_VA_LUU_TRU Muc 2 dong 11, Muc 6.4: POST /api/report-wrong -> ReportWrongResponse (D-22)
 export async function POST(request: Request): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
 
-    let body: Partial<ReportWrongRequest>;
+    let body: unknown;
     try {
-      body = (await request.json()) as Partial<ReportWrongRequest>;
+      body = await request.json();
     } catch {
       throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
     }
 
-    if (!body?.session_id || !body?.run_id || typeof body?.question_index !== "number") {
-      throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-    }
-
-    const responseData = await reportWrong(
-      {
-        session_id: body.session_id,
-        run_id: body.run_id,
-        question_index: body.question_index,
-        note: body.note ?? "",
-      },
-      user.id
-    );
-
-    return new Response(JSON.stringify(responseData), {
+    const resBody = await reportWrong(toReportWrongRequest(body), user.id);
+    return new Response(JSON.stringify(resBody), {
       status: 200,
       headers: { "Content-Type": "application/json; charset=utf-8" },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return toErrorResponse(error);
   }
 }

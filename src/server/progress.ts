@@ -1,5 +1,9 @@
 import {
+  CONFIG,
+  type CognitiveSkillState,
+  type DbTx,
   type GraphSkeletonNode,
+  type NodeOutcome,
   type NodeRunView,
   type NodeStateView,
   type NodeStatus,
@@ -7,11 +11,18 @@ import {
   type QuestionState,
   type RunMode,
   type RunQuestion,
+  type RunStepRef,
   type SessionProgress,
+  type SkillChange,
+  type SWESkill,
 } from "@/contracts";
+import { computeSkillChange } from "@/lib/bkt-engine";
 import { deriveNodeStates } from "@/lib/derive";
-import { sql } from "./db";
+import { nodeStatusFromRuns } from "@/lib/plan";
+import { sql, type TransactionSql } from "./db";
 import { ApiHttpError } from "./errors";
+import { logger } from "./log";
+import type { RunRecord } from "./session";
 
 interface ProgressDbRow {
   node_id: string;
@@ -29,7 +40,11 @@ interface RunDbRow {
   finished_at: string | Date | null;
 }
 
-function toQuestionState(q: RunQuestion): QuestionState {
+/**
+ * RunQuestion => QuestionState cho client (API-03, INV-07).
+ * Chi co reveal khi cau da xong (03 Muc 6.2 "Quy tac mo dap an").
+ */
+export function toQuestionState(q: RunQuestion): QuestionState {
   const reveal: QuestionReveal | null = q.finished
     ? {
         reference_answer: q.reference_answer,
@@ -50,6 +65,17 @@ function toQuestionState(q: RunQuestion): QuestionState {
     ended_by: q.ended_by ?? null,
     disputed: Boolean(q.disputed),
     reveal,
+  };
+}
+
+function toRunView(row: Pick<RunDbRow, "id" | "node_id" | "mode" | "questions" | "started_at" | "finished_at">): NodeRunView {
+  return {
+    run_id: row.id,
+    node_id: row.node_id,
+    mode: row.mode,
+    started_at: new Date(row.started_at).getTime(),
+    finished_at: row.finished_at ? new Date(row.finished_at).getTime() : null,
+    questions: (row.questions ?? []).map(toQuestionState),
   };
 }
 
@@ -98,15 +124,7 @@ export async function getSessionProgress(
 
   const latestRunByNode = new Map<string, NodeRunView>();
   for (const row of runRows) {
-    const questionStates: QuestionState[] = (row.questions ?? []).map(toQuestionState);
-    latestRunByNode.set(row.node_id, {
-      run_id: row.id,
-      node_id: row.node_id,
-      mode: row.mode,
-      started_at: new Date(row.started_at).getTime(),
-      finished_at: row.finished_at ? new Date(row.finished_at).getTime() : null,
-      questions: questionStates,
-    });
+    latestRunByNode.set(row.node_id, toRunView(row));
   }
 
   // Goi deriveNodeStates (03 Muc 5.1)
@@ -137,64 +155,247 @@ export async function getSessionProgress(
   };
 }
 
+// ===================== Ghi tien do: evaluate-feynman, reveal (03 Muc 6.2, 6.3, 6.5) =====================
+
+// DbTx = unknown o contracts (02 Muc 7); tang luu tru that la TransactionSql cua driver postgres
+function asTx(tx: DbTx): TransactionSql {
+  return tx as TransactionSql;
+}
+
+function parseJsonb<T>(value: T | string): T {
+  return typeof value === "string" ? (JSON.parse(value) as T) : value;
+}
+
+/** Chuan hoa 1 dong node_runs: jsonb co the ve dang chuoi tuy driver. */
+export function normalizeRunRecord(run: RunRecord): RunRecord {
+  return {
+    ...run,
+    questions: parseJsonb<RunQuestion[]>(run.questions) ?? [],
+    steps: parseJsonb<RunStepRef[]>(run.steps) ?? [],
+    forbidden_external_keywords: run.forbidden_external_keywords ?? [],
+  };
+}
+
+const defaultSleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
- * 03_API_VA_LUU_TRU.md Muc 6.5: finalizeRunIfDone
- * Run xong khi moi cau finished.
- * Cau DROPPED va cau disputed khong tinh khi xet mau:
- * co cau FAILED => node FAILED; nguoc lai COMPLETED.
- * Sau do dat finished_at, upsert node_progress, tra unlocked_node_ids.
+ * Doc DB khong khoa (03 Muc 6.2 buoc 2, 6.3 buoc 1).
+ * Loi nghiep vu (ApiHttpError) giu nguyen; loi Postgres => ERR_PERSISTENCE_UNAVAILABLE (D-40), khong goi AI.
  */
-export async function finalizeRunIfDone(
-  sessionId: string,
-  nodeId: string,
-  runId: string,
-  questions: RunQuestion[],
-  userId: string
-): Promise<{ finished: boolean; unlocked_node_ids: string[] }> {
-  const allFinished = questions.every((q) => q.finished);
-  if (!allFinished) {
-    return { finished: false, unlocked_node_ids: [] };
+export async function withDbRead<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: unknown) {
+    if (err instanceof ApiHttpError) throw err;
+    logger.error({
+      msg: "Doc Postgres that bai",
+      err_name: err instanceof Error ? err.name : typeof err,
+    });
+    throw new ApiHttpError("ERR_PERSISTENCE_UNAVAILABLE");
   }
+}
 
-  // Lay trang thai cu de so sanh unlocked nodes
-  const prevProgress = await getSessionProgress(sessionId, userId);
-  const prevLockedNodes = new Set(
-    Object.values(prevProgress.nodes)
-      .filter((n) => n.status === "LOCKED")
-      .map((n) => n.node_id)
-  );
-
-  // Xet mau node: bo qua DROPPED va disputed
-  const scorableQuestions = questions.filter(
-    (q) => q.ended_by !== "DROPPED" && !q.disputed
-  );
-  const hasFailed = scorableQuestions.some((q) => q.outcome === "FAILED");
-  const finalStatus: "COMPLETED" | "FAILED" = hasFailed ? "FAILED" : "COMPLETED";
-
-  // Dat finished_at cho run
-  await sql`
-    UPDATE node_runs
-    SET finished_at = now()
-    WHERE id = ${runId}
-  `;
-
-  // Upsert node_progress
-  await sql`
-    INSERT INTO node_progress (session_id, node_id, status, updated_at)
-    VALUES (${sessionId}, ${nodeId}, ${finalStatus}, now())
-    ON CONFLICT (session_id, node_id) DO UPDATE SET
-      status = EXCLUDED.status,
-      updated_at = now()
-  `;
-
-  // Tinh unlocked_node_ids
-  const newProgress = await getSessionProgress(sessionId, userId);
-  const unlockedNodeIds: string[] = [];
-  for (const n of Object.values(newProgress.nodes)) {
-    if (prevLockedNodes.has(n.node_id) && n.status === "AVAILABLE") {
-      unlockedNodeIds.push(n.node_id);
+/**
+ * Chay transaction ghi, thu lai theo CONFIG.DB_RETRY_DELAYS_MS (03 Muc 6.2 buoc 4, D-40).
+ * - Loi nghiep vu (ApiHttpError, vd ERR_ATTEMPT_OUT_OF_SYNC) nem ngay, khong thu lai.
+ * - Het lan thu lai => ERR_PERSISTENCE_UNAVAILABLE; transaction da rollback nen khong tinh luot.
+ */
+export async function withDbRetry<T>(
+  fn: () => Promise<T>,
+  sleep: (ms: number) => Promise<void> = defaultSleep
+): Promise<T> {
+  const delays = CONFIG.DB_RETRY_DELAYS_MS;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      if (err instanceof ApiHttpError) throw err;
+      if (attempt >= delays.length) {
+        logger.error({
+          msg: "Ghi Postgres that bai sau khi thu lai",
+          err_name: err instanceof Error ? err.name : typeof err,
+          attempts: attempt + 1,
+        });
+        throw new ApiHttpError("ERR_PERSISTENCE_UNAVAILABLE");
+      }
+      await sleep(delays[attempt]);
     }
   }
+}
 
-  return { finished: true, unlocked_node_ids: unlockedNodeIds };
+/** SELECT ... FOR UPDATE dong node_runs (03 Muc 6.2 buoc 4, 6.3 buoc 2). */
+export async function lockRun(tx: DbTx, runId: string): Promise<RunRecord> {
+  const rows = await asTx(tx)<RunRecord[]>`
+    SELECT id, session_id, node_id, mode, questions, steps,
+           forbidden_external_keywords, started_at, finished_at
+    FROM node_runs
+    WHERE id = ${runId}
+    FOR UPDATE
+  `;
+  if (rows.length === 0) {
+    throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
+  }
+  return normalizeRunRecord(rows[0]);
+}
+
+/** Ghi lai node_runs.questions sau khi doi trang thai cau (03 Muc 6.2 buoc 4.4). */
+export async function saveRunQuestions(tx: DbTx, run: RunRecord): Promise<void> {
+  await asTx(tx)`
+    UPDATE node_runs
+    SET questions = ${JSON.stringify(run.questions)}::jsonb
+    WHERE id = ${run.id}
+  `;
+}
+
+interface SkillStateDbRow {
+  skill: SWESkill;
+  p_mastery: number | string;
+  last_practiced_at: string | Date;
+  practice_count: number | string;
+  correct_count: number | string;
+}
+
+/**
+ * Cap nhat BKT trong transaction (22 BKT-62):
+ * (1) insert dong mac dinh on conflict do nothing (BKT-03) roi select for update;
+ * (2) computeSkillChange; (3) upsert next; (4) tra SkillChange.
+ */
+export async function applyBkt(
+  tx: DbTx,
+  userId: string,
+  skill: SWESkill,
+  outcome: NodeOutcome,
+  now: number
+): Promise<SkillChange> {
+  const t = asTx(tx);
+  const at = new Date(now);
+
+  await t`
+    INSERT INTO skill_states (user_id, skill, p_mastery, last_practiced_at, practice_count, correct_count)
+    VALUES (${userId}, ${skill}, ${CONFIG.BKT_P_L0}, ${at}, 0, 0)
+    ON CONFLICT (user_id, skill) DO NOTHING
+  `;
+
+  const rows = await t<SkillStateDbRow[]>`
+    SELECT skill, p_mastery, last_practiced_at, practice_count, correct_count
+    FROM skill_states
+    WHERE user_id = ${userId} AND skill = ${skill}
+    FOR UPDATE
+  `;
+
+  const state: CognitiveSkillState | undefined = rows[0]
+    ? {
+        skill: rows[0].skill,
+        p_mastery: Number(rows[0].p_mastery),
+        last_practiced_at: new Date(rows[0].last_practiced_at).getTime(),
+        practice_count: Number(rows[0].practice_count),
+        correct_count: Number(rows[0].correct_count),
+      }
+    : undefined;
+
+  const { next, change } = computeSkillChange(skill, state, outcome, now);
+
+  await t`
+    INSERT INTO skill_states (user_id, skill, p_mastery, last_practiced_at, practice_count, correct_count)
+    VALUES (
+      ${userId}, ${skill}, ${next.p_mastery}, ${new Date(next.last_practiced_at)},
+      ${next.practice_count}, ${next.correct_count}
+    )
+    ON CONFLICT (user_id, skill) DO UPDATE SET
+      p_mastery = EXCLUDED.p_mastery,
+      last_practiced_at = EXCLUDED.last_practiced_at,
+      practice_count = EXCLUDED.practice_count,
+      correct_count = EXCLUDED.correct_count
+  `;
+
+  return change;
+}
+
+async function readSkeletonAndProgress(
+  t: TransactionSql,
+  sessionId: string
+): Promise<{ skeleton: GraphSkeletonNode[]; rows: ProgressDbRow[] }> {
+  const sessionRows = await t<Array<{ graph_skeleton: GraphSkeletonNode[] | string }>>`
+    SELECT graph_skeleton
+    FROM learning_sessions
+    WHERE id = ${sessionId}
+  `;
+  if (sessionRows.length === 0) {
+    throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
+  }
+  const skeleton = parseJsonb<GraphSkeletonNode[]>(sessionRows[0].graph_skeleton) ?? [];
+
+  const rows = await t<ProgressDbRow[]>`
+    SELECT node_id, status, analysis_failed
+    FROM node_progress
+    WHERE session_id = ${sessionId}
+  `;
+  return { skeleton, rows };
+}
+
+/**
+ * Chot run khi moi cau finished (03 Muc 6.5, 22 Muc 8):
+ * cau DROPPED / disputed khong tinh mau; co cau FAILED => node FAILED, nguoc lai COMPLETED.
+ * Dat finished_at, upsert node_progress, tra unlocked_node_ids (node vua tu LOCKED sang AVAILABLE).
+ * Run chua xong hoac da chot truoc do => [] va khong ghi gi.
+ */
+export async function finalizeRunIfDone(
+  tx: DbTx,
+  run: RunRecord,
+  now: number
+): Promise<string[]> {
+  if (run.finished_at) return [];
+  if (run.questions.length === 0 || !run.questions.every((q) => q.finished)) return [];
+
+  const t = asTx(tx);
+  const status =
+    nodeStatusFromRuns([
+      { mode: run.mode, started_at: new Date(run.started_at).getTime(), finished_at: now, questions: run.questions },
+    ]) ?? "COMPLETED";
+
+  const { skeleton, rows } = await readSkeletonAndProgress(t, run.session_id);
+  const before = deriveNodeStates(skeleton, rows);
+
+  const at = new Date(now);
+  await t`
+    UPDATE node_runs
+    SET finished_at = ${at}
+    WHERE id = ${run.id}
+  `;
+  await t`
+    INSERT INTO node_progress (session_id, node_id, status, updated_at)
+    VALUES (${run.session_id}, ${run.node_id}, ${status}, ${at})
+    ON CONFLICT (session_id, node_id) DO UPDATE SET
+      status = EXCLUDED.status,
+      updated_at = EXCLUDED.updated_at
+  `;
+  run.finished_at = at;
+
+  const existing = rows.find((r) => r.node_id === run.node_id);
+  const rowsAfter: ProgressDbRow[] = [
+    ...rows.filter((r) => r.node_id !== run.node_id),
+    { node_id: run.node_id, status, analysis_failed: existing?.analysis_failed ?? false },
+  ];
+  const after = deriveNodeStates(skeleton, rowsAfter);
+
+  return skeleton
+    .map((n) => n.node_id)
+    .filter((id) => before[id]?.status === "LOCKED" && after[id]?.status === "AVAILABLE");
+}
+
+/**
+ * NodeStateView cua node chua run (doc trong transaction, sau finalizeRunIfDone).
+ * last_run = chinh run nay (node chi co 1 run dang mo; run xong thi node khong con AVAILABLE de tao run moi).
+ */
+export async function loadNodeState(tx: DbTx, run: RunRecord): Promise<NodeStateView> {
+  const { skeleton, rows } = await readSkeletonAndProgress(asTx(tx), run.session_id);
+  const derived = deriveNodeStates(skeleton, rows)[run.node_id];
+  return {
+    node_id: run.node_id,
+    status: derived?.status ?? "LOCKED",
+    has_warning: derived?.has_warning ?? false,
+    analysis_failed: derived?.analysis_failed ?? false,
+    last_run: toRunView(run),
+  };
 }

@@ -1,146 +1,191 @@
+/**
+ * src/server/report.ts
+ *
+ * POST /api/report-wrong — nut "Bao sai" (03 Muc 6.4, D-22, 21 GUARD-17).
+ * Chi cho cau outcome FAILED, ended_by ANSWER, chua disputed. 0 token.
+ * DB loi ⇒ ERR_PERSISTENCE_UNAVAILABLE, khong doi gi (D-40).
+ */
+
 import {
   CONFIG,
-  type QuestionReveal,
-  type QuestionState,
+  type CognitiveSkillState,
+  type DbTx,
   type ReportWrongRequest,
   type ReportWrongResponse,
   type SkillChange,
+  type SWESkill,
 } from "@/contracts";
 import { revertSkillChange } from "@/lib/bkt-engine";
 import { maskSensitive } from "@/lib/moderation";
-import { sql } from "./db";
+import { nodeStatusFromRuns } from "@/lib/plan";
+import { db, type TransactionSql } from "./db";
+import { redactSecrets } from "./engine/ingest/secrets";
 import { ApiHttpError } from "./errors";
-import { finalizeRunIfDone, getSessionProgress } from "./progress";
-import { verifyRunOwnership } from "./session";
+import { findQuestion, readRunQuestion } from "./evaluate";
+import { logger } from "./log";
+import {
+  loadNodeState,
+  lockRun,
+  saveRunQuestions,
+  toQuestionState,
+  withDbRetry,
+} from "./progress";
+import type { RunRecord } from "./session";
+
+// DbTx = unknown o contracts (02 Muc 7); tang luu tru that la TransactionSql cua driver postgres
+const asTx = (tx: DbTx): TransactionSql => tx as TransactionSql;
+
+/** Body JSON tho => ReportWrongRequest; truong sai kieu thanh gia tri rong de buoc doc bat loi. */
+export function toReportWrongRequest(body: unknown): ReportWrongRequest {
+  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  return {
+    session_id: typeof b.session_id === "string" ? b.session_id.trim() : "",
+    run_id: typeof b.run_id === "string" ? b.run_id.trim() : "",
+    question_index: typeof b.question_index === "number" ? b.question_index : Number.NaN,
+    note: typeof b.note === "string" ? b.note : "",
+  };
+}
 
 /**
- * 03_API_VA_LUU_TRU.md Muc 6.4: report-wrong — "Bao sai" (D-22)
- * 1. Cau phai co outcome = FAILED, ended_by = ANSWER, disputed = false; nguoc lai ERR_REPORT_NOT_ALLOWED
- * 2. Dat disputed = true
- * 3. Hoan tac BKT neu p_mastery khop p_after (revertSkillChange)
- * 4. Insert dispute_reports
- * 5. Tinh lai mau node (finalizeRunIfDone, cau disputed bi bo qua)
- * 6. Tra ReportWrongResponse
+ * Che ghi chu theo maskSensitive(redactSecrets(note).code) (03 Muc 6.4 buoc 4, D-65).
+ * Client da gioi han CONFIG.REPORT_NOTE_MAX_CHARS (30 UI); nhan che co the dai hon gia tri bi che
+ * nen cat theo code point de khong vi pham check char_length(note) cua dispute_reports.
  */
+export function cleanReportNote(note: string): string {
+  const masked = maskSensitive(redactSecrets(note).code);
+  return [...masked].slice(0, CONFIG.REPORT_NOTE_MAX_CHARS).join("");
+}
+
+interface SkillStateDbRow {
+  skill: SWESkill;
+  p_mastery: number | string;
+  last_practiced_at: string | Date;
+  practice_count: number | string;
+  correct_count: number | string;
+}
+
+/**
+ * Hoan diem ky nang (22 BKT-63): chi khi p_mastery hien tai van bang p_after cua cau (sai so BKT_REVERT_EPSILON).
+ * Dat p_mastery = p_before, practice_count − 1; giu last_practiced_at va correct_count. Khong hoan ⇒ null.
+ */
+async function revertSkillIfUnchanged(
+  tx: DbTx,
+  userId: string,
+  change: SkillChange
+): Promise<SkillChange | null> {
+  const t = asTx(tx);
+  const rows = await t<SkillStateDbRow[]>`
+    SELECT skill, p_mastery, last_practiced_at, practice_count, correct_count
+    FROM skill_states
+    WHERE user_id = ${userId} AND skill = ${change.skill}
+    FOR UPDATE
+  `;
+  if (rows.length === 0) return null;
+
+  const state: CognitiveSkillState = {
+    skill: rows[0].skill,
+    p_mastery: Number(rows[0].p_mastery),
+    last_practiced_at: new Date(rows[0].last_practiced_at).getTime(),
+    practice_count: Number(rows[0].practice_count),
+    correct_count: Number(rows[0].correct_count),
+  };
+  const reverted = revertSkillChange(state, change);
+  if (!reverted) return null;
+
+  await t`
+    UPDATE skill_states
+    SET p_mastery = ${reverted.next.p_mastery},
+        practice_count = ${reverted.next.practice_count}
+    WHERE user_id = ${userId} AND skill = ${change.skill}
+  `;
+  return reverted.change;
+}
+
+/**
+ * Tinh lai mau node khi run da chot (03 Muc 6.4 buoc 5, 22 Muc 8): cau disputed bi bo qua.
+ * Run chua chot ⇒ khong ghi; mau se tinh khi finalizeRunIfDone.
+ */
+async function recolorNode(tx: DbTx, run: RunRecord): Promise<void> {
+  if (!run.finished_at) return;
+  const status = nodeStatusFromRuns([
+    {
+      mode: run.mode,
+      started_at: new Date(run.started_at).getTime(),
+      finished_at: new Date(run.finished_at).getTime(),
+      questions: run.questions,
+    },
+  ]);
+  if (!status) return;
+
+  await asTx(tx)`
+    INSERT INTO node_progress (session_id, node_id, status, updated_at)
+    VALUES (${run.session_id}, ${run.node_id}, ${status}, now())
+    ON CONFLICT (session_id, node_id) DO UPDATE SET
+      status = EXCLUDED.status,
+      updated_at = EXCLUDED.updated_at
+  `;
+}
+
 export async function reportWrong(
   req: ReportWrongRequest,
   userId: string
 ): Promise<ReportWrongResponse> {
-  const { run, session } = await verifyRunOwnership(req.run_id, userId);
+  const cleanNote = cleanReportNote(req.note);
 
-  if (
-    req.question_index < 1 ||
-    req.question_index > (run.questions?.length ?? 0)
-  ) {
-    throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-  }
+  // Doc khong khoa: run thuoc session_id cua userId, question_index 1..n (API-05); DB loi ⇒ ERR_PERSISTENCE_UNAVAILABLE
+  const { run } = await readRunQuestion(req, userId);
 
-  const q = run.questions[req.question_index - 1];
-
-  // 1. Kiem tra dieu kien bao sai
-  if (q.outcome !== "FAILED" || q.ended_by !== "ANSWER" || q.disputed) {
-    throw new ApiHttpError("ERR_REPORT_NOT_ALLOWED");
-  }
-
-  // 2. Dat disputed = true
-  q.disputed = true;
-
-  // 3. Hoan tac BKT neu p_mastery khop p_after
-  let revertedSkillChange: SkillChange | null = null;
-  if (q.p_before !== null && q.p_after !== null) {
-    const skillRows = await sql<
-      Array<{
-        p_mastery: number;
-        last_practiced_at: string;
-        practice_count: number;
-        correct_count: number;
-      }>
-    >`
-      SELECT p_mastery, last_practiced_at, practice_count, correct_count
-      FROM skill_states
-      WHERE user_id = ${userId} AND skill = ${q.skill}
-      LIMIT 1
-    `;
-
-    if (skillRows.length > 0) {
-      const currentState = {
-        skill: q.skill,
-        p_mastery: Number(skillRows[0].p_mastery),
-        last_practiced_at: new Date(skillRows[0].last_practiced_at).getTime(),
-        practice_count: Number(skillRows[0].practice_count),
-        correct_count: Number(skillRows[0].correct_count),
-      };
-
-      const change: SkillChange = {
-        skill: q.skill,
-        p_before: q.p_before,
-        p_after: q.p_after,
-        outcome: "FAILED",
-      };
-
-      const revertResult = revertSkillChange(currentState, change);
-      if (revertResult) {
-        revertedSkillChange = revertResult.change;
-        await sql`
-          UPDATE skill_states
-          SET
-            p_mastery = ${revertResult.next.p_mastery},
-            practice_count = ${revertResult.next.practice_count}
-          WHERE user_id = ${userId} AND skill = ${q.skill}
-        `;
+  const result = await withDbRetry(() =>
+    db.tx(async (tx) => {
+      // 1. Khoa run; cau phai FAILED + ANSWER + chua disputed
+      const run2 = await lockRun(tx, run.id);
+      const q2 = findQuestion(run2, req.question_index);
+      if (!q2) throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
+      if (q2.outcome !== "FAILED" || q2.ended_by !== "ANSWER" || q2.disputed) {
+        throw new ApiHttpError("ERR_REPORT_NOT_ALLOWED");
       }
-    }
-  }
 
-  // 4. Insert dispute_reports
-  const cleanNote = maskSensitive(req.note || "").slice(0, CONFIG.REPORT_NOTE_MAX_CHARS);
-  await sql`
-    INSERT INTO dispute_reports (user_id, run_id, question_index, note)
-    VALUES (${userId}, ${run.id}, ${req.question_index}, ${cleanNote})
-  `;
+      // 2. Danh dau 🚩
+      q2.disputed = true;
 
-  // Luu questions moi vao node_runs
-  await sql`
-    UPDATE node_runs
-    SET questions = ${sql.json(run.questions as any)}
-    WHERE id = ${run.id}
-  `;
+      // 3. Hoan diem neu chua bi cap nhat lai (BKT-63)
+      let skillChange: SkillChange | null = null;
+      if (q2.p_before !== null && q2.p_after !== null) {
+        skillChange = await revertSkillIfUnchanged(tx, userId, {
+          skill: q2.skill,
+          p_before: q2.p_before,
+          p_after: q2.p_after,
+          outcome: "FAILED",
+        });
+      }
 
-  // 5. Tinh lai mau node (finalizeRunIfDone bo qua cau disputed)
-  await finalizeRunIfDone(
-    session.id,
-    run.node_id,
-    run.id,
-    run.questions,
-    userId
+      // 4. Ghi dispute_reports voi ghi chu da che
+      await tx`
+        INSERT INTO dispute_reports (user_id, run_id, question_index, note)
+        VALUES (${userId}, ${run2.id}, ${q2.question_index}, ${cleanNote})
+      `;
+
+      await saveRunQuestions(tx, run2);
+
+      // 5. Tinh lai mau node, bo qua cau disputed
+      await recolorNode(tx, run2);
+      const nodeState = await loadNodeState(tx, run2);
+
+      // 6. Map tuong minh (API-03)
+      return {
+        question: toQuestionState(q2),
+        skill_change: skillChange,
+        node_state: nodeState,
+      };
+    })
   );
 
-  const updatedProgress = await getSessionProgress(session.id, userId);
-  const updatedNodeState = updatedProgress.nodes[run.node_id];
-
-  const revealData: QuestionReveal | null = q.finished && q.reference_answer ? {
-    reference_answer: q.reference_answer,
-    must_have_points: q.must_have_points ?? [],
-    fix: q.fix ?? "",
-  } : null;
-
-  const questionState: QuestionState = {
-    question_index: q.question_index,
-    feynman_question: q.feynman_question,
-    skill: q.skill,
-    tier: q.tier,
-    focus: q.focus,
-    attempts_used: q.attempts_used ?? 0,
-    finished: Boolean(q.finished),
-    outcome: q.outcome ?? null,
-    ended_by: q.ended_by ?? null,
-    disputed: true,
-    reveal: revealData,
-  };
-
-  return {
-    question: questionState,
-    skill_change: revertedSkillChange,
-    node_state: updatedNodeState,
-  };
+  // D-22: ghi log cho nhom (khong ghi noi dung ghi chu)
+  logger.info({
+    msg: "Bao sai",
+    run_id: run.id,
+    question_index: req.question_index,
+    reverted: result.skill_change !== null,
+  });
+  return result;
 }

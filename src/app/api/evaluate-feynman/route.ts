@@ -1,8 +1,6 @@
-import type { EvaluateFeynmanRequest } from "@/contracts";
 import { authenticateRequest } from "@/server/auth";
 import { ApiHttpError, toErrorResponse } from "@/server/errors";
-import { evaluateFeynman } from "@/server/evaluate";
-import { isLocalMockEnabled, mockDevStore } from "@/server/mock-dev-store";
+import { evaluateFeynman, toEvaluateRequest } from "@/server/evaluate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,51 +10,19 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
 
-    let body: Partial<EvaluateFeynmanRequest>;
+    let body: unknown;
     try {
-      body = (await request.json()) as Partial<EvaluateFeynmanRequest>;
+      body = await request.json();
     } catch {
       throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
     }
 
-    if (!body?.session_id || !body?.run_id) {
-      throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-    }
-
-    if (
-      typeof body.question_index !== "number" ||
-      typeof body.attempt_number !== "number" ||
-      typeof body.student_answer !== "string"
-    ) {
-      throw new ApiHttpError("ERR_ATTEMPT_OUT_OF_SYNC");
-    }
-
-    if (isLocalMockEnabled()) {
-      return new Response(
-        JSON.stringify(mockDevStore.evaluateFeynman(body as EvaluateFeynmanRequest)),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-        }
-      );
-    }
-
-    const responseData = await evaluateFeynman(
-      {
-        session_id: body.session_id,
-        run_id: body.run_id,
-        question_index: body.question_index,
-        student_answer: body.student_answer,
-        attempt_number: body.attempt_number,
-      },
-      user.id
-    );
-
-    return new Response(JSON.stringify(responseData), {
+    const resBody = await evaluateFeynman(toEvaluateRequest(body), user.id);
+    return new Response(JSON.stringify(resBody), {
       status: 200,
       headers: { "Content-Type": "application/json; charset=utf-8" },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     return toErrorResponse(error);
   }
 }

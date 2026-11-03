@@ -1,147 +1,73 @@
-import {
-  type QuestionReveal,
-  type QuestionState,
-  type RevealRequest,
-  type RevealResponse,
-  type SkillChange,
-} from "@/contracts";
-import { computeSkillChange } from "@/lib/bkt-engine";
-import { sql } from "./db";
-import { ApiHttpError } from "./errors";
-import { finalizeRunIfDone, getSessionProgress } from "./progress";
-import { verifyRunOwnership } from "./session";
-
 /**
- * 03_API_VA_LUU_TRU.md Muc 6.3: reveal — "Bo qua cau nay"
- * 1. Doc run theo run_id, question_index
- * 2. Cau phai chua xong, nguoc lai ERR_QUESTION_FINISHED
- * 3. Dat finished = true, outcome = FAILED, ended_by = SKIP
- * 4. applyBkt(FAILED)
- * 5. finalizeRunIfDone, roi tra RevealResponse kem reveal
- * 0 token.
+ * src/server/reveal.ts
+ *
+ * POST /api/reveal — nut "Bo qua cau nay" (03 Muc 6.3, D-03).
+ * 0 token. Cau chua xong ⇒ FAILED, ended_by SKIP, BKT FAILED, finalizeRunIfDone, tra reveal.
+ * DB loi ⇒ ERR_PERSISTENCE_UNAVAILABLE, khong doi gi (D-40).
  */
+
+import type { RevealRequest, RevealResponse } from "@/contracts";
+import { db } from "./db";
+import { ApiHttpError } from "./errors";
+import { findQuestion, readRunQuestion } from "./evaluate";
+import {
+  applyBkt,
+  finalizeRunIfDone,
+  loadNodeState,
+  lockRun,
+  saveRunQuestions,
+  toQuestionState,
+  withDbRetry,
+} from "./progress";
+
+/** Body JSON tho => RevealRequest; truong sai kieu thanh gia tri rong de buoc doc bat loi. */
+export function toRevealRequest(body: unknown): RevealRequest {
+  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  return {
+    session_id: typeof b.session_id === "string" ? b.session_id.trim() : "",
+    run_id: typeof b.run_id === "string" ? b.run_id.trim() : "",
+    question_index: typeof b.question_index === "number" ? b.question_index : Number.NaN,
+  };
+}
+
 export async function revealQuestion(
   req: RevealRequest,
-  userId: string
+  userId: string,
+  now: number = Date.now()
 ): Promise<RevealResponse> {
-  const now = Date.now();
-  const { run, session } = await verifyRunOwnership(req.run_id, userId);
+  // 1. Doc run theo run_id, question_index nhu 03 Muc 6.2 buoc 2
+  const { run, question } = await readRunQuestion(req, userId);
+  if (run.finished_at || question.finished) throw new ApiHttpError("ERR_QUESTION_FINISHED");
 
-  if (
-    req.question_index < 1 ||
-    req.question_index > (run.questions?.length ?? 0)
-  ) {
-    throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-  }
+  return withDbRetry(() =>
+    db.tx(async (tx) => {
+      // 2. Khoa run; cau phai chua xong
+      const run2 = await lockRun(tx, run.id);
+      const q2 = findQuestion(run2, req.question_index);
+      if (!q2) throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
+      if (run2.finished_at || q2.finished) throw new ApiHttpError("ERR_QUESTION_FINISHED");
 
-  const q = run.questions[req.question_index - 1];
-  if (run.finished_at || q.finished) {
-    throw new ApiHttpError("ERR_QUESTION_FINISHED");
-  }
+      // 3. finished, FAILED, SKIP
+      q2.finished = true;
+      q2.outcome = "FAILED";
+      q2.ended_by = "SKIP";
 
-  // Dat finished = true, outcome = FAILED, ended_by = SKIP
-  q.finished = true;
-  q.outcome = "FAILED";
-  q.ended_by = "SKIP";
+      // 4. BKT FAILED (22 Muc 7)
+      const skillChange = await applyBkt(tx, userId, q2.skill, "FAILED", now);
+      q2.p_before = skillChange.p_before;
+      q2.p_after = skillChange.p_after;
 
-  // applyBkt(FAILED)
-  const skillRows = await sql<
-    Array<{
-      p_mastery: number;
-      last_practiced_at: string;
-      practice_count: number;
-      correct_count: number;
-    }>
-  >`
-    SELECT p_mastery, last_practiced_at, practice_count, correct_count
-    FROM skill_states
-    WHERE user_id = ${userId} AND skill = ${q.skill}
-    LIMIT 1
-  `;
+      await saveRunQuestions(tx, run2);
 
-  const prevSkill = skillRows[0]
-    ? {
-        skill: q.skill,
-        p_mastery: Number(skillRows[0].p_mastery),
-        last_practiced_at: new Date(skillRows[0].last_practiced_at).getTime(),
-        practice_count: Number(skillRows[0].practice_count),
-        correct_count: Number(skillRows[0].correct_count),
-      }
-    : undefined;
-
-  const bktResult = computeSkillChange(
-    q.skill,
-    prevSkill,
-    "FAILED",
-    now
+      // 5. finalizeRunIfDone, roi tra RevealResponse kem reveal (map tuong minh, API-03)
+      const unlocked = await finalizeRunIfDone(tx, run2, now);
+      const nodeState = await loadNodeState(tx, run2);
+      return {
+        question: toQuestionState(q2),
+        skill_change: skillChange,
+        node_state: nodeState,
+        unlocked_node_ids: unlocked,
+      };
+    })
   );
-  const skillChange: SkillChange = bktResult.change;
-  q.p_before = skillChange.p_before;
-  q.p_after = skillChange.p_after;
-
-  // Ghi cap nhat vao skill_states
-  await sql`
-    INSERT INTO skill_states (
-      user_id, skill, p_mastery, last_practiced_at, practice_count, correct_count
-    )
-    VALUES (
-      ${userId},
-      ${q.skill},
-      ${bktResult.next.p_mastery},
-      ${new Date(now)},
-      ${bktResult.next.practice_count},
-      ${bktResult.next.correct_count}
-    )
-    ON CONFLICT (user_id, skill) DO UPDATE SET
-      p_mastery = EXCLUDED.p_mastery,
-      last_practiced_at = EXCLUDED.last_practiced_at,
-      practice_count = EXCLUDED.practice_count,
-      correct_count = EXCLUDED.correct_count
-  `;
-
-  // Luu questions moi vao node_runs
-  await sql`
-    UPDATE node_runs
-    SET questions = ${sql.json(run.questions as any)}
-    WHERE id = ${run.id}
-  `;
-
-  // finalizeRunIfDone
-  const finalizeRes = await finalizeRunIfDone(
-    session.id,
-    run.node_id,
-    run.id,
-    run.questions,
-    userId
-  );
-
-  const updatedProgress = await getSessionProgress(session.id, userId);
-  const updatedNodeState = updatedProgress.nodes[run.node_id];
-
-  const revealData: QuestionReveal = {
-    reference_answer: q.reference_answer ?? "",
-    must_have_points: q.must_have_points ?? [],
-    fix: q.fix ?? "",
-  };
-
-  const questionState: QuestionState = {
-    question_index: q.question_index,
-    feynman_question: q.feynman_question,
-    skill: q.skill,
-    tier: q.tier,
-    focus: q.focus,
-    attempts_used: q.attempts_used ?? 0,
-    finished: true,
-    outcome: "FAILED",
-    ended_by: "SKIP",
-    disputed: Boolean(q.disputed),
-    reveal: revealData,
-  };
-
-  return {
-    question: questionState,
-    skill_change: skillChange,
-    node_state: updatedNodeState,
-    unlocked_node_ids: finalizeRes.unlocked_node_ids,
-  };
 }
