@@ -398,3 +398,31 @@ export function main(): void {
     "T-ENT-02: Go helper không export (Go) — chưa có grammar ở public/grammars/"
   );
 });
+
+// ENG-81: callee lá trả giá trị được dùng ở call site (`const p = loadProducts()`) phải được giữ. Lần tập (B10):
+// lát cắt màn hình Expo/React Navigation chỉ còn 1 bước vì ENG-81 bị cài thành "callee có gọi tiếp" và tìm
+// throw trong cả file thay vì thân hàm.
+describe("ENG-81: lát cắt màn hình đi tới hàm lá có giá trị trả về được dùng", () => {
+  const pkg = (deps: Record<string, string>) => JSON.stringify({ name: "x", dependencies: deps });
+  async function runZip(files: Record<string, string>) {
+    const zip = fflate.zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, fflate.strToU8(v)])));
+    return runEngine({ kind: "ZIP_UPLOAD", file_name: "m.zip", bytes: zip, subdir_override: null });
+  }
+  it("ENG-81: Expo Router app/(tabs)/index.tsx ⇒ ENTRY_POINT > fetchProducts", async () => {
+    const r = await runZip({
+      "package.json": pkg({ expo: "^50", "expo-router": "^3", "react-native": "^0.73" }),
+      "app/(tabs)/index.tsx": "import { fetchProducts } from '../../lib/api';\nexport default function Home() {\n  const items = fetchProducts();\n  return items;\n}\n",
+      "lib/api.ts": "export function fetchProducts() {\n  return fetch('https://x/api/products');\n}\n",
+    });
+    expect(r.nodes[0]?.trace_steps.map((s) => s.function_name)).toEqual(["Screen /", "fetchProducts"]);
+  }, 30_000);
+  it("ENG-81: <Tab.Screen component={HomeScreen}> ⇒ ENTRY_POINT > loadProducts", async () => {
+    const r = await runZip({
+      "package.json": pkg({ "react-native": "^0.73", "@react-navigation/bottom-tabs": "^6" }),
+      "src/App.tsx": "import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';\nimport { HomeScreen } from './screens/HomeScreen';\nconst Tab = createBottomTabNavigator();\nexport default function App() {\n  return (\n    <Tab.Navigator>\n      <Tab.Screen name=\"Home\" component={HomeScreen} />\n    </Tab.Navigator>\n  );\n}\n",
+      "src/screens/HomeScreen.tsx": "import { loadProducts } from '../services/product.service';\nexport function HomeScreen() {\n  const p = loadProducts();\n  return p;\n}\n",
+      "src/services/product.service.ts": "export function loadProducts() {\n  return fetch('/api/products');\n}\n",
+    });
+    expect(r.nodes.find((n) => n.title === "Home Screen")?.trace_steps.map((s) => s.function_name)).toEqual(['<Tab.Screen name="Home">', "loadProducts"]);
+  }, 30_000);
+});

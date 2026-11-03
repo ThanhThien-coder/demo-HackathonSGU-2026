@@ -418,9 +418,21 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     if (st.isEntry || st.isMiddleware) return true;
     if (st.hasDataSink) return true;
 
-    // Kiểm tra source code có throw / raise không
-    const src = st.file.source;
-    if (/\b(throw|raise)\b/.test(src)) return true;
+    // G có throw/raise TRONG THÂN G (không phải cả file)
+    const gLines = st.file.source.split(/\r?\n/).slice(st.fnSym.line_start - 1, st.fnSym.line_end);
+    if (gLines.some((t) => /\b(throw|raise)\b/.test(t))) return true;
+
+    // Giá trị trả về của G được dùng ở ≥ 1 call site (gán, return, đối số, điều kiện) — `11` ENG-81
+    const local = st.fnKey.slice(st.fnKey.indexOf("#") + 1);
+    const gName = local.slice(local.lastIndexOf(".") + 1).replace(/~\d+$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const usedRe = new RegExp(
+      `(=(?!=)|\\breturn\\b|\\byield\\b|\\bif\\s*\\(|\\bwhile\\s*\\(|\\bif\\b|\\belif\\b|\\?|&&|\\|\\||\\(|,|\\[|:)\\s*(await\\s+)?(new\\s+)?[\\w$.]*\\b${gName}\\s*\\(`
+    );
+    for (const caller of stepsMeta) {
+      if (!(callerEdges.get(caller.fnKey) ?? []).some((e) => e.callee === st.fnKey)) continue;
+      const cLines = caller.file.source.split(/\r?\n/).slice(caller.fnSym.line_start - 1, caller.fnSym.line_end);
+      if (cLines.some((t) => new RegExp(`\\b${gName}\\s*\\(`).test(t) && usedRe.test(t))) return true;
+    }
 
     // Kiểm tra cây con có DATA_SINK không
     const hasSubtreeSink = stepsMeta.some(
