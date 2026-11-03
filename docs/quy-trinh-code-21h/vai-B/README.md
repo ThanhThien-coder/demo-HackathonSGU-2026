@@ -60,8 +60,9 @@ Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --n
 - **Spec không ghi câu chữ warning hay con số** ⇒ không tự đặt; ghi vào báo cáo task để người giữ spec chốt.
 - **Thử lại và hẹn giờ của Tầng 0** (ING-40, ING-44) nằm ở `runIngest` (B04), vì zip hỏng chỉ phát hiện được khi đọc mục lục (B03). Hàm con chỉ nhận `signal` và ném `IngestionError`.
 - **Tên test:** tên đầy đủ (gồm `describe` bọc ngoài) bắt đầu bằng mã luật hoặc mã test (`T-ING-07 …`, `ING-45 …`), không bắt đầu bằng tên task.
-- **Test không đụng đĩa, không gọi mạng thật:** zip mẫu dựng trong RAM bằng `fflate`, mạng giả bằng mock `fetch`.
-- **Mỗi phiếu chạy lại toàn bộ `npx vitest run src/server/engine`** trước khi commit, để chắc không làm hỏng phiếu trước.
+- **Test không đụng đĩa, không gọi mạng thật:** zip mẫu dựng trong RAM bằng `fflate`, mạng giả bằng mock `fetch`. File lớn trong test dùng nội dung giả ngẫu nhiên tất định (LCG, không `Math.random`): nội dung lặp lại nén vượt `CONFIG.MAX_COMPRESSION_RATIO` và bị chống zip bomb loại.
+- **Câu chữ spec mâu thuẫn với bảng test** ⇒ bảng test thắng (số kỳ vọng lấy từ bảng); ghi cách hiểu đã chốt vào phiếu (vd. ROLE theo thư mục ở B03).
+- **Mỗi phiếu chạy lại toàn bộ `npx vitest run src/server/engine`** và `npx eslint src/server/engine` (0 error, 0 warning) trước khi commit, để chắc không làm hỏng phiếu trước và CI không đỏ vì lint.
 - **Kết quả Bước 0 của B01 (03/11):** codeload trả đúng mã cho `HEAD`; comment EOCD là SHA 40 hex; `archive/HEAD.zip` chuyển hướng tới **SHA** chứ không phải tên nhánh ⇒ `ref_label` hiện là SHA (giữ theo spec, chờ nhóm chốt).
 
 ## Bạn chờ ai, ai chờ bạn
