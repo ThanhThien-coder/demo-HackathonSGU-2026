@@ -19,6 +19,8 @@ git checkout main; git pull; npm ci; git checkout -b b/B05-tang1
 ```text
 Dùng skill tao-task để tạo task tên "B05 — Tầng 1: symbol, đồ thị gọi hàm, entry, chọn chế độ". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: B01, B04. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/11_ENGINE_DO_THI.md` Mục 1, 2, 3, 4, 5, Test bắt buộc

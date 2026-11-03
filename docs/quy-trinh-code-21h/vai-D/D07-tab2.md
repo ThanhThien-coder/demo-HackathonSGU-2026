@@ -19,6 +19,8 @@ git checkout main; git pull; npm ci; git checkout -b d/D07-tab2
 ```text
 Dùng skill tao-task để tạo task tên "D07 — Tab Feynman". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: D06, E04 (`similarity`); A08 (`enrich-node`, xong 22:00; trong lúc chờ thì dùng fixture câu hỏi của Vai E). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/30_UI.md` Mục 6.2, Test bắt buộc T6, T8, T9, T10, T11, T16, T25

@@ -19,6 +19,8 @@ git checkout main; git pull; npm ci; git checkout -b d/D06-noi-api
 ```text
 Dùng skill tao-task để tạo task tên "D06 — Màn hình đầu, đăng nhập, nối API lát dọc 1". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: A04, A05, A06; A07 (`analyze-node`, xong 20:00; trong lúc chờ thì Tab 1 dùng fixture). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/30_UI.md` Mục 2.1, 2.3, 7.2, 7.3, 7.4, Test bắt buộc T13, T26, T31, T14, T28, T30

@@ -23,6 +23,8 @@ Trước khi dán, mở tab Issues trên GitHub, lọc nhãn `bug` và `ui` giao
 ```text
 Dùng skill tao-task để tạo task tên "D10 — Kiểm agent, sửa giao diện, bỏ trang nháp". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: D09, C09 (tổng quan thật). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/30_UI.md` Mục 3, Test bắt buộc T5

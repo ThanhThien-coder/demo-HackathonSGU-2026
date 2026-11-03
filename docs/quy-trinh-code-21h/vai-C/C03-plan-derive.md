@@ -19,6 +19,8 @@ git checkout main; git pull; npm ci; git checkout -b c/C03-plan-derive
 ```text
 Dùng skill tao-task để tạo task tên "C03 — Kế hoạch câu hỏi, suy ra trạng thái". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C02. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 5, 6, 8, 9, 10, Test bắt buộc

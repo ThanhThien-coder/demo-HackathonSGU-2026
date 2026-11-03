@@ -23,6 +23,8 @@ git checkout main; git pull; npm ci; git checkout -b e/E01-fixture-shop-api
 ```text
 Dùng skill tao-task để tạo task tên "E01 — Issues, PR thử CI, fixture shop-api". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: Bước 1 cần A03 bước 1–2 đã merge. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 1.1, 1.2

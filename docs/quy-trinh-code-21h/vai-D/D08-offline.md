@@ -19,6 +19,8 @@ git checkout main; git pull; npm ci; git checkout -b d/D08-offline
 ```text
 Dùng skill tao-task để tạo task tên "D08 — Áp response, đổi màu, mở khóa, Offline". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: D07, C02, C03; A10 (`evaluate-feynman`, `reveal`, xong 00:00; trong lúc chờ thì dùng fixture chấm của Vai E). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/30_UI.md` Mục 7.5, 8, Test bắt buộc T2, T4, T18, T19, T17

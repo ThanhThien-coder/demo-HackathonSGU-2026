@@ -21,6 +21,8 @@ Phiếu này chạy song song với [A02](A02-contracts.md) (Claude tự viết 
 ```text
 Dùng skill tao-task để tạo task tên "A03 — CI/CD, an ninh GitHub". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: A01 (khung code trên main); WIF, Secrets, Environment production dựng trước ngày thi. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 12, 17

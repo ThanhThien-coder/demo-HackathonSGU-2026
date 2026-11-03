@@ -31,6 +31,8 @@ git commit -m "docs(demo): duyệt tay lần 2"
 ```text
 Dùng skill tao-task để tạo task tên "C10 — Duyệt tay, đóng băng bundle". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C09, E08 (kết quả chạy duyệt lần 1 của Vai E). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10

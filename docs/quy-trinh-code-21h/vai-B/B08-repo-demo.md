@@ -21,6 +21,8 @@ Trước khi dán, mở tab Issues trên GitHub (lọc nhãn `engine`) và `revi
 ```text
 Dùng skill tao-task để tạo task tên "B08 — Sửa theo repo demo, tất định, hàng điểm bắt đầu". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: B07, A06; chạy song song E06 (Vai E chạy repo demo và báo lỗi engine). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/10_ENGINE_INGEST.md` toàn bộ

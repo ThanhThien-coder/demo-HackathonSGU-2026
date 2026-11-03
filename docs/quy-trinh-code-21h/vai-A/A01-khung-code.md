@@ -21,6 +21,8 @@ Repo ban đầu còn trống nên bạn không cần chạy `git pull` hay `npm 
 ```text
 Dùng skill tao-task để tạo task tên "A01 — Khung code repo thi". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: Bước 0 trong `.kb/doc-de-hieu/01_deploy.md` Mục 3. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15, 16, 17

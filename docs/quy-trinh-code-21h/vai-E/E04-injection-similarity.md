@@ -19,6 +19,8 @@ git checkout main; git pull; npm ci; git checkout -b e/E04-injection-similarity
 ```text
 Dùng skill tao-task để tạo task tên "E04 — Regex tấn công, kiểm câu trả lời". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: A02. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+
 ## Được đọc
 - `.kb/README.md`
 - `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7, 8, Test bắt buộc
