@@ -1,1 +1,0 @@
-# demo-HackathonSGU-2026
