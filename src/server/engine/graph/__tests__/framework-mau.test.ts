@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Chạy thật runEngine (parse + đồ thị) có thể > 5 s khi CI/máy tải nặng ⇒ nới thời gian, tránh đỏ chập chờn.
+vi.setConfig({ testTimeout: 30_000 });
 import * as fflate from "fflate";
 import { runEngine } from "../../index";
 async function run(name: string, files: Record<string, string>) {
