@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 
 export function HowItWorksHero() {
   return (
@@ -43,13 +42,20 @@ export function HowItWorksHero() {
             className="group inline-flex items-center justify-center gap-2.5 rounded-[14px] bg-[#ff9640] px-7 py-3.5 text-[15px] font-bold text-white shadow-[0px_6px_8px_rgba(255,150,64,0.35)] transition-all duration-200 hover:bg-[#f2852e] hover:shadow-[0px_10px_16px_rgba(255,150,64,0.45)] active:scale-[0.98]"
           >
             <span>Thử ngay với 1 Repo tùy thích</span>
-            <Image
-              src="/assets/4d3ba.svg"
-              alt="Arrow"
-              width={14}
-              height={14}
-              className= "transition-transform duration-200 group-hover:translate-x-1"
-            />
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
+              aria-hidden="true"
+            >
+              <path
+                d="M9.13125 6.75H0V5.25H9.13125L4.93125 1.05L6 0L12 6L6 12L4.93125 10.95L9.13125 6.75V6.75"
+                fill="white"
+              />
+            </svg>
           </Link>
         </div>
       </div>

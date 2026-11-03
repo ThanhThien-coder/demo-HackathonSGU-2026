@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Compass,
   User,
@@ -10,8 +11,10 @@ import {
   HelpCircle,
   LogOut,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "@/lib/supabase/client";
 
 export interface SettingsDropdownProps {
   isOpen: boolean;
@@ -25,6 +28,8 @@ export function SettingsDropdown({
   className,
 }: SettingsDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -52,6 +57,20 @@ export function SettingsDropdown({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await signOut();
+    } catch (err) {
+      console.error("Lỗi khi đăng xuất:", err);
+    } finally {
+      setIsLoggingOut(false);
+      onClose();
+      router.push("/login");
+      router.refresh();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -142,14 +161,18 @@ export function SettingsDropdown({
       <div className="border-t-[0.8px] border-[#f3f4f6] pt-[6.8px]">
         <button
           type="button"
-          onClick={() => {
-            alert("Đã đăng xuất phiên làm việc!");
-            onClose();
-          }}
-          className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-[12px] hover:bg-[#fef2f2] text-[#e7000b] transition-colors"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-[12px] hover:bg-[#fef2f2] text-[#e7000b] transition-colors disabled:opacity-50 cursor-pointer"
         >
-          <LogOut className="size-4" />
-          <span className="text-[14px] font-semibold">Đăng xuất</span>
+          {isLoggingOut ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <LogOut className="size-4" />
+          )}
+          <span className="text-[14px] font-semibold">
+            {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
+          </span>
         </button>
       </div>
     </div>

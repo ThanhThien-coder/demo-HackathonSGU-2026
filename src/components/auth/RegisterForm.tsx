@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { User, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { signInWithGithub } from "@/lib/supabase/client";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -14,8 +15,21 @@ export function RegisterForm() {
   const [agreeTerms, setAgreeTerms] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleGithubRegister = async () => {
+    try {
+      setIsGithubLoading(true);
+      setErrorMsg(null);
+      await signInWithGithub("/roadmap");
+    } catch (err) {
+      setIsGithubLoading(false);
+      setErrorMsg("Không thể chuyển hướng đến GitHub. Vui lòng kiểm tra lại kết nối mạng.");
+      console.error(err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +98,39 @@ export function RegisterForm() {
           </div>
         )}
 
+        {/* Nút Đăng ký nhanh với GitHub OAuth (D-44) */}
+        <button
+          type="button"
+          onClick={handleGithubRegister}
+          disabled={isGithubLoading || isLoading}
+          className="group w-full flex items-center justify-center gap-3 py-3 px-6 rounded-[8px] border border-[#d1d5db] bg-white hover:bg-[#f9fafb] hover:border-[#9ca3af] active:scale-[0.98] text-[#131b2e] text-[15px] font-bold shadow-sm transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {isGithubLoading ? (
+            <Loader2 className="size-5 animate-spin text-[#131b2e]" />
+          ) : (
+            <svg
+              className="size-5 shrink-0 fill-current text-[#131b2e]"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+              />
+            </svg>
+          )}
+          <span>{isGithubLoading ? "Đang kết nối GitHub..." : "Đăng ký với GitHub"}</span>
+        </button>
+
+        {/* Đường phân cách HOẶC */}
+        <div className="relative flex items-center justify-center my-0.5">
+          <div className="border-t border-[#e5e7eb] w-full" />
+          <span className="bg-white px-3 text-[12px] font-semibold text-[#99a1af] uppercase tracking-wider absolute">
+            hoặc email
+          </span>
+        </div>
+
         {/* Trường Họ và tên */}
         <Input
           label="Họ và tên"
@@ -114,7 +161,7 @@ export function RegisterForm() {
             htmlFor="register-password"
             className="text-[14px] font-semibold text-[#131b2e] select-none"
           >
-            Mật khẩu
+            Mật khẩu khởi tạo
           </label>
           <div className="relative flex items-center w-full rounded-[8px] bg-[#f2f3ff] border border-transparent transition-all duration-150 focus-within:border-[#ff9640] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#ff9640]/20">
             <div className="absolute left-3.5 flex items-center justify-center text-[#99a1af] pointer-events-none">
@@ -125,7 +172,7 @@ export function RegisterForm() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Tối thiểu 6 ký tự"
+              placeholder="••••••••"
               required
               autoComplete="new-password"
               className="w-full bg-transparent px-4 py-3 pl-10 pr-10 text-[14px] font-medium text-[#131b2e] placeholder:text-[#99a1af] focus:outline-none"
@@ -141,38 +188,36 @@ export function RegisterForm() {
           </div>
         </div>
 
-        {/* Checkbox Đồng ý điều khoản học tập */}
-        <div className="flex items-start gap-2.5 pt-1" data-node-id="5:1251">
+        {/* Checkbox Đồng ý điều khoản */}
+        <div className="flex items-start gap-2 pt-1" data-node-id="5:1245">
           <input
-            id="agree-terms"
+            id="terms"
             type="checkbox"
             checked={agreeTerms}
             onChange={(e) => setAgreeTerms(e.target.checked)}
-            className="size-4 mt-0.5 rounded-[4px] border-[#d1d5db] text-[#ff9640] accent-[#ff9640] focus:ring-[#ff9640] cursor-pointer shrink-0"
+            className="mt-1 size-4 rounded-[4px] border-[#d1d5db] text-[#ff9640] accent-[#ff9640] focus:ring-[#ff9640] cursor-pointer"
           />
           <label
-            htmlFor="agree-terms"
+            htmlFor="terms"
             className="text-[13px] font-normal text-[#625e56] leading-[18px] cursor-pointer select-none"
           >
-            Tôi đồng ý với các{" "}
-            <span
-              onClick={(e) => {
-                e.preventDefault();
-                alert("Điều khoản học tập SimpliFey: Tôn trọng bản quyền tác giả, cam kết tự rèn luyện và trung thực trong các câu trả lời Feynman.");
-              }}
-              className="text-[#ff9640] font-medium hover:underline cursor-pointer"
-            >
-              Điều khoản học tập
+            Tôi đồng ý với{" "}
+            <span className="font-semibold text-[#131b2e] hover:underline">
+              Điều khoản dịch vụ
             </span>{" "}
-            và cam kết tuân thủ đạo đức học thuật khi giải thích code.
+            và{" "}
+            <span className="font-semibold text-[#131b2e] hover:underline">
+              Chính sách bảo mật
+            </span>{" "}
+            của SimpliFey.
           </label>
         </div>
 
-        {/* Nút Đăng ký */}
+        {/* Nút Tạo tài khoản */}
         <button
           type="submit"
-          disabled={isLoading}
-          className="group w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-[8px] bg-[#ff9640] hover:bg-[#f2852e] hover:scale-[1.02] active:scale-[0.98] text-[#301400] text-[16px] font-bold shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer mt-1"
+          disabled={isLoading || isGithubLoading}
+          className="group w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-[8px] bg-[#ff9640] hover:bg-[#f2852e] hover:scale-[1.02] active:scale-[0.98] text-[#301400] text-[16px] font-bold shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
         >
           {isLoading ? (
             <>
@@ -181,7 +226,7 @@ export function RegisterForm() {
             </>
           ) : (
             <>
-              <span>Đăng Ký Tài Khoản</span>
+              <span>Tạo Tài Khoản</span>
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </>
           )}
@@ -191,9 +236,9 @@ export function RegisterForm() {
       {/* 3. Phân cách & Link chuyển sang Đăng nhập */}
       <div
         className="border-t border-[#f3f4f6] pt-6 flex items-center justify-center gap-1.5 text-[14px]"
-        data-node-id="5:1263"
+        data-node-id="5:1257"
       >
-        <span className="font-normal text-[#625e56]">Đã có tài khoản?</span>
+        <span className="font-normal text-[#625e56]">Đã có tài khoản SimpliFey?</span>
         <Link
           href="/login"
           className="font-bold text-[#ff9640] hover:underline transition-colors"

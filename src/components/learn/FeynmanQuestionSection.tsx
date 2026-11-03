@@ -1,9 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
-import { Send, Sparkles } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Send } from "lucide-react";
 import { MOCK_LESSON_DATA } from "./mockData";
+import characterWalkingAnimation from "../../../public/assets/character-walking.json";
+
+const Lottie = dynamic(() => import("lottie-react").then((mod) => mod.Lottie), {
+  ssr: false,
+});
 
 interface FeynmanQuestionSectionProps {
   onSubmit: (answer: string) => void;
@@ -36,19 +41,17 @@ export function FeynmanQuestionSection({
         {/* Companion Header & Question */}
         <div className="flex flex-col gap-3 w-full" data-node-id="5:172">
           {/* AI Mascot & Status */}
-          <div className="flex items-center gap-3 w-full" data-node-id="5:173">
-            <div className="relative size-12 sm:size-14 shrink-0 flex items-center justify-center">
-              <Image
-                src="/assets/learn/bot-mascot.svg"
-                alt="SimpliFey Robot Companion"
-                width={56}
-                height={56}
-                className="object-contain"
-                priority
+          <div className="flex items-center gap-3.5 w-full" data-node-id="5:173">
+            <div className="relative size-[100px] sm:size-[115px] shrink-0 flex items-center justify-center">
+              <Lottie
+                src={characterWalkingAnimation}
+                autoplay
+                loop
+                className="w-full h-full object-contain"
               />
             </div>
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-[#131b2e] text-base sm:text-[17px] leading-tight">
+              <h3 className="font-black text-[#131b2e] text-base sm:text-lg leading-tight">
                 Người bạn đồng hành SimpliFey
               </h3>
               <span
@@ -72,10 +75,6 @@ export function FeynmanQuestionSection({
                 data-node-id="5:198"
               >
                 {MOCK_LESSON_DATA.question.tag}
-              </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#ff9640] uppercase tracking-wider">
-                <Sparkles className="size-3" />
-                Feynman Metaphor Challenge
               </span>
             </div>
 

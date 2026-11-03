@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { signInWithGithub } from "@/lib/supabase/client";
 
 export function LoginForm() {
   const router = useRouter();
@@ -13,8 +14,30 @@ export function LoginForm() {
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "auth_failed") {
+        setErrorMsg("Đăng nhập GitHub không thành công hoặc đã bị hủy. Vui lòng thử lại.");
+      }
+    }
+  }, []);
+
+  const handleGithubLogin = async () => {
+    try {
+      setIsGithubLoading(true);
+      setErrorMsg(null);
+      await signInWithGithub("/roadmap");
+    } catch (err) {
+      setIsGithubLoading(false);
+      setErrorMsg("Không thể chuyển hướng đến GitHub. Vui lòng kiểm tra lại kết nối mạng.");
+      console.error(err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +95,39 @@ export function LoginForm() {
             <span>{successMsg}</span>
           </div>
         )}
+
+        {/* Nút Đăng nhập nhanh với GitHub OAuth (D-44) */}
+        <button
+          type="button"
+          onClick={handleGithubLogin}
+          disabled={isGithubLoading || isLoading}
+          className="group w-full flex items-center justify-center gap-3 py-3 px-6 rounded-[8px] border border-[#d1d5db] bg-white hover:bg-[#f9fafb] hover:border-[#9ca3af] active:scale-[0.98] text-[#131b2e] text-[15px] font-bold shadow-sm transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {isGithubLoading ? (
+            <Loader2 className="size-5 animate-spin text-[#131b2e]" />
+          ) : (
+            <svg
+              className="size-5 shrink-0 fill-current text-[#131b2e]"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+              />
+            </svg>
+          )}
+          <span>{isGithubLoading ? "Đang kết nối GitHub..." : "Đăng nhập với GitHub"}</span>
+        </button>
+
+        {/* Đường phân cách HOẶC */}
+        <div className="relative flex items-center justify-center my-1">
+          <div className="border-t border-[#e5e7eb] w-full" />
+          <span className="bg-white px-3 text-[12px] font-semibold text-[#99a1af] uppercase tracking-wider absolute">
+            hoặc email
+          </span>
+        </div>
 
         {/* Trường Email */}
         <Input
@@ -151,7 +207,7 @@ export function LoginForm() {
         {/* Nút Đăng nhập */}
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || isGithubLoading}
           className="group w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-[8px] bg-[#ff9640] hover:bg-[#f2852e] hover:scale-[1.02] active:scale-[0.98] text-[#301400] text-[16px] font-bold shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
         >
           {isLoading ? (

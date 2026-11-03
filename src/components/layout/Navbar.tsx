@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 export interface NavbarProps {
   user?: {
@@ -16,10 +17,66 @@ export interface NavbarProps {
   className?: string;
 }
 
-export function Navbar({ user, className }: NavbarProps) {
+export function Navbar({ user: propUser, className }: NavbarProps) {
   const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [supabaseUser, setSupabaseUser] = useState<{
+    name: string;
+    avatarUrl?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    // Nếu có propUser truyền vào tường minh, ưu tiên propUser
+    if (propUser !== undefined) return;
+
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data }) => {
+        const u = data?.session?.user;
+        if (u) {
+          const name =
+            u.user_metadata?.user_name ||
+            u.user_metadata?.preferred_username ||
+            u.user_metadata?.full_name ||
+            u.user_metadata?.name ||
+            u.email?.split("@")[0] ||
+            "User";
+          const avatarUrl = u.user_metadata?.avatar_url;
+          setSupabaseUser({ name, avatarUrl });
+        } else {
+          setSupabaseUser(null);
+        }
+      });
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        const u = session?.user;
+        if (u) {
+          const name =
+            u.user_metadata?.user_name ||
+            u.user_metadata?.preferred_username ||
+            u.user_metadata?.full_name ||
+            u.user_metadata?.name ||
+            u.email?.split("@")[0] ||
+            "User";
+          const avatarUrl = u.user_metadata?.avatar_url;
+          setSupabaseUser({ name, avatarUrl });
+        } else {
+          setSupabaseUser(null);
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch {
+      // Bỏ qua lỗi kết nối trong môi trường test/SSR
+    }
+  }, [propUser]);
+
+  const user = propUser !== undefined ? propUser : supabaseUser;
 
   const navLinks = [
     { label: "Trang chủ", href: "/" },
@@ -49,7 +106,6 @@ export function Navbar({ user, className }: NavbarProps) {
 
           <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             {navLinks.map((link) => {
-              const isActive = pathname === link.href;
               const isExternal = link.href.startsWith("http");
               return (
                 <Link
@@ -58,10 +114,9 @@ export function Navbar({ user, className }: NavbarProps) {
                   target={isExternal ? "_blank" : undefined}
                   rel={isExternal ? "noopener noreferrer" : undefined}
                   className={cn(
-                    "inline-block py-1 text-[14px] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95",
-                    isActive
-                      ? "font-semibold text-black"
-                      : "font-medium text-[#131b2e]"
+                    "text-[14px] font-medium text-[#131b2e] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95",
+                    pathname === link.href &&
+                      "font-semibold text-black underline underline-offset-4 decoration-2 decoration-[#ff9640]"
                   )}
                 >
                   {link.label}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,29 @@ export function Drawer({
   size = "md",
   className,
 }: DrawerProps) {
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setMounted(true);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setVisible(true);
+        });
+      });
+      document.body.style.overflow = "hidden";
+      return () => cancelAnimationFrame(id);
+    } else {
+      setVisible(false);
+      const timer = setTimeout(() => {
+        setMounted(false);
+      }, 320);
+      document.body.style.overflow = "unset";
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -32,16 +55,14 @@ export function Drawer({
       }
     };
     if (isOpen) {
-      document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
     }
     return () => {
-      document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!mounted) return null;
 
   const sizeClasses = {
     sm: "max-w-sm",
@@ -51,16 +72,14 @@ export function Drawer({
     full: "max-w-full",
   };
 
-  const sideClasses = {
-    left: "left-0 top-0 bottom-0 animate-in slide-in-from-left duration-200 border-r",
-    right: "right-0 top-0 bottom-0 animate-in slide-in-from-right duration-200 border-l",
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-[3px] transition-opacity duration-200"
+        className={cn(
+          "fixed inset-0 bg-black/40 backdrop-blur-[4px] transition-opacity duration-300 ease-out",
+          visible ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
         onClick={onClose}
         aria-hidden="true"
       />
@@ -70,9 +89,16 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "fixed z-10 flex h-full w-full flex-col bg-white shadow-[0px_20px_25px_-5px_rgba(0,0,0,0.15)] border-[#e5e7eb]",
+          "fixed z-10 flex h-full w-full flex-col bg-white shadow-[0px_20px_25px_-5px_rgba(0,0,0,0.15)] border-[#e5e7eb] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform",
           sizeClasses[size],
-          sideClasses[side],
+          side === "left"
+            ? "left-0 top-0 bottom-0 border-r"
+            : "right-0 top-0 bottom-0 border-l",
+          visible
+            ? "translate-x-0"
+            : side === "left"
+            ? "-translate-x-full"
+            : "translate-x-full",
           className
         )}
       >

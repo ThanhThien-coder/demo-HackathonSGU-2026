@@ -2,12 +2,10 @@
 
 import React, { useState } from "react";
 import { Drawer } from "@/components/ui/Drawer";
-import { Badge } from "@/components/ui/Badge";
 import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Info,
   Check,
   Play,
   ArrowRight,
