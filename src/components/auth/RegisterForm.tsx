@@ -1,0 +1,206 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { User, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { Input } from "@/components/ui/Input";
+
+export function RegisterForm() {
+  const router = useRouter();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!fullName.trim()) {
+      setErrorMsg("Vui lòng nhập họ và tên của bạn.");
+      return;
+    }
+
+    if (!email || !email.includes("@")) {
+      setErrorMsg("Vui lòng nhập địa chỉ email hợp lệ.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setErrorMsg("Mật khẩu phải có tối thiểu 6 ký tự.");
+      return;
+    }
+
+    if (!agreeTerms) {
+      setErrorMsg("Bạn cần đồng ý với Điều khoản học tập để tiếp tục.");
+      return;
+    }
+
+    setIsLoading(true);
+    // Giả lập xử lý đăng ký tài khoản client-side UX
+    setTimeout(() => {
+      setIsLoading(false);
+      setSuccessMsg("Tạo tài khoản thành công! Đang chuyển hướng...");
+      setTimeout(() => {
+        router.push("/roadmap");
+      }, 900);
+    }, 1000);
+  };
+
+  return (
+    <>
+      {/* 1. Header Thông tin */}
+      <div className="flex flex-col items-center text-center gap-1.5" data-node-id="5:1208">
+        <span className="font-bold text-[#944b00] text-[13px] tracking-[0.65px] uppercase">
+          GIA NHẬP CỘNG ĐỒNG SIMPLIFEY
+        </span>
+        <h1 className="font-black text-[#131b2e] text-[32px] sm:text-[36px] tracking-[-0.9px] leading-[1.2]">
+          Tạo tài khoản học tập
+        </h1>
+        <p className="font-normal text-[#625e56] text-[15px] leading-[22.5px] max-w-[370px] mt-1">
+          Bắt đầu phân tích codebase, hiểu sâu kiến trúc và rèn luyện kỹ năng phần mềm thực chiến.
+        </p>
+      </div>
+
+      {/* 2. Form Đăng ký */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-4.5 w-full" data-node-id="5:1214">
+        {/* Thông báo lỗi nếu có */}
+        {errorMsg && (
+          <div className="bg-[#fef2f2] border border-[#fecaca] text-[#e7000b] text-[13px] font-medium px-4 py-2.5 rounded-[8px] animate-in fade-in duration-200">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Thông báo thành công */}
+        {successMsg && (
+          <div className="bg-[#ecfdf5] border border-[#a7f3d0] text-[#00bc7d] text-[13px] font-medium px-4 py-2.5 rounded-[8px] flex items-center gap-2 animate-in fade-in duration-200">
+            <CheckCircle2 className="size-4 shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {/* Trường Họ và tên */}
+        <Input
+          label="Họ và tên"
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Nguyễn Văn A"
+          required
+          autoComplete="name"
+          leftIcon={<User className="size-4 text-[#99a1af]" />}
+        />
+
+        {/* Trường Email */}
+        <Input
+          label="Email học tập"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="ban@sinhvien.edu.vn"
+          required
+          autoComplete="email"
+          leftIcon={<Mail className="size-4 text-[#99a1af]" />}
+        />
+
+        {/* Trường Mật khẩu */}
+        <div className="flex flex-col gap-1.5">
+          <label
+            htmlFor="register-password"
+            className="text-[14px] font-semibold text-[#131b2e] select-none"
+          >
+            Mật khẩu
+          </label>
+          <div className="relative flex items-center w-full rounded-[8px] bg-[#f2f3ff] border border-transparent transition-all duration-150 focus-within:border-[#ff9640] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#ff9640]/20">
+            <div className="absolute left-3.5 flex items-center justify-center text-[#99a1af] pointer-events-none">
+              <Lock className="size-4" />
+            </div>
+            <input
+              id="register-password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Tối thiểu 6 ký tự"
+              required
+              autoComplete="new-password"
+              className="w-full bg-transparent px-4 py-3 pl-10 pr-10 text-[14px] font-medium text-[#131b2e] placeholder:text-[#99a1af] focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              className="absolute right-3.5 flex items-center justify-center text-[#99a1af] hover:text-[#131b2e] transition-colors focus:outline-none"
+            >
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Checkbox Đồng ý điều khoản học tập */}
+        <div className="flex items-start gap-2.5 pt-1" data-node-id="5:1251">
+          <input
+            id="agree-terms"
+            type="checkbox"
+            checked={agreeTerms}
+            onChange={(e) => setAgreeTerms(e.target.checked)}
+            className="size-4 mt-0.5 rounded-[4px] border-[#d1d5db] text-[#ff9640] accent-[#ff9640] focus:ring-[#ff9640] cursor-pointer shrink-0"
+          />
+          <label
+            htmlFor="agree-terms"
+            className="text-[13px] font-normal text-[#625e56] leading-[18px] cursor-pointer select-none"
+          >
+            Tôi đồng ý với các{" "}
+            <span
+              onClick={(e) => {
+                e.preventDefault();
+                alert("Điều khoản học tập SimpliFey: Tôn trọng bản quyền tác giả, cam kết tự rèn luyện và trung thực trong các câu trả lời Feynman.");
+              }}
+              className="text-[#ff9640] font-medium hover:underline cursor-pointer"
+            >
+              Điều khoản học tập
+            </span>{" "}
+            và cam kết tuân thủ đạo đức học thuật khi giải thích code.
+          </label>
+        </div>
+
+        {/* Nút Đăng ký */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="group w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-[8px] bg-[#ff9640] hover:bg-[#f2852e] hover:scale-[1.02] active:scale-[0.98] text-[#301400] text-[16px] font-bold shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer mt-1"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              <span>Đang tạo tài khoản...</span>
+            </>
+          ) : (
+            <>
+              <span>Đăng Ký Tài Khoản</span>
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* 3. Phân cách & Link chuyển sang Đăng nhập */}
+      <div
+        className="border-t border-[#f3f4f6] pt-6 flex items-center justify-center gap-1.5 text-[14px]"
+        data-node-id="5:1263"
+      >
+        <span className="font-normal text-[#625e56]">Đã có tài khoản?</span>
+        <Link
+          href="/login"
+          className="font-bold text-[#ff9640] hover:underline transition-colors"
+        >
+          Đăng nhập ngay
+        </Link>
+      </div>
+    </>
+  );
+}

@@ -24,7 +24,7 @@ export function HeroAnimation({ className }: HeroAnimationProps) {
 
   return (
     <div
-      className={`relative flex h-[260px] w-full max-w-[480px] items-center justify-center ${
+      className={`relative flex h-[260px] w-full max-w-[480px] items-center justify-center -translate-y-[25px] transition-transform ${
         className || ""
       }`}
     >

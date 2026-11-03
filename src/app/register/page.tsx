@@ -1,8 +1,28 @@
+import type { Metadata } from "next";
+import { Navbar } from "@/components/layout/Navbar";
+import { HomeFooter } from "@/components/home/HomeFooter";
+import { AuthCardWrapper, RegisterForm } from "@/components/auth";
+
+export const metadata: Metadata = {
+  title: "Tạo tài khoản học tập — SimpliFey",
+  description: "Bắt đầu phân tích codebase, hiểu sâu kiến trúc và rèn luyện kỹ năng phần mềm thực chiến cùng SimpliFey.",
+};
+
 export default function RegisterPage() {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center p-8 text-center">
-      <h1 className="text-3xl font-extrabold text-[#131b2e]">Đăng ký tài khoản</h1>
-      <p className="mt-2 text-[#625e56]">Bắt đầu hành trình biến codebase thực tế thành lộ trình làm chủ kiến trúc.</p>
+    <div className="min-h-screen bg-white text-[#131b2e] flex flex-col antialiased selection:bg-[#ff9640]/20 selection:text-[#944b00]">
+      {/* 1. Global Navigation Header (Figma node 5:1178) */}
+      <Navbar />
+
+      {/* 2. Main Authentication Content (Figma node 5:1204) */}
+      <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12 sm:py-16 relative overflow-hidden bg-white">
+        <AuthCardWrapper>
+          <RegisterForm />
+        </AuthCardWrapper>
+      </main>
+
+      {/* 3. Global Footer (Figma node 5:1267) */}
+      <HomeFooter />
     </div>
   );
 }

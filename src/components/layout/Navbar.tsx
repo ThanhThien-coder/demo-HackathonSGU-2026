@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SlidersHorizontal, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
@@ -55,10 +55,10 @@ export function Navbar({ user, className }: NavbarProps) {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "py-1 text-[14px] font-semibold transition-colors duration-150",
+                    "inline-block py-1 text-[14px] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95",
                     isActive
-                      ? "text-[#ff9640] font-bold"
-                      : "text-[#554337] hover:text-[#ff9640]"
+                      ? "font-semibold text-black"
+                      : "font-medium text-[#131b2e]"
                   )}
                 >
                   {link.label}
@@ -86,13 +86,13 @@ export function Navbar({ user, className }: NavbarProps) {
             <>
               <Link
                 href="/login"
-                className="hidden sm:inline-block px-2.5 py-1 text-[14px] font-semibold text-[#554337] hover:text-[#ff9640] transition-colors"
+                className="hidden sm:inline-block px-2.5 py-1 text-[14px] font-medium text-[#131b2e] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95"
               >
                 Đăng nhập
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center rounded-[12px] bg-[#ff9640] px-5 py-2 sm:px-6 sm:py-2.5 text-[14px] font-bold text-white shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] hover:bg-[#f2852e] active:scale-[0.98] transition-all"
+                className="inline-flex items-center justify-center rounded-[12px] bg-[#ff9640] px-5 py-2 sm:px-6 sm:py-2.5 text-[14px] font-bold text-white shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] hover:bg-[#f2852e] hover:scale-105 active:scale-95 transition-all duration-200 ease-out origin-center"
               >
                 Đăng ký
               </Link>
@@ -106,12 +106,26 @@ export function Navbar({ user, className }: NavbarProps) {
               onClick={() => setIsSettingsOpen(!isSettingsOpen)}
               aria-label="Cài đặt hệ thống"
               aria-expanded={isSettingsOpen}
-              className={cn(
-                "flex items-center justify-center rounded-[10px] p-2 text-[#554337] hover:bg-[#fff0e4] hover:text-[#944b00] transition-colors focus:outline-none focus:ring-2 focus:ring-[#ff9640]/40",
-                isSettingsOpen && "bg-[#fff0e4] text-[#944b00]"
-              )}
+              className="group flex items-center justify-center p-2 text-black transition-colors focus:outline-none cursor-pointer bg-transparent"
             >
-              <SlidersHorizontal className="size-5" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={cn(
+                  "size-5 text-black transition-all duration-500 ease-in-out origin-center group-hover:rotate-[360deg] group-hover:text-[#ff9640]",
+                  isSettingsOpen && "text-[#ff9640]"
+                )}
+              >
+                <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
 
             <SettingsDropdown
@@ -145,10 +159,8 @@ export function Navbar({ user, className }: NavbarProps) {
               href={link.href}
               onClick={() => setIsMobileMenuOpen(false)}
               className={cn(
-                "px-3 py-2 text-sm font-semibold rounded-[8px] transition-colors",
-                pathname === link.href
-                  ? "bg-[#fff0e4] text-[#944b00] font-bold"
-                  : "text-[#554337] hover:bg-[#f3f4f6]"
+                "px-3 py-2 text-sm font-medium rounded-[8px] text-[#131b2e] transition-all duration-200 ease-out hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-[1.02]",
+                pathname === link.href && "font-semibold text-black bg-[#f3f4f6]"
               )}
             >
               {link.label}
@@ -159,7 +171,7 @@ export function Navbar({ user, className }: NavbarProps) {
               <Link
                 href="/login"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 text-sm font-semibold text-[#554337] hover:bg-[#f3f4f6] rounded-[8px]"
+                className="px-3 py-2 text-sm font-medium text-[#131b2e] hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-[1.02] rounded-[8px] transition-all duration-200 ease-out"
               >
                 Đăng nhập
               </Link>

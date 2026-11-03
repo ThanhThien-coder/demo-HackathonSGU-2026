@@ -61,3 +61,18 @@ body {
                0px 2px 0px #cc620f,
                0px 1px 0px #e6761c;
 }
+
+/* Horizontal bouncing pan animation for URL text */
+@keyframes pan-horizontal {
+  0%, 100% {
+    transform: translateX(0px);
+  }
+  50% {
+    transform: translateX(14px);
+  }
+}
+
+.animate-pan-horizontal {
+  animation: pan-horizontal 3s ease-in-out infinite;
+}
+
