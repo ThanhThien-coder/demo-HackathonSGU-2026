@@ -6,9 +6,13 @@ import {
   type RunStepRef,
   type StaticEngineResult,
 } from "@/contracts";
-import { sql } from "./db";
+import { db, sql } from "./db";
 import { ApiHttpError } from "./errors";
-import { getEngineResultCache, setEngineResultCache } from "./cache";
+import {
+  getEngineResultCache,
+  setEngineResultCache,
+  setAliasSnapshotId,
+} from "./cache";
 
 export interface SessionRecord {
   id: string;
@@ -221,4 +225,228 @@ export async function getSessionStaticResult(
   const result = rows[0].result;
   setEngineResultCache(session.snapshot_id, session.subdir, session.engine_version, result);
   return result;
+}
+
+/**
+ * Semaphore in-memory gioi han so tac vu ingest chay dong thoi (D-31, 03 Muc 6.6).
+ * Hang doi FIFO voi thoi gian cho toi da CONFIG.INGEST_QUEUE_TIMEOUT_MS => ERR_SERVER_BUSY (503).
+ */
+export class IngestionSemaphore {
+  private running = 0;
+  private queue: Array<{
+    resolve: () => void;
+    reject: (err: unknown) => void;
+    timer: NodeJS.Timeout;
+  }> = [];
+
+  async acquire(): Promise<() => void> {
+    if (this.running < CONFIG.MAX_CONCURRENT_INGESTIONS) {
+      this.running++;
+      let released = false;
+      return () => {
+        if (!released) {
+          released = true;
+          this.release();
+        }
+      };
+    }
+
+    return new Promise<() => void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const idx = this.queue.findIndex((item) => item.timer === timer);
+        if (idx !== -1) {
+          this.queue.splice(idx, 1);
+          reject(new ApiHttpError("ERR_SERVER_BUSY"));
+        }
+      }, CONFIG.INGEST_QUEUE_TIMEOUT_MS);
+
+      this.queue.push({
+        resolve: () => {
+          clearTimeout(timer);
+          let released = false;
+          resolve(() => {
+            if (!released) {
+              released = true;
+              this.release();
+            }
+          });
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+        timer,
+      });
+    });
+  }
+
+  private release(): void {
+    const next = this.queue.shift();
+    if (next) {
+      next.resolve();
+    } else {
+      this.running--;
+    }
+  }
+
+  reset(): void {
+    for (const item of this.queue) {
+      clearTimeout(item.timer);
+    }
+    this.queue = [];
+    this.running = 0;
+  }
+}
+
+export const ingestionSemaphore = new IngestionSemaphore();
+
+/**
+ * Tao phien hoc moi hoac mo lai phien neu trung khoa phien (03 Muc 6.6, D-59).
+ * Khoa phien: (user_id, source, snapshot_id, subdir, engine_version).
+ * Trung khoa => cap nhat last_active_at, tra ve session da co va KET QUA DA LUU cua phien do
+ *   (resumed = true, from_cache = true); khong ghi de cache RAM bang ket qua vua chay.
+ * Chua co => tao transaction luu learning_sessions + session_snapshots (D-59) (resumed = false, from_cache = false).
+ */
+export async function createOrResumeSession(
+  userId: string,
+  result: StaticEngineResult
+): Promise<{
+  session: SessionRecord;
+  result: StaticEngineResult;
+  resumed: boolean;
+  from_cache: boolean;
+}> {
+  const existing = await sql<SessionRecord[]>`
+    SELECT
+      id, user_id, source, repo_key, snapshot_id, snapshot_id_kind,
+      subdir, ref_label, repo_name, engine_version, tokens_used,
+      created_at, last_active_at, graph_skeleton
+    FROM learning_sessions
+    WHERE user_id = ${userId}
+      AND source = ${result.snapshot.source}
+      AND snapshot_id = ${result.snapshot.snapshot_id}
+      AND subdir = ${result.snapshot.subdir}
+      AND engine_version = ${result.engine_version}
+    ORDER BY last_active_at DESC
+    LIMIT 1
+  `;
+
+  if (existing.length > 0) {
+    const session = existing[0];
+    // 03 Muc 6.6: tra ket qua da luu cua phien do (cache RAM hoac session_snapshots)
+    const stored = await getSessionStaticResult(session, userId);
+
+    await sql`
+      UPDATE learning_sessions
+      SET last_active_at = now()
+      WHERE id = ${session.id}
+    `;
+
+    if (session.source === "GITHUB") {
+      setAliasSnapshotId(session.repo_key, session.subdir, session.snapshot_id);
+    }
+
+    return { session, result: stored, resumed: true, from_cache: true };
+  }
+
+  const graphSkeleton: GraphSkeletonNode[] = result.nodes.map((n) => ({
+    node_id: n.id,
+    title: n.title,
+    prerequisites: n.prerequisites.slice(),
+    is_capstone: n.is_capstone,
+  }));
+
+  const newSession = await db.tx(async (tx) => {
+    const inserted = await tx<SessionRecord[]>`
+      INSERT INTO learning_sessions (
+        user_id, source, repo_key, snapshot_id, snapshot_id_kind,
+        subdir, ref_label, repo_name, engine_version, graph_skeleton, tokens_used
+      )
+      VALUES (
+        ${userId},
+        ${result.snapshot.source},
+        ${result.snapshot.repo_key},
+        ${result.snapshot.snapshot_id},
+        ${result.snapshot.snapshot_id_kind},
+        ${result.snapshot.subdir},
+        ${result.snapshot.ref_label ?? null},
+        ${result.repo_name},
+        ${result.engine_version},
+        ${JSON.stringify(graphSkeleton)}::jsonb,
+        0
+      )
+      RETURNING
+        id, user_id, source, repo_key, snapshot_id, snapshot_id_kind,
+        subdir, ref_label, repo_name, engine_version, tokens_used,
+        created_at, last_active_at, graph_skeleton
+    `;
+    const session = inserted[0];
+
+    await tx`
+      INSERT INTO session_snapshots (session_id, result)
+      VALUES (${session.id}, ${JSON.stringify(result)}::jsonb)
+    `;
+
+    return session;
+  });
+
+  setEngineResultCache(result.snapshot.snapshot_id, result.snapshot.subdir, result.engine_version, result);
+  if (result.snapshot.source === "GITHUB") {
+    setAliasSnapshotId(result.snapshot.repo_key, result.snapshot.subdir, result.snapshot.snapshot_id);
+  }
+
+  return { session: newSession, result, resumed: false, from_cache: false };
+}
+
+/**
+ * "Hoc lai tu dau" (D-42, 03 Muc 6.6):
+ * Tao phien moi cho cung repo; snapshot_id + graph_skeleton giu nguyen;
+ * node_progress trong; skill_states giu nguyen; cau hoi sinh moi khi enrich-node.
+ */
+export async function restartSession(
+  sessionId: string,
+  userId: string
+): Promise<{ session: SessionRecord; staticResult: StaticEngineResult }> {
+  const oldSession = await verifySessionOwnership(sessionId, userId);
+  if (oldSession.engine_version !== CONFIG.ENGINE_VERSION) {
+    throw new ApiHttpError("ERR_SESSION_ENGINE_OUTDATED");
+  }
+
+  const staticResult = await getSessionStaticResult(oldSession, userId);
+
+  const newSession = await db.tx(async (tx) => {
+    const inserted = await tx<SessionRecord[]>`
+      INSERT INTO learning_sessions (
+        user_id, source, repo_key, snapshot_id, snapshot_id_kind,
+        subdir, ref_label, repo_name, engine_version, graph_skeleton, tokens_used
+      )
+      VALUES (
+        ${userId},
+        ${oldSession.source},
+        ${oldSession.repo_key},
+        ${oldSession.snapshot_id},
+        ${oldSession.snapshot_id_kind},
+        ${oldSession.subdir},
+        ${oldSession.ref_label ?? null},
+        ${oldSession.repo_name},
+        ${oldSession.engine_version},
+        ${JSON.stringify(oldSession.graph_skeleton)}::jsonb,
+        0
+      )
+      RETURNING
+        id, user_id, source, repo_key, snapshot_id, snapshot_id_kind,
+        subdir, ref_label, repo_name, engine_version, tokens_used,
+        created_at, last_active_at, graph_skeleton
+    `;
+    const session = inserted[0];
+
+    await tx`
+      INSERT INTO session_snapshots (session_id, result)
+      VALUES (${session.id}, ${JSON.stringify(staticResult)}::jsonb)
+    `;
+
+    return session;
+  });
+
+  return { session: newSession, staticResult };
 }
