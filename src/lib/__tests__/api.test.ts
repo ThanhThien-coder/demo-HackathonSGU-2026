@@ -125,7 +125,7 @@ describe("src/lib/api.ts", () => {
 
       await apiFetch("/api/test", {
         method: "POST",
-        body: { repo_url: "https://github.com/test/repo" } as any,
+        body: { repo_url: "https://github.com/test/repo" } as unknown as BodyInit,
       });
 
       expect(passedHeaders?.get("Content-Type")).toBe("application/json");

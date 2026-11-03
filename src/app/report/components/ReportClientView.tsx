@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import { HomeFooter } from "@/components/home/HomeFooter";
-import { ReportHeader } from "@/components/report/ReportHeader";
+import { ReportHeader } from "./ReportHeader";
 import {
   getMeSafe,
   getSessionHistorySafe,

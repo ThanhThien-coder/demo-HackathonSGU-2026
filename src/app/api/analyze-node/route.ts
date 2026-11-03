@@ -23,6 +23,7 @@ import { ApiHttpError, toErrorResponse } from "@/server/errors";
 import { logger } from "@/server/log";
 import { getSessionProgress } from "@/server/progress";
 import { addSessionTokens, checkTokenQuota } from "@/server/quota";
+import { isLocalMockEnabled, mockDevStore } from "@/server/mock-dev-store";
 import {
   getSessionStaticResult,
   verifySessionOwnership,
@@ -58,6 +59,13 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (!nodeId) {
       throw new ApiHttpError("ERR_NODE_NOT_AVAILABLE");
+    }
+
+    if (isLocalMockEnabled()) {
+      return new Response(JSON.stringify(mockDevStore.analyzeNode(sessionId, nodeId)), {
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
     }
 
     // Kiem tra quyen so huu phien (API-05)

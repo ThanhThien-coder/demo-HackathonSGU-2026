@@ -136,3 +136,65 @@ export async function getSessionProgress(
     tokens_used: session.tokens_used,
   };
 }
+
+/**
+ * 03_API_VA_LUU_TRU.md Muc 6.5: finalizeRunIfDone
+ * Run xong khi moi cau finished.
+ * Cau DROPPED va cau disputed khong tinh khi xet mau:
+ * co cau FAILED => node FAILED; nguoc lai COMPLETED.
+ * Sau do dat finished_at, upsert node_progress, tra unlocked_node_ids.
+ */
+export async function finalizeRunIfDone(
+  sessionId: string,
+  nodeId: string,
+  runId: string,
+  questions: RunQuestion[],
+  userId: string
+): Promise<{ finished: boolean; unlocked_node_ids: string[] }> {
+  const allFinished = questions.every((q) => q.finished);
+  if (!allFinished) {
+    return { finished: false, unlocked_node_ids: [] };
+  }
+
+  // Lay trang thai cu de so sanh unlocked nodes
+  const prevProgress = await getSessionProgress(sessionId, userId);
+  const prevLockedNodes = new Set(
+    Object.values(prevProgress.nodes)
+      .filter((n) => n.status === "LOCKED")
+      .map((n) => n.node_id)
+  );
+
+  // Xet mau node: bo qua DROPPED va disputed
+  const scorableQuestions = questions.filter(
+    (q) => q.ended_by !== "DROPPED" && !q.disputed
+  );
+  const hasFailed = scorableQuestions.some((q) => q.outcome === "FAILED");
+  const finalStatus: "COMPLETED" | "FAILED" = hasFailed ? "FAILED" : "COMPLETED";
+
+  // Dat finished_at cho run
+  await sql`
+    UPDATE node_runs
+    SET finished_at = now()
+    WHERE id = ${runId}
+  `;
+
+  // Upsert node_progress
+  await sql`
+    INSERT INTO node_progress (session_id, node_id, status, updated_at)
+    VALUES (${sessionId}, ${nodeId}, ${finalStatus}, now())
+    ON CONFLICT (session_id, node_id) DO UPDATE SET
+      status = EXCLUDED.status,
+      updated_at = now()
+  `;
+
+  // Tinh unlocked_node_ids
+  const newProgress = await getSessionProgress(sessionId, userId);
+  const unlockedNodeIds: string[] = [];
+  for (const n of Object.values(newProgress.nodes)) {
+    if (prevLockedNodes.has(n.node_id) && n.status === "AVAILABLE") {
+      unlockedNodeIds.push(n.node_id);
+    }
+  }
+
+  return { finished: true, unlocked_node_ids: unlockedNodeIds };
+}

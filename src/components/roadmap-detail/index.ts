@@ -1,5 +1,5 @@
 export * from "./types";
-export * from "./data";
+export * from "./sessionDetail";
 export * from "./RoadmapDetailBackNav";
 export * from "./RoadmapDetailHeader";
 export * from "./LessonCard";

@@ -7,7 +7,6 @@ import {
   Compass,
   User,
   Sparkles,
-  Moon,
   HelpCircle,
   LogOut,
   ChevronRight,
@@ -231,14 +230,6 @@ export function SettingsDropdown({
                 BKT-v2
               </span>
             </Link>
-
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-[12px] hover:bg-[#f2f3ff] text-[#131b2e] transition-colors">
-              <div className="flex items-center gap-2.5">
-                <Moon className="size-4 text-[#554337]" />
-                <span className="text-[14px] font-semibold">Chế độ nền tối</span>
-              </div>
-              <span className="text-[12px] text-[#99a1af]">Tắt</span>
-            </div>
 
             <Link
               href="/how-it-works"

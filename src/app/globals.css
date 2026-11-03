@@ -76,3 +76,16 @@ body {
   animation: pan-horizontal 3s ease-in-out infinite;
 }
 
+/* Accessibility: Hỗ trợ giảm chuyển động theo spec/30_UI.md Mục 11 & Test T29 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+

@@ -24,7 +24,7 @@ export function RoadmapFooter() {
             className="font-normal text-[#554337] text-[13px] leading-[19.5px]"
             data-node-id="5:925"
           >
-            © 2025 SimpliFey by MeoMeo Team - Hackathon 2026
+            © 2026 SimpliFey by MeoMeo Team - Hackathon SGU 2026
           </span>
         </div>
 

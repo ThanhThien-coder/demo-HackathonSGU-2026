@@ -1,5 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "./supabase/client";
+import {
+  isOfflineMode,
+  offlineIngestRepo,
+  offlineEnrichNode,
+  offlineEvaluateFeynman,
+  offlineRevealQuestion,
+  offlineGetOverview,
+  offlineGetAnalysis,
+  buildOfflineProfile,
+  getOfflineBundle,
+  setOfflinePersona,
+} from "./offline";
 import type {
   ErrorCode,
   ApiError,
@@ -382,6 +394,17 @@ export async function getMe(): Promise<UserProfileResponse> {
 }
 
 export async function getMeSafe(): Promise<ApiResult<UserProfileResponse>> {
+  if (isOfflineMode()) {
+    return {
+      ok: true,
+      data: {
+        profile: buildOfflineProfile(),
+        server_now: Date.now(),
+      },
+      error: null,
+    };
+  }
+
   return apiFetchSafe<UserProfileResponse>("/api/me", {
     method: "GET",
   });
@@ -415,6 +438,18 @@ export async function switchPersonaSafe(
       : "mode" in persona
       ? persona.mode
       : persona.persona;
+
+  if (isOfflineMode()) {
+    setOfflinePersona(mode);
+    return {
+      ok: true,
+      data: {
+        profile: buildOfflineProfile(mode),
+        server_now: Date.now(),
+      },
+      error: null,
+    };
+  }
 
   return apiFetchSafe<SwitchPersonaResponse>("/api/demo/persona", {
     method: "POST",
@@ -457,6 +492,10 @@ export async function ingestRepo(
 export async function ingestRepoSafe(
   data: IngestRequest | FormData
 ): Promise<ApiResult<IngestResponse>> {
+  if (isOfflineMode()) {
+    return offlineIngestRepo();
+  }
+
   const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
   return apiFetchSafe<IngestResponse>("/api/ingest", {
     method: "POST",
@@ -493,6 +532,37 @@ export async function getSessionsSafe(params?: {
   limit?: number;
   offset?: number;
 }): Promise<ApiResult<SessionListResponse>> {
+  if (isOfflineMode()) {
+    return {
+      ok: true,
+      data: {
+        sessions: [
+          {
+            session_id: "demo-session-shop-api",
+            snapshot: {
+              source: "GITHUB",
+              repo_key: "simplifey/shop-api",
+              snapshot_id: "5be1c2a01234567890abcdef01234567890abcde",
+              snapshot_id_kind: "COMMIT_SHA",
+              subdir: "",
+              ref_label: "main",
+            },
+            repo_name: "shop-api",
+            engine_version: "1.6.0",
+            created_at: 1730000000000,
+            last_active_at: 1730000000000,
+            completed_count: 1,
+            failed_count: 0,
+            total_nodes: 7,
+            can_resume: true,
+            resume_blocker: null,
+          },
+        ],
+      },
+      error: null,
+    };
+  }
+
   let endpoint = "/api/sessions";
   if (params) {
     const query = new URLSearchParams();
@@ -526,6 +596,19 @@ export async function getSessionProgress(
 export async function getSessionProgressSafe(
   sessionId: string
 ): Promise<ApiResult<SessionProgressResponse>> {
+  if (isOfflineMode()) {
+    const bundle = getOfflineBundle();
+    if (bundle) {
+      return {
+        ok: true,
+        data: {
+          progress: bundle.ingest.progress,
+        },
+        error: null,
+      };
+    }
+  }
+
   return apiFetchSafe<SessionProgressResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/progress`,
     {
@@ -600,6 +683,28 @@ export async function analyzeNodeSafe(
       ? { session_id: dataOrSessionId, node_id: nodeId! }
       : dataOrSessionId;
 
+  if (isOfflineMode()) {
+    const res = offlineGetAnalysis(payload.node_id);
+    if (!res.ok) return res as any;
+    return {
+      ok: true,
+      data: {
+        node_id: payload.node_id,
+        analysis: res.data,
+        node_state: {
+          node_id: payload.node_id,
+          status: "AVAILABLE",
+          has_warning: false,
+          analysis_failed: false,
+          last_run: null,
+        },
+        tokens_used: 0,
+        unlocked_node_ids: [],
+      },
+      error: null,
+    };
+  }
+
   return apiFetchSafe<AnalyzeNodeResponse>("/api/analyze-node", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -642,6 +747,19 @@ export async function analyzeOverviewSafe(
     typeof dataOrSessionId === "string"
       ? { session_id: dataOrSessionId }
       : dataOrSessionId;
+
+  if (isOfflineMode()) {
+    const res = offlineGetOverview();
+    if (!res.ok) return res as any;
+    return {
+      ok: true,
+      data: {
+        overview: res.data,
+        tokens_used: 0,
+      },
+      error: null,
+    };
+  }
 
   return apiFetchSafe<AnalyzeOverviewResponse>("/api/analyze-overview", {
     method: "POST",
@@ -694,6 +812,10 @@ export async function enrichNodeSafe(
       ? { session_id: dataOrSessionId, node_id: nodeId!, mode }
       : dataOrSessionId;
 
+  if (isOfflineMode()) {
+    return offlineEnrichNode(payload.node_id, payload.mode);
+  }
+
   return apiFetchSafe<EnrichNodeResponse>("/api/enrich-node", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -715,6 +837,16 @@ export async function evaluateFeynman(
 export async function evaluateFeynmanSafe(
   data: EvaluateFeynmanRequest
 ): Promise<ApiResult<EvaluateFeynmanResponse>> {
+  if (isOfflineMode()) {
+    return offlineEvaluateFeynman(
+      "slice-order-checkout",
+      "LEARN",
+      data.question_index,
+      data.attempt_number,
+      data.student_answer
+    );
+  }
+
   return apiFetchSafe<EvaluateFeynmanResponse>("/api/evaluate-feynman", {
     method: "POST",
     body: JSON.stringify(data),
@@ -736,6 +868,14 @@ export const revealAnswer = reveal;
 export async function revealSafe(
   data: RevealRequest
 ): Promise<ApiResult<RevealResponse>> {
+  if (isOfflineMode()) {
+    return offlineRevealQuestion(
+      "slice-order-checkout",
+      "LEARN",
+      data.question_index
+    );
+  }
+
   return apiFetchSafe<RevealResponse>("/api/reveal", {
     method: "POST",
     body: JSON.stringify(data),

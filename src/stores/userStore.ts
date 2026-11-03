@@ -28,24 +28,8 @@ export interface ToastNotification {
   type: "success" | "error" | "info";
 }
 
-export function formatErrorMessage(code?: ErrorCode, rawMessage?: string): string {
-  switch (code) {
-    case "ERR_UNAUTHENTICATED":
-      return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
-    case "ERR_DEMO_MODE_DISABLED":
-      return "Chế độ đổi persona đang tắt trên máy chủ.";
-    case "ERR_CLIENT_NETWORK":
-      return "Mất kết nối tới máy chủ SimpliFey. Vui lòng kiểm tra lại đường truyền mạng.";
-    case "ERR_PERSISTENCE_UNAVAILABLE":
-      return "Máy chủ lưu tiến độ đang gặp sự cố. Thao tác chưa thực hiện, bạn không mất lượt.";
-    case "ERR_TOKEN_QUOTA_EXCEEDED":
-      return "Phiên này đã dùng hết hạn mức AI. Không thể thực hiện thêm thao tác phát sinh token.";
-    case "ERR_SESSION_NOT_FOUND":
-      return "Không tìm thấy phiên học tương ứng.";
-    default:
-      return rawMessage || "Đã xảy ra lỗi trong quá trình xử lý yêu cầu.";
-  }
-}
+import { formatErrorMessage } from "@/lib/messages";
+export { formatErrorMessage };
 
 /**
  * Khởi tạo profile mẫu cho môi trường DEV hoặc khi người dùng chưa đăng nhập

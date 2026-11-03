@@ -10,6 +10,11 @@ import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useUserStore } from "@/stores/userStore";
+import {
+  isOfflineMode,
+  setOfflineMode,
+  loadOfflineBundle,
+} from "@/lib/offline";
 
 export interface NavbarProps {
   user?: {
@@ -23,6 +28,27 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
   const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  // Hook Ctrl+Shift+D và query ?offline=1 (UI-60)
+  useEffect(() => {
+    setIsOffline(isOfflineMode());
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+        e.preventDefault();
+        const next = !isOfflineMode();
+        setOfflineMode(next);
+        setIsOffline(next);
+        if (next) {
+          loadOfflineBundle().catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Lấy state từ User Store (quản lý tập trung hồ sơ BKT và thông báo)
   const {
@@ -93,8 +119,9 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
 
   const navLinks = [
     { label: "Trang chủ", href: "/" },
+    { label: "Lộ trình học tập", href: "/roadmap" },
+    { label: "Lịch sử nộp bài", href: "/history" },
     { label: "Cách học cùng SimpliFey", href: "/how-it-works" },
-    { label: "Tìm kiếm repo yêu thích của bạn", href: "https://github.com" },
   ];
 
   return (
@@ -141,6 +168,18 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
 
         {/* User Actions & Settings */}
         <div className="flex items-center gap-3 sm:gap-5">
+          {/* Offline Mode Warning Badge (UI-60) */}
+          {isOffline && (
+            <div
+              className="bg-[#fff7ed] border border-[#ff9640]/50 text-[#944b00] px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0"
+              title="Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ lên máy chủ"
+            >
+              <span className="size-2 rounded-full bg-[#ff9640] animate-ping" />
+              <span className="hidden sm:inline">Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ</span>
+              <span className="sm:hidden">Offline Demo</span>
+            </div>
+          )}
+
           {isLoading && !activeUser ? (
             /* Loading State: Skeleton Shimmer */
             <div

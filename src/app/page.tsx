@@ -7,7 +7,9 @@ import { useRouter } from "next/navigation";
 import {
   Upload,
   AlertCircle,
-  RefreshCw,
+  AlertTriangle,
+  RotateCcw,
+  Sparkles,
   FileArchive,
   Globe,
   Clock,
@@ -30,6 +32,9 @@ import {
   type LearningSessionSummary,
 } from "@/lib/api";
 import { CONFIG } from "@/contracts";
+import { formatErrorMessage } from "@/lib/messages";
+import { Dialog } from "@/components/ui/Dialog";
+import { Button } from "@/components/ui/Button";
 
 type IngestMode = "url" | "zip";
 
@@ -38,27 +43,7 @@ type IngestMode = "url" | "zip";
  */
 function getErrorMessage(error: unknown): string {
   if (isApiError(error)) {
-    const code = error.error.code;
-    switch (code) {
-      case "ERR_INVALID_GITHUB_URL":
-        return "URL kho lưu trữ GitHub không hợp lệ. Vui lòng nhập định dạng: https://github.com/owner/repository";
-      case "ERR_EMPTY_REPOSITORY":
-        return "Kho mã nguồn rỗng hoặc không chứa tệp mã nguồn hợp lệ để phân tích.";
-      case "ERR_STREAM_QUOTA_EXCEEDED":
-        return "Kho mã nguồn vượt quá dung lượng tối đa cho phép (15MB). Vui lòng tải file zip thu gọn.";
-      case "ERR_UNSUPPORTED_LANGUAGE":
-        return "Ngôn ngữ lập trình chính trong kho lưu trữ chưa được hỗ trợ phân tích chuyên sâu.";
-      case "ERR_NO_ARCHITECTURAL_SLICE":
-        return "Không tìm thấy lát cắt kiến trúc phù hợp trong mã nguồn để khởi tạo bài học.";
-      case "ERR_CLIENT_NETWORK":
-        return "Mất kết nối tới máy chủ SimpliFey. Vui lòng kiểm tra đường truyền mạng.";
-      case "ERR_PERSISTENCE_UNAVAILABLE":
-        return "Hệ thống lưu trữ đang bận hoặc tạm thời gián đoạn. Vui lòng thử lại sau giây lát.";
-      case "ERR_UNAUTHENTICATED":
-        return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.";
-      default:
-        return error.error.message || "Đã xảy ra lỗi trong quá trình quét mã nguồn.";
-    }
+    return formatErrorMessage(error.error.code, error.error.message);
   }
 
   if (error instanceof Error) {
@@ -94,9 +79,24 @@ export default function Home() {
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(
     null
   );
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const [restartTarget, setRestartTarget] = useState<LearningSessionSummary | null>(null);
+  const [isRestarting, setIsRestarting] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Đọc phiên gần nhất từ localStorage an toàn (theo spec/30_UI)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sf.last_session");
+      if (saved) {
+        setLastSessionId(saved);
+      }
+    } catch {
+      // Bỏ qua lỗi truy cập storage
+    }
+  }, []);
 
   // Tải danh sách các phiên gần đây
   const loadRecentSessions = useCallback(async () => {
@@ -149,8 +149,8 @@ export default function Home() {
         return;
       }
 
-      // Kiểm tra định dạng cơ bản của GitHub URL
-      const isGithub = /^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+(?:\/)?$/i.test(
+      // Kiểm tra định dạng cơ bản của GitHub URL (chấp nhận cả tree/blob subpaths theo D-38)
+      const isGithub = /^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+(?:\/.*)?$/i.test(
         trimmedUrl
       );
       if (!isGithub) {
@@ -297,6 +297,9 @@ export default function Home() {
   const handleResumeSession = async (sessionId: string) => {
     setResumingSessionId(sessionId);
     try {
+      localStorage.setItem("sf.last_session", sessionId);
+    } catch {}
+    try {
       const res = await ingestRepoSafe({ session_id: sessionId });
       if (res.ok) {
         router.push(`/learn?session=${encodeURIComponent(sessionId)}`);
@@ -310,6 +313,31 @@ export default function Home() {
       setResumingSessionId(null);
     }
   };
+
+  // Học lại từ đầu (A5: restart: true)
+  const handleRestartSession = async (session: LearningSessionSummary) => {
+    setIsRestarting(true);
+    setErrorMessage(null);
+    try {
+      const res = await ingestRepoSafe({ session_id: session.session_id, restart: true });
+      if (res.ok) {
+        try {
+          localStorage.setItem("sf.last_session", session.session_id);
+        } catch {}
+        router.push(`/learn?session=${encodeURIComponent(session.session_id)}`);
+      } else {
+        setErrorMessage(getErrorMessage(res.error));
+        setIsRestarting(false);
+        setRestartTarget(null);
+      }
+    } catch (err) {
+      setErrorMessage(getErrorMessage(err));
+      setIsRestarting(false);
+      setRestartTarget(null);
+    }
+  };
+
+  const hasSubtree = mode === "url" && /\/(tree|blob)\//i.test(repoUrl.trim());
 
   return (
     <div className="min-h-screen bg-white text-[#131b2e] flex flex-col antialiased selection:bg-[#ff9640]/20 selection:text-[#944b00]">
@@ -338,6 +366,44 @@ export default function Home() {
                   Người đồng hành, hỗ trợ phân tích và học tập từ chính mã nguồn của bạn.
                 </p>
               </div>
+
+              {/* Auto-resume Banner if user has a previous session */}
+              {lastSessionId && (
+                <div className="w-full bg-gradient-to-r from-[#fff7ed] to-[#f2f3ff] border border-[#ff9640]/30 rounded-[14px] p-3.5 flex items-center justify-between gap-3 shadow-sm animate-fadeIn">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="size-7 rounded-full bg-[#ff9640]/15 flex items-center justify-center shrink-0">
+                      <Sparkles className="size-4 text-[#ff9640]" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[13px] font-bold text-[#131b2e] truncate">
+                        Tiếp tục bài học dở
+                      </span>
+                      <span className="text-[12px] text-[#625e56] truncate">
+                        Bạn có phiên làm việc trước đó được lưu trên thiết bị
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => handleResumeSession(lastSessionId)}
+                      isLoading={resumingSessionId === lastSessionId}
+                      rightIcon={<ArrowRight className="size-3" />}
+                    >
+                      Học tiếp
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setLastSessionId(null)}
+                      className="text-[#99a1af] hover:text-[#131b2e] text-xs font-semibold px-1 py-1"
+                      title="Bỏ qua"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Automatic Code Scanner Card with Ingest Integration (Figma node 5:256) */}
               <div
@@ -401,62 +467,74 @@ export default function Home() {
                 {/* Form with input or drag & drop and CTA */}
                 <form onSubmit={handleIngest} className="w-full">
                   {mode === "url" ? (
-                    <div className="flex flex-col sm:flex-row gap-[12px] items-stretch sm:items-center w-full">
-                      {/* Input field matching Figma node 5:265 */}
-                      <div className="bg-[#f2f3ff] rounded-[8px] flex items-center flex-1 px-[14.8px] py-[12px] transition-all focus-within:ring-2 focus-within:ring-[#ff9640]/30 focus-within:bg-white border border-transparent focus-within:border-[#ff9640] overflow-hidden">
-                        <div className="pr-[12px] flex items-center justify-center shrink-0 z-10 bg-inherit">
-                          <Image
-                            src="/assets/2f0de.svg"
-                            alt="URL Icon"
-                            width={16}
-                            height={16}
-                            className="shrink-0"
-                          />
+                    <div className="flex flex-col gap-2.5 w-full">
+                      <div className="flex flex-col sm:flex-row gap-[12px] items-stretch sm:items-center w-full">
+                        {/* Input field matching Figma node 5:265 */}
+                        <div className="bg-[#f2f3ff] rounded-[8px] flex items-center flex-1 px-[14.8px] py-[12px] transition-all focus-within:ring-2 focus-within:ring-[#ff9640]/30 focus-within:bg-white border border-transparent focus-within:border-[#ff9640] overflow-hidden">
+                          <div className="pr-[12px] flex items-center justify-center shrink-0 z-10 bg-inherit">
+                            <Image
+                              src="/assets/2f0de.svg"
+                              alt="URL Icon"
+                              width={16}
+                              height={16}
+                              className="shrink-0"
+                            />
+                          </div>
+                          <div className="flex-1 overflow-hidden relative min-w-0">
+                            <input
+                              type="text"
+                              value={repoUrl}
+                              onChange={(e) => {
+                                setRepoUrl(e.target.value);
+                                if (errorMessage) setErrorMessage(null);
+                              }}
+                              disabled={isScanning}
+                              placeholder="https://github.com/owner/repository"
+                              aria-label="Repository URL"
+                              className="w-full bg-transparent text-[14px] font-semibold text-[#131b2e] placeholder:text-[#99a1af] focus:outline-none disabled:opacity-60 cursor-text"
+                            />
+                          </div>
                         </div>
-                        <div className="flex-1 overflow-hidden relative min-w-0">
-                          <input
-                            type="text"
-                            value={repoUrl}
-                            onChange={(e) => {
-                              setRepoUrl(e.target.value);
-                              if (errorMessage) setErrorMessage(null);
-                            }}
-                            disabled={isScanning}
-                            placeholder="https://github.com/owner/repository"
-                            aria-label="Repository URL"
-                            className="w-full bg-transparent text-[14px] font-semibold text-[#131b2e] placeholder:text-[#99a1af] focus:outline-none disabled:opacity-60 cursor-text"
-                          />
-                        </div>
+
+                        {/* CTA Button matching Figma node 5:273 */}
+                        <button
+                          type="submit"
+                          disabled={isScanning}
+                          className="group bg-[#ff9640] hover:bg-[#f2852e] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-75 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-[8px] px-[24px] py-[14px] rounded-[8px] shrink-0 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out origin-center select-none"
+                        >
+                          <span className="font-bold text-white text-[17px] leading-[25.5px] whitespace-nowrap">
+                            {isScanning ? "Đang quét..." : "Quét Dự Án"}
+                          </span>
+                          {isScanning ? (
+                            <div className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
+                          ) : (
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 12 12"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M9.13125 6.75H0V5.25H9.13125L4.93125 1.05L6 0L12 6L6 12L4.93125 10.95L9.13125 6.75V6.75"
+                                fill="white"
+                              />
+                            </svg>
+                          )}
+                        </button>
                       </div>
 
-                      {/* CTA Button matching Figma node 5:273 */}
-                      <button
-                        type="submit"
-                        disabled={isScanning}
-                        className="group bg-[#ff9640] hover:bg-[#f2852e] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-75 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-[8px] px-[24px] py-[14px] rounded-[8px] shrink-0 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out origin-center select-none"
-                      >
-                        <span className="font-bold text-white text-[17px] leading-[25.5px] whitespace-nowrap">
-                          {isScanning ? "Đang quét..." : "Quét Dự Án"}
-                        </span>
-                        {isScanning ? (
-                          <div className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
-                        ) : (
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 12 12"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M9.13125 6.75H0V5.25H9.13125L4.93125 1.05L6 0L12 6L6 12L4.93125 10.95L9.13125 6.75V6.75"
-                              fill="white"
-                            />
-                          </svg>
-                        )}
-                      </button>
+                      {/* Cảnh báo nhánh/thư mục con theo D-38 */}
+                      {hasSubtree && (
+                        <div className="w-full bg-[#fff7ed] border border-[#ff9640]/40 rounded-[8px] p-2.5 flex items-center gap-2 text-[#944b00] text-[12.5px] animate-fadeIn">
+                          <AlertTriangle className="size-4 text-[#ff9640] shrink-0" />
+                          <span>
+                            <strong>Lưu ý (D-38):</strong> URL trỏ vào thư mục hoặc nhánh con. SimpliFey sẽ phân tích toàn bộ kho chứa tương ứng.
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     /* Zip File Upload Dropzone */
@@ -658,17 +736,29 @@ export default function Home() {
                                 "vi-VN"
                               )}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleResumeSession(session.session_id)
-                              }
-                              disabled={isResuming}
-                              className="text-[12px] font-bold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 disabled:opacity-50"
-                            >
-                              <span>{isResuming ? "Đang mở..." : "Học tiếp"}</span>
-                              <ArrowRight className="size-3" />
-                            </button>
+                            <div className="flex items-center gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setRestartTarget(session)}
+                                disabled={isResuming || isRestarting}
+                                className="text-[11px] font-medium text-[#625e56] hover:text-[#944b00] flex items-center gap-1 transition-colors disabled:opacity-50"
+                                title="Xóa tiến trình và học lại từ đầu"
+                              >
+                                <RotateCcw className="size-3" />
+                                <span>Học lại</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleResumeSession(session.session_id)
+                                }
+                                disabled={isResuming || isRestarting}
+                                className="text-[12px] font-bold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <span>{isResuming ? "Đang mở..." : "Học tiếp"}</span>
+                                <ArrowRight className="size-3" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -705,6 +795,47 @@ export default function Home() {
 
       {/* 4. Global Footer (Figma node 5:526) */}
       <HomeFooter />
+
+      {/* Dialog xác nhận Học lại từ đầu (A5: restart: true) */}
+      <Dialog
+        isOpen={Boolean(restartTarget)}
+        onClose={() => !isRestarting && setRestartTarget(null)}
+        title="Học lại từ đầu kho lưu trữ?"
+        description="Toàn bộ tiến trình trả lời câu hỏi và đồ thị kiến thức BKT của phiên này sẽ được thiết lập lại từ đầu (0%). Bạn có chắc chắn muốn làm mới bài học?"
+        maxWidth="sm"
+      >
+        <div className="flex flex-col gap-4 mt-2">
+          {restartTarget && (
+            <div className="bg-[#f9faff] border border-[#d8dbeb] rounded-[8px] p-3 text-xs text-[#131b2e]">
+              <p className="font-bold">{restartTarget.repo_name}</p>
+              <p className="text-[#625e56] mt-0.5">
+                Tiến trình hiện tại: {restartTarget.completed_count}/{restartTarget.total_nodes} bài đã vượt qua
+              </p>
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRestartTarget(null)}
+              disabled={isRestarting}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              leftIcon={<RotateCcw className="size-3.5" />}
+              isLoading={isRestarting}
+              onClick={() => restartTarget && handleRestartSession(restartTarget)}
+            >
+              Xác nhận học lại
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

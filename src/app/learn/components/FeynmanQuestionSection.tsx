@@ -1,9 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
-import { Send, Eye, Flag, AlertTriangle, Sparkles, RefreshCw } from "lucide-react";
+import {
+  Send,
+  Eye,
+  Flag,
+  AlertTriangle,
+  AlertCircle,
+  Sparkles,
+  RefreshCw,
+  Clock,
+} from "lucide-react";
 import type { QuestionView, QuestionState } from "@/contracts";
+import { CONFIG } from "@/contracts";
+import { validateAnswerLength, similarity } from "@/lib/similarity";
 import characterWalkingAnimation from "../../../../public/assets/character-walking.json";
 
 const Lottie = dynamic(() => import("lottie-react").then((mod) => mod.Lottie), {
@@ -26,6 +37,10 @@ interface FeynmanQuestionSectionProps {
   errorMessage?: string | null;
   onNextQuestion?: () => void;
   hasNextQuestion?: boolean;
+  lastFailedAnswer?: string | null;
+  isQuotaExceeded?: boolean;
+  drafts?: Record<number, string>;
+  onSaveDraft?: (questionIndex: number, text: string) => void;
 }
 
 export function FeynmanQuestionSection({
@@ -44,31 +59,103 @@ export function FeynmanQuestionSection({
   errorMessage = null,
   onNextQuestion,
   hasNextQuestion = false,
+  lastFailedAnswer = null,
+  isQuotaExceeded = false,
+  drafts,
+  onSaveDraft,
 }: FeynmanQuestionSectionProps) {
   const [answer, setAnswer] = useState("");
   const [clientError, setClientError] = useState<string | null>(null);
+  const [isDebouncing, setIsDebouncing] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Reset answer when question changes
+  const currentQIdx = question?.question_index ?? questionIndex;
+
+  // Restore draft when switching question index
   useEffect(() => {
-    setAnswer("");
+    if (drafts && drafts[currentQIdx] !== undefined) {
+      setAnswer(drafts[currentQIdx]);
+    } else {
+      setAnswer("");
+    }
     setClientError(null);
-  }, [question?.question_index]);
+  }, [currentQIdx, drafts]);
 
-  const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
-  const maxWords = 150;
-  const minChars = 15;
+  // Clean up debounce timer
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const handleAnswerChange = (val: string) => {
+    setAnswer(val);
+    if (clientError) setClientError(null);
+    onSaveDraft?.(currentQIdx, val);
+  };
+
+  const nonSpaceCharCount = useMemo(
+    () => [...answer.replace(/\s/gu, "")].length,
+    [answer]
+  );
+  const totalCharCount = answer.length;
+
+  // Check duplicate similarity with last failed answer (UI-52)
+  const duplicateSimilarity = useMemo(() => {
+    if (!lastFailedAnswer || nonSpaceCharCount < CONFIG.ANSWER_MIN_CHARS) return 0;
+    return similarity(answer, lastFailedAnswer);
+  }, [answer, lastFailedAnswer, nonSpaceCharCount]);
+
+  const isDuplicateWarning =
+    duplicateSimilarity >= CONFIG.ANSWER_DUPLICATE_SIMILARITY;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setClientError(null);
 
-    const trimmed = answer.trim().replace(/\s+/g, "");
-    if (trimmed.length < minChars) {
-      setClientError(`Câu trả lời quá ngắn — vui lòng viết ít nhất ${minChars} ký tự (không tính khoảng trắng).`);
+    // 0. Check quota
+    if (isQuotaExceeded) {
+      setClientError(
+        "Phiên học đã dùng hết hạn mức AI của phiên. Bạn không thể nộp thêm bài, nhưng có thể bấm 'Bỏ qua câu này' để học qua đáp án."
+      );
       return;
     }
 
-    if (isSubmitting || isRevealed) return;
+    // 1. Check length using similarity.ts
+    const lengthErr = validateAnswerLength(answer);
+    if (lengthErr === "ERR_ANSWER_TOO_SHORT") {
+      setClientError(
+        `Câu trả lời quá ngắn — vui lòng viết ít nhất ${CONFIG.ANSWER_MIN_CHARS} ký tự (không tính khoảng trắng). Hiện có: ${nonSpaceCharCount} ký tự.`
+      );
+      return;
+    }
+    if (lengthErr === "ERR_ANSWER_TOO_LONG") {
+      setClientError(
+        `Câu trả lời quá dài — tối đa ${CONFIG.ANSWER_MAX_CHARS} ký tự. Hiện có: ${totalCharCount} ký tự.`
+      );
+      return;
+    }
+
+    // 2. Check duplicate similarity
+    if (isDuplicateWarning) {
+      setClientError(
+        `Bạn chưa bổ sung ý mới so với lần trước (độ giống ${(
+          duplicateSimilarity * 100
+        ).toFixed(0)}% ≥ ${(CONFIG.ANSWER_DUPLICATE_SIMILARITY * 100).toFixed(
+          0
+        )}%). Hãy diễn giải khác hoặc chi tiết hơn.`
+      );
+      return;
+    }
+
+    if (isSubmitting || isDebouncing || isRevealed) return;
+
+    // Set debounce lock (CONFIG.SUBMIT_DEBOUNCE_MS)
+    setIsDebouncing(true);
+    debounceTimerRef.current = setTimeout(() => {
+      setIsDebouncing(false);
+    }, CONFIG.SUBMIT_DEBOUNCE_MS);
+
     onSubmit(answer.trim());
   };
 
@@ -118,84 +205,102 @@ export function FeynmanQuestionSection({
               </div>
 
               {/* Question metadata badge */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-[#554337] bg-[#faf8ff] px-2.5 py-1 rounded-md border border-[#eaedff]">
-                  Câu {questionIndex}/{totalQuestions}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[11px] font-bold bg-[#ffedd4] text-[#944b00] px-2.5 py-0.5 rounded-full border border-[#ff9640]/30">
+                  Câu hỏi {currentQIdx}/{totalQuestions}
                 </span>
+
                 {question?.skill && (
-                  <span className="text-xs font-bold text-[#944b00] bg-[#ffdcc5] px-2.5 py-1 rounded-md font-mono">
+                  <span className="text-[11px] font-semibold bg-[#f2f3ff] text-[#004cff] px-2 py-0.5 rounded-full border border-[#eaedff]">
                     {question.skill}
                   </span>
                 )}
+
                 {question?.tier && (
-                  <span className="text-xs font-semibold text-[#004cff] bg-[#eaedff] px-2.5 py-1 rounded-md">
+                  <span className="text-[11px] font-semibold bg-[#faf8ff] text-[#554337] px-2 py-0.5 rounded-full border border-[#e5e7eb]">
                     {question.tier}
                   </span>
                 )}
-                {isDisputed && (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-[#dc2626] bg-[#fee2e2] px-2 py-0.5 rounded-md">
-                    <Flag className="size-3" /> Đã báo sai
-                  </span>
-                )}
+              </div>
+
+              {/* Attempts counter dots (UI-52) */}
+              <div className="flex items-center gap-1.5 mt-1 text-xs text-[#554337]">
+                <span className="font-semibold text-[11px]">Lượt nộp:</span>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: maxAttempts }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={`size-2.5 rounded-full ${
+                        i < attemptsUsed
+                          ? "bg-[#ff9640]"
+                          : "bg-[#e5e7eb] border border-[#d1d5db]"
+                      }`}
+                      title={`Lượt ${i + 1}/${maxAttempts}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[11px] text-[#99a1af] ml-1">
+                  ({attemptsUsed}/{maxAttempts})
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Question Callout Box */}
+          {/* Question Text Card */}
           <div
-            className="bg-[#ffdcc5]/25 border border-[#ff9640]/45 flex flex-col gap-2 p-4 sm:p-5 rounded-[12px] shadow-[0px_4px_12px_0px_rgba(255,150,64,0.08)] w-full relative"
-            data-node-id="5:195"
-            data-name="Overlay+Border+Shadow"
+            className="bg-[#fff0e4]/60 border border-[#ff9640]/40 rounded-[12px] p-4 text-[#131b2e] font-semibold text-sm sm:text-base leading-relaxed relative overflow-hidden"
+            data-node-id="5:196"
           >
-            {/* Loading Question Skeleton */}
+            <div className="absolute top-0 left-0 bottom-0 w-1 bg-[#ff9640]" />
             {isLoadingQuestion ? (
-              <div className="flex items-center gap-2 py-4 text-[#944b00] text-sm font-semibold animate-pulse">
+              <div className="flex items-center gap-2 py-3 text-sm text-[#944b00] font-medium">
                 <RefreshCw className="size-4 animate-spin" />
-                <span>Đang tải câu hỏi Feynman từ AI (Bước 10: enrich-node)...</span>
+                <span>AI đang chuẩn bị câu hỏi phản biện chuyên sâu...</span>
               </div>
+            ) : question?.feynman_question ? (
+              <p className="pl-2">{question.feynman_question}</p>
             ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <span
-                    className="font-black text-[#944b00] text-xs tracking-[0.6px] uppercase"
-                    data-node-id="5:198"
-                  >
-                    {question?.focus
-                      ? `THỬ THÁCH FEYNMAN · TRỌNG TÂM: ${question.focus}`
-                      : "THỬ THÁCH FEYNMAN · BẢN CHẤT KIẾN TRÚC"}
-                  </span>
-
-                  {/* Attempts Used Counter */}
-                  <span className="text-xs font-bold text-[#554337]">
-                    Lượt: <span className="text-[#944b00]">{Math.min(attemptsUsed + 1, maxAttempts)}</span>/{maxAttempts}
-                  </span>
-                </div>
-
-                <p
-                  className="font-semibold text-[#131b2e] text-[16px] sm:text-[17px] leading-[26px] sm:leading-[27.6px]"
-                  data-node-id="5:200"
-                >
-                  {question?.feynman_question ||
-                    "Hãy đóng vai bạn đang giải thích cho một lập trình viên mới vào nghề: Dòng code trên đang tiềm ẩn nguy cơ hiệu năng gì và hệ thống sẽ phản ứng ra sao khi số lượng đơn hàng tăng đột biến?"}
-                </p>
-              </>
+              <p className="pl-2">
+                Hãy dùng hình tượng đời thường hoặc phép ẩn dụ để giải thích: Tại
+                sao trong đoạn code trên, việc trừ kho hàng lặp tuần tự từng dòng
+                lại gây nghẽn hiệu năng I/O?
+              </p>
             )}
           </div>
         </div>
 
-        {/* Reveal Panel (if skipped or finished) */}
-        {isQuestionFinished && (revealData || question?.state?.reveal) && (
-          <div className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-[12px] p-4 flex flex-col gap-2.5">
+        {/* Quota Exceeded Card (T25) */}
+        {isQuotaExceeded && (
+          <div className="bg-[#fff1f2] border border-[#fecdd3] p-3.5 rounded-[12px] flex items-start gap-2.5 text-xs text-[#9f1239]">
+            <AlertCircle className="size-4 shrink-0 text-[#e11d48] mt-0.5" />
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold text-sm text-[#881337]">
+                Đã đạt hạn mức Token phiên học (200.000 tokens)
+              </span>
+              <span className="leading-relaxed">
+                Phiên học này đã dùng hết hạn mức AI. Ô nhập phản biện đã được
+                khóa để tránh phát sinh chi phí, nhưng bạn vẫn có thể bấm nút{" "}
+                <strong>&quot;Bỏ qua câu này&quot;</strong> bên dưới để xem đáp án tham
+                khảo do AI viết.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Revealed Reference Answer (Step 12 & UI-54) */}
+        {(isRevealed || question?.state?.finished) && (
+          <div className="bg-[#f0fdf4] border border-[#86efac] rounded-[12px] p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-bold text-xs text-[#166534]">
-                <Sparkles className="size-4 text-[#16a34a]" />
-                <span>Đáp án tham khảo do AI viết (Reveal):</span>
-              </div>
-              {isQuestionFailed && onReportWrong && !isDisputed && (
+              <span className="text-xs font-bold text-[#166534] flex items-center gap-1.5 uppercase tracking-wide">
+                <Sparkles className="size-3.5 text-[#00bc7d]" />
+                Đáp án tham khảo do AI viết (Chỉ tham khảo)
+              </span>
+
+              {isQuestionFailed && !isDisputed && onReportWrong && (
                 <button
                   type="button"
                   onClick={onReportWrong}
-                  className="text-xs font-bold text-[#dc2626] hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] font-bold text-[#b91c1c] hover:text-[#991b1b] flex items-center gap-1 bg-white/80 hover:bg-white px-2 py-1 rounded-[6px] border border-[#fca5a5] transition-colors cursor-pointer"
                 >
                   <Flag className="size-3" />
                   Báo sai kết quả chấm
@@ -207,7 +312,8 @@ export function FeynmanQuestionSection({
             </p>
             {(revealData || question?.state?.reveal)?.fix && (
               <div className="text-xs text-[#166534] pl-1">
-                <strong>Hướng khắc phục:</strong> {(revealData || question?.state?.reveal)?.fix}
+                <strong>Hướng khắc phục:</strong>{" "}
+                {(revealData || question?.state?.reveal)?.fix}
               </div>
             )}
           </div>
@@ -220,23 +326,33 @@ export function FeynmanQuestionSection({
           data-node-id="5:201"
           data-name="Form"
         >
-          {/* Label & Word Count */}
-          <div className="flex items-center justify-between w-full" data-node-id="5:202">
+          {/* Label & Character Counter */}
+          <div
+            className="flex items-center justify-between w-full"
+            data-node-id="5:202"
+          >
             <label
               htmlFor="feynman-explanation"
               className="font-black text-[#554337] text-xs sm:text-[14px] tracking-[0.7px] uppercase select-none cursor-pointer flex items-center gap-2"
               data-node-id="5:204"
             >
               <span>LỜI GIẢI THÍCH CỦA BẠN</span>
-              <span className="text-[11px] font-normal text-[#99a1af] lowercase">(nhấn Ctrl+Enter để nộp)</span>
+              <span className="text-[11px] font-normal text-[#99a1af] lowercase">
+                (nhấn Ctrl+Enter để nộp)
+              </span>
             </label>
             <span
-              className={`font-semibold text-xs sm:text-[13px] ${
-                wordCount > maxWords ? "text-[#e7000b]" : "text-[#625e56]"
+              className={`font-semibold text-xs sm:text-[12px] ${
+                nonSpaceCharCount < CONFIG.ANSWER_MIN_CHARS
+                  ? "text-[#99a1af]"
+                  : totalCharCount > CONFIG.ANSWER_MAX_CHARS
+                  ? "text-[#e7000b] font-bold"
+                  : "text-[#625e56]"
               }`}
               data-node-id="5:206"
             >
-              {wordCount}/{maxWords} từ
+              {nonSpaceCharCount}/{CONFIG.ANSWER_MAX_CHARS} ký tự (tối thiểu{" "}
+              {CONFIG.ANSWER_MIN_CHARS})
             </span>
           </div>
 
@@ -245,6 +361,8 @@ export function FeynmanQuestionSection({
             className={`relative border rounded-[12px] bg-[#faf8ff] shadow-[inset_0px_2px_4px_1px_rgba(0,0,0,0.05)] focus-within:ring-2 transition-all overflow-hidden ${
               clientError || validationError
                 ? "border-[#ef4444] focus-within:border-[#ef4444] focus-within:ring-[#ef4444]/20"
+                : isDuplicateWarning
+                ? "border-[#f59e0b] focus-within:border-[#f59e0b] focus-within:ring-[#f59e0b]/20"
                 : "border-[#eaedff] focus-within:border-[#ff9640] focus-within:ring-[#ff9640]/20"
             }`}
             data-node-id="5:207"
@@ -253,22 +371,35 @@ export function FeynmanQuestionSection({
             <textarea
               id="feynman-explanation"
               value={answer}
-              onChange={(e) => {
-                setAnswer(e.target.value);
-                if (clientError) setClientError(null);
-              }}
+              onChange={(e) => handleAnswerChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isSubmitting || isQuestionFinished}
+              disabled={isSubmitting || isQuestionFinished || isQuotaExceeded}
               rows={5}
+              maxLength={CONFIG.ANSWER_MAX_CHARS}
               placeholder={
                 isQuestionFinished
                   ? "Câu hỏi này đã kết thúc. Bạn có thể xem đáp án mẫu ở trên."
+                  : isQuotaExceeded
+                  ? "Hạn mức token của phiên đã hết. Bấm 'Bỏ qua câu này' để học qua đáp án."
                   : "Dùng ngôn ngữ đời thường, hình tượng thực tế để giải thích cơ chế dòng code trên..."
               }
               className="w-full bg-transparent p-4 sm:p-5 text-[#131b2e] text-[15px] sm:text-[16px] leading-[26px] outline-none resize-none placeholder:text-[#99a1af] disabled:opacity-75 disabled:cursor-not-allowed"
               required
             />
           </div>
+
+          {/* Duplicate warning inline card (similarity.ts UI-52) */}
+          {isDuplicateWarning && !clientError && (
+            <div className="flex items-center gap-2 p-2.5 rounded-[8px] bg-[#fffbeb] border border-[#f59e0b]/30 text-xs text-[#92400e]">
+              <AlertTriangle className="size-4 shrink-0 text-[#f59e0b]" />
+              <span>
+                Câu trả lời này có độ tương đồng{" "}
+                <strong>{(duplicateSimilarity * 100).toFixed(0)}%</strong> so
+                với lần nộp trước. Hãy bổ sung ý mới hoặc diễn giải sâu hơn để
+                tránh bị chặn nộp.
+              </span>
+            </div>
+          )}
 
           {/* Error Message beneath textarea (spec/30_UI.md UI-52) */}
           {(clientError || validationError || errorMessage) && (
@@ -279,7 +410,10 @@ export function FeynmanQuestionSection({
           )}
 
           {/* Actions Bar */}
-          <div className="flex items-center justify-between pt-2 w-full" data-node-id="5:210">
+          <div
+            className="flex items-center justify-between pt-2 w-full"
+            data-node-id="5:210"
+          >
             {/* Step 12: Skip question button */}
             {!isQuestionFinished && onSkip ? (
               <button
@@ -313,14 +447,32 @@ export function FeynmanQuestionSection({
               {!isQuestionFinished && (
                 <button
                   type="submit"
-                  disabled={isSubmitting || !answer.trim()}
+                  disabled={
+                    isSubmitting ||
+                    isDebouncing ||
+                    isQuotaExceeded ||
+                    nonSpaceCharCount < CONFIG.ANSWER_MIN_CHARS
+                  }
                   className="bg-[#ff9640] hover:bg-[#f2852e] active:bg-[#e6761c] disabled:opacity-50 disabled:pointer-events-none text-white font-bold text-sm sm:text-[15px] px-6 sm:px-7 py-3 sm:py-3.5 rounded-[12px] drop-shadow-[0px_4px_5px_rgba(255,150,64,0.3)] flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                   data-node-id="5:211"
                   data-name="Button"
                 >
-                  {isSubmitting && <RefreshCw className="size-4 animate-spin shrink-0" />}
-                  <span>{isSubmitting ? "Đang Chấm Điểm BKT..." : "Nộp Bài Chấm Điểm"}</span>
-                  <Send className="size-4 shrink-0" />
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="size-4 animate-spin shrink-0" />
+                      <span>Đang Chấm Điểm BKT...</span>
+                    </>
+                  ) : isDebouncing ? (
+                    <>
+                      <Clock className="size-4 animate-spin shrink-0" />
+                      <span>Vui lòng chờ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Nộp Bài Chấm Điểm</span>
+                      <Send className="size-4 shrink-0" />
+                    </>
+                  )}
                 </button>
               )}
             </div>

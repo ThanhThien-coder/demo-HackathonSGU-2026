@@ -10,6 +10,7 @@ import { runEngine, toClientResult } from "@/server/engine";
 import { IngestionError } from "@/server/engine/ingest/types";
 import { ApiHttpError, toErrorResponse } from "@/server/errors";
 import { getSessionProgress } from "@/server/progress";
+import { isLocalMockEnabled, mockDevStore } from "@/server/mock-dev-store";
 import {
   createOrResumeSession,
   getSessionStaticResult,
@@ -85,6 +86,14 @@ async function ingestNewSource(source: IngestSource, userId: string, signal: Abo
 export async function POST(request: Request): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
+
+    if (isLocalMockEnabled()) {
+      return new Response(JSON.stringify(mockDevStore.ingest()), {
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
+    }
+
     const contentType = request.headers.get("content-type") ?? "";
 
     // B3: Upload .zip qua multipart/form-data (truong "archive", "subdir" tuy chon)

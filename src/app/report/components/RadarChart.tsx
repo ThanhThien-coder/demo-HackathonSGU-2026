@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import type { SWESkill, CognitiveSkillState, LearnerTier } from "@/contracts";
 import { SWE_SKILLS } from "@/contracts/base";
-import { getDecayedMastery, tierOf } from "@/lib/bkt-engine";
+import { getDecayedMastery, tierOf, isDecaying } from "@/lib/bkt-engine";
 import { cn } from "@/lib/utils";
 import { Award, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
 
@@ -17,6 +17,7 @@ export interface SkillDisplayInfo {
   practiceCount: number;
   correctCount: number;
   isPracticed: boolean;
+  isDecaying: boolean;
 }
 
 export const SKILL_METADATA: Record<
@@ -71,6 +72,7 @@ export function RadarChart({
       practiceCount: state?.practice_count ?? 0,
       correctCount: state?.correct_count ?? 0,
       isPracticed: !!state && state.practice_count > 0,
+      isDecaying: isDecaying(state, serverNow),
     };
   });
 
@@ -338,6 +340,11 @@ export function RadarChart({
                   <span className="text-[10px] bg-white/20 px-1 rounded text-white">
                     {hoveredSkill.tier}
                   </span>
+                  {hoveredSkill.isDecaying && (
+                    <span className="text-[9px] bg-[#ea580c] text-white px-1 py-0.5 rounded font-bold">
+                      Đang mài mòn
+                    </span>
+                  )}
                 </div>
                 <div className="text-[11px] text-gray-300 flex items-center gap-2">
                   <span>
@@ -397,6 +404,11 @@ export function RadarChart({
                       <span className="font-semibold text-[#131b2e]">{item.label}</span>
                     </div>
                     <div className="flex items-center gap-2">
+                      {item.isDecaying && (
+                        <span className="text-[10px] font-bold text-[#ea580c] bg-[#fff7ed] px-1.5 py-0.5 rounded border border-[#fed7aa]">
+                          Mài mòn
+                        </span>
+                      )}
                       <span className="font-bold text-[#047857]">
                         {Math.round(item.decayedMastery * 100)}%
                       </span>

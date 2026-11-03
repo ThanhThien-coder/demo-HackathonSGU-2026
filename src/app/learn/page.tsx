@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, Suspense, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
-import { GraphSidebarButton } from "@/components/learn";
 import {
   CockpitHeader,
   LessonGraphDrawer,
@@ -14,6 +13,7 @@ import {
   SkipConfirmDialog,
   ReportWrongDialog,
   FullFileModal,
+  GraphSidebarButton,
 } from "./components";
 import {
   getSessionProgressSafe,
@@ -23,6 +23,7 @@ import {
   evaluateFeynmanSafe,
   revealSafe,
   reportWrongSafe,
+  ingestRepoSafe,
 } from "@/lib/api";
 import type {
   SessionProgress,
@@ -31,7 +32,9 @@ import type {
   QuestionView,
   QuestionState,
   EvaluateFeynmanResponse,
+  ClientStaticEngineResult,
 } from "@/contracts";
+import { CONFIG } from "@/contracts";
 import { getErrorMessage } from "./utils/messages";
 
 function LearnCockpitContent() {
@@ -66,8 +69,13 @@ function LearnCockpitContent() {
   const [isLoadingProgress, setIsLoadingProgress] = useState(false);
   const [progressError, setProgressError] = useState<string | null>(null);
 
-  // API State: Analyze Node (Step 8)
+  // API State: Analyze Node (Step 8) & Analysis Prefetch Queue (D-46, UI-73, UI-74)
   const [analysis, setAnalysis] = useState<NodeAnalysisView | null>(null);
+  const [analyses, setAnalyses] = useState<Record<string, NodeAnalysisView | "PENDING" | "FAILED">>({});
+  const analysesRef = useRef<Record<string, NodeAnalysisView | "PENDING" | "FAILED">>({});
+  analysesRef.current = analyses;
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const isOverviewRequestedRef = useRef<boolean>(false);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [highlightedStep, setHighlightedStep] = useState<number | null>(null);
@@ -102,13 +110,70 @@ function LearnCockpitContent() {
   // Tokens Used
   const [tokensUsed, setTokensUsed] = useState<number>(14250);
 
+  // Static Engine Result from Ingest (graph, nodes, fingerprint, repo_name)
+  const [staticResult, setStaticResult] = useState<ClientStaticEngineResult | null>(null);
+
+  // Presentation Mode & Active Step synchronization
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [activeStep, setActiveStep] = useState<number | null>(null);
+
+  // Drafts per question index (UI-52) & Last Failed Answers for duplicate checking
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [lastFailedAnswers, setLastFailedAnswers] = useState<Record<number, string>>({});
+
+  // Auto-save sf.last_session in localStorage
+  useEffect(() => {
+    if (sessionId) {
+      try {
+        localStorage.setItem("sf.last_session", sessionId);
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [sessionId]);
+
+  // Escape key handler for presentation mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isPresentationMode) {
+        setIsPresentationMode(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPresentationMode]);
+
+  const handleSaveDraft = useCallback((qIdx: number, text: string) => {
+    setDrafts((prev) => ({ ...prev, [qIdx]: text }));
+  }, []);
+
   // ---------------------------------------------------------------------------
-  // STEP 6: Fetch Session Progress (GET /api/sessions/{id}/progress)
+  // STEP 6: Fetch Session Progress & Static Result (POST /api/ingest or GET /api/sessions/{id}/progress)
   // ---------------------------------------------------------------------------
   const fetchSessionProgress = useCallback(async (sid: string) => {
     setIsLoadingProgress(true);
     setProgressError(null);
 
+    // 1. First try to resume session via POST /api/ingest to get full static engine result + progress
+    const ingestRes = await ingestRepoSafe({ session_id: sid });
+    if (ingestRes.ok) {
+      setStaticResult(ingestRes.data.result);
+      setProgress(ingestRes.data.progress);
+      setTokensUsed(ingestRes.data.progress.tokens_used);
+
+      // Auto-select valid node if available
+      if (ingestRes.data.result.nodes?.length > 0) {
+        setSelectedNodeId((prev) => {
+          const exists = ingestRes.data.result.nodes.some((n) => n.id === prev);
+          if (exists) return prev;
+          return ingestRes.data.result.nodes[0].id;
+        });
+      }
+      setIsLoadingProgress(false);
+      return;
+    }
+
+    // 2. If ingest resume fails, fallback to getSessionProgressSafe
     const result = await getSessionProgressSafe(sid);
     if (result.ok) {
       setProgress(result.data.progress);
@@ -188,87 +253,192 @@ function LearnCockpitContent() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // STEP 8: Analyze Node (POST /api/analyze-node)
+  // STEP 8: Analyze Node (POST /api/analyze-node) & Prefetch Queue (D-46, UI-73, UI-74)
   // ---------------------------------------------------------------------------
-  const fetchNodeAnalysis = useCallback(async (sid: string, nid: string) => {
-    setIsLoadingAnalysis(true);
-    setAnalysisError(null);
+  const checkAndTriggerOverview = useCallback(
+    async (sid: string) => {
+      if (overview || isOverviewRequestedRef.current) return;
+      if (!staticResult?.nodes || staticResult.nodes.length === 0) return;
 
-    const result = await analyzeNodeSafe(sid, nid);
-    if (result.ok) {
-      setAnalysis(result.data.analysis);
-      setTokensUsed(result.data.tokens_used);
+      // Kiểm tra: mọi node đều đã có bản phân tích hoặc FAILED / analysis_failed (UI-74)
+      const allDone = staticResult.nodes.every((n) => {
+        const cached = analysesRef.current[n.id];
+        const serverFailed = progress?.nodes?.[n.id]?.analysis_failed;
+        return (cached && cached !== "PENDING") || serverFailed;
+      });
 
-      // If unlocked nodes returned
-      if (result.data.unlocked_node_ids && result.data.unlocked_node_ids.length > 0) {
-        fetchSessionProgress(sid);
+      if (allDone) {
+        isOverviewRequestedRef.current = true;
+        const res = await analyzeOverviewSafe(sid);
+        if (res.ok) {
+          setOverview(res.data.overview);
+          setTokensUsed(res.data.tokens_used);
+        } else {
+          // ERR_OVERVIEW_NOT_READY => im lặng, cho phép gọi lại ở lần sau (UI-74)
+          isOverviewRequestedRef.current = false;
+        }
       }
-    } else {
-      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
-      setAnalysisError(errorMsg);
+    },
+    [overview, staticResult, progress]
+  );
 
-      // Dev mock fallback if bypass auth enabled
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        setAnalysis({
-          node_id: nid,
-          skills: [
-            {
-              skill: "DB_OPTIMIZATION",
-              step: 2,
-              symbol: "inventoryRepo.updateStock",
-              reason: "Truy vấn tuần tự trong vòng lặp gây N+1 I/O Bottleneck",
-              file_path: "src/services/order.service.ts",
-              line_start: 21,
-              line_end: 23,
-            },
-          ],
-          architecture: {
-            patterns: ["LAYERED", "DEPENDENCY_INJECTION"],
-            summary: "Xử lý quy trình thanh toán đơn hàng qua các tầng Service, Repository và Payment Gateway Adapter.",
-          },
-          steps: [
-            {
-              step: 1,
-              layer: "BUSINESS_LOGIC",
-              file_path: "src/services/order.service.ts",
-              line_start: 18,
-              line_end: 20,
-              text: "Khởi tạo bản ghi đơn hàng mới trong cơ sở dữ liệu",
-            },
-            {
-              step: 2,
-              layer: "DATA_ACCESS",
-              file_path: "src/services/order.service.ts",
-              line_start: 21,
-              line_end: 23,
-              text: "Lặp từng sản phẩm để cập nhật tồn kho (N+1 bottleneck)",
-            },
-          ],
-          strengths: [
-            {
-              step: 1,
-              text: "Kiến trúc chia nhỏ các dependency qua cơ chế tiêm phụ thuộc (DI).",
-            },
-          ],
-          weak_points: [
-            {
-              skill: "DB_OPTIMIZATION",
-              step: 2,
-              symbol: "updateStock",
-              what: "N+1 Query Loop Mutation",
-              consequence: "Khi giỏ hàng có 100 sản phẩm, hệ thống thực hiện 100 truy vấn riêng lẻ làm nghẽn kết nối DB.",
-              file_path: "src/services/order.service.ts",
-              line_start: 21,
-              line_end: 23,
-            },
-          ],
-          shared_files: [],
-          skeleton_only: false,
-        });
+  const triggerPrefetch = useCallback(
+    async (sid: string, currentNid: string) => {
+      if (!staticResult?.nodes || staticResult.nodes.length === 0) return;
+      if (tokensUsed >= CONFIG.SESSION_TOKEN_QUOTA) return;
+
+      const nodes = staticResult.nodes;
+      const currentIndex = nodes.findIndex((n) => n.id === currentNid);
+
+      // Ưu tiên thứ tự tô-pô sau node đang mở, bỏ qua node đã có bản phân tích (D-46, UI-73)
+      const candidateNodes = [
+        ...nodes.slice(currentIndex + 1),
+        ...nodes.slice(0, Math.max(0, currentIndex)),
+      ].filter((n) => {
+        const cached = analysesRef.current[n.id];
+        return !cached && !inFlightRef.current.has(n.id);
+      });
+
+      // Chỉ lấy 1–2 node kế tiếp (tối đa CONFIG.ANALYZE_CONCURRENCY đồng thời)
+      const toPrefetch = candidateNodes.slice(0, 2);
+
+      for (const targetNode of toPrefetch) {
+        if (inFlightRef.current.size >= CONFIG.ANALYZE_CONCURRENCY) break;
+
+        inFlightRef.current.add(targetNode.id);
+        setAnalyses((prev) => ({ ...prev, [targetNode.id]: "PENDING" }));
+
+        analyzeNodeSafe(sid, targetNode.id)
+          .then((res) => {
+            inFlightRef.current.delete(targetNode.id);
+            if (res.ok) {
+              const analysisVal = res.data.analysis ?? "FAILED";
+              setAnalyses((prev) => ({ ...prev, [targetNode.id]: analysisVal }));
+              setTokensUsed(res.data.tokens_used);
+            } else {
+              setAnalyses((prev) => ({ ...prev, [targetNode.id]: "FAILED" }));
+            }
+            checkAndTriggerOverview(sid);
+          })
+          .catch(() => {
+            inFlightRef.current.delete(targetNode.id);
+            setAnalyses((prev) => ({ ...prev, [targetNode.id]: "FAILED" }));
+          });
       }
-    }
-    setIsLoadingAnalysis(false);
-  }, [fetchSessionProgress]);
+
+      checkAndTriggerOverview(sid);
+    },
+    [staticResult, tokensUsed, checkAndTriggerOverview]
+  );
+
+  const fetchNodeAnalysis = useCallback(
+    async (sid: string, nid: string, isRetry = false) => {
+      // 1. Kiểm tra cache trước (chuyển node tức thì, 0 network call nếu đã tải trước)
+      const cached = analysesRef.current[nid];
+      if (!isRetry && cached && typeof cached === "object") {
+        setAnalysis(cached as NodeAnalysisView);
+        setIsLoadingAnalysis(false);
+        setAnalysisError(null);
+        triggerPrefetch(sid, nid);
+        return;
+      }
+
+      setIsLoadingAnalysis(true);
+      setAnalysisError(null);
+      setAnalyses((prev) => ({ ...prev, [nid]: "PENDING" }));
+      inFlightRef.current.add(nid);
+
+      const result = await analyzeNodeSafe(sid, nid);
+      inFlightRef.current.delete(nid);
+
+      if (result.ok) {
+        const analysisVal = result.data.analysis ?? "FAILED";
+        setAnalysis(result.data.analysis);
+        setAnalyses((prev) => ({ ...prev, [nid]: analysisVal }));
+        setTokensUsed(result.data.tokens_used);
+
+        // If unlocked nodes returned
+        if (result.data.unlocked_node_ids && result.data.unlocked_node_ids.length > 0) {
+          fetchSessionProgress(sid);
+        }
+
+        triggerPrefetch(sid, nid);
+      } else {
+        const errorCode = result.error?.error?.code;
+        const errorMsg = getErrorMessage(errorCode, result.error?.error?.message);
+        setAnalysisError(errorMsg);
+        setAnalyses((prev) => ({ ...prev, [nid]: "FAILED" }));
+
+        if (errorCode === "ERR_TOKEN_QUOTA_EXCEEDED") {
+          inFlightRef.current.clear();
+        }
+
+        // Dev mock fallback if bypass auth enabled
+        if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
+          const fallbackAnalysis: NodeAnalysisView = {
+            node_id: nid,
+            skills: [
+              {
+                skill: "DB_OPTIMIZATION",
+                step: 2,
+                symbol: "inventoryRepo.updateStock",
+                reason: "Truy vấn tuần tự trong vòng lặp gây N+1 I/O Bottleneck",
+                file_path: "src/services/order.service.ts",
+                line_start: 21,
+                line_end: 23,
+              },
+            ],
+            architecture: {
+              patterns: ["LAYERED", "DEPENDENCY_INJECTION"],
+              summary: "Xử lý quy trình thanh toán đơn hàng qua các tầng Service, Repository và Payment Gateway Adapter.",
+            },
+            steps: [
+              {
+                step: 1,
+                layer: "BUSINESS_LOGIC",
+                file_path: "src/services/order.service.ts",
+                line_start: 18,
+                line_end: 20,
+                text: "Khởi tạo bản ghi đơn hàng mới trong cơ sở dữ liệu",
+              },
+              {
+                step: 2,
+                layer: "DATA_ACCESS",
+                file_path: "src/services/order.service.ts",
+                line_start: 21,
+                line_end: 23,
+                text: "Lặp từng sản phẩm để cập nhật tồn kho (N+1 bottleneck)",
+              },
+            ],
+            strengths: [
+              {
+                step: 1,
+                text: "Kiến trúc chia nhỏ các dependency qua cơ chế tiêm phụ thuộc (DI).",
+              },
+            ],
+            weak_points: [
+              {
+                skill: "DB_OPTIMIZATION",
+                step: 2,
+                symbol: "updateStock",
+                what: "N+1 Query Loop Mutation",
+                consequence: "Khi giỏ hàng có 100 sản phẩm, hệ thống thực hiện 100 truy vấn riêng lẻ làm nghẽn kết nối DB.",
+                file_path: "src/services/order.service.ts",
+                line_start: 21,
+                line_end: 23,
+              },
+            ],
+            shared_files: [],
+            skeleton_only: false,
+          };
+          setAnalysis(fallbackAnalysis);
+          setAnalyses((prev) => ({ ...prev, [nid]: fallbackAnalysis }));
+        }
+      }
+      setIsLoadingAnalysis(false);
+    },
+    [fetchSessionProgress, triggerPrefetch]
+  );
 
   // ---------------------------------------------------------------------------
   // STEP 9: Analyze Overview (POST /api/analyze-overview)
@@ -414,13 +584,24 @@ function LearnCockpitContent() {
         )
       );
 
+      // Record failed answer for similarity duplicate check
+      if (!result.data.is_passed) {
+        setLastFailedAnswers((prev) => ({ ...prev, [qIndex]: answer }));
+      }
+
       // If unlocked nodes or passed, refresh progress
       if (result.data.is_passed || (result.data.unlocked_node_ids && result.data.unlocked_node_ids.length > 0)) {
         fetchSessionProgress(sessionId);
       }
     } else {
-      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
+      const errorCode = result.error?.error?.code;
+      const errorMsg = getErrorMessage(errorCode, result.error?.error?.message);
       setSubmitError(errorMsg);
+
+      // Handle multi-tab sync error (T16 / UI-77): refresh run silently without losing input
+      if (errorCode === "ERR_ATTEMPT_OUT_OF_SYNC" || errorCode === "ERR_QUESTION_FINISHED") {
+        fetchNodeQuestions(sessionId, selectedNodeId);
+      }
 
       // Dev mock fallback if bypass auth
       if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
@@ -575,6 +756,27 @@ function LearnCockpitContent() {
   const activeQuestion = questions[activeQuestionIdx] || null;
   const hasNextQuestion = activeQuestionIdx < questions.length - 1;
 
+  // Current node derived from staticResult
+  const currentNode = useMemo(() => {
+    return staticResult?.nodes?.find((n) => n.id === selectedNodeId) || null;
+  }, [staticResult, selectedNodeId]);
+
+  // Generate full file code from node's trace steps if available
+  const fullFileCode = useMemo(() => {
+    if (currentNode?.trace_steps && currentNode.trace_steps.length > 0) {
+      const stepsCode = currentNode.trace_steps
+        .map(
+          (s) =>
+            `// ── Bước ${s.step_number} · ${s.layer} · ${s.file_path} · ${s.function_name}\n${s.snippet}`
+        )
+        .join("\n\n");
+      return currentNode.dto_snippet
+        ? `${stepsCode}\n\n// ── Kiểu dữ liệu (DTO / Interface)\n${currentNode.dto_snippet}`
+        : stepsCode;
+    }
+    return undefined;
+  }, [currentNode]);
+
   const handleNextQuestion = () => {
     if (hasNextQuestion) {
       setActiveQuestionIdx((prev) => prev + 1);
@@ -599,14 +801,24 @@ function LearnCockpitContent() {
 
         {/* 2. Cockpit Context Sub-Header (Figma node 5:29) */}
         <CockpitHeader
-          repoName="shop-vibecode"
-          filePath="src/services/order.service.ts"
-          categoryTag="Java Backend"
+          repoName={staticResult?.repo_name || "shop-api"}
+          filePath={currentNode?.files?.[0] || "src/services/order.service.ts"}
+          categoryTag={
+            staticResult?.fingerprint?.detected_framework ||
+            staticResult?.fingerprint?.archetype ||
+            "Backend Service"
+          }
           sessionId={sessionId}
           tokensUsed={tokensUsed}
-          tokensQuota={200000}
+          tokensQuota={CONFIG.SESSION_TOKEN_QUOTA}
           onOpenOverview={handleOpenOverview}
           isLoadingOverview={isLoadingOverview}
+          engineMetrics={{
+            code_file_count: staticResult?.total_files || 14,
+            ingest_ms: 380,
+            engine_ms: 620,
+            redacted_secret_count: 0,
+          }}
         />
 
         {/* 3. Left-side Floating Tab Button: "Đồ thị bài học" (Figma node 5:217) */}
@@ -616,6 +828,8 @@ function LearnCockpitContent() {
         <LessonGraphDrawer
           isOpen={isGraphDrawerOpen}
           onClose={() => setIsGraphDrawerOpen(false)}
+          graphNodes={staticResult?.nodes}
+          graphEdges={staticResult?.edges}
           progress={progress}
           isLoading={isLoadingProgress}
           errorMessage={progressError}
@@ -632,14 +846,29 @@ function LearnCockpitContent() {
         >
           {/* Left Column: Code Snippet Viewer (Figma node 5:64) - Step 8 POST /api/analyze-node */}
           <CodeSnippetViewer
-            fileName="order.service.ts"
-            scope="Scope: OrderService.processCheckout"
+            fileName={
+              currentNode?.files?.[0]
+                ? currentNode.files[0].split("/").pop()
+                : "order.service.ts"
+            }
+            scope={
+              currentNode?.entry_symbol
+                ? `Scope: ${currentNode.entry_symbol}`
+                : currentNode?.title
+                ? `Lát cắt: ${currentNode.title}`
+                : "Scope: OrderService.processCheckout"
+            }
+            node={currentNode}
             analysis={analysis}
             isLoading={isLoadingAnalysis}
             errorMessage={analysisError}
-            onRetry={() => fetchNodeAnalysis(sessionId, selectedNodeId)}
+            onRetry={() => fetchNodeAnalysis(sessionId, selectedNodeId, true)}
             onOpenFullFile={() => setIsFullFileModalOpen(true)}
             highlightedStep={highlightedStep}
+            activeStep={activeStep}
+            onSelectStep={(step) => setActiveStep(step)}
+            isPresentationMode={isPresentationMode}
+            onTogglePresentationMode={() => setIsPresentationMode((prev) => !prev)}
           />
 
           {/* Right Column: Feynman Question & Form (Figma node 5:170) - Steps 10, 11, 12, 13 */}
@@ -659,6 +888,12 @@ function LearnCockpitContent() {
             errorMessage={questionsError}
             onNextQuestion={handleNextQuestion}
             hasNextQuestion={hasNextQuestion}
+            lastFailedAnswer={
+              lastFailedAnswers[activeQuestion?.question_index || activeQuestionIdx + 1]
+            }
+            isQuotaExceeded={tokensUsed >= CONFIG.SESSION_TOKEN_QUOTA}
+            drafts={drafts}
+            onSaveDraft={handleSaveDraft}
           />
         </main>
       </div>
@@ -667,7 +902,12 @@ function LearnCockpitContent() {
       <FullFileModal
         isOpen={isFullFileModalOpen}
         onClose={() => setIsFullFileModalOpen(false)}
-        fileName="order.service.ts"
+        fileName={
+          currentNode?.files?.[0]
+            ? currentNode.files[0].split("/").pop()
+            : "order.service.ts"
+        }
+        codeContent={fullFileCode}
       />
 
       {/* 7. Interactive BKT Submission Evaluation Dialog - Step 11 POST /api/evaluate-feynman */}

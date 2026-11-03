@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import {
   ZoomIn,
@@ -12,14 +12,17 @@ import {
   Lock,
   AlertTriangle,
   RefreshCw,
+  Star,
 } from "lucide-react";
-import type { SessionProgress, NodeStatus } from "@/contracts";
+import type { SessionProgress, NodeStatus, HybridArchitecturalNode, GraphEdge } from "@/contracts";
+import { deriveNodeStates } from "@/lib/derive";
 
 export interface GraphNodeItem {
   id: string;
   tier: number;
   x: number;
   y: number;
+  cardWidth: number;
   title: string;
   subtitle: string;
   status: NodeStatus;
@@ -29,9 +32,22 @@ export interface GraphNodeItem {
   fileSnippet?: string;
   attemptsCount?: number;
   hasWarning?: boolean;
+  isCapstone?: boolean;
+  prerequisites?: string[];
 }
 
-const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
+export interface DynamicGraphEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  pathD: string;
+  strokeColor: string;
+  strokeWidth: number;
+  strokeDasharray?: string;
+  markerEnd: string;
+}
+
+const DEFAULT_GRAPH_NODES: (Omit<GraphNodeItem, "cardWidth"> & { cardWidth?: number })[] = [
   {
     id: "slice-auth-login",
     tier: 1,
@@ -44,6 +60,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["AUTH_FLOW", "JWT_SECURITY"],
     complexity: 3,
     fileSnippet: "src/auth/auth.service.ts",
+    prerequisites: [],
   },
   {
     id: "slice-catalog-browse",
@@ -57,6 +74,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["QUERY_BUILDER", "PAGINATION"],
     complexity: 4,
     fileSnippet: "src/catalog/catalog.service.ts",
+    prerequisites: ["slice-auth-login"],
   },
   {
     id: "slice-order-checkout",
@@ -70,6 +88,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["DB_OPTIMIZATION", "TRANSACTIONS", "FEYNMAN_ANALOGY"],
     complexity: 7,
     fileSnippet: "src/services/order.service.ts",
+    prerequisites: ["slice-auth-login"],
   },
   {
     id: "slice-promo-apply",
@@ -83,6 +102,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["BUSINESS_RULES", "DISCOUNT_ENGINE"],
     complexity: 5,
     fileSnippet: "src/promo/promo.service.ts",
+    prerequisites: ["slice-catalog-browse"],
   },
   {
     id: "slice-inventory-reserve",
@@ -96,6 +116,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["BATCH_PROCESSING", "LOCKING_STRATEGY"],
     complexity: 8,
     fileSnippet: "src/repos/inventory.repo.ts",
+    prerequisites: ["slice-order-checkout"],
   },
   {
     id: "slice-payment-gateway",
@@ -109,6 +130,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["IDEMPOTENCY", "WEBHOOK_SECURITY"],
     complexity: 8,
     fileSnippet: "src/payment/gateway.adapter.ts",
+    prerequisites: ["slice-promo-apply"],
   },
   {
     id: "slice-shipping-dijkstra",
@@ -122,6 +144,7 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["GRAPH_ALGORITHMS", "DIJKSTRA_SHORTEST_PATH"],
     complexity: 9,
     fileSnippet: "src/logistics/routing.engine.ts",
+    prerequisites: ["slice-inventory-reserve"],
   },
   {
     id: "scc-user-order-cluster",
@@ -135,12 +158,15 @@ const DEFAULT_GRAPH_NODES: GraphNodeItem[] = [
     skills: ["DATA_AGGREGATION", "SCC_ANALYSIS"],
     complexity: 6,
     fileSnippet: "src/analytics/customer-history.ts",
+    prerequisites: ["slice-payment-gateway", "slice-shipping-dijkstra"],
   },
 ];
 
 interface LessonGraphDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  graphNodes?: HybridArchitecturalNode[] | null;
+  graphEdges?: GraphEdge[] | null;
   progress?: SessionProgress | null;
   isLoading?: boolean;
   errorMessage?: string | null;
@@ -149,9 +175,196 @@ interface LessonGraphDrawerProps {
   onSelectNode?: (nodeId: string) => void;
 }
 
+interface RawNodeData {
+  id: string;
+  title: string;
+  subtitle: string;
+  status: NodeStatus;
+  pKnow: number;
+  skills: string[];
+  complexity: number;
+  fileSnippet?: string;
+  attemptsCount?: number;
+  hasWarning?: boolean;
+  isCapstone?: boolean;
+  prerequisites: string[];
+}
+
+/**
+ * Thuật toán bố cục phân tầng chống chồng chéo (Anti-Collision Layered Layout Engine)
+ * Tự động phân tier theo topological depth của prerequisites, chia cột đều đặn:
+ * - 1 node/tier: Căn giữa (x=292) hoặc thẳng hàng với nhánh cha (x=35 / x=545).
+ * - 2 nodes/tier: Phân bố 2 cột (x=35 và x=545) với khoảng cách 134px tuyệt đối không đè nhau.
+ * - 3+ nodes/tier: Tự động co tỉ lệ thẻ và phân bố đều trên chiều ngang canvas 959px.
+ */
+function computeTopologicalLayout(
+  rawNodes: RawNodeData[],
+  canvasWidth: number = 959,
+  cardHeight: number = 100,
+  rowHeight: number = 160,
+  startY: number = 60
+): { nodes: GraphNodeItem[]; canvasHeight: number } {
+  if (rawNodes.length === 0) {
+    return { nodes: [], canvasHeight: 917 };
+  }
+
+  const nodeMap = new Map<string, RawNodeData>();
+  rawNodes.forEach((n) => nodeMap.set(n.id, n));
+
+  // 1. Tính toán tier (độ sâu tô-pô DAG)
+  const tierMap = new Map<string, number>();
+
+  function getTier(nodeId: string, visited: Set<string> = new Set()): number {
+    if (tierMap.has(nodeId)) return tierMap.get(nodeId)!;
+    if (visited.has(nodeId)) return 0; // chống chu trình
+    visited.add(nodeId);
+
+    const node = nodeMap.get(nodeId);
+    if (!node || !node.prerequisites || node.prerequisites.length === 0) {
+      tierMap.set(nodeId, 0);
+      return 0;
+    }
+
+    let maxParentTier = -1;
+    for (const pid of node.prerequisites) {
+      if (nodeMap.has(pid)) {
+        maxParentTier = Math.max(maxParentTier, getTier(pid, visited));
+      }
+    }
+
+    const t = maxParentTier + 1;
+    tierMap.set(nodeId, t);
+    return t;
+  }
+
+  rawNodes.forEach((n) => getTier(n.id));
+
+  // 2. Nhóm các node theo từng tier
+  const tiers: RawNodeData[][] = [];
+  rawNodes.forEach((n) => {
+    const t = tierMap.get(n.id) ?? 0;
+    if (!tiers[t]) tiers[t] = [];
+    tiers[t].push(n);
+  });
+
+  const compactTiers = tiers.filter((t) => t && t.length > 0);
+
+  // 3. Gán tọa độ (x, y) và cardWidth chống va chạm
+  const positionedNodes: GraphNodeItem[] = [];
+  const assignedPositions = new Map<string, { x: number; y: number; cardWidth: number }>();
+
+  compactTiers.forEach((tierNodes, tIdx) => {
+    const y = startY + tIdx * rowHeight;
+    const count = tierNodes.length;
+
+    if (count === 1) {
+      const node = tierNodes[0];
+      const cardWidth = 376;
+      let x = Math.round((canvasWidth - cardWidth) / 2); // default center (292)
+
+      if (node.prerequisites && node.prerequisites.length > 0) {
+        const parentPositions = node.prerequisites
+          .map((pid) => assignedPositions.get(pid))
+          .filter((p): p is { x: number; y: number; cardWidth: number } => Boolean(p));
+
+        if (parentPositions.length > 0) {
+          const avgParentCenterX =
+            parentPositions.reduce((sum, p) => sum + p.x + p.cardWidth / 2, 0) /
+            parentPositions.length;
+
+          // Nếu cha nằm hoàn toàn bên trái
+          if (avgParentCenterX < 350) {
+            x = 35;
+          } else if (avgParentCenterX > 600) {
+            // Nếu cha nằm bên phải
+            x = 545;
+          } else {
+            // Nằm giữa
+            x = 292;
+          }
+        }
+      }
+
+      assignedPositions.set(node.id, { x, y, cardWidth });
+      positionedNodes.push({
+        ...node,
+        tier: tIdx + 1,
+        x,
+        y,
+        cardWidth,
+      });
+    } else if (count === 2) {
+      const cardWidth = 376;
+
+      // Sắp xếp sao cho node có cha bên trái ưu tiên cột trái (x=35)
+      const sorted = [...tierNodes].sort((a, b) => {
+        const getParentAvgX = (n: RawNodeData) => {
+          const parents = (n.prerequisites || [])
+            .map((pid) => assignedPositions.get(pid))
+            .filter((p): p is { x: number; y: number; cardWidth: number } => Boolean(p));
+          if (parents.length === 0) {
+            if (n.id.includes("register") || n.id.includes("auth")) return 100;
+            return 500;
+          }
+          return parents.reduce((sum, p) => sum + p.x + p.cardWidth / 2, 0) / parents.length;
+        };
+        return getParentAvgX(a) - getParentAvgX(b);
+      });
+
+      const xCoords = [35, 545];
+      sorted.forEach((node, colIdx) => {
+        const x = xCoords[colIdx];
+        assignedPositions.set(node.id, { x, y, cardWidth });
+        positionedNodes.push({
+          ...node,
+          tier: tIdx + 1,
+          x,
+          y,
+          cardWidth,
+        });
+      });
+    } else if (count === 3) {
+      const cardWidth = 280;
+      const xCoords = [30, 340, 650];
+      tierNodes.forEach((node, colIdx) => {
+        const x = xCoords[colIdx] ?? 30 + colIdx * 300;
+        assignedPositions.set(node.id, { x, y, cardWidth });
+        positionedNodes.push({
+          ...node,
+          tier: tIdx + 1,
+          x,
+          y,
+          cardWidth,
+        });
+      });
+    } else {
+      const cardWidth = Math.max(180, Math.floor((canvasWidth - 60) / count) - 20);
+      const gap = Math.floor((canvasWidth - 60 - count * cardWidth) / (count - 1));
+      tierNodes.forEach((node, colIdx) => {
+        const x = 30 + colIdx * (cardWidth + gap);
+        assignedPositions.set(node.id, { x, y, cardWidth });
+        positionedNodes.push({
+          ...node,
+          tier: tIdx + 1,
+          x,
+          y,
+          cardWidth,
+        });
+      });
+    }
+  });
+
+  const maxBottom = positionedNodes.reduce((max, n) => Math.max(max, n.y + cardHeight), 0);
+  const canvasHeight = Math.max(917, maxBottom + 80);
+
+  return { nodes: positionedNodes, canvasHeight };
+}
+
 export function LessonGraphDrawer({
   isOpen,
   onClose,
+  graphNodes,
+  graphEdges,
   progress,
   isLoading = false,
   errorMessage = null,
@@ -161,21 +374,172 @@ export function LessonGraphDrawer({
 }: LessonGraphDrawerProps) {
   const [scale, setScale] = useState(1);
 
-  // Merge progress from API into nodes
-  const nodes: GraphNodeItem[] = DEFAULT_GRAPH_NODES.map((base) => {
-    const apiNode = progress?.nodes?.[base.id];
-    if (apiNode) {
-      return {
-        ...base,
-        status: apiNode.status,
-        hasWarning: apiNode.has_warning,
-        attemptsCount: apiNode.last_run?.questions?.reduce((acc, q) => acc + q.attempts_used, 0) || 0,
-      };
-    }
-    return base;
-  });
+  // 1. Phân giải node & trạng thái BKT/Analysis, sau đó tính layout chống chồng chéo
+  const { nodes, canvasHeight } = useMemo(() => {
+    if (graphNodes && graphNodes.length > 0) {
+      const skeleton = graphNodes.map((n) => ({
+        node_id: n.id,
+        title: n.title,
+        is_capstone: Boolean(n.is_capstone),
+        prerequisites: n.prerequisites || [],
+      }));
 
-  const activeNode = nodes.find((n) => n.id === selectedNodeId) || nodes[2];
+      const progressRows = progress?.nodes
+        ? Object.values(progress.nodes).map((p) => ({
+            node_id: p.node_id,
+            status: p.status === "LOCKED" ? null : p.status,
+            analysis_failed: Boolean(p.analysis_failed),
+          }))
+        : [];
+
+      const derivedStates = deriveNodeStates(skeleton, progressRows);
+
+      const rawList: RawNodeData[] = graphNodes.map((node, index) => {
+        const derived = derivedStates[node.id];
+        const apiNode = progress?.nodes?.[node.id];
+        const status =
+          derived?.status ||
+          apiNode?.status ||
+          (index === 0 ? "AVAILABLE" : "LOCKED");
+        const hasWarning = derived?.has_warning || apiNode?.has_warning || false;
+
+        return {
+          id: node.id,
+          title: node.title,
+          subtitle:
+            node.title_evidence || node.entry_symbol || node.files?.[0] || "",
+          status,
+          pKnow:
+            status === "COMPLETED" ? 0.95 : status === "AVAILABLE" ? 0.75 : 0.0,
+          skills: node.languages || ["BACKEND"],
+          complexity: node.cognitive_complexity || 5,
+          fileSnippet: node.files?.[0] || "",
+          attemptsCount:
+            apiNode?.last_run?.questions?.reduce(
+              (acc, q) => acc + q.attempts_used,
+              0
+            ) || 0,
+          hasWarning,
+          isCapstone: Boolean(node.is_capstone),
+          prerequisites: node.prerequisites || [],
+        };
+      });
+
+      return computeTopologicalLayout(rawList);
+    }
+
+    // Graceful fallback to DEFAULT_GRAPH_NODES
+    const rawDefault: RawNodeData[] = DEFAULT_GRAPH_NODES.map((base) => {
+      const apiNode = progress?.nodes?.[base.id];
+      const status = apiNode?.status || base.status;
+      return {
+        id: base.id,
+        title: base.title,
+        subtitle: base.subtitle,
+        status,
+        pKnow: base.pKnow,
+        skills: base.skills,
+        complexity: base.complexity,
+        fileSnippet: base.fileSnippet,
+        attemptsCount:
+          apiNode?.last_run?.questions?.reduce(
+            (acc, q) => acc + q.attempts_used,
+            0
+          ) || 0,
+        hasWarning: apiNode?.has_warning || false,
+        isCapstone: Boolean(base.isCapstone),
+        prerequisites: base.prerequisites || [],
+      };
+    });
+
+    return computeTopologicalLayout(rawDefault);
+  }, [graphNodes, progress]);
+
+  // 2. Tính toán danh sách đường cong nối có hướng (Dynamic Bézier Edges)
+  const edges: DynamicGraphEdge[] = useMemo(() => {
+    const nodeMap = new Map<string, GraphNodeItem>();
+    nodes.forEach((n) => nodeMap.set(n.id, n));
+
+    const edgePairs: { source: string; target: string }[] = [];
+    const seenEdges = new Set<string>();
+
+    const addEdge = (source: string, target: string) => {
+      const key = `${source}->${target}`;
+      if (!seenEdges.has(key)) {
+        seenEdges.add(key);
+        edgePairs.push({ source, target });
+      }
+    };
+
+    // Nguồn cạnh 1: graphEdges truyền vào
+    if (graphEdges && graphEdges.length > 0) {
+      graphEdges.forEach((e) => addEdge(e.source, e.target));
+    }
+
+    // Nguồn cạnh 2: prerequisites của từng node
+    nodes.forEach((targetNode) => {
+      if (targetNode.prerequisites && targetNode.prerequisites.length > 0) {
+        targetNode.prerequisites.forEach((srcId) => addEdge(srcId, targetNode.id));
+      }
+    });
+
+    const result: DynamicGraphEdge[] = [];
+
+    edgePairs.forEach(({ source, target }) => {
+      const sNode = nodeMap.get(source);
+      const tNode = nodeMap.get(target);
+      if (!sNode || !tNode) return;
+
+      const sx = sNode.x + sNode.cardWidth / 2;
+      const sy = sNode.y + 100; // Đáy của node nguồn
+      const tx = tNode.x + tNode.cardWidth / 2;
+      const ty = tNode.y; // Đỉnh của node đích
+
+      let pathD: string;
+      if (Math.abs(sx - tx) < 5) {
+        pathD = `M ${sx} ${sy} L ${tx} ${ty}`;
+      } else {
+        const midY = (sy + ty) / 2;
+        pathD = `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`;
+      }
+
+      // Màu sắc & marker theo trạng thái học tập
+      const isBothCompleted = sNode.status === "COMPLETED" && tNode.status === "COMPLETED";
+      const isNextAvailable = sNode.status === "COMPLETED" && tNode.status === "AVAILABLE";
+
+      let strokeColor = "#C0C0C0";
+      let strokeWidth = 2;
+      let strokeDasharray: string | undefined = "4,4";
+      let markerEnd = "url(#arrow_locked)";
+
+      if (isBothCompleted) {
+        strokeColor = "#047857";
+        strokeWidth = 2.5;
+        strokeDasharray = undefined;
+        markerEnd = "url(#arrow_completed)";
+      } else if (isNextAvailable) {
+        strokeColor = "#FF9640";
+        strokeWidth = 2.5;
+        strokeDasharray = "5,4";
+        markerEnd = "url(#arrow_active)";
+      }
+
+      result.push({
+        id: `${source}->${target}`,
+        sourceId: source,
+        targetId: target,
+        pathD,
+        strokeColor,
+        strokeWidth,
+        strokeDasharray,
+        markerEnd,
+      });
+    });
+
+    return result;
+  }, [nodes, graphEdges]);
+
+  const activeNode = nodes.find((n) => n.id === selectedNodeId) || nodes[0];
 
   const handleZoomIn = () => setScale((s) => Math.min(1.4, s + 0.1));
   const handleZoomOut = () => setScale((s) => Math.max(0.7, s - 0.1));
@@ -342,6 +706,11 @@ export function LessonGraphDrawer({
                   <span className="text-[11px] font-mono text-[#64748b]">
                     ({activeNode.id})
                   </span>
+                  {activeNode.isCapstone && (
+                    <span className="inline-flex items-center gap-1 text-[11px] bg-[#fef3c7] text-[#b45309] px-1.5 py-0.5 rounded font-bold border border-[#fde68a]">
+                      <Star className="size-3 fill-[#b45309]" /> Capstone
+                    </span>
+                  )}
                   {activeNode.hasWarning && (
                     <span className="inline-flex items-center gap-1 text-[11px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">
                       <AlertTriangle className="size-3" /> Cảnh báo
@@ -369,17 +738,20 @@ export function LessonGraphDrawer({
           </div>
         )}
 
-        {/* Graph Canvas Container (959px x 917px coordinate space) */}
+        {/* Graph Canvas Container (959px x adaptive coordinate space) */}
         <div className="flex-1 overflow-auto p-4 sm:p-6 flex items-start justify-center">
           <div
             className="transition-transform duration-150 origin-top"
             style={{ transform: `scale(${scale})` }}
           >
-            <div className="relative w-[959px] h-[917px] bg-white rounded-r-[10px] border border-[#C0C0C0] shadow-[0px_4px_24px_rgba(0,0,0,0.06)] overflow-hidden select-none">
+            <div
+              className="relative bg-white rounded-r-[10px] border border-[#C0C0C0] shadow-[0px_4px_24px_rgba(0,0,0,0.06)] overflow-hidden select-none"
+              style={{ width: 959, height: canvasHeight }}
+            >
               <svg
-                width="959"
-                height="917"
-                viewBox="0 0 959 917"
+                width={959}
+                height={canvasHeight}
+                viewBox={`0 0 959 ${canvasHeight}`}
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
                 className="w-full h-full"
@@ -438,255 +810,223 @@ export function LessonGraphDrawer({
                   </marker>
                 </defs>
 
-                {/* Connecting Directed Edges */}
+                {/* Connecting Directed Edges (Dynamic Bézier Paths) */}
                 <g className="edges">
-                  <path
-                    d="M 400 163 C 350 190, 260 190, 223 223"
-                    stroke="#047857"
-                    strokeWidth="2.5"
-                    fill="none"
-                    markerEnd="url(#arrow_completed)"
-                  />
-                  <path
-                    d="M 560 163 C 610 190, 700 190, 733 223"
-                    stroke="#FF9640"
-                    strokeWidth="2.5"
-                    fill="none"
-                    strokeDasharray="5,4"
-                    markerEnd="url(#arrow_active)"
-                  />
-                  <path
-                    d="M 223 323 L 223 383"
-                    stroke="#C0C0C0"
-                    strokeWidth="2"
-                    strokeDasharray="4,4"
-                    fill="none"
-                    markerEnd="url(#arrow_locked)"
-                  />
-                  <path
-                    d="M 733 323 L 733 383"
-                    stroke="#C0C0C0"
-                    strokeWidth="2"
-                    strokeDasharray="4,4"
-                    fill="none"
-                    markerEnd="url(#arrow_locked)"
-                  />
-                  <path
-                    d="M 223 483 L 223 543"
-                    stroke="#C0C0C0"
-                    strokeWidth="2"
-                    strokeDasharray="4,4"
-                    fill="none"
-                    markerEnd="url(#arrow_locked)"
-                  />
-                  <path
-                    d="M 733 483 L 733 543"
-                    stroke="#C0C0C0"
-                    strokeWidth="2"
-                    strokeDasharray="4,4"
-                    fill="none"
-                    markerEnd="url(#arrow_locked)"
-                  />
-                  <path
-                    d="M 223 643 C 260 675, 360 680, 410 703"
-                    stroke="#C0C0C0"
-                    strokeWidth="2"
-                    strokeDasharray="4,4"
-                    fill="none"
-                    markerEnd="url(#arrow_locked)"
-                  />
-                  <path
-                    d="M 733 643 C 700 675, 600 680, 550 703"
-                    stroke="#C0C0C0"
-                    strokeWidth="2"
-                    strokeDasharray="4,4"
-                    fill="none"
-                    markerEnd="url(#arrow_locked)"
-                  />
+                  {edges.map((edge) => (
+                    <path
+                      key={edge.id}
+                      d={edge.pathD}
+                      stroke={edge.strokeColor}
+                      strokeWidth={edge.strokeWidth}
+                      fill="none"
+                      strokeDasharray={edge.strokeDasharray}
+                      markerEnd={edge.markerEnd}
+                      className="transition-all duration-300"
+                    />
+                  ))}
                 </g>
 
                 {/* Capsule Nodes */}
-                {nodes.map((node) => {
-                  const isSelected = selectedNodeId === node.id;
-                  const isCompleted = node.status === "COMPLETED";
-                  const isAvailable = node.status === "AVAILABLE";
-                  const isLocked = node.status === "LOCKED";
-                  const isFailed = node.status === "FAILED";
+                <g className="nodes">
+                  {nodes.map((node) => {
+                    const isSelected = selectedNodeId === node.id;
+                    const isCompleted = node.status === "COMPLETED";
+                    const isAvailable = node.status === "AVAILABLE";
+                    const isLocked = node.status === "LOCKED";
+                    const isFailed = node.status === "FAILED";
 
-                  const strokeColor = isCompleted
-                    ? "#047857"
-                    : isAvailable
-                    ? "#FF9640"
-                    : isFailed
-                    ? "#EF4444"
-                    : "#C0C0C0";
+                    const strokeColor = isCompleted
+                      ? "#047857"
+                      : isAvailable
+                      ? "#FF9640"
+                      : isFailed
+                      ? "#EF4444"
+                      : "#C0C0C0";
 
-                  const cardBg = isCompleted ? "#047857" : "#FFFFFF";
-                  const iconBg = isCompleted
-                    ? "#FFFFFF"
-                    : isAvailable
-                    ? "#fff7ed"
-                    : isFailed
-                    ? "#fee2e2"
-                    : "#f8fafc";
-                  const iconColor = isCompleted
-                    ? "#047857"
-                    : isAvailable
-                    ? "#FF9640"
-                    : isFailed
-                    ? "#EF4444"
-                    : "#94a3b8";
-                  const titleColor = isCompleted ? "#FFFFFF" : "#131B2E";
-                  const subtitleColor = isCompleted ? "#E6F4EA" : "#625E56";
+                    const cardBg = isCompleted ? "#047857" : "#FFFFFF";
+                    const iconBg = isCompleted
+                      ? "#FFFFFF"
+                      : isAvailable
+                      ? "#fff7ed"
+                      : isFailed
+                      ? "#fee2e2"
+                      : "#f8fafc";
+                    const iconColor = isCompleted
+                      ? "#047857"
+                      : isAvailable
+                      ? "#FF9640"
+                      : isFailed
+                      ? "#EF4444"
+                      : "#94a3b8";
+                    const titleColor = isCompleted ? "#FFFFFF" : "#131B2E";
+                    const subtitleColor = isCompleted ? "#E6F4EA" : "#625E56";
 
-                  return (
-                    <g
-                      key={node.id}
-                      onClick={() => handleNodeClick(node)}
-                      className={`transition-all duration-200 ease-out ${
-                        isLocked ? "cursor-not-allowed opacity-80" : "cursor-pointer group hover:-translate-y-1.5 active:translate-y-0"
-                      }`}
-                      style={{ transformBox: "fill-box", transformOrigin: "center" }}
-                      filter="url(#node_shadow)"
-                    >
-                      {/* Pulse ring for Available / Active Node */}
-                      {isAvailable && (
-                        <rect
-                          x={node.x - 3}
-                          y={node.y - 3}
-                          width={382}
-                          height={106}
-                          rx={53}
-                          fill="none"
-                          stroke="#FF9640"
-                          strokeWidth="2"
-                          opacity="0.4"
-                          className="animate-pulse"
-                        />
-                      )}
+                    const maxTitleChars = node.cardWidth < 300 ? 18 : 28;
+                    const maxSubtitleChars = node.cardWidth < 300 ? 22 : 34;
 
-                      {/* Main Capsule Body */}
-                      <rect
-                        x={node.x}
-                        y={node.y}
-                        width={376}
-                        height={100}
-                        rx={50}
-                        fill={cardBg}
-                        stroke={strokeColor}
-                        strokeWidth={isSelected ? 3 : 2}
-                        className={
-                          isCompleted
-                            ? "transition-all duration-200 group-hover:brightness-105"
-                            : "transition-all duration-200 group-hover:brightness-[0.98]"
-                        }
-                      />
-
-                      {/* Left Circular Status Icon */}
-                      <circle
-                        cx={node.x + 48}
-                        cy={node.y + 50}
-                        r={24}
-                        fill={iconBg}
-                        stroke={isCompleted ? "#FFFFFF" : strokeColor}
-                        strokeWidth="1.5"
-                      />
-
-                      {/* Icon glyph */}
-                      {isCompleted && (
-                        <path
-                          d={`M ${node.x + 41} ${node.y + 50} L ${node.x + 46} ${node.y + 55} L ${node.x + 55} ${node.y + 44}`}
-                          stroke={iconColor}
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                        />
-                      )}
-                      {isAvailable && (
-                        <path
-                          d={`M ${node.x + 44} ${node.y + 42} L ${node.x + 55} ${node.y + 50} L ${node.x + 44} ${node.y + 58} Z`}
-                          fill={iconColor}
-                        />
-                      )}
-                      {isLocked && (
-                        <g transform={`translate(${node.x + 41}, ${node.y + 42})`}>
+                    return (
+                      <g
+                        key={node.id}
+                        onClick={() => handleNodeClick(node)}
+                        className={`transition-all duration-200 ease-out ${
+                          isLocked
+                            ? "cursor-not-allowed opacity-80"
+                            : "cursor-pointer group hover:-translate-y-1.5 active:translate-y-0"
+                        }`}
+                        style={{ transformBox: "fill-box", transformOrigin: "center" }}
+                        filter="url(#node_shadow)"
+                      >
+                        {/* Pulse ring for Available / Active Node */}
+                        {isAvailable && (
                           <rect
-                            x="1"
-                            y="7"
-                            width="12"
-                            height="8"
-                            rx="1.5"
-                            fill={iconColor}
+                            x={node.x - 3}
+                            y={node.y - 3}
+                            width={node.cardWidth + 6}
+                            height={106}
+                            rx={53}
+                            fill="none"
+                            stroke="#FF9640"
+                            strokeWidth="2"
+                            opacity="0.4"
+                            className="animate-pulse"
                           />
+                        )}
+
+                        {/* Main Capsule Body */}
+                        <rect
+                          x={node.x}
+                          y={node.y}
+                          width={node.cardWidth}
+                          height={100}
+                          rx={50}
+                          fill={cardBg}
+                          stroke={strokeColor}
+                          strokeWidth={isSelected ? 3 : 2}
+                          className={
+                            isCompleted
+                              ? "transition-all duration-200 group-hover:brightness-105"
+                              : "transition-all duration-200 group-hover:brightness-[0.98]"
+                          }
+                        />
+
+                        {/* Left Circular Status Icon */}
+                        <circle
+                          cx={node.x + 48}
+                          cy={node.y + 50}
+                          r={24}
+                          fill={iconBg}
+                          stroke={isCompleted ? "#FFFFFF" : strokeColor}
+                          strokeWidth="1.5"
+                        />
+
+                        {/* Icon glyph */}
+                        {isCompleted && (
                           <path
-                            d="M 3.5 7 V 4.5 C 3.5 2.5, 10.5 2.5, 10.5 4.5 V 7"
+                            d={`M ${node.x + 41} ${node.y + 50} L ${node.x + 46} ${node.y + 55} L ${node.x + 55} ${node.y + 44}`}
                             stroke={iconColor}
-                            strokeWidth="1.5"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                             fill="none"
                           />
-                        </g>
-                      )}
-                      {isFailed && (
-                        <path
-                          d={`M ${node.x + 42} ${node.y + 42} L ${node.x + 54} ${node.y + 58} M ${node.x + 54} ${node.y + 42} L ${node.x + 42} ${node.y + 58}`}
-                          stroke={iconColor}
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
+                        )}
+                        {isAvailable && (
+                          <path
+                            d={`M ${node.x + 44} ${node.y + 42} L ${node.x + 55} ${node.y + 50} L ${node.x + 44} ${node.y + 58} Z`}
+                            fill={iconColor}
+                          />
+                        )}
+                        {isLocked && (
+                          <g transform={`translate(${node.x + 41}, ${node.y + 42})`}>
+                            <rect
+                              x="1"
+                              y="7"
+                              width="12"
+                              height="8"
+                              rx="1.5"
+                              fill={iconColor}
+                            />
+                            <path
+                              d="M 3.5 7 V 4.5 C 3.5 2.5, 10.5 2.5, 10.5 4.5 V 7"
+                              stroke={iconColor}
+                              strokeWidth="1.5"
+                              fill="none"
+                            />
+                          </g>
+                        )}
+                        {isFailed && (
+                          <path
+                            d={`M ${node.x + 42} ${node.y + 42} L ${node.x + 54} ${node.y + 58} M ${node.x + 54} ${node.y + 42} L ${node.x + 42} ${node.y + 58}`}
+                            stroke={iconColor}
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
+                        )}
+
+                        {/* Node Title */}
+                        <text
+                          x={node.x + 86}
+                          y={node.y + 43}
+                          fill={titleColor}
+                          fontSize="13.5"
+                          fontWeight="700"
+                          fontFamily="system-ui, -apple-system, sans-serif"
+                        >
+                          {node.title.length > maxTitleChars
+                            ? node.title.slice(0, maxTitleChars - 1) + "..."
+                            : node.title}
+                        </text>
+
+                        {/* Subtitle */}
+                        <text
+                          x={node.x + 86}
+                          y={node.y + 64}
+                          fill={subtitleColor}
+                          fontSize="11.5"
+                          fontWeight="400"
+                          fontFamily="system-ui, -apple-system, sans-serif"
+                        >
+                          {node.subtitle.length > maxSubtitleChars
+                            ? node.subtitle.slice(0, maxSubtitleChars - 1) + "..."
+                            : node.subtitle}
+                        </text>
+
+                        {/* Right Tag / Badge */}
+                        <rect
+                          x={node.x + node.cardWidth - 76}
+                          y={node.y + 38}
+                          width={58}
+                          height={24}
+                          rx={12}
+                          fill={
+                            isCompleted
+                              ? "rgba(255,255,255,0.2)"
+                              : isAvailable
+                              ? "#fff0e4"
+                              : "#f1f5f9"
+                          }
                         />
-                      )}
-
-                      {/* Node Title */}
-                      <text
-                        x={node.x + 86}
-                        y={node.y + 43}
-                        fill={titleColor}
-                        fontSize="13.5"
-                        fontWeight="700"
-                        fontFamily="system-ui, -apple-system, sans-serif"
-                      >
-                        {node.title.length > 28
-                          ? node.title.slice(0, 27) + "..."
-                          : node.title}
-                      </text>
-
-                      {/* Subtitle */}
-                      <text
-                        x={node.x + 86}
-                        y={node.y + 64}
-                        fill={subtitleColor}
-                        fontSize="11.5"
-                        fontWeight="400"
-                        fontFamily="system-ui, -apple-system, sans-serif"
-                      >
-                        {node.subtitle.length > 34
-                          ? node.subtitle.slice(0, 33) + "..."
-                          : node.subtitle}
-                      </text>
-
-                      {/* Right Tag / Badge */}
-                      <rect
-                        x={node.x + 300}
-                        y={node.y + 38}
-                        width={58}
-                        height={24}
-                        rx={12}
-                        fill={isCompleted ? "rgba(255,255,255,0.2)" : isAvailable ? "#fff0e4" : "#f1f5f9"}
-                      />
-                      <text
-                        x={node.x + 329}
-                        y={node.y + 54}
-                        textAnchor="middle"
-                        fill={isCompleted ? "#FFFFFF" : isAvailable ? "#944b00" : "#64748b"}
-                        fontSize="10"
-                        fontWeight="700"
-                        fontFamily="system-ui, -apple-system, sans-serif"
-                      >
-                        T{node.tier}
-                      </text>
-                    </g>
-                  );
-                })}
+                        <text
+                          x={node.x + node.cardWidth - 47}
+                          y={node.y + 54}
+                          textAnchor="middle"
+                          fill={
+                            isCompleted
+                              ? "#FFFFFF"
+                              : isAvailable
+                              ? "#944b00"
+                              : "#64748b"
+                          }
+                          fontSize="10"
+                          fontWeight="700"
+                          fontFamily="system-ui, -apple-system, sans-serif"
+                        >
+                          T{node.tier}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
               </svg>
             </div>
           </div>
