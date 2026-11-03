@@ -1,6 +1,6 @@
 # SimpliFey V2 Pro — Codebase Cognitive Twin
 
-> Hackathon SGU 2026–2027 · Repo **tài liệu** (đặc tả để code + tài liệu thuyết trình). Code sản phẩm viết trong vòng thử thách 21 giờ (vòng 2: 7–8/11/2026, giả định 12g00 07/11 → 09g00 08/11; vòng 3: 09/11/2026) ở một repo thi riêng, trống lúc bắt đầu.
+> Hackathon SGU 2026–2027 · Repo **code tập dượt**: copy từ repo tài liệu cũ để code thử 21 giờ trước vòng thi thật (vòng 2: 7–8/11/2026, giả định 12g00 07/11 → 09g00 08/11; vòng 3: 09/11/2026). Code nằm ở `src/`, tài liệu (đặc tả, thuyết trình) nằm ở `docs/`.
 
 **Sản phẩm:** dán link repo GitHub (hoặc kéo thả `.zip`) ⇒ trong < 1.5 s có bản đồ tối đa 20 node. Mỗi node là một lát cắt nghiệp vụ xuyên file, dựng bằng code thuần, 0 token. Sau đó AI làm 3 việc:
 - phân tích điểm hay / điểm dở của từng node;
@@ -11,7 +11,7 @@ Mô hình BKT ghi nhận năng lực kỹ năng: luôn hỏi ít nhất 1 câu c
 
 **Định hướng:** Dự án mã nguồn mở cho cộng đồng (tự clone, tự điền API key trong `.env`) kết hợp nghiên cứu học thuật và CV; bản nhóm host là bản dùng thử có giới hạn cho repo công khai (D-33).
 
-**Trạng thái:** Quyết định và câu hỏi còn mở nằm ở [`spec/00_QUYET_DINH.md`](spec/00_QUYET_DINH.md).
+**Trạng thái:** Quyết định và câu hỏi còn mở nằm ở [`spec/00_QUYET_DINH.md`](docs/spec/00_QUYET_DINH.md).
 
 ---
 
@@ -19,14 +19,14 @@ Mô hình BKT ghi nhận năng lực kỹ năng: luôn hỏi ít nhất 1 câu c
 
 | Ai | Đọc |
 | :-- | :-- |
-| **Cả nhóm (bắt buộc)** | [`00_QUYET_DINH`](spec/00_QUYET_DINH.md) → [`01_KIEN_TRUC_VA_LUONG`](spec/01_KIEN_TRUC_VA_LUONG.md) → [`02_CONTRACTS`](spec/02_CONTRACTS.md) → [`03_API_VA_LUU_TRU`](spec/03_API_VA_LUU_TRU.md) → [`04_KIEN_TRUC_TRIEN_KHAI`](spec/04_KIEN_TRUC_TRIEN_KHAI.md) |
-| **Vai A — Trưởng tích hợp** | + [`50_TEST_VA_FIXTURE`](spec/50_TEST_VA_FIXTURE.md) |
-| **Vai B — Engine** | + [`10_ENGINE_INGEST`](spec/10_ENGINE_INGEST.md), [`11_ENGINE_DO_THI`](spec/11_ENGINE_DO_THI.md), [`12_ENGINE_MAU_ENTRY`](spec/12_ENGINE_MAU_ENTRY.md) |
-| **Vai C — AI + BKT** | + [`20_AI_GOI_VA_PROMPT`](spec/20_AI_GOI_VA_PROMPT.md), [`21_AI_KIEM_VA_DUYET`](spec/21_AI_KIEM_VA_DUYET.md), [`22_BKT_VA_KE_HOACH_CAU_HOI`](spec/22_BKT_VA_KE_HOACH_CAU_HOI.md) |
-| **Vai D — Giao diện** | + [`30_UI`](spec/30_UI.md) |
-| **Vai E — Kiểm thử & Demo** | + [`50_TEST_VA_FIXTURE`](spec/50_TEST_VA_FIXTURE.md) |
-| **Thuyết trình / người mới** | [`doc-de-hieu/00_toan_canh`](doc-de-hieu/00_toan_canh.md) → [`pitch/KICH_BAN_DEMO`](pitch/KICH_BAN_DEMO.md) → [`pitch/PHAN_BIEN_BGK`](pitch/PHAN_BIEN_BGK.md) |
-| **Tài liệu dễ hiểu / triển khai** | [`doc-de-hieu/01_deploy`](doc-de-hieu/01_deploy.md) (dựng và deploy) → [`doc-de-hieu/07_ke_hoach_21h`](doc-de-hieu/07_ke_hoach_21h.md) (kế hoạch 21 giờ) |
+| **Cả nhóm (bắt buộc)** | [`00_QUYET_DINH`](docs/spec/00_QUYET_DINH.md) → [`01_KIEN_TRUC_VA_LUONG`](docs/spec/01_KIEN_TRUC_VA_LUONG.md) → [`02_CONTRACTS`](docs/spec/02_CONTRACTS.md) → [`03_API_VA_LUU_TRU`](docs/spec/03_API_VA_LUU_TRU.md) → [`04_KIEN_TRUC_TRIEN_KHAI`](docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md) |
+| **Vai A — Trưởng tích hợp** | + [`50_TEST_VA_FIXTURE`](docs/spec/50_TEST_VA_FIXTURE.md) |
+| **Vai B — Engine** | + [`10_ENGINE_INGEST`](docs/spec/10_ENGINE_INGEST.md), [`11_ENGINE_DO_THI`](docs/spec/11_ENGINE_DO_THI.md), [`12_ENGINE_MAU_ENTRY`](docs/spec/12_ENGINE_MAU_ENTRY.md) |
+| **Vai C — AI + BKT** | + [`20_AI_GOI_VA_PROMPT`](docs/spec/20_AI_GOI_VA_PROMPT.md), [`21_AI_KIEM_VA_DUYET`](docs/spec/21_AI_KIEM_VA_DUYET.md), [`22_BKT_VA_KE_HOACH_CAU_HOI`](docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md) |
+| **Vai D — Giao diện** | + [`30_UI`](docs/spec/30_UI.md) |
+| **Vai E — Kiểm thử & Demo** | + [`50_TEST_VA_FIXTURE`](docs/spec/50_TEST_VA_FIXTURE.md) |
+| **Thuyết trình / người mới** | [`doc-de-hieu/00_toan_canh`](docs/doc-de-hieu/00_toan_canh.md) → [`pitch/KICH_BAN_DEMO`](docs/pitch/KICH_BAN_DEMO.md) → [`pitch/PHAN_BIEN_BGK`](docs/pitch/PHAN_BIEN_BGK.md) |
+| **Tài liệu dễ hiểu / triển khai** | [`doc-de-hieu/01_deploy`](docs/doc-de-hieu/01_deploy.md) (dựng và deploy) → [`doc-de-hieu/07_ke_hoach_21h`](docs/doc-de-hieu/07_ke_hoach_21h.md) (kế hoạch 21 giờ) |
 | **Trợ lý AI khi code** | `CLAUDE.md` + đúng các file của module đang làm (mỗi file ≤ ~40 KB, đọc trọn) |
 
 ## Thư mục

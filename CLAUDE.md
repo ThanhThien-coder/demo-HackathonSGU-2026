@@ -6,9 +6,11 @@ Repo rules for every AI (Claude, Antigravity, …): @AGENTS.md. The `.kb/` folde
 
 ## Repository state
 
-This is a **documentation repository** (Vietnamese) for the SimpliFey V2 Pro hackathon project (SGU 2026–2027, "Codebase Cognitive Twin"). There is no source code, build system or test suite here. The product is coded during the 21-hour challenge round (round 2: 7–8/11/2026, assuming 12:00 07/11 → 09:00 08/11/2026; round 3: 09/11/2026) in a **separate, initially empty** competition repo, by following `spec/`. Competition rules (`references/thele.md`): only commits made during the round count, no bulk commit of pre-written code, every member must commit. So: do not scaffold the implementation in this repo, and do not paste large code blocks from `spec/` into the competition repo in one commit.
+This is a **practice code repository** for the SimpliFey V2 Pro hackathon project (SGU 2026–2027, "Codebase Cognitive Twin"), copied from the old documentation repo so the team can rehearse the 21-hour build before the real round (round 2: 7–8/11/2026, assuming 12:00 07/11 → 09:00 08/11/2026; round 3: 09/11/2026). Implementation code **belongs here**: Next.js 15 app in `src/`, scripts in `package.json` (`dev`, `build`, `lint`, `typecheck`, `test` with vitest). The documentation lives under `docs/`; the same `spec/` and `doc-de-hieu/` are copied into `.kb/` for the ai-kit workflow.
 
-Spec changes go through `spec/00_QUYET_DINH.md`.
+Code by following the specs and the per-role task cards in `docs/quy-trinh-code-21h/`. Rehearse the competition rules (`docs/references/thele.md`) as if real: small commits, no bulk commit of pre-written code, every member commits their own work. The AI never commits or pushes on its own; a human commits after review.
+
+Spec changes go through `docs/spec/00_QUYET_DINH.md`.
 
 ## Project in one paragraph
 
@@ -16,7 +18,10 @@ Turns a public GitHub repo (or uploaded `.zip`) into a deterministic map of up t
 
 ## Directory map
 
-- `spec/` — **the only normative source.** Read `README.md` for the per-role reading order.
+- `src/` — application code (Next.js App Router). Tree and library versions: `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` §15, §16.
+- `docs/quy-trinh-code-21h/` — 21-hour build plan per role (`vai-A` … `vai-E`), one card per task.
+- Everything below lives under `docs/` (paths are relative to `docs/`; the `.kb/` copy uses the same relative paths).
+- `spec/` — **the only normative source.** Read the root `README.md` for the per-role reading order.
   - `00_QUYET_DINH.md` — decisions (D-xx), defaults awaiting confirmation, open questions (Q-xx). The only place that may say "proposed / pending".
   - `01_KIEN_TRUC_VA_LUONG.md` — invariants INV-01..13, components, flows, node & question lifecycles, where data lives.
   - `02_CONTRACTS.md` — **all** TypeScript types, every API request/response, all error codes, and the single `CONFIG` constants table.
@@ -41,5 +46,7 @@ Turns a public GitHub repo (or uploaded `.zip`) into a deterministic map of up t
 
 ## Working conventions
 
+- Code must match `spec/02_CONTRACTS.md` (types, API shapes, error codes, `CONFIG`); do not invent names or numbers. Before reporting done, run `npm run typecheck`, `npm run lint` and `npm test`.
+- Never read, print or commit `.env*` files (only `.env.example` is tracked).
 - Docs are written in Vietnamese with Mermaid diagrams and occasional LaTeX; keep that language and style. Prefer relative links.
 - Edit in the main working directory; do not create git worktrees (stray copies exist under `.claude/worktrees/`, ignore them).
