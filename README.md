@@ -49,3 +49,21 @@ Mô hình BKT ghi nhận năng lực kỹ năng: luôn hỏi ít nhất 1 câu c
    - Bản dễ hiểu đặt ở `doc-de-hieu/`.
    - Lịch sử đặt ở `archive/`.
 4. **Số liệu độ trễ / token / chi phí là mục tiêu** cho tới khi đo trên code thật.
+
+## Tự cài đặt
+
+Cần Node.js 20 trở lên và npm.
+
+```bash
+git clone <url-repo-này>
+cd <thư-mục-repo>
+npm ci
+cp .env.example .env.local   # rồi điền giá trị các biến
+npm run dev
+```
+
+Mở http://localhost:3000. Kiểm tra server sống: `curl -i http://localhost:3000/api/health` trả `200 ok`.
+
+Lệnh kiểm: `npm run build`, `npm run typecheck`, `npm run lint`, `npm test`.
+
+Giấy phép: MIT, xem [LICENSE](LICENSE).
