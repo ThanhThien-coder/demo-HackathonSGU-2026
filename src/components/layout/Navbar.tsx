@@ -24,7 +24,7 @@ export function Navbar({ user, className }: NavbarProps) {
   const navLinks = [
     { label: "Trang chủ", href: "/" },
     { label: "Cách học cùng SimpliFey", href: "/how-it-works" },
-    { label: "Tìm kiếm repo yêu thích của bạn", href: "/roadmap" },
+    { label: "Tìm kiếm repo yêu thích của bạn", href: "https://github.com" },
   ];
 
   return (
@@ -50,10 +50,13 @@ export function Navbar({ user, className }: NavbarProps) {
           <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
+              const isExternal = link.href.startsWith("http");
               return (
                 <Link
                   key={link.href}
                   href={link.href}
+                  target={isExternal ? "_blank" : undefined}
+                  rel={isExternal ? "noopener noreferrer" : undefined}
                   className={cn(
                     "inline-block py-1 text-[14px] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95",
                     isActive
@@ -153,19 +156,24 @@ export function Navbar({ user, className }: NavbarProps) {
       {/* Mobile Nav Links drawer */}
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-[#f3f4f6] py-3 px-2 flex flex-col gap-1 bg-white animate-in slide-in-from-top-2 duration-150">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={cn(
-                "px-3 py-2 text-sm font-medium rounded-[8px] text-[#131b2e] transition-all duration-200 ease-out hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-[1.02]",
-                pathname === link.href && "font-semibold text-black bg-[#f3f4f6]"
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const isExternal = link.href.startsWith("http");
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                target={isExternal ? "_blank" : undefined}
+                rel={isExternal ? "noopener noreferrer" : undefined}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={cn(
+                  "px-3 py-2 text-sm font-medium rounded-[8px] text-[#131b2e] transition-all duration-200 ease-out hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-[1.02]",
+                  pathname === link.href && "font-semibold text-black bg-[#f3f4f6]"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           {!user && (
             <div className="border-t border-[#f3f4f6] mt-2 pt-2 flex flex-col gap-2">
               <Link
