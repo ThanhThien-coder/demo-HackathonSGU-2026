@@ -1,11 +1,13 @@
-// Kiểu nội bộ Tầng 1–2 — spec 11 Mục 0, 1, 2.
+// Kiểu nội bộ Tầng 1–2 — spec 11 Mục 0, 1, 2, 8.
 // Kiểu có trong @/contracts chỉ import type, không khai báo lại.
 import type { Tree } from "web-tree-sitter";
 import type {
+  FunctionCallEdge,
   HybridArchitecturalNode,
   LanguageId,
   LanguageSupportTier,
   SymbolDefinition,
+  VirtualFileOrigin,
 } from "@/contracts";
 
 // Mục 0: ExternalCall, RouteBinding, EntryPoint, Candidate, FunctionInfo
@@ -91,4 +93,15 @@ export interface SymbolIndex {
   field_types: FieldTypeMap;
   interface_impls: InterfaceImplMap;
   locals: LocalSymbolIndex;
+}
+
+// Mục 8: EngineContext cho lát cắt (slicing)
+export interface EngineContext {
+  files: Map<string, ParsedFile>;
+  idx: SymbolIndex;
+  edges: FunctionCallEdge[];
+  external: ExternalCall[];
+  tech_stack: string[];
+  rank: Map<string, number>;
+  source_map: Map<string, VirtualFileOrigin>;
 }
