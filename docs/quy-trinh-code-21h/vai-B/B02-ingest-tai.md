@@ -42,9 +42,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B0: Tạo `src/server/engine/ingest/types.ts` chứa kiểu nội bộ Tầng 0 mà phiếu này sinh ra: `ResolvedRef` (Mục 3), `RawArchive` (Mục 4), và lớp `IngestionError extends Error` có thuộc tính `code: IngestionErrorCode` (`docs/spec/02_CONTRACTS.md` Mục 3). Mọi lỗi Tầng 0 ném `IngestionError` với đúng mã trong spec, không ném `Error` thường. Kiểu đã có trong `@/contracts` thì `import type`, không khai báo lại.
 3. B1: Viết `url.ts` chuẩn hóa và phân tích link GitHub theo `docs/spec/10_ENGINE_INGEST.md` Mục 1 (D-38, ING-10, ING-11, ING-12, ING-13).
-4. B2: Viết `probe.ts` và `refs.ts` thăm dò repo và tìm nhánh mặc định theo `docs/spec/10_ENGINE_INGEST.md` Mục 2, 3 (ING-20, ING-21, ING-22, ING-30, ING-31, ING-32, ING-33, ING-34).
-5. B3: Viết `download.ts` tải zip trong RAM có trần byte và timer theo `docs/spec/10_ENGINE_INGEST.md` Mục 4 (chỉ RAM, ING-01, ING-40, ING-42, ING-43, ING-44, ING-45), viết `snapshot.ts` định danh phiên bản theo Mục 5 (ING-50, ING-52).
-6. Viết test trong `src/server/engine/ingest/__tests__/tai.test.ts` bao phủ các ca T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 bằng mock `fetch`.
+4. B2: Viết `probe.ts` và `refs.ts` thăm dò repo và tìm nhánh mặc định theo `docs/spec/10_ENGINE_INGEST.md` Mục 2, 3 (ING-20, ING-21, ING-22, ING-30, ING-31, ING-32, ING-33, ING-34). `ref_label` lấy đúng theo ING-32 (GitHub chuyển hướng `archive/HEAD.zip` tới SHA nên `ref_label` sẽ là SHA; không tự đổi). ING-34 chỉ chuẩn hóa chuỗi `subdir_override`; lỗi `ERR_NO_SOURCE_FILES_FOUND` báo ở B03 (`detectScope`).
+5. B3: Viết `download.ts` tải zip trong RAM có trần byte và timer theo `docs/spec/10_ENGINE_INGEST.md` Mục 4 (chỉ RAM, ING-01, ING-40, ING-42, ING-43, ING-44, ING-45), viết `snapshot.ts` định danh phiên bản theo Mục 5 (ING-50, ING-52). Hai điểm hay sai:
+   - `computeSnapshot`: `ref` khớp 40 hex ⇒ `COMMIT_SHA` = `ref` **kể cả khi `stream_cut`**; `stream_cut` chỉ bỏ bước đọc EOCD (Mục 5 ý 2).
+   - `receiveUpload` chỉ nhận `multipart/form-data` có trường `archive`; body khác ⇒ `ERR_UPLOAD_INVALID` (ING-45). Không nhận luồng nhị phân trần.
+   - `downloadArchive` chỉ hẹn giờ và thử lại phần tải. Vòng thử lại phủ cả giải nén (ING-40, ING-44 khi zip hỏng ING-63) để B04 làm trong `runIngest`.
+6. Viết test trong `src/server/engine/ingest/__tests__/tai.test.ts` bao phủ các ca T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 bằng mock `fetch`, thêm ca `stream_cut` + ref 40 hex. Tên test đầy đủ (gồm cả `describe` bọc ngoài) bắt đầu bằng mã T-ING hoặc ING, không bắt đầu bằng tên task. Trong test, `new File([...])` nhận `Uint8Array` thì bọc `new Uint8Array(x)` để `tsc` không báo lỗi `BlobPart`.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong

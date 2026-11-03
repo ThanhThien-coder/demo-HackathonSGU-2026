@@ -47,12 +47,22 @@ Spec ghi nhiều kiểu là `// nội bộ` (chỉ engine dùng, không có tron
 | File | Phiếu tạo | Kiểu | Phiếu thêm sau |
 | :-- | :-- | :-- | :-- |
 | `src/contracts/*` (Vai A, A02) | A02 | `CONFIG`, `LanguageAdapter`, `SymbolDefinition`, `FunctionCallEdge`, `IngestSource`, `IngestOutput`, `IngestionReport`, `IngestionErrorCode`, `StaticEngineResult`… | Không ai trong vai B được sửa. Thiếu thì báo Vai A |
-| `src/server/engine/ingest/types.ts` | B02 | `ResolvedRef`, `RawArchive`, lớp `IngestionError` (có `code: IngestionErrorCode`) | B03: `ZipEntryMeta`, `EntryClass`, `ClassifiedEntry`, `ScopeDecision` · B04, B09 nếu cần |
+| `src/server/engine/ingest/types.ts` | B02 | `ResolvedRef`, `RawArchive`, lớp `IngestionError` (có `code: IngestionErrorCode`) | B03: `ZipEntryMeta`, `EntryClass`, `ClassifiedEntry`, `ScopeDecision`, `LanguageRegistry` (`{ adapters, known_no_grammar }`) · B04, B09 nếu cần |
 | `src/server/engine/graph/types.ts` | B05 | `ExternalCall`, `RouteBinding`, `EntryPoint`, `Candidate`, `FunctionInfo`, `ParsedFile`, `SymbolIndex` | B06: `EngineContext` · B07, B10 nếu cần |
 
 Lỗi của cả Tầng 0 và Tầng 1–2 (kể cả `ERR_NO_ARCHITECTURAL_SLICE`) đều ném `IngestionError`. Vai A (A06) bắt lỗi này và đổi `code` thành `ApiError`.
 
 Từ B02 trở đi, lệnh kiểm của mọi phiếu đều chạy `npx tsc --noEmit` trước `vitest`, để bắt sớm chỗ hai phiếu hiểu một kiểu khác nhau.
+
+## Luật chung khi spec để hở (rút ra từ lần tập B01–B03)
+
+- **Hàm spec không nhận `report` nhưng luật cần đếm `skipped.*` hoặc ghi warning** (vd. `readCentralDirectory`, `classifyEntry`, `detectScope`, `computeSnapshot`): thêm tham số tùy chọn `report?: IngestionReport` ở **cuối** chữ ký, giữ nguyên thứ tự và kiểu các tham số spec đã ghi. Cách này cũng dùng cho `runEngine(src, signal?)` ở B07.
+- **Spec không ghi câu chữ warning hay con số** ⇒ không tự đặt; ghi vào báo cáo task để người giữ spec chốt.
+- **Thử lại và hẹn giờ của Tầng 0** (ING-40, ING-44) nằm ở `runIngest` (B04), vì zip hỏng chỉ phát hiện được khi đọc mục lục (B03). Hàm con chỉ nhận `signal` và ném `IngestionError`.
+- **Tên test:** tên đầy đủ (gồm `describe` bọc ngoài) bắt đầu bằng mã luật hoặc mã test (`T-ING-07 …`, `ING-45 …`), không bắt đầu bằng tên task.
+- **Test không đụng đĩa, không gọi mạng thật:** zip mẫu dựng trong RAM bằng `fflate`, mạng giả bằng mock `fetch`.
+- **Mỗi phiếu chạy lại toàn bộ `npx vitest run src/server/engine`** trước khi commit, để chắc không làm hỏng phiếu trước.
+- **Kết quả Bước 0 của B01 (03/11):** codeload trả đúng mã cho `HEAD`; comment EOCD là SHA 40 hex; `archive/HEAD.zip` chuyển hướng tới **SHA** chứ không phải tên nhánh ⇒ `ref_label` hiện là SHA (giữ theo spec, chờ nhóm chốt).
 
 ## Bạn chờ ai, ai chờ bạn
 
