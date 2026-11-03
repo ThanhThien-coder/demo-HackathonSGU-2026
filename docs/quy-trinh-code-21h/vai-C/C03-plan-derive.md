@@ -39,7 +39,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1 `planNodeQuestions` (.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 5, 6; D-34): chọn kỹ năng và tier (BKT-41), mọi kỹ năng đã thạo vẫn hỏi 1 câu (BKT-31, D-34), xếp thứ tự câu (BKT-42), chọn góc focus (BKT-44, BKT-46), chọn step_indices gửi AI (BKT-48).
-3. B2 `nodeStatusFromRuns` và persona (.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 8, 9): tính màu node từ kết quả các run LEARN (BKT-70..72); định nghĩa dữ liệu 3 persona theo .kb/spec/02_CONTRACTS.md Mục 6.
+3. B2 `nodeStatusFromRuns` và persona (.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 8, 9): tính màu node từ kết quả các run LEARN (BKT-70..72). Persona: dùng hằng `PERSONAS` có sẵn trong `@/contracts` (.kb/spec/02_CONTRACTS.md Mục 6, do Vai A viết ở A02), KHÔNG định nghĩa lại; route ghi persona (`src/server/persona.ts`) là việc của Vai A (A11). Test T-PER kiểm các số của 3 persona bằng hàm trong `bkt-engine.ts` (C02) với dữ liệu lấy từ `PERSONAS`.
 4. B3 `deriveNodeStates` (.kb/spec/03_API_VA_LUU_TRU.md Mục 5.1): duyệt các node theo thứ tự tô-pô, xác định trạng thái AVAILABLE khi mọi node cha đã thông hoặc soft-bypass khi analysis_failed, xác định cờ has_warning.
 5. Viết test cho nhóm T-PLAN, T-RUN, T-PER trong `src/lib/__tests__/plan.test.ts` và test cho `deriveNodeStates` trong `src/lib/__tests__/derive.test.ts`.
 6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.

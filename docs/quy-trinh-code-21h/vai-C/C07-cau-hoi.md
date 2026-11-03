@@ -41,13 +41,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1 luồng đặt câu hỏi, bước gửi AI, prompt (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 6, AI-22, AI-23, AI-25): hiện thực `generateQuestions`, prompt QUESTIONS_SYSTEM kèm FOCUS_GUIDE_A/B, schema câu hỏi; chỉ gửi code các bước trong step_indices (AI-23); gọi lại câu hỏng kèm lý do phản hồi cổng gác; câu hỏng sau retry đánh dấu DROPPED.
 3. B2 `checkQuestions` (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 5, GUARD-12): kiểm tra câu hỏi và đáp án mẫu theo Q1–Q8 (kỹ năng, số ý bắt buộc, tên trong code, số dòng, từ cấm, từ cuối symbol cho WEAKNESS, số bước cho FLOW, tên file cho CHANGE).
-4. Viết test trong `src/server/ai/__tests__/questions.test.ts` cho các trường hợp AI-22, AI-23, GUARD-12 dùng fixture 2.3 của .kb/spec/50_TEST_VA_FIXTURE.md.
+4. Viết test trong `src/server/ai/__tests__/questions.test.ts` cho các trường hợp AI-22, AI-23, GUARD-12 dùng file fixture có sẵn `src/server/ai/__fixtures__/questions-n3.json` (fixture 2.3 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture.
 5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai`
 - Có test (mock AI hoặc mock DB) cho ca D4, D5 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
-- Test AI-22: câu 2 trượt gác thì request 2 chỉ gửi lại câu 2; câu trượt 2 lần đánh dấu DROPPED.
+- Test AI-22: câu 2 trượt gác thì request 2 chỉ gửi lại câu 2; câu trượt 2 lần đánh dấu DROPPED, câu 1 giữ; cả 2 câu trượt 2 lần thì trả `ERR_AI_REJECTED`; không ghi `ai_cache` (D-37).
+- Test AI-37: câu 2 bị chặn thì request 2 chỉ có câu 2 và lý do của câu 2.
 - Test AI-23: kế hoạch N3 gửi bước 1–3 vào code_data; prompt không cache (D-37).
 - Test GUARD-12: fixture 2.3 qua hết kiểm tra; câu chứa Redis bị từ chối mã Q5; FLOW thiếu bước bị từ chối mã Q7.
 

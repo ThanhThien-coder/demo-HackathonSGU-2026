@@ -4,7 +4,7 @@
 | :-- | :-- |
 | Giờ | 22:00–00:00 (H+10 → H+12) · **Lát dọc 2 lúc 00:00** |
 | Nhánh | `c/C08-cham` |
-| Cần có trước | C07 |
+| Cần có trước | C07, E04 (`src/server/ai/guard/injection.ts` đã merge) |
 | Mở đường cho | A10 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
@@ -19,7 +19,7 @@ git checkout main; git pull; npm ci; git checkout -b c/C08-cham
 ```text
 Dùng skill tao-task để tạo task tên "C08 — Chấm và gợi ý evaluate-feynman". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
-Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C07. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C07, E04 (`src/server/ai/guard/injection.ts` đã merge). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
 
 ## Được đọc
 - `.kb/README.md`
@@ -42,7 +42,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 2. B1 `gradeWithAI`, prompt, schema, luật Đạt (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 7: AI-27, AI-28, AI-29, AI-30): hiện thực hàm `gradeWithAI` (không nhận code, D-36); prompt GRADE_SYSTEM; hàm kẹp chuẩn hóa `normalizeGrading`; kiểm tra trích dẫn có thật `coveredFlags` và quyết định đạt `decidePass` (AI-30, D-13).
 3. B2 gợi ý theo lượt, mẫu tĩnh, `injectionGrading`, `toEvaluateResponse` (AI-31, AI-32, AI-33, AI-34): gợi ý theo lượt `expectedFollowUpType`, `decideFollowUp`; mẫu tĩnh `staticHint`, `staticFeedback` (AI-32); hàm `injectionGrading` (AI-33); hàm chuyển đổi response `toEvaluateResponse` (AI-34).
 4. B3 `verifyFollowUp`, làm sạch (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 6, GUARD-13, GUARD-14): hàm `verifyFollowUp` kiểm tra gợi ý không lộ vị trí/con số (leaksNumbers) và feedback người học; hàm làm sạch thuật ngữ và giới hạn số câu.
-5. Viết test trong `src/server/ai/__tests__/grade.test.ts` cho các trường hợp AI-27, AI-30a, AI-30b, AI-31, AI-32, AI-33, GUARD-13, GUARD-14 dùng fixture 2.4 của .kb/spec/50_TEST_VA_FIXTURE.md.
+5. Viết test trong `src/server/ai/__tests__/grade.test.ts` cho các trường hợp AI-27, AI-30a, AI-30b, AI-31, AI-32, AI-33, GUARD-13, GUARD-14 dùng file fixture có sẵn `src/server/ai/__fixtures__/grading-n3-q1.json` (fixture 2.4 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Nhận diện câu tấn công dùng `isInjection` của `src/server/ai/guard/injection.ts` (E04), không viết lại.
 6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
@@ -52,6 +52,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Test AI-31, AI-32: lượt 1 gợi ý CONCEPT, lượt 2 gợi ý CODE_POINTER, lượt cuối null; gợi ý vi phạm cổng gác tự động chuyển sang mẫu tĩnh.
 - Test AI-33: câu lệnh tiêm prompt thì nhận injectionGrading, 0 điểm, 0 token, không gợi ý.
 - Test GUARD-13, GUARD-14: kiểm tra lộ số và làm sạch feedback đúng quy tắc.
+- Test AI-37 (lời gọi chấm): gợi ý trượt gác thì không gọi lại, dùng mẫu tĩnh, có dòng log mã `G1`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -77,7 +78,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Test AI-30a, AI-30b đạt: luật Đạt yêu cầu trích dẫn có thật trong câu trả lời người học.
 - [ ] Test AI-31, AI-32 đạt: cơ chế gợi ý 3 nấc chuẩn xác và chuyển mẫu tĩnh an toàn khi trượt gác.
-- [ ] Test GUARD-13, GUARD-14 đạt: cổng gác chặn triệt để lộ con số và tên hàm ở gợi ý CONCEPT.
+- [ ] Test GUARD-13, GUARD-14 đạt: cổng gác chặn đúng các ca lộ con số và tên hàm ở gợi ý CONCEPT trong GUARD-13.
 
 - [ ] Có test cho ca D8 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 ```text
