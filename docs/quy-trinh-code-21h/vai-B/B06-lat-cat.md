@@ -39,14 +39,16 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1: Viết `tarjan.ts` tìm thành phần liên thông mạnh SCC theo `docs/spec/11_ENGINE_DO_THI.md` Mục 6 (ENG-60), viết `pagerank.ts` tính PageRank trên DAG co cụm theo Mục 6 (ENG-62), viết `complexity.ts` tính Cognitive Complexity theo chuẩn SonarQube và xác định hàm VIP theo Mục 7 (ENG-71, ENG-74).
-3. B2: Viết `slicing.ts` thực hiện cắt lát gọi hàm Forward Slicing từ entry point, lọc dữ liệu liên quan `DATA_SINK`, gán layer kiến trúc, áp dụng hard clamp và trần kích thước node theo Mục 8 (ENG-80, ENG-81, ENG-82, ENG-86, ENG-87, ENG-88, ENG-89). Thêm `EngineContext` (tham số `ctx` của `buildSlice`, gom đồ thị hàm, `ExternalCall[]`, `SymbolIndex`, `ParsedFile[]` mà Mục 8 cần) vào `graph/types.ts`. Dùng lại `Candidate`, `EntryPoint`, `ExternalCall` B05 đã khai báo, không khai báo lại.
-4. Viết test trong `src/server/engine/graph/__tests__/lat-cat.test.ts` bao phủ các ca T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11 (T-ENG-08, T-ENG-09 chuyển từ B05 sang vì kỳ vọng là bước lát cắt và marker).
+   - **Chốt tên hàm spec chưa đặt** (giữ nguyên `tarjanScc(nodes, adj)`, `pageRank(dag)` của spec): `rankFiles(fileGraph: ReturnType<typeof fileGraph>, ingressFiles: Set<string>, report?: IngestionReport): Map<string, number>` trong `pagerank.ts` (Tarjan ⇒ xử lý SCC khổng lồ Mục 6 ý 2 ⇒ PageRank ⇒ `+ CONFIG.INGRESS_BONUS`, D-09); `cognitiveComplexity(fn: SymbolDefinition, file: ParsedFile): number` và `pickVipFunctions(fns: FunctionInfo[], rank: Map<string, number>): FunctionInfo[]` (VIP, hoặc dự phòng ENG-74 với thứ tự complexity giảm, rank file giảm, khóa tăng) trong `complexity.ts`.
+3. B2: Viết `slicing.ts` thực hiện cắt lát gọi hàm Forward Slicing từ entry point, lọc dữ liệu liên quan `DATA_SINK`, gán layer kiến trúc, áp dụng hard clamp và trần kích thước node theo Mục 8 (ENG-80, ENG-81, ENG-82, ENG-86, ENG-87, ENG-88, ENG-89). Thêm `EngineContext` vào `graph/types.ts` với đúng các trường Mục 8 cần: `files: Map<string, ParsedFile>`, `idx: SymbolIndex`, `edges: FunctionCallEdge[]`, `external: ExternalCall[]`, `tech_stack: string[]` (luật DATA_SINK (c)), `rank: Map<string, number>`, `source_map: Map<string, VirtualFileOrigin>` (origin_note). Marker lược dòng (ENG-86) dùng `comment_prefix` của adapter trong `registry.ts`; cắt dòng theo index UTF-16 của `web-tree-sitter` (luật README vai B). Dùng lại `Candidate`, `EntryPoint`, `ExternalCall` B05 đã khai báo, không khai báo lại.
+4. Viết test trong `src/server/engine/graph/__tests__/lat-cat.test.ts` bao phủ các ca T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11 (T-ENG-08, T-ENG-09 chuyển từ B05 sang vì kỳ vọng là bước lát cắt và marker). Test dựng input bằng `parseAll` ⇒ `collectSymbols` ⇒ `resolveImports` ⇒ `buildCallGraph` ⇒ `findEntries` của B05 (không tự dựng cây giả). Tên test đầy đủ bắt đầu bằng mã T-ENG hoặc ENG. Số kỳ vọng (12, 5, 0.1844…, 30 dòng…) lấy đúng bảng spec, số thực so bằng `toBeCloseTo`.
 5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/graph/__tests__/lat-cat.test.ts`
 - Có đủ các test T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11 và tất cả chạy xanh.
 - Điểm Cognitive Complexity tính chính xác: cấu trúc `else if` không cộng thêm mức lồng (T-ENG-02).
+- `npx vitest run src/server/engine` vẫn xanh (B01–B05 không hỏng) và `npx eslint src/server/engine` 0 error, 0 warning.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -54,6 +56,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Kiểu nội bộ (spec ghi `// nội bộ`) chỉ khai báo ở `src/server/engine/ingest/types.ts` (Tầng 0) hoặc `src/server/engine/graph/types.ts` (Tầng 1–2); file khác `import type` từ đó. Không khai báo lại kiểu đã có ở `@/contracts` hay `types.ts`, không đổi tên hay xóa trường đã có. Cần đổi kiểu phiếu trước đã tạo thì đổi trạng thái `kẹt` và ghi rõ kiểu nào.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
+- Không ghi file ra đĩa, không `Math.random`, không dùng đồng hồ; sort bằng `.sort()` mặc định hoặc so số, không `localeCompare`; cộng số thực theo thứ tự khóa đã sort (ENG-01).
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
 ```
 
@@ -71,6 +74,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/server/engine/graph/__tests__/lat-cat.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
+- [ ] `npx vitest run src/server/engine` và `npx eslint src/server/engine` đều sạch.
 - [ ] Có đầy đủ các test T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11.
 - [ ] Lát cắt tuân thủ đúng giới hạn dòng và token theo `CONFIG.NODE_MAX_LINES` và `CONFIG.NODE_MAX_CODE_TOKENS`.
 
