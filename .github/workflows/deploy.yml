@@ -1,0 +1,171 @@
+# Secrets cần tạo:
+# - VERCEL_TOKEN
+# - VERCEL_ORG_ID
+# - VERCEL_PROJECT_ID
+# - VERCEL_AUTOMATION_BYPASS_SECRET
+# - STAGING_SUPABASE_URL
+# - STAGING_SUPABASE_ANON_KEY
+# - SMOKE_BOT_EMAIL
+# - SMOKE_BOT_PASSWORD
+#
+# Variables repo cần tạo:
+# - DEMO_REPO_URL
+#
+# Tập dượt dùng Vercel, khi thi thật đổi sang Cloud Run theo D-30
+
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Cài đặt Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Tải cấu hình môi trường xem trước Vercel
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Đóng gói bản xem trước Vercel
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Triển khai bản xem trước lên Vercel
+        id: deploy
+        run: |
+          DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Kiểm tra sức khỏe hệ thống (/api/health)
+        env:
+          STAGING_URL: ${{ needs.staging.outputs.url }}
+          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -s -S -o /tmp/health_body.txt -w "%{http_code}" --max-time 10 \
+            -H "x-vercel-protection-bypass: $BYPASS_SECRET" \
+            "$STAGING_URL/api/health")
+          BODY=$(cat /tmp/health_body.txt)
+          if [ "$STATUS" -ne 200 ] || [ "$BODY" != "ok" ]; then
+            echo "Kiểm tra /api/health thất bại: status=$STATUS, body=$BODY"
+            exit 1
+          fi
+          echo "Kiểm tra /api/health đạt: status=$STATUS, body=$BODY"
+
+      - name: Lấy token tài khoản bot từ Supabase Auth
+        env:
+          BOT_EMAIL: ${{ secrets.SMOKE_BOT_EMAIL }}
+          BOT_PASSWORD: ${{ secrets.SMOKE_BOT_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n --arg email "$BOT_EMAIL" --arg password "$BOT_PASSWORD" '{email: $email, password: $password}')
+          RESP=$(curl -s -S -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+          TOKEN=$(echo "$RESP" | jq -r '.access_token // empty')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Không lấy được access_token từ Supabase Auth"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Kiểm thử nạp mã nguồn mẫu (Ingest X-09)
+        env:
+          DEMO_REPO: ${{ vars.DEMO_REPO_URL }}
+          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          STAGING_URL: ${{ needs.staging.outputs.url }}
+        run: |
+          set -euo pipefail
+          MIN_NODES=$(grep -oE 'DISPLAY_MIN_NODES: *[0-9]+' src/contracts/config.ts | grep -oE '[0-9]+')
+          PAYLOAD=$(jq -n --arg repo "$DEMO_REPO" '{repo_url: $repo}')
+          RESP_FILE=$(mktemp)
+          HTTP_STATUS=$(curl -s -S -o "$RESP_FILE" -w "%{http_code}" --max-time 60 -X POST "$STAGING_URL/api/ingest" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "x-vercel-protection-bypass: $BYPASS_SECRET" \
+            -d "$PAYLOAD")
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Ingest thất bại: mã HTTP $HTTP_STATUS"
+            rm -f "$RESP_FILE"
+            exit 1
+          fi
+
+          SESSION_ID=$(jq -r '.session_id // empty' "$RESP_FILE")
+          NODE_COUNT=$(jq -r '.result.nodes | length // 0' "$RESP_FILE")
+          rm -f "$RESP_FILE"
+
+          if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+            echo "Ingest thất bại: session_id rỗng (mã HTTP $HTTP_STATUS)"
+            exit 1
+          fi
+
+          if [ "$NODE_COUNT" -lt "$MIN_NODES" ]; then
+            echo "Ingest thất bại: số nodes ($NODE_COUNT) nhỏ hơn ngưỡng tối thiểu ($MIN_NODES) (mã HTTP $HTTP_STATUS)"
+            exit 1
+          fi
+
+          echo "Ingest đạt: session_id hợp lệ, số nodes $NODE_COUNT >= $MIN_NODES"
+
+  production:
+    needs: smoke
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Cài đặt Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Tải cấu hình môi trường sản xuất Vercel
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Đóng gói bản sản xuất Vercel
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Triển khai bản sản xuất lên Vercel
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
