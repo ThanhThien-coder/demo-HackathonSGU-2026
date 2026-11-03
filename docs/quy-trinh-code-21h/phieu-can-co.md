@@ -24,7 +24,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 | Phiếu | Vai | Cần có trước | File phiếu tạo ra |
 | :-- | :-- | :-- | :-- |
-| A01 | A — Trưởng tích hợp | Bước 0 trong `.kb/doc-de-hieu/01_deploy.md` Mục 3 | `package.json`<br>`package-lock.json`<br>`tsconfig.json`<br>`next.config.ts`<br>`tailwind.config.ts`<br>`postcss.config.mjs`<br>`eslint.config.mjs`<br>`vitest.config.ts`<br>`.gitignore`<br>`.env.example`<br>`README.md`<br>`LICENSE`<br>`src/app/layout.tsx`<br>`src/app/page.tsx`<br>`src/app/globals.css`<br>`src/app/api/health/route.ts` |
+| A01 | A — Trưởng tích hợp | Bước 0 trong `.kb/doc-de-hieu/01_deploy.md` Mục 3 | `package.json`<br>`package-lock.json`<br>`tsconfig.json`<br>`next.config.ts`<br>`postcss.config.mjs`<br>`eslint.config.mjs`<br>`vitest.config.ts`<br>`.gitignore`<br>`.env.example`<br>`README.md`<br>`LICENSE`<br>`src/app/layout.tsx`<br>`src/app/page.tsx`<br>`src/app/globals.css`<br>`src/app/api/health/route.ts` |
 | A02 | A — Trưởng tích hợp | A01 (khung code trên main) | `src/contracts/` |
 | A03 | A — Trưởng tích hợp | A01 (khung code trên main); WIF, Secrets, Environment production dựng trước ngày thi | `.github/workflows/ci.yml`<br>`.github/workflows/security.yml`<br>`.github/workflows/deploy.yml`<br>`.github/dependabot.yml` |
 | A04 | A — Trưởng tích hợp | A02 (contracts đã merge) | `supabase/migrations/0001_init.sql`<br>`src/server/db.ts`<br>`src/server/auth.ts`<br>`src/server/errors.ts`<br>`src/server/log.ts`<br>`src/app/auth/callback/route.ts`<br>`src/app/api/me/route.ts`<br>`src/server/__tests__/errors.test.ts` |
@@ -49,14 +49,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 | C01 | C — AI + BKT | Bước 1 cần A01 | `src/server/ai/gemini.ts`<br>`src/server/ai/__tests__/gemini.test.ts` |
 | C02 | C — AI + BKT | A02 (contracts đã merge) | `src/lib/bkt-engine.ts`<br>`src/lib/__tests__/bkt-engine.test.ts` |
 | C03 | C — AI + BKT | C02 | `src/lib/plan.ts`<br>`src/lib/derive.ts`<br>`src/lib/__tests__/plan.test.ts`<br>`src/lib/__tests__/derive.test.ts` |
-| C04 | C — AI + BKT | C01 | `src/server/ai/gemini.ts`<br>`src/server/ai/prompts/common.ts`<br>`src/server/ai/schemas.ts`<br>`src/server/ai/__tests__/gemini.test.ts`<br>`src/server/ai/__tests__/common.test.ts` |
-| C05 | C — AI + BKT | C04, E03 (`src/server/ai/guard/forbidden.ts` đã merge) | `src/server/ai/guard/text.ts`<br>`src/server/ai/guard/names.ts`<br>`src/server/ai/guard/lines.ts`<br>`src/server/ai/guard/analysis.ts`<br>`src/server/ai/guard/log.ts`<br>`src/server/ai/guard/__tests__/loi.test.ts` |
+| C04 | C — AI + BKT | C01, A02 (contracts đã merge) | `src/server/ai/gemini.ts`<br>`src/server/ai/prompts/common.ts`<br>`src/server/ai/schemas.ts`<br>`src/server/ai/__tests__/gemini.test.ts`<br>`src/server/ai/__tests__/common.test.ts` |
+| C05 | C — AI + BKT | C04, E03 (`src/server/ai/guard/forbidden.ts` đã merge), E02 (fixture AI đã merge) | `src/server/ai/guard/text.ts`<br>`src/server/ai/guard/names.ts`<br>`src/server/ai/guard/lines.ts`<br>`src/server/ai/guard/analysis.ts`<br>`src/server/ai/guard/log.ts`<br>`src/server/ai/guard/__tests__/loi.test.ts` |
 | C06 | C — AI + BKT | C05 | `src/server/ai/analyze.ts`<br>`src/server/ai/prompts/analyze.ts`<br>`src/server/ai/__tests__/analyze.test.ts` |
 | C07 | C — AI + BKT | C06, C03 | `src/server/ai/questions.ts`<br>`src/server/ai/prompts/questions.ts`<br>`src/server/ai/guard/questions.ts`<br>`src/server/ai/__tests__/questions.test.ts` |
-| C08 | C — AI + BKT | C07 | `src/server/ai/grade.ts`<br>`src/server/ai/prompts/grade.ts`<br>`src/server/ai/guard/followup.ts`<br>`src/server/ai/__tests__/grade.test.ts` |
-| C09 | C — AI + BKT | C06 | `src/server/ai/overview.ts`<br>`src/server/ai/prompts/overview.ts`<br>`src/server/ai/guard/overview.ts`<br>`src/app/api/analyze-overview/route.ts`<br>`src/server/ai/__tests__/overview.test.ts` |
+| C08 | C — AI + BKT | C07, E04 (`src/server/ai/guard/injection.ts` đã merge) | `src/server/ai/grade.ts`<br>`src/server/ai/prompts/grade.ts`<br>`src/server/ai/guard/followup.ts`<br>`src/server/ai/__tests__/grade.test.ts` |
+| C09 | C — AI + BKT | C06, A05 (phiên, cache, quota), A07 (route `analyze-node` làm mẫu) | `src/server/ai/overview.ts`<br>`src/server/ai/prompts/overview.ts`<br>`src/server/ai/guard/overview.ts`<br>`src/app/api/analyze-overview/route.ts`<br>`src/server/ai/__tests__/overview.test.ts`<br>`src/app/api/__tests__/analyze-overview.test.ts` |
 | C10 | C — AI + BKT | C09, E08 (kết quả chạy duyệt lần 1 của Vai E) | `scripts/record-bundle.ts`<br>`public/demo/mock_bundle.json` |
-| D01 | D — Giao diện | A01 (khung code trên main) | `src/app/layout.tsx`<br>`src/app/page.tsx`<br>`src/app/globals.css`<br>`tailwind.config.ts` |
+| D01 | D — Giao diện | A01 (khung code trên main) | `src/app/layout.tsx`<br>`src/app/page.tsx`<br>`src/app/globals.css` |
 | D02 | D — Giao diện | A02 (contracts đã merge) | `src/store/workbench.ts`<br>`src/lib/api.ts`<br>`src/lib/messages.ts`<br>`src/lib/__tests__/messages.test.ts` |
 | D03 | D — Giao diện | D02, E01 (fixture `shop-api`) | `src/components/canvas/DagCanvas.tsx`<br>`src/components/canvas/CanvasToolbar.tsx`<br>`src/components/canvas/GraphNodeCard.tsx`<br>`src/app/dev/page.tsx` |
 | D04 | D — Giao diện | D03 | `src/components/code/CodePane.tsx`<br>`src/components/code/slice-model.ts`<br>`src/components/code/__tests__/slice-model.test.ts` |

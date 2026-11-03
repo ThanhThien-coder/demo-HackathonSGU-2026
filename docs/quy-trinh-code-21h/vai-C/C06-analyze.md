@@ -45,7 +45,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/__tests__/analyze.test.ts`
-- Có test (mock AI hoặc mock DB) cho ca D2, D3 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
+- Có test (mock AI) cho ca D2, D3 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca. D2 chỉ kiểm phần của `analyzeNode`: AI lỗi 2 lần thì trả `null` (phần `analysis_failed`, màu vàng, mở node con thuộc route của Vai A và giao diện của Vai D). D3: tên bịa ở phần chữ 2 lần thì trả `skeleton_only = true`, kỹ năng đã qua kiểm vẫn giữ.
 - Test AI-15: lần 1 skeleton_only, lần 2 null thì giữ bản skeleton_only.
 - Test AI-18: chuyển đổi toAnalysisView gắn đúng số dòng gốc và file_path cho từng kỹ năng.
 - Test AI-37: lần 1 trả skeleton_only thì request 2 được bổ sung thẻ `<guard_feedback>` chứa mã lỗi.

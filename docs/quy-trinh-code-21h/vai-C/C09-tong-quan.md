@@ -4,7 +4,7 @@
 | :-- | :-- |
 | Giờ | 00:00–03:00 (H+12 → H+15) · **Mốc H+16: tổng quan** |
 | Nhánh | `c/C09-tong-quan` |
-| Cần có trước | C06 |
+| Cần có trước | C06, A05 (phiên, cache, quota), A07 (route `analyze-node` làm mẫu) |
 | Mở đường cho | A12 (A review route lúc 03:00), D10 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
@@ -19,7 +19,7 @@ git checkout main; git pull; npm ci; git checkout -b c/C09-tong-quan
 ```text
 Dùng skill tao-task để tạo task tên "C09 — Tổng quan repo, route analyze-overview". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
-Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C06. Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: C06, A05 (phiên, cache, quota), A07 (route `analyze-node` làm mẫu). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
 
 Ghi chú: Route /api/analyze-overview vốn là việc của Vai A, được chuyển cho Vai C thực hiện vì Vai A đi ngủ trong khoảng 00:30–03:00; Vai A sẽ review PR này lúc 03:00 khi thức dậy.
 
@@ -39,17 +39,18 @@ Ghi chú: Route /api/analyze-overview vốn là việc của Vai A, được chu
 - `src/server/ai/guard/overview.ts`
 - `src/app/api/analyze-overview/route.ts`
 - `src/server/ai/__tests__/overview.test.ts`
+- `src/app/api/__tests__/analyze-overview.test.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1 luồng, prompt, schema, view (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 5, AI-19): hàm `analyzeOverview` nhận tóm tắt từ các bản phân tích node (không nhận code); prompt OVERVIEW_SYSTEM; OVERVIEW_SCHEMA; hàm tính `facts` do code dựng và ghép phần `ai`.
 3. B2 `checkOverview` (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 4, GUARD-11): kiểm tra kiểu kiến trúc, gạn lọc layers, chỉ giữ nhận xét notes khi mọi node liên quan có weak_points; kiểm tra tên trong repoScope, từ cấm, không có số dòng (O1–O4).
-4. B3 route POST `/api/analyze-overview` theo .kb/spec/03_API_VA_LUU_TRU.md Mục 2 dòng 7, Mục 6.6: kiểm tra xác thực, kiểm tra quyền sở hữu phiên, kiểm tra mọi node không analysis_failed đều đã có phân tích (nếu chưa ⇒ trả mã HTTP 409 ERR_OVERVIEW_NOT_READY); tra cứu cache `ai_cache` theo khóa REPO_OVERVIEW (.kb/spec/03_API_VA_LUU_TRU.md Mục 3.3); kiểm tra quota token; ghi dòng `ai_usage` khi gọi AI thành công.
-5. Viết test trong `src/server/ai/__tests__/overview.test.ts` cho các trường hợp GUARD-11 dùng fixture 2.2 của .kb/spec/50_TEST_VA_FIXTURE.md.
+4. B3 route POST `/api/analyze-overview` theo .kb/spec/03_API_VA_LUU_TRU.md Mục 2 dòng 7, Mục 6.6: kiểm tra xác thực, kiểm tra quyền sở hữu phiên, kiểm tra mọi node không analysis_failed đều đã có phân tích (nếu chưa ⇒ trả mã HTTP 409 ERR_OVERVIEW_NOT_READY); tra cứu cache `ai_cache` theo khóa REPO_OVERVIEW (.kb/spec/03_API_VA_LUU_TRU.md Mục 3.3); kiểm tra quota token; ghi dòng `ai_usage` khi gọi AI thành công. Dùng lại hàm có sẵn của Vai A trong `src/server/auth.ts`, `session.ts`, `cache.ts`, `quota.ts`, `errors.ts`, không viết lại; làm theo mẫu `src/app/api/analyze-node/route.ts` (A07).
+5. Viết test trong `src/server/ai/__tests__/overview.test.ts` cho các trường hợp GUARD-11 dùng file fixture có sẵn `src/server/ai/__fixtures__/overview.json` (fixture 2.2 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Viết test route trong `src/app/api/__tests__/analyze-overview.test.ts` (mock AI và DB) cho ca 409 `ERR_OVERVIEW_NOT_READY` và ca trúng cache.
 6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npx vitest run src/server/ai`
+- Lệnh kiểm: `npx vitest run src/server/ai src/app/api/__tests__/analyze-overview.test.ts`
 - Test GUARD-11: fixture 2.2 gạch nhận xét N7 vì không có điểm dở; gạch N3 khỏi MIDDLEWARE; summary chứa số dòng trả về null.
 - Route trả đúng HTTP 409 ERR_OVERVIEW_NOT_READY khi còn node đang phân tích dở.
 - Yêu cầu trúng cache trả ngay 0 token và không ghi bảng `ai_usage`.
@@ -74,7 +75,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/ai` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/ai src/app/api/__tests__/analyze-overview.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Test GUARD-11 đạt: cổng gác tổng quan gạch nhận xét không có căn cứ từ fixture 2.2.
 - [ ] Route `/api/analyze-overview` kiểm tra trạng thái các node sẵn sàng trước khi gọi AI và xử lý cache đúng chuẩn.
@@ -92,7 +93,7 @@ git add src/server/ai/overview.ts src/server/ai/prompts/overview.ts
 git commit -m "feat(ai): tổng quan repo"
 git add src/server/ai/guard/overview.ts src/server/ai/__tests__/overview.test.ts
 git commit -m "feat(guard): kiểm tổng quan"
-git add src/app/api/analyze-overview/route.ts
+git add src/app/api/analyze-overview/route.ts src/app/api/__tests__/analyze-overview.test.ts
 git commit -m "feat(api): /api/analyze-overview"
 git pull --rebase origin main
 git push -u origin c/C09-tong-quan

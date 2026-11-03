@@ -32,6 +32,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `.kb/spec/05_HA_TANG_CLOUD.md` Mục 6
 - `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-11, X-12
 - `.kb/spec/00_QUYET_DINH.md` D-50, D-66
+- `.kb/spec/02_CONTRACTS.md` Mục 9 (mã lỗi)
 - `package.json`
 - `src/`
 
@@ -42,15 +43,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1 khung `gemini.ts`: khởi tạo SDK `@google/genai`, chọn kênh theo biến môi trường `GEMINI_BACKEND` (`"vertex"` hoặc `"studio"`) theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 6 và D-66.
-3. Kiểm tra điều kiện khởi động: nếu `GEMINI_BACKEND="studio"` mà thiếu `GEMINI_API_KEY` thì không cho khởi động server; nếu `GEMINI_BACKEND="vertex"` thì xác thực qua service account, không đòi hỏi `GEMINI_API_KEY`.
-4. Cơ chế ngắt AI khẩn cấp: nếu `AI_DISABLED="true"` thì trả ngay mã lỗi `ERR_AI_UNAVAILABLE` mà không gọi tới Gemini (.kb/spec/03_API_VA_LUU_TRU.md Mục 8, .kb/spec/05_HA_TANG_CLOUD.md Mục 6, D-66).
-5. Viết test trong `src/server/ai/__tests__/gemini.test.ts` cho các trường hợp X-11 và X-12.
+3. Kiểm tra điều kiện khởi động: viết thành một hàm kiểm biến môi trường được export riêng, để test gọi thẳng. `GEMINI_BACKEND="studio"` mà thiếu `GEMINI_API_KEY` thì hàm ném lỗi (server không được khởi động); `GEMINI_BACKEND="vertex"` thì xác thực qua service account, không đòi `GEMINI_API_KEY`. Không tự tạo file khởi động server; ghi trong báo cáo tên hàm để Vai A gắn vào lúc khởi động.
+4. Cơ chế ngắt AI khẩn cấp: nếu `AI_DISABLED="true"` thì trả ngay mã lỗi `ERR_AI_UNAVAILABLE` mà không gọi tới Gemini (.kb/spec/03_API_VA_LUU_TRU.md Mục 8, .kb/spec/05_HA_TANG_CLOUD.md Mục 6, D-66). Mã lỗi: nếu `src/contracts/` (A02) đã có trên nhánh thì lấy kiểu mã lỗi từ `@/contracts`; nếu chưa có thì tạm dùng chuỗi `"ERR_AI_UNAVAILABLE"` đúng chính tả ở `.kb/spec/02_CONTRACTS.md` Mục 9, và ghi trong báo cáo là C04 sẽ đổi sang kiểu từ `@/contracts`.
+5. Viết test trong `src/server/ai/__tests__/gemini.test.ts` cho các trường hợp X-11 và X-12. Test mock SDK, không gọi Gemini thật.
 6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/__tests__/gemini.test.ts`
 - Test X-11: `AI_DISABLED="true"` trả `ERR_AI_UNAVAILABLE`, không gọi model.
-- Test X-12: `GEMINI_BACKEND="studio"` thiếu `GEMINI_API_KEY` không khởi động; `GEMINI_BACKEND="vertex"` khởi động bình thường không cần key.
+- Test X-12: `GEMINI_BACKEND="studio"` thiếu `GEMINI_API_KEY` thì hàm kiểm biến môi trường ném lỗi; `GEMINI_BACKEND="vertex"` không có key thì không ném lỗi.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.

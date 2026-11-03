@@ -34,7 +34,6 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `package-lock.json`
 - `tsconfig.json`
 - `next.config.ts`
-- `tailwind.config.ts`
 - `postcss.config.mjs`
 - `eslint.config.mjs`
 - `vitest.config.ts`
