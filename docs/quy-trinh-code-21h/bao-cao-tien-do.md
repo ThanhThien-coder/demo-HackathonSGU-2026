@@ -7,7 +7,8 @@ Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ 
 Số liệu các mục dưới vẫn là của mốc `9a9e151`. Các thay đổi sau chưa được chấm lại toàn bộ:
 
 - **Vai A:** 2 lỗi 503 đã được sửa ở PR #117, #118, kèm test trên Postgres thật. Chưa kiểm lại độc lập.
-- **Vai B:** đã sửa B04–B08, B10 ở chuỗi PR #113 → #114 → #115 → #120 → #121 → #122, phải merge đúng thứ tự, đang chờ Vai A. Nghiệm thu 7 repo đạt 20/20 điều kiện, 635 test xanh.
+- **Vai B:** đã sửa B04–B08, B10 ở PR #113, #114, #115, #120, #121, #122, tất cả đã lên `main`. Nghiệm thu 7 repo đạt 20/20 điều kiện, 635 test xanh.
+- **Vai C:** có script `record-bundle` ở PR #123, chưa ghi lại bundle.
 - **Vai E:** E07, E08 đã có PR #116, #119.
 
 | Repo | Luồng từ 2 bước | Tới `DATA_ACCESS` | Trước khi sửa |
