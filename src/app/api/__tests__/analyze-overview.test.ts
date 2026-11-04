@@ -21,7 +21,8 @@ import { POST } from "../analyze-overview/route";
 
 const { mockGetUser, mockSql, mockAnalyzeOverview } = vi.hoisted(() => {
   const getUser = vi.fn();
-  const sqlFn = vi.fn();
+  // sql.json(v) của driver postgres: bản giả trả nguyên đối tượng để kiểm payload
+  const sqlFn = Object.assign(vi.fn(), { json: (v: unknown) => v });
   const analyzeOverviewFn = vi.fn();
   return {
     mockGetUser: getUser,
@@ -262,11 +263,11 @@ describe("POST /api/analyze-overview (TASK_10 — C09)", () => {
         if (query.includes("INSERT INTO ai_cache")) {
           const key = String(values[0]);
           const payloadRaw = values[1];
-          const payload =
-            typeof payloadRaw === "string"
-              ? JSON.parse(payloadRaw)
-              : payloadRaw;
-          dbAiCache.set(key, payload);
+          // Chặn lỗi mã hóa 2 lần: payload phải là đối tượng (sql.json), không phải chuỗi JSON
+          if (typeof payloadRaw === "string") {
+            throw new Error("ai_cache.payload là chuỗi JSON, phải truyền đối tượng qua sql.json");
+          }
+          dbAiCache.set(key, payloadRaw);
           return [];
         }
 
