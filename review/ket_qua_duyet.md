@@ -21,6 +21,8 @@
 
 ## 2. Bảng ghi kết quả duyệt tay
 
+> Hai dòng dưới là ví dụ mẫu chép từ spec, không phải kết quả duyệt thật.
+
 | Node | Mục | AI nói | Lần 1/2/3 giống? | Kết luận | Người duyệt / người xem lại | Vì sao |
 | :-- | :-- | :-- | :-: | :-: | :-- | :-- |
 | N3 | Kỹ năng | `DB_OPTIMIZATION` · bước 2 · `findById` | ✅ | ✅ | P3 / P1 | Vòng `for` gọi `findById` cho từng sản phẩm |
@@ -34,3 +36,17 @@
 - **Độ ổn định:** `...`/`...` mục giống nhau qua 3 lần chạy.
 - **Chấm điểm:** Khớp người chấm `...`/20; các ca lệch: `...`.
 - **Ghi chú:** Toàn bộ dữ liệu được đo trên repo demo ở mốc H+17, không bảo đảm 100% cho các repo khác ngoài phạm vi đã duyệt.
+
+---
+
+## 4. Duyệt tay lần 1
+
+| Mục duyệt | Lần 1/2/3 giống | Kết luận | Người duyệt / người xem lại | Vì sao |
+| :-- | :-: | :-- | :-- | :-- |
+| Kỹ năng | | chưa chạy, chờ Lát dọc 2 | | |
+| Mẫu kiến trúc · lời giải thích bước | | chưa chạy, chờ Lát dọc 2 | | |
+| Điểm hay · điểm dở | | chưa chạy, chờ Lát dọc 2 | | |
+| Tổng quan | | chưa chạy, chờ Lát dọc 2 | | |
+| Câu hỏi | | chưa chạy, chờ Lát dọc 2 | | |
+| Đáp án mẫu · ý bắt buộc · cách sửa | | chưa chạy, chờ Lát dọc 2 | | |
+| Chấm · gợi ý · nhận xét | | chưa chạy, chờ Lát dọc 2 | | |
