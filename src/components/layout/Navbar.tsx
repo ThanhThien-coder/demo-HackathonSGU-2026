@@ -94,7 +94,7 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
             "User";
           const avatarUrl = u.user_metadata?.avatar_url;
           setUser({ name, avatarUrl, email: u.email });
-        } else if (process.env.NEXT_PUBLIC_BYPASS_AUTH !== "true") {
+        } else {
           setUser(null);
         }
       });
@@ -107,9 +107,6 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
       };
     } catch {
       // Bỏ qua lỗi kết nối trong môi trường SSR/test
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        fetchProfile();
-      }
     }
   }, [fetchProfile, setUser]);
 

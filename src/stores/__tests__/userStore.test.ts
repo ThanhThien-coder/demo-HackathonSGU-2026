@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   useUserStore,
-  createFallbackProfile,
   formatErrorMessage,
 } from "../userStore";
-import { PERSONAS } from "@/contracts/learner";
+import { PERSONAS, type LearnerCognitiveProfile } from "@/contracts/learner";
 import * as apiModule from "@/lib/api";
 
 describe("UserStore & Bước 1, 2, 3 Integration", () => {
@@ -24,47 +23,6 @@ describe("UserStore & Bước 1, 2, 3 Integration", () => {
       error: null,
       errorCode: null,
       toast: null,
-    });
-  });
-
-  describe("Fallback Profile & Dev Bypass Auth", () => {
-    it("should generate valid fallback profile for NEWBIE", () => {
-      const profile = createFallbackProfile("NEWBIE");
-      expect(profile.overall_tier).toBe("NOVICE");
-      expect(profile.display_name).toBe(PERSONAS.NEWBIE.label);
-      expect(profile.skills.HTTP_ROUTING?.p_mastery).toBe(0.25);
-    });
-
-    it("should generate valid fallback profile for SENIOR_RUSTY with 30 days decay", () => {
-      const profile = createFallbackProfile("SENIOR_RUSTY");
-      expect(profile.overall_tier).toBe("ARCHITECT");
-      expect(profile.display_name).toBe(PERSONAS.SENIOR_RUSTY.label);
-      expect(profile.skills.HTTP_ROUTING?.p_mastery).toBe(0.95);
-      const thirtyDaysMs = 30 * 86400000;
-      expect(Date.now() - (profile.skills.HTTP_ROUTING?.last_practiced_at ?? 0)).toBeGreaterThanOrEqual(thirtyDaysMs - 1000);
-    });
-
-    it("should load fallback profile when unauthenticated and NEXT_PUBLIC_BYPASS_AUTH is true", async () => {
-      process.env.NEXT_PUBLIC_BYPASS_AUTH = "true";
-      vi.spyOn(apiModule, "getMeSafe").mockResolvedValue({
-        ok: false,
-        data: null,
-        error: {
-          error: {
-            code: "ERR_UNAUTHENTICATED",
-            message: "Unauthenticated",
-            retryable: false,
-          },
-        },
-      });
-
-      await useUserStore.getState().fetchProfile();
-
-      const state = useUserStore.getState();
-      expect(state.isLoading).toBe(false);
-      expect(state.profile).not.toBeNull();
-      expect(state.profile?.overall_tier).toBe("NOVICE");
-      expect(state.user?.name).toBe(PERSONAS.NEWBIE.label);
     });
   });
 
@@ -105,7 +63,6 @@ describe("UserStore & Bước 1, 2, 3 Integration", () => {
     });
 
     it("should handle error states with friendly message", async () => {
-      process.env.NEXT_PUBLIC_BYPASS_AUTH = "false";
       vi.spyOn(apiModule, "getMeSafe").mockResolvedValue({
         ok: false,
         data: null,
@@ -186,7 +143,7 @@ describe("UserStore & Bước 1, 2, 3 Integration", () => {
 
       useUserStore.setState({
         user: { name: "Test User" },
-        profile: createFallbackProfile("MID_LEVEL"),
+        profile: { user_id: "u1" } as unknown as LearnerCognitiveProfile,
       });
 
       const success = await useUserStore.getState().resetAccount();

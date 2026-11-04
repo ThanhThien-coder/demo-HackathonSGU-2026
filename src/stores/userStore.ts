@@ -31,44 +31,6 @@ export interface ToastNotification {
 import { formatErrorMessage } from "@/lib/messages";
 export { formatErrorMessage };
 
-/**
- * Khởi tạo profile mẫu cho môi trường DEV hoặc khi người dùng chưa đăng nhập
- * để hỗ trợ cờ NEXT_PUBLIC_BYPASS_AUTH === "true" hiển thị UI mượt mà.
- */
-export function createFallbackProfile(
-  persona: PersonaMode = "NEWBIE"
-): LearnerCognitiveProfile {
-  const personaConfig = PERSONAS[persona] ?? PERSONAS.NEWBIE;
-  const initialP = personaConfig.initial_p_mastery;
-  const tier: LearnerTier =
-    initialP >= CONFIG.TIER_ARCHITECT_MIN
-      ? "ARCHITECT"
-      : initialP >= CONFIG.TIER_PRACTITIONER_MIN
-      ? "PRACTITIONER"
-      : "NOVICE";
-
-  const idleDays = personaConfig.days_idle ?? 0;
-  const lastPracticed = Date.now() - idleDays * CONFIG.MS_PER_DAY;
-
-  const skills: Partial<Record<SWESkill, CognitiveSkillState>> = {};
-  for (const skill of SWE_SKILLS) {
-    skills[skill] = {
-      skill,
-      p_mastery: initialP,
-      last_practiced_at: lastPracticed,
-      practice_count: 0,
-      correct_count: 0,
-    };
-  }
-
-  return {
-    user_id: "dev-bypass-user",
-    display_name: personaConfig.label,
-    skills,
-    overall_tier: tier,
-  };
-}
-
 export interface UserState {
   // Dữ liệu người dùng & BKT
   user: UserSummary | null;
@@ -184,25 +146,6 @@ export const useUserStore = create<UserState>((set, get) => ({
     const apiErr = result.error as ApiError;
     const code = apiErr.error?.code;
     const rawMsg = apiErr.error?.message;
-    const isBypassAuth =
-      typeof process !== "undefined" &&
-      process.env.NEXT_PUBLIC_BYPASS_AUTH === "true";
-
-    // Khi chưa đăng nhập nhưng bật cờ dev bypass auth -> nạp hồ sơ mẫu
-    if (code === "ERR_UNAUTHENTICATED" && isBypassAuth) {
-      const currentPersona = get().currentPersona || "NEWBIE";
-      const fallback = createFallbackProfile(currentPersona);
-      set({
-        isLoading: false,
-        profile: fallback,
-        serverNow: Date.now(),
-        serverClockOffsetMs: 0,
-        user: {
-          name: fallback.display_name || "Người học Demo",
-        },
-      });
-      return;
-    }
 
     set({
       isLoading: false,
@@ -257,24 +200,6 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
 
     // Nếu đang ở môi trường mock/bypass hoặc endpoint server chưa kích hoạt
-    const isBypassAuth =
-      typeof process !== "undefined" &&
-      process.env.NEXT_PUBLIC_BYPASS_AUTH === "true";
-
-    if (isBypassAuth || code === "ERR_CLIENT_NETWORK") {
-      const fallback = createFallbackProfile(mode);
-      set((state) => ({
-        isSwitchingPersona: false,
-        currentPersona: mode,
-        profile: fallback,
-        user: state.user
-          ? { ...state.user, name: fallback.display_name || personaLabel }
-          : { name: fallback.display_name || personaLabel },
-      }));
-
-      get().showToast(`Đã đổi sang hồ sơ: ${personaLabel}`, "success");
-      return true;
-    }
 
     const friendlyMsg = formatErrorMessage(code, rawMsg);
     set({
@@ -313,7 +238,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       }
     }
 
-    if (result.ok || (result.error?.error?.code === "ERR_UNAUTHENTICATED" && process.env.NEXT_PUBLIC_BYPASS_AUTH === "true")) {
+    if (result.ok) {
       set({
         isDeletingAccount: false,
         user: null,

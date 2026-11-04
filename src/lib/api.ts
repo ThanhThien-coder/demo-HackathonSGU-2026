@@ -155,7 +155,6 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
 
 /**
  * Lấy Bearer access_token cho các request API.
- * Hỗ trợ cờ dev NEXT_PUBLIC_BYPASS_AUTH === "true" để chạy thử UI mượt mà khi chưa đăng nhập.
  */
 export async function getAccessToken(): Promise<string | null> {
   const supabase = getSupabaseBrowserClient();
@@ -168,11 +167,6 @@ export async function getAccessToken(): Promise<string | null> {
     } catch {
       // Bỏ qua lỗi đọc session, tiếp tục fallback
     }
-  }
-
-  // Hỗ trợ Dev Mock & Bypass Auth cho kiểm thử giao diện
-  if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-    return "dev-bypass-mock-token";
   }
 
   return null;

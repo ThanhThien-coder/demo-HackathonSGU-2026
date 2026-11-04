@@ -155,23 +155,6 @@ describe("src/lib/api.ts", () => {
       expect(passedHeaders?.has("Content-Type")).toBe(false);
     });
 
-    it("tự động gắn token Bearer khi NEXT_PUBLIC_BYPASS_AUTH bật", async () => {
-      process.env.NEXT_PUBLIC_BYPASS_AUTH = "true";
-      let passedHeaders: Headers | undefined;
-
-      globalThis.fetch = vi.fn().mockImplementation(async (_url, opts) => {
-        passedHeaders = opts.headers;
-        return {
-          ok: true,
-          status: 200,
-          text: async () => JSON.stringify({ ok: true }),
-        };
-      });
-
-      await apiFetch("/api/me");
-      expect(passedHeaders?.get("Authorization")).toBe("Bearer dev-bypass-mock-token");
-    });
-
     it("chuẩn hóa lỗi mạng thành ERR_CLIENT_NETWORK khi fetch bị lỗi", async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error("Failed to fetch"));
 
