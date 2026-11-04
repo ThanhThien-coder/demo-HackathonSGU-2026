@@ -33,7 +33,8 @@ const {
 } = vi.hoisted(() => {
   return {
     mockGetUser: vi.fn(),
-    mockSql: vi.fn(),
+    // sql.json(v) của driver postgres: bản giả trả nguyên đối tượng
+    mockSql: Object.assign(vi.fn(), { json: (v: unknown) => v }),
     mockAnalyzeNode: vi.fn(),
     mockAnalyzeOverview: vi.fn(),
     mockGenerateQuestions: vi.fn(),
