@@ -6,7 +6,6 @@ import {
 import { authenticateRequest } from "@/server/auth";
 import { sql } from "@/server/db";
 import { toErrorResponse } from "@/server/errors";
-import { isLocalMockEnabled, mockDevStore } from "@/server/mock-dev-store";
 
 export const dynamic = "force-dynamic";
 
@@ -28,16 +27,10 @@ interface SessionDbRow {
 }
 
 // 03_API_VA_LUU_TRU Muc 2: GET /api/sessions -> SessionsResponse
+// Dung dung mot cau truy van SQL (jsonb_array_length, LEFT JOIN ... GROUP BY, khong lap N+1)
 export async function GET(request: Request): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
-
-    if (isLocalMockEnabled()) {
-      return new Response(JSON.stringify(mockDevStore.getSessions()), {
-        status: 200,
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-      });
-    }
 
     const rows = await sql<SessionDbRow[]>`
       SELECT

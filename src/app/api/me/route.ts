@@ -8,7 +8,6 @@ import { authenticateRequest } from "@/server/auth";
 import { sql } from "@/server/db";
 import { toErrorResponse } from "@/server/errors";
 import { overallTier } from "@/lib/bkt-engine";
-import { isLocalMockEnabled, mockDevStore } from "@/server/mock-dev-store";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +15,6 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
-
-    if (isLocalMockEnabled()) {
-      return new Response(JSON.stringify(mockDevStore.getMe()), {
-        status: 200,
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-      });
-    }
-
     const serverNow = Date.now();
 
     // 1. Tao profiles neu chua co
@@ -96,9 +87,6 @@ export async function GET(request: Request): Promise<Response> {
 export async function DELETE(request: Request): Promise<Response> {
   try {
     const user = await authenticateRequest(request);
-    if (isLocalMockEnabled()) {
-      return new Response(null, { status: 204 });
-    }
     await sql`DELETE FROM auth.users WHERE id = ${user.id}`;
     return new Response(null, { status: 204 });
   } catch (error) {

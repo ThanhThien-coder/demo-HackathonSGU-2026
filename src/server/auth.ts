@@ -1,6 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ApiHttpError } from "./errors";
-import { isLocalMockEnabled, DEMO_USER } from "./mock-dev-store";
 
 let cachedSupabaseAuth: SupabaseClient | null = null;
 
@@ -46,11 +45,6 @@ export async function verifyToken(token: string): Promise<AuthenticatedUser> {
     throw new ApiHttpError("ERR_UNAUTHENTICATED");
   }
 
-  // Ho tro dev local mock bypass
-  if (isLocalMockEnabled() || token === "dev-bypass-mock-token") {
-    return DEMO_USER;
-  }
-
   const supabase = getSupabaseAuth();
   const {
     data: { user },
@@ -78,11 +72,6 @@ export async function verifyToken(token: string): Promise<AuthenticatedUser> {
 
 // API-04: Xac thuc request Bearer token, thieu/sai => ERR_UNAUTHENTICATED (401)
 export async function authenticateRequest(req: Request): Promise<AuthenticatedUser> {
-  // Neu dang bat LOCAL_DEV_MOCK thi tu dong tra ve Demo user ngay ca khi chua gan header
-  if (isLocalMockEnabled()) {
-    return DEMO_USER;
-  }
-
   const token = extractBearerToken(req);
   if (!token) {
     throw new ApiHttpError("ERR_UNAUTHENTICATED");

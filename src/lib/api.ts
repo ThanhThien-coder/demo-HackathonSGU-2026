@@ -685,7 +685,7 @@ export async function analyzeNodeSafe(
 
   if (isOfflineMode()) {
     const res = offlineGetAnalysis(payload.node_id);
-    if (!res.ok) return res as any;
+    if (!res.ok) return { ok: false, data: null, error: res.error };
     return {
       ok: true,
       data: {
@@ -750,7 +750,7 @@ export async function analyzeOverviewSafe(
 
   if (isOfflineMode()) {
     const res = offlineGetOverview();
-    if (!res.ok) return res as any;
+    if (!res.ok) return { ok: false, data: null, error: res.error };
     return {
       ok: true,
       data: {

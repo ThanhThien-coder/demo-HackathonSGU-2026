@@ -31,3 +31,6 @@ npm-debug.log*
 # Biến môi trường: chỉ commit file mẫu
 .env*
 !.env.example
+
+# Subagent artifacts
+.agents/

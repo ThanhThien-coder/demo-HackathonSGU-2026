@@ -2,7 +2,6 @@ import type { ProgressResponse } from "@/contracts";
 import { authenticateRequest } from "@/server/auth";
 import { toErrorResponse } from "@/server/errors";
 import { getSessionProgress } from "@/server/progress";
-import { isLocalMockEnabled, mockDevStore } from "@/server/mock-dev-store";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +19,6 @@ export async function GET(
   try {
     const user = await authenticateRequest(request);
     const { id: sessionId } = await context.params;
-
-    if (isLocalMockEnabled()) {
-      return new Response(JSON.stringify(mockDevStore.getProgress(sessionId)), {
-        status: 200,
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-      });
-    }
 
     const progress = await getSessionProgress(sessionId, user.id);
 
