@@ -5,7 +5,13 @@ import {
   type PersonaMode,
   type LearnerCognitiveProfile,
   type CognitiveSkillState,
+  type SessionProgress,
+  type NodeRunView,
+  type NodeStateView,
+  type QuestionState,
+  type SkillChange,
 } from "@/contracts/learner";
+import type { GraphSkeletonNode } from "@/contracts/storage";
 import type {
   OfflineMockBundle,
   IngestResponse,
@@ -15,14 +21,44 @@ import type {
   RepoOverviewView,
   NodeAnalysisView,
   RunMode,
+  QuestionView,
 } from "@/contracts";
 import type { ApiResult } from "@/lib/api";
 import { similarity, validateAnswerLength } from "@/lib/similarity";
+import { deriveNodeStates, type ProgressRowLike } from "@/lib/derive";
+import { nodeStatusFromRuns } from "@/lib/plan";
+import { computeSkillChange, overallTier } from "@/lib/bkt-engine";
+
+interface OfflineRuntime {
+  profile: LearnerCognitiveProfile;
+  runs: Record<string, NodeRunView>;
+}
 
 // Biến trạng thái runtime client cho Offline mode
 let _isOffline = false;
 let _offlineBundle: OfflineMockBundle | null = null;
 let _offlinePersona: PersonaMode = "NEWBIE";
+let _runtime: OfflineRuntime = {
+  profile: buildOfflineProfile(_offlinePersona),
+  runs: {},
+};
+
+/**
+ * Đặt lại trạng thái chạy trong bộ nhớ của chế độ Offline (D08a)
+ */
+export function resetOfflineRuntime(): void {
+  _runtime = {
+    profile: buildOfflineProfile(_offlinePersona),
+    runs: {},
+  };
+}
+
+/**
+ * Lấy hồ sơ người học offline hiện tại từ runtime
+ */
+export function getOfflineProfile(): LearnerCognitiveProfile {
+  return _runtime.profile;
+}
 
 /**
  * Kiểm tra xem client có đang chạy trong chế độ Offline hay không
@@ -48,6 +84,10 @@ export function setOfflineMode(
   _isOffline = active;
   if (bundle !== undefined) {
     _offlineBundle = bundle;
+    resetOfflineRuntime();
+  }
+  if (!active) {
+    resetOfflineRuntime();
   }
 }
 
@@ -70,6 +110,25 @@ export function getOfflinePersona(): PersonaMode {
  */
 export function setOfflinePersona(persona: PersonaMode): void {
   _offlinePersona = persona;
+  resetOfflineRuntime();
+}
+
+/**
+ * Trả các persona trong PERSONAS có ít nhất 1 khóa enrich dạng `${node_id}:${mode}:${persona}` trong bundle.
+ * Bundle chưa nạp thì trả toàn bộ PERSONAS.
+ */
+export function offlinePersonas(): PersonaMode[] {
+  const allPersonas = Object.keys(PERSONAS) as PersonaMode[];
+  if (!_offlineBundle?.enrich) {
+    return allPersonas;
+  }
+  const enrichKeys = Object.keys(_offlineBundle.enrich);
+  return allPersonas.filter((persona) =>
+    enrichKeys.some((k) => {
+      const parts = k.split(":");
+      return parts.length >= 3 && parts[parts.length - 1] === persona;
+    })
+  );
 }
 
 /**
@@ -89,6 +148,7 @@ export async function loadOfflineBundle(): Promise<OfflineMockBundle> {
 
   const bundle = (await res.json()) as OfflineMockBundle;
   _offlineBundle = bundle;
+  resetOfflineRuntime();
   return bundle;
 }
 
@@ -128,7 +188,84 @@ export function buildOfflineProfile(
 }
 
 /**
- * Mock Ingest cho chế độ Offline
+ * Tính toán tiến độ đồ thị các bài học ở chế độ Offline (D08a Mục 2)
+ */
+export function offlineProgress(): SessionProgress {
+  if (!_offlineBundle) {
+    return {
+      session_id: "",
+      tokens_used: 0,
+      nodes: {},
+    };
+  }
+
+  const rawNodes = _offlineBundle.ingest.result?.nodes ?? [];
+  let skeleton: GraphSkeletonNode[] = [];
+  if (Array.isArray(rawNodes) && rawNodes.length > 0) {
+    skeleton = rawNodes.map((n) => ({
+      node_id: (n as { node_id?: string; id?: string }).node_id ?? n.id ?? "",
+      title: n.title ?? "",
+      prerequisites: n.prerequisites ?? [],
+      is_capstone: Boolean(n.is_capstone),
+    }));
+  } else if (_offlineBundle.ingest.progress?.nodes) {
+    skeleton = Object.keys(_offlineBundle.ingest.progress.nodes).map((id) => ({
+      node_id: id,
+      title: id,
+      prerequisites: [],
+      is_capstone: false,
+    }));
+  }
+
+  if (skeleton.length === 0) {
+    const allNodeIds = new Set([
+      ...Object.keys(_runtime.runs),
+      ...Object.values(_offlineBundle.enrich).map((e) => e.node_id),
+    ]);
+    skeleton = Array.from(allNodeIds).map((id) => ({
+      node_id: id,
+      title: id,
+      prerequisites: [],
+      is_capstone: false,
+    }));
+  }
+
+  const rows: ProgressRowLike[] = [];
+  for (const [nodeId, run] of Object.entries(_runtime.runs)) {
+    if (run.finished_at !== null && run.finished_at !== undefined) {
+      const status = nodeStatusFromRuns([run]);
+      if (status !== null) {
+        rows.push({
+          node_id: nodeId,
+          status,
+          analysis_failed: false,
+        });
+      }
+    }
+  }
+
+  const derivedStates = deriveNodeStates(skeleton, rows);
+  const nodes: Record<string, NodeStateView> = {};
+
+  for (const [id, derived] of Object.entries(derivedStates)) {
+    nodes[id] = {
+      node_id: id,
+      status: derived.status,
+      has_warning: derived.has_warning,
+      analysis_failed: derived.analysis_failed,
+      last_run: _runtime.runs[id] ?? null,
+    };
+  }
+
+  return {
+    session_id: _offlineBundle.ingest.session_id,
+    tokens_used: 0,
+    nodes,
+  };
+}
+
+/**
+ * Mock Ingest cho chế độ Offline (D08a Mục 3)
  */
 export function offlineIngestRepo(): ApiResult<IngestResponse> {
   if (!_offlineBundle) {
@@ -146,13 +283,16 @@ export function offlineIngestRepo(): ApiResult<IngestResponse> {
   }
   return {
     ok: true,
-    data: _offlineBundle.ingest,
+    data: {
+      ..._offlineBundle.ingest,
+      progress: offlineProgress(),
+    },
     error: null,
   };
 }
 
 /**
- * Mock Enrich Node cho chế độ Offline
+ * Mock Enrich Node cho chế độ Offline (D08a Mục 4)
  */
 export function offlineEnrichNode(
   nodeId: string,
@@ -190,15 +330,168 @@ export function offlineEnrichNode(
     };
   }
 
+  if (!_runtime.runs[nodeId]) {
+    const newRun: NodeRunView = {
+      run_id: enrich.run_id,
+      node_id: nodeId,
+      mode: enrich.mode ?? mode,
+      started_at: Date.now(),
+      finished_at: null,
+      questions: enrich.questions.map((qv) => ({
+        question_index: qv.question_index,
+        feynman_question: qv.feynman_question,
+        skill: qv.skill,
+        tier: qv.tier,
+        focus: qv.focus,
+        attempts_used: qv.state?.attempts_used ?? 0,
+        finished: qv.state?.finished ?? false,
+        outcome: qv.state?.outcome ?? null,
+        ended_by: qv.state?.ended_by ?? null,
+        disputed: qv.state?.disputed ?? false,
+        reveal: qv.state?.reveal ?? null,
+      })),
+    };
+    _runtime.runs[nodeId] = newRun;
+  }
+
+  const questions: QuestionView[] = enrich.questions.map((qv) => {
+    const runQ = _runtime.runs[nodeId].questions.find(
+      (q) => q.question_index === qv.question_index
+    );
+    return {
+      ...qv,
+      state: runQ ?? qv.state,
+    };
+  });
+
+  const progress = offlineProgress();
+  const node_state: NodeStateView = progress.nodes[nodeId] ?? {
+    node_id: nodeId,
+    status: "AVAILABLE",
+    has_warning: false,
+    analysis_failed: false,
+    last_run: _runtime.runs[nodeId],
+  };
+
   return {
     ok: true,
-    data: enrich,
+    data: {
+      ...enrich,
+      questions,
+      node_state,
+    },
     error: null,
   };
 }
 
 /**
- * Mock Evaluate Feynman cho chế độ Offline (spec/30_UI.md Mục 8)
+ * Tra cứu node_id tương ứng với run_id trong gói dữ liệu offline (D08a Mục 5)
+ */
+export function offlineNodeOfRun(runId: string): string | null {
+  if (_offlineBundle?.enrich) {
+    for (const enrich of Object.values(_offlineBundle.enrich)) {
+      if (enrich.run_id === runId) {
+        return enrich.node_id;
+      }
+    }
+  }
+  for (const run of Object.values(_runtime.runs)) {
+    if (run.run_id === runId) {
+      return run.node_id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Xử lý chung khi hoàn thành một câu hỏi hoặc kết thúc bài tập (D08a Mục 6)
+ */
+export function applyFinishedQuestion(
+  nodeId: string,
+  question: QuestionState
+): {
+  skill_change: SkillChange | null;
+  node_state: NodeStateView;
+  unlocked_node_ids: string[];
+  tokens_used: number;
+} {
+  const prevProgress = offlineProgress();
+  const lockedBefore = new Set<string>();
+  for (const [id, state] of Object.entries(prevProgress.nodes)) {
+    if (state.status === "LOCKED") {
+      lockedBefore.add(id);
+    }
+  }
+
+  let run = _runtime.runs[nodeId];
+  if (!run) {
+    run = {
+      run_id: `run-${nodeId}`,
+      node_id: nodeId,
+      mode: "LEARN",
+      started_at: Date.now(),
+      finished_at: null,
+      questions: [question],
+    };
+    _runtime.runs[nodeId] = run;
+  } else {
+    const qIndex = run.questions.findIndex(
+      (q) => q.question_index === question.question_index
+    );
+    if (qIndex >= 0) {
+      run.questions[qIndex] = question;
+    } else {
+      run.questions.push(question);
+    }
+  }
+
+  let skill_change: SkillChange | null = null;
+  if (question.finished && question.outcome && question.ended_by !== "DROPPED") {
+    const currentSkillState = _runtime.profile.skills[question.skill];
+    const { next, change } = computeSkillChange(
+      question.skill,
+      currentSkillState,
+      question.outcome,
+      Date.now()
+    );
+    _runtime.profile.skills[question.skill] = next;
+    _runtime.profile.overall_tier = overallTier(
+      _runtime.profile.skills,
+      Date.now()
+    );
+    skill_change = change;
+  }
+
+  const allFinished =
+    run.questions.length > 0 &&
+    run.questions.every((q) => q.finished || q.ended_by === "DROPPED");
+  if (allFinished) {
+    run.finished_at = Date.now();
+  }
+
+  const nextProgress = offlineProgress();
+  const node_state = nextProgress.nodes[nodeId] ?? {
+    node_id: nodeId,
+    status: "AVAILABLE",
+    has_warning: false,
+    analysis_failed: false,
+    last_run: run,
+  };
+
+  const unlocked_node_ids = Array.from(lockedBefore).filter(
+    (id) => nextProgress.nodes[id]?.status !== "LOCKED"
+  );
+
+  return {
+    skill_change,
+    node_state,
+    unlocked_node_ids,
+    tokens_used: 0,
+  };
+}
+
+/**
+ * Mock Evaluate Feynman cho chế độ Offline (spec/30_UI.md Mục 8, D08a Mục 7)
  * So khớp Levenshtein với kịch bản trả lời, ngưỡng ANSWER_DUPLICATE_SIMILARITY
  */
 export function offlineEvaluateFeynman(
@@ -275,9 +568,23 @@ export function offlineEvaluateFeynman(
   }
 
   if (bestMatch && maxSim >= CONFIG.ANSWER_DUPLICATE_SIMILARITY) {
+    const existingQ = _runtime.runs[nodeId]?.questions.find(
+      (q) => q.question_index === bestMatch!.response.question.question_index
+    );
+    const mergedQuestion: QuestionState = {
+      ...existingQ,
+      ...bestMatch.response.question,
+    };
+
+    const applied = applyFinishedQuestion(nodeId, mergedQuestion);
+
     return {
       ok: true,
-      data: bestMatch.response,
+      data: {
+        ...bestMatch.response,
+        question: mergedQuestion,
+        ...applied,
+      },
       error: null,
     };
   }
@@ -296,7 +603,7 @@ export function offlineEvaluateFeynman(
 }
 
 /**
- * Mock Reveal Response cho chế độ Offline
+ * Mock Reveal Response cho chế độ Offline (D08a Mục 8)
  */
 export function offlineRevealQuestion(
   nodeId: string,
@@ -336,9 +643,25 @@ export function offlineRevealQuestion(
     };
   }
 
+  const existingQ = _runtime.runs[nodeId]?.questions.find(
+    (q) => q.question_index === reveal.question.question_index
+  );
+  const mergedQuestion: QuestionState = {
+    ...existingQ,
+    ...reveal.question,
+  };
+
+  const applied = applyFinishedQuestion(nodeId, mergedQuestion);
+
   return {
     ok: true,
-    data: reveal,
+    data: {
+      ...reveal,
+      question: mergedQuestion,
+      skill_change: applied.skill_change!,
+      node_state: applied.node_state,
+      unlocked_node_ids: applied.unlocked_node_ids,
+    },
     error: null,
   };
 }

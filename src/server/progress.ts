@@ -105,7 +105,7 @@ export async function getSessionProgress(
   }
 
   const session = sessionRows[0];
-  const skeleton = session.graph_skeleton ?? [];
+  const skeleton = parseJsonb<GraphSkeletonNode[]>(session.graph_skeleton) ?? [];
 
   // Doc node_progress
   const progressRows = await sql<ProgressDbRow[]>`
@@ -162,7 +162,8 @@ function asTx(tx: DbTx): TransactionSql {
   return tx as TransactionSql;
 }
 
-function parseJsonb<T>(value: T | string): T {
+/** Dong ghi truoc ban sua jsonb (::text::jsonb) con luu dang chuoi; doc phai parse lai. */
+export function parseJsonb<T>(value: T | string): T {
   return typeof value === "string" ? (JSON.parse(value) as T) : value;
 }
 

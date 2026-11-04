@@ -38,8 +38,7 @@ export function SkipConfirmDialog({
     >
       <div className="flex flex-col gap-4 pt-2">
         <div className="bg-[#fff7ed] border border-[#fed7aa] p-3.5 rounded-[10px] text-xs leading-relaxed text-[#7c2d12]">
-          Câu này sẽ tính là <strong className="font-bold text-[#dc2626]">CHƯA ĐẠT</strong> cho kỹ năng{" "}
-          <strong className="font-mono text-[#944b00]">{skillName}</strong> và mở đáp án mẫu của AI. Điểm BKT của kỹ năng sẽ bị trừ tương ứng.
+          Câu này sẽ tính là CHƯA ĐẠT cho {skillName} và hiện đáp án.
         </div>
 
         <p className="text-xs text-[#625e56]">

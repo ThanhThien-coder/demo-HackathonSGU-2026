@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/supabase/client";
 import { useUserStore } from "@/stores/userStore";
 import { PERSONAS, type PersonaMode } from "@/contracts/learner";
+import { isOfflineMode, offlinePersonas } from "@/lib/offline";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -40,6 +41,8 @@ export function SettingsDropdown({
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [targetPersona, setTargetPersona] = useState<PersonaMode | null>(null);
 
+  const isOffline = isOfflineMode();
+
   const {
     user,
     profile,
@@ -52,6 +55,10 @@ export function SettingsDropdown({
     changePersona,
     resetAccount,
   } = useUserStore();
+
+  const showPersona =
+    (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || isOffline) &&
+    !isDemoModeDisabled;
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -122,7 +129,9 @@ export function SettingsDropdown({
 
   if (!isOpen && !isConfirmDeleteOpen) return null;
 
-  const personaModes: PersonaMode[] = ["NEWBIE", "MID_LEVEL", "SENIOR_RUSTY"];
+  const personaModes: PersonaMode[] = isOffline
+    ? offlinePersonas()
+    : ["NEWBIE", "MID_LEVEL", "SENIOR_RUSTY"];
 
   return (
     <>
@@ -244,7 +253,7 @@ export function SettingsDropdown({
           </div>
 
           {/* Bước 2: Chuyển đổi Persona Demo (D-09) */}
-          {!isDemoModeDisabled && (
+          {showPersona && (
             <div className="border-t-[0.8px] border-[#f3f4f6] px-2 py-2">
               <div className="flex items-center justify-between px-1 mb-1.5">
                 <span className="text-[11px] font-bold text-[#625e56] uppercase tracking-wider">
@@ -297,8 +306,12 @@ export function SettingsDropdown({
             <button
               type="button"
               onClick={() => setIsConfirmDeleteOpen(true)}
-              disabled={isDeletingAccount}
-              className="flex w-full items-center gap-2.5 px-3 py-2 rounded-[12px] hover:bg-[#fef2f2] text-[#e7000b] transition-colors disabled:opacity-50 cursor-pointer text-left"
+              disabled={isDeletingAccount || isOffline}
+              title={isOffline ? "Không hỗ trợ trong chế độ Offline" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 px-3 py-2 rounded-[12px] hover:bg-[#fef2f2] text-[#e7000b] transition-colors disabled:opacity-50 cursor-pointer text-left",
+                isOffline && "cursor-not-allowed opacity-50 hover:bg-transparent"
+              )}
             >
               <Trash2 className="size-4 shrink-0" />
               <div className="flex flex-col">
@@ -306,7 +319,9 @@ export function SettingsDropdown({
                   Xóa tài khoản & làm lại
                 </span>
                 <span className="text-[10px] text-[#e7000b]/80">
-                  Reset toàn bộ điểm BKT & phiên học
+                  {isOffline
+                    ? "Không khả dụng ở chế độ Offline"
+                    : "Reset toàn bộ điểm BKT & phiên học"}
                 </span>
               </div>
             </button>

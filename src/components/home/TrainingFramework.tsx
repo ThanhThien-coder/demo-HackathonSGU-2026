@@ -51,9 +51,9 @@ export function TrainingFramework() {
             </h2>
           </div>
 
-          <div className="flex items-center gap-[12px] shrink-0 pb-1">
+          <div className="flex items-center gap-[12px] min-w-0 sm:shrink-0 pb-1">
             <div className="bg-[#ff9640] h-[6px] w-[80px] rounded-full shrink-0" />
-            <span className="font-semibold italic text-[#31302d] text-[16px] sm:text-[18px] leading-[27px] whitespace-nowrap">
+            <span className="font-semibold italic text-[#31302d] text-[16px] sm:text-[18px] leading-[27px] sm:whitespace-nowrap">
               Đi cùng bạn qua từng dấu chấm phẩy
             </span>
           </div>

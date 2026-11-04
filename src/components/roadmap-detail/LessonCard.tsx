@@ -166,7 +166,73 @@ export function LessonCard({ lesson }: LessonCardProps) {
     );
   }
 
-  // 3. LOCKED LESSON STATE (Surface Tint #F2F3FF/60 + Muted Text)
+  // 3. FAILED LESSON STATE ("failed" hiện thẻ đỏ, ✗ "Chưa đạt", bấm vào được như bài đang học)
+  if (lesson.status === "failed") {
+    return (
+      <div
+        className={cn(
+          "bg-[#fef2f2] border border-[#ef4444] rounded-[16px]",
+          "shadow-[0px_4px_12px_0px_rgba(239,68,68,0.12)] p-5 sm:p-[25.6px] w-full",
+          "transition-all duration-200 hover:shadow-[0px_6px_16px_0px_rgba(239,68,68,0.18)] hover:-translate-y-0.5"
+        )}
+        data-node-id={lesson.dataNodeId || "5:985"}
+        data-name="LessonCard-Failed"
+      >
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 sm:gap-6 w-full">
+          {/* Left section: Icon + Info + Failed badge */}
+          <div className="flex gap-4 sm:gap-[16px] items-start sm:items-center">
+            {/* Red rounded box with ✗ icon */}
+            <div
+              className="bg-[#ef4444] drop-shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex items-center justify-center rounded-[10px] shrink-0 size-[48px]"
+              data-name="IconBox"
+            >
+              <span className="text-white font-bold text-xl leading-none">✗</span>
+            </div>
+
+            {/* Lesson Title, Subtitle, Failed Badge */}
+            <div className="flex flex-col items-start gap-1">
+              <h3 className="font-black text-[#131b2e] text-[18px] tracking-[-0.45px] leading-[27px]">
+                {lesson.title}
+              </h3>
+              <p className="font-semibold text-[#554337] text-[14px] leading-[21px]">
+                {lesson.description}
+              </p>
+
+              {/* Status Badge "✗ Chưa đạt" */}
+              <div
+                className="bg-white border border-[#fecaca] drop-shadow-[0px_1px_1px_rgba(0,0,0,0.05)] flex items-center gap-1.5 px-[14px] py-[6px] rounded-[6px] mt-1.5"
+                data-name="StatusBadge"
+              >
+                <span className="text-[#ef4444] font-bold text-sm leading-none">✗</span>
+                <span className="font-bold text-[#ef4444] text-[13px] leading-[19.5px]">
+                  Chưa đạt
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right section: Action button "Bắt đầu học" (bấm vào được như bài đang học) */}
+          <div className="w-full sm:w-auto flex sm:justify-end">
+            <Link
+              href={lesson.targetUrl}
+              className={cn(
+                "w-full sm:w-auto bg-[#ef4444] hover:bg-[#dc2626] active:bg-[#b91c1c]",
+                "drop-shadow-[0px_4px_5px_rgba(239,68,68,0.3)]",
+                "flex items-center justify-center gap-2 px-[24px] py-[10px] rounded-[12px]",
+                "text-white text-[13px] font-bold leading-[19.5px]",
+                "transition-all duration-150 select-none hover:scale-105 active:scale-95"
+              )}
+            >
+              <span>Bắt đầu học</span>
+              <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. LOCKED LESSON STATE (Surface Tint #F2F3FF/60 + Muted Text)
   return (
     <div
       className={cn(

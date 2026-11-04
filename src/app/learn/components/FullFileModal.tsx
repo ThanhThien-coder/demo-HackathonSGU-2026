@@ -40,11 +40,10 @@ export function FullFileModal({
           <span className="font-mono text-base font-bold text-[#131b2e]">{fileName}</span>
         </div>
       }
-      description="Toàn bộ mã nguồn file theo kiến trúc dịch vụ của repository shop-vibecode"
+      description="Các đoạn code của bài học theo luồng chạy — hệ thống không lưu nguyên file nguồn"
     >
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-[#f3f4f6] pb-3">
-          <span className="text-xs text-[#625e56]">TypeScript / NestJS Service</span>
+        <div className="flex items-center justify-end border-b border-[#f3f4f6] pb-3">
           <button
             onClick={handleCopy}
             type="button"

@@ -6,7 +6,7 @@ import Image from "next/image";
 export function HeroVisual() {
   return (
     <div
-      className="relative flex items-center justify-center h-[480px] lg:h-[500px] w-full max-w-[560px] mx-auto select-none -translate-y-[40px] transition-transform"
+      className="relative flex items-center justify-center h-[480px] lg:h-[500px] w-full max-w-[560px] mx-auto select-none -translate-y-[40px] transition-transform overflow-hidden"
       data-node-id="5:431"
     >
       {/* Decorative tilted card 1 (Peach/Orange background) */}

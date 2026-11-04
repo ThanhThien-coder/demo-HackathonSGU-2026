@@ -92,3 +92,16 @@ export function buildSliceModel(node: HybridArchitecturalNode | null | undefined
     stepRanges,
   };
 }
+
+/**
+ * Tìm số thứ tự bước (step) chứa dòng line (1-based), trả về null nếu nằm ngoài các bước.
+ */
+export function stepAtLine(model: SliceModel, line: number): number | null {
+  if (!model?.stepRanges) return null;
+  for (const range of Object.values(model.stepRanges)) {
+    if (line >= range.startLine && line <= range.endLine) {
+      return range.step;
+    }
+  }
+  return null;
+}

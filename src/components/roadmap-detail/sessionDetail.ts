@@ -1,74 +1,71 @@
-import type { CourseDetail, LessonItem } from "./types";
-import type { LearningSessionSummary, SessionProgress } from "@/lib/api";
+import type { CourseDetail, LessonItem, LessonStatus } from "./types";
+import type {
+  LearningSessionSummary,
+  SessionProgress,
+  HybridArchitecturalNode,
+} from "@/contracts";
+import { topologicalOrder } from "@/store/workbench";
 
 /**
- * Chuyển đổi dữ liệu phiên học thật (LearningSessionSummary & SessionProgress)
+ * Chuyển đổi dữ liệu phiên học thật (LearningSessionSummary, SessionProgress & HybridArchitecturalNode[])
  * thành đối tượng hiển thị danh sách bài học kiến trúc CourseDetail.
  */
 export function buildSessionDetail(
   session: LearningSessionSummary,
-  progress?: SessionProgress | null
+  progress: SessionProgress,
+  nodes: HybridArchitecturalNode[]
 ): CourseDetail {
-  const nodeEntries = progress?.nodes ? Object.entries(progress.nodes) : [];
+  const nodeMap = new Map<string, HybridArchitecturalNode>(
+    nodes.map((node) => [node.id, node])
+  );
 
-  let lessons: LessonItem[] = [];
+  const orderedIds = topologicalOrder(nodes);
+  const orderedNodes: HybridArchitecturalNode[] = [];
 
-  if (nodeEntries.length > 0) {
-    lessons = nodeEntries.map(([nodeId, nodeInfo], idx) => {
-      const status =
-        nodeInfo.status === "COMPLETED"
-          ? "completed"
-          : nodeInfo.status === "AVAILABLE"
-          ? "in-progress"
-          : "locked";
-
-      return {
-        id: nodeId,
-        stepNumber: idx + 1,
-        title: `${idx + 1}. Kiến trúc Node: ${nodeId}`,
-        description:
-          status === "completed"
-            ? "Đã hoàn thành bài học và vượt qua kiểm thử Feynman"
-            : status === "in-progress"
-            ? "Bài học đang mở, sẵn sàng để nghiên cứu và trả lời câu hỏi"
-            : "Đang khóa - Hoàn thành các node tiên quyết để mở khóa",
-        status,
-        progress:
-          status === "completed" ? 100 : status === "in-progress" ? 50 : 0,
-        targetUrl: `/learn?session=${encodeURIComponent(
-          session.session_id
-        )}&node=${encodeURIComponent(nodeId)}`,
-      };
-    });
-  } else {
-    const total = Math.max(session.total_nodes, 1);
-    const completed = session.completed_count || 0;
-
-    lessons = Array.from({ length: total }, (_, i) => {
-      const stepNum = i + 1;
-      const isCompleted = stepNum <= completed;
-      const isInProgress = stepNum === completed + 1;
-      const status = isCompleted
-        ? "completed"
-        : isInProgress
-        ? "in-progress"
-        : "locked";
-
-      return {
-        id: `${session.session_id}-node-${stepNum}`,
-        stepNumber: stepNum,
-        title: `${stepNum}. Module Kiến trúc ${stepNum}: Phân tích luồng thực thi`,
-        description: isCompleted
-          ? "Đã hoàn thành phân tích lát cắt kiến trúc"
-          : isInProgress
-          ? "Đang nghiên cứu và đối thoại kỹ thuật Feynman"
-          : "Đang khóa - Hoàn thành bài trước để mở khóa",
-        status,
-        progress: isCompleted ? 100 : isInProgress ? 50 : 0,
-        targetUrl: `/learn?session=${encodeURIComponent(session.session_id)}`,
-      };
-    });
+  for (const id of orderedIds) {
+    const node = nodeMap.get(id);
+    if (node) {
+      orderedNodes.push(node);
+    }
   }
+
+  // Đề phòng node nào chưa có trong orderedIds
+  for (const node of nodes) {
+    if (!orderedIds.includes(node.id)) {
+      orderedNodes.push(node);
+    }
+  }
+
+  const lessons: LessonItem[] = orderedNodes.map((node, idx) => {
+    const nodeProgress = progress.nodes ? progress.nodes[node.id] : undefined;
+    const nodeStatus = nodeProgress?.status;
+
+    let status: LessonStatus = "locked";
+    if (nodeStatus === "COMPLETED") {
+      status = "completed";
+    } else if (nodeStatus === "FAILED") {
+      status = "failed";
+    } else if (nodeStatus === "AVAILABLE") {
+      status = "in-progress";
+    } else {
+      status = "locked";
+    }
+
+    const progressValue = status === "completed" ? 100 : 0;
+    const stepNumber = idx + 1;
+
+    return {
+      id: node.id,
+      stepNumber,
+      title: `${stepNumber}. ${node.title}`,
+      description: node.title_evidence,
+      status,
+      progress: progressValue,
+      targetUrl: `/learn?session=${encodeURIComponent(
+        session.session_id
+      )}&node=${encodeURIComponent(node.id)}`,
+    };
+  });
 
   return {
     id: session.session_id,

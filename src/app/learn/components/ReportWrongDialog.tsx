@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Flag, Send, AlertTriangle } from "lucide-react";
+import { CONFIG } from "@/contracts";
 
 interface ReportWrongDialogProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ export function ReportWrongDialog({
   errorMessage = null,
 }: ReportWrongDialogProps) {
   const [note, setNote] = useState("");
-  const maxChars = 500;
+  const maxChars = CONFIG.REPORT_NOTE_MAX_CHARS;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +60,7 @@ export function ReportWrongDialog({
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-xs font-semibold text-[#554337]">
-            <label htmlFor="report-reason">Lý do khiếu nại (tối đa 500 ký tự):</label>
+            <label htmlFor="report-reason">Lý do khiếu nại (tối đa {maxChars} ký tự):</label>
             <span className={note.length > maxChars ? "text-red-500 font-bold" : "text-gray-500"}>
               {note.length}/{maxChars}
             </span>

@@ -16,6 +16,7 @@ import {
   ArrowRight,
   CheckCircle2,
   BookOpen,
+  Loader2,
 } from "lucide-react";
 
 import { Navbar } from "@/components/layout/Navbar";
@@ -35,6 +36,8 @@ import { CONFIG } from "@/contracts";
 import { formatErrorMessage } from "@/lib/messages";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
+import { createClient, signInWithGithub } from "@/lib/supabase/client";
+import { isOfflineMode } from "@/lib/offline";
 
 type IngestMode = "url" | "zip";
 
@@ -56,11 +59,13 @@ function getErrorMessage(error: unknown): string {
 export default function Home() {
   const router = useRouter();
 
+  // Trạng thái xác thực: "loading" | "in" | "out"
+  const [auth, setAuth] = useState<"loading" | "in" | "out">("loading");
+  const [isGithubLoggingIn, setIsGithubLoggingIn] = useState(false);
+
   // Mode: "url" (GitHub link) hoặc "zip" (File upload)
   const [mode, setMode] = useState<IngestMode>("url");
-  const [repoUrl, setRepoUrl] = useState(
-    "https://github.com/simplifey/nest-store-core"
-  );
+  const [repoUrl, setRepoUrl] = useState("");
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -75,16 +80,39 @@ export default function Home() {
   const [recentSessions, setRecentSessions] = useState<LearningSessionSummary[]>(
     []
   );
-  const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(true);
+  const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(false);
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(
     null
   );
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
-  const [restartTarget, setRestartTarget] = useState<LearningSessionSummary | null>(null);
+  const [restartTarget, setRestartTarget] =
+    useState<LearningSessionSummary | null>(null);
   const [isRestarting, setIsRestarting] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Kiểm tra xác thực khi khởi tạo trang
+  useEffect(() => {
+    async function checkAuth() {
+      if (isOfflineMode()) {
+        setAuth("in");
+        return;
+      }
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        if (data?.session) {
+          setAuth("in");
+        } else {
+          setAuth("out");
+        }
+      } catch {
+        setAuth("out");
+      }
+    }
+    checkAuth();
+  }, []);
 
   // Đọc phiên gần nhất từ localStorage an toàn (theo spec/30_UI)
   useEffect(() => {
@@ -98,22 +126,23 @@ export default function Home() {
     }
   }, []);
 
-  // Tải danh sách các phiên gần đây
+  // Tải danh sách các phiên gần đây (chỉ gọi khi auth === "in")
   const loadRecentSessions = useCallback(async () => {
     setIsLoadingSessions(true);
     const result = await getSessionsSafe({ limit: 3 });
     if (result.ok && result.data?.sessions) {
       setRecentSessions(result.data.sessions);
     } else {
-      // Khi chưa có session hoặc đang ở chế độ dev bypass, duy trì mảng rỗng nhẹ nhàng
       setRecentSessions([]);
     }
     setIsLoadingSessions(false);
   }, []);
 
   useEffect(() => {
-    loadRecentSessions();
-  }, [loadRecentSessions]);
+    if (auth === "in") {
+      loadRecentSessions();
+    }
+  }, [auth, loadRecentSessions]);
 
   // Quản lý đồng hồ đo thời gian quét
   useEffect(() => {
@@ -136,6 +165,18 @@ export default function Home() {
     };
   }, [isScanning]);
 
+  // Xử lý đăng nhập GitHub tại trang chủ khi auth === "out"
+  const handleGithubLogin = async () => {
+    try {
+      setIsGithubLoggingIn(true);
+      await signInWithGithub("/");
+    } catch (err) {
+      setIsGithubLoggingIn(false);
+      setErrorMessage("Không thể kết nối đến GitHub. Vui lòng thử lại.");
+      console.error(err);
+    }
+  };
+
   // Xử lý nộp form quét dự án
   const handleIngest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,22 +190,10 @@ export default function Home() {
         return;
       }
 
-      // Kiểm tra định dạng cơ bản của GitHub URL (chấp nhận cả tree/blob subpaths theo D-38)
-      const isGithub = /^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+(?:\/.*)?$/i.test(
-        trimmedUrl
-      );
-      if (!isGithub) {
-        setErrorMessage(
-          "URL không hợp lệ. Vui lòng nhập đúng dạng: https://github.com/owner/repository"
-        );
-        return;
-      }
-
       setIsScanning(true);
       setScanStep("Đang kết nối kho chứa và nén luồng mã nguồn...");
 
       try {
-        // Cập nhật text tiến độ mô phỏng các tầng xử lý
         const t1 = setTimeout(() => {
           setScanStep("Đang phân tích cú pháp AST qua Web Tree-sitter...");
         }, 1200);
@@ -183,10 +212,12 @@ export default function Home() {
         }
 
         const sessionId = result.data.session_id;
+        try {
+          localStorage.setItem("sf.last_session", sessionId);
+        } catch {}
         setSuccessSessionId(sessionId);
         setScanStep("Quét thành công! Đang chuyển hướng vào bài học...");
 
-        // Chuyển hướng mượt mà sang học tập
         setTimeout(() => {
           router.push(`/learn?session=${encodeURIComponent(sessionId)}`);
         }, 600);
@@ -197,11 +228,13 @@ export default function Home() {
     } else {
       // Chế độ tải file .zip
       if (!zipFile) {
-        setErrorMessage("Vui lòng chọn hoặc kéo thả tệp .zip dự án cần phân tích.");
+        setErrorMessage(
+          "Vui lòng chọn hoặc kéo thả tệp .zip dự án cần phân tích."
+        );
         return;
       }
 
-      // Kiểm tra giới hạn kích thước theo CONFIG.MAX_UPLOAD_BYTES (4.5MB)
+      // Kiểm tra giới hạn kích thước theo CONFIG.MAX_UPLOAD_BYTES
       if (zipFile.size > CONFIG.MAX_UPLOAD_BYTES) {
         const maxMb = (CONFIG.MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(1);
         setErrorMessage(
@@ -237,6 +270,9 @@ export default function Home() {
         }
 
         const sessionId = result.data.session_id;
+        try {
+          localStorage.setItem("sf.last_session", sessionId);
+        } catch {}
         setSuccessSessionId(sessionId);
         setScanStep("Phân tích hoàn tất! Đang mở buồng lái học tập...");
 
@@ -296,19 +332,27 @@ export default function Home() {
   // Mở lại phiên học cũ
   const handleResumeSession = async (sessionId: string) => {
     setResumingSessionId(sessionId);
-    try {
-      localStorage.setItem("sf.last_session", sessionId);
-    } catch {}
+    setErrorMessage(null);
     try {
       const res = await ingestRepoSafe({ session_id: sessionId });
       if (res.ok) {
+        try {
+          localStorage.setItem("sf.last_session", sessionId);
+        } catch {}
         router.push(`/learn?session=${encodeURIComponent(sessionId)}`);
       } else {
-        // Fallback mở trực tiếp trang learn
-        router.push(`/learn?session=${encodeURIComponent(sessionId)}`);
+        try {
+          localStorage.removeItem("sf.last_session");
+        } catch {}
+        setLastSessionId(null);
+        setErrorMessage(getErrorMessage(res.error));
       }
-    } catch {
-      router.push(`/learn?session=${encodeURIComponent(sessionId)}`);
+    } catch (err) {
+      try {
+        localStorage.removeItem("sf.last_session");
+      } catch {}
+      setLastSessionId(null);
+      setErrorMessage(getErrorMessage(err));
     } finally {
       setResumingSessionId(null);
     }
@@ -319,12 +363,16 @@ export default function Home() {
     setIsRestarting(true);
     setErrorMessage(null);
     try {
-      const res = await ingestRepoSafe({ session_id: session.session_id, restart: true });
+      const res = await ingestRepoSafe({
+        session_id: session.session_id,
+        restart: true,
+      });
       if (res.ok) {
+        const newSessionId = res.data.session_id;
         try {
-          localStorage.setItem("sf.last_session", session.session_id);
+          localStorage.setItem("sf.last_session", newSessionId);
         } catch {}
-        router.push(`/learn?session=${encodeURIComponent(session.session_id)}`);
+        router.push(`/learn?session=${encodeURIComponent(newSessionId)}`);
       } else {
         setErrorMessage(getErrorMessage(res.error));
         setIsRestarting(false);
@@ -363,418 +411,539 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="font-normal text-[#625e56] text-[18px] sm:text-[22px] leading-relaxed sm:leading-[35.75px] max-w-[540px]">
-                  Người đồng hành, hỗ trợ phân tích và học tập từ chính mã nguồn của bạn.
+                  Người đồng hành, hỗ trợ phân tích và học tập từ chính mã nguồn
+                  của bạn.
                 </p>
               </div>
 
-              {/* Auto-resume Banner if user has a previous session */}
-              {lastSessionId && (
-                <div className="w-full bg-gradient-to-r from-[#fff7ed] to-[#f2f3ff] border border-[#ff9640]/30 rounded-[14px] p-3.5 flex items-center justify-between gap-3 shadow-sm animate-fadeIn">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="size-7 rounded-full bg-[#ff9640]/15 flex items-center justify-center shrink-0">
-                      <Sparkles className="size-4 text-[#ff9640]" />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-[13px] font-bold text-[#131b2e] truncate">
-                        Tiếp tục bài học dở
-                      </span>
-                      <span className="text-[12px] text-[#625e56] truncate">
-                        Bạn có phiên làm việc trước đó được lưu trên thiết bị
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => handleResumeSession(lastSessionId)}
-                      isLoading={resumingSessionId === lastSessionId}
-                      rightIcon={<ArrowRight className="size-3" />}
-                    >
-                      Học tiếp
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => setLastSessionId(null)}
-                      className="text-[#99a1af] hover:text-[#131b2e] text-xs font-semibold px-1 py-1"
-                      title="Bỏ qua"
-                    >
-                      ✕
-                    </button>
-                  </div>
+              {/* KHỐI NỘI DUNG THEO TRẠNG THÁI XÁC THỰC */}
+              {auth === "loading" ? (
+                /* Shimmer Skeleton khi kiểm tra Auth */
+                <div className="bg-white border border-[#f3f4f6] drop-shadow-[0px_10px_15px_rgba(0,0,0,0.06)] p-[24.8px] rounded-[16px] w-full max-w-[608px] h-64 animate-pulse flex flex-col justify-center items-center gap-3">
+                  <div className="size-8 border-2 border-[#ff9640]/30 border-t-[#ff9640] rounded-full animate-spin" />
+                  <span className="text-xs text-[#625e56]">
+                    Đang kiểm tra trạng thái đăng nhập...
+                  </span>
                 </div>
-              )}
-
-              {/* Automatic Code Scanner Card with Ingest Integration (Figma node 5:256) */}
-              <div
-                className="bg-white border border-[#f3f4f6] drop-shadow-[0px_10px_15px_rgba(0,0,0,0.06)] flex flex-col gap-[14px] items-start max-w-[608px] p-[24.8px] rounded-[16px] w-full transition-shadow duration-200 hover:drop-shadow-[0px_14px_22px_rgba(0,0,0,0.09)]"
-                data-node-id="5:256"
-              >
-                {/* Header title with scanner radar icon and Mode Toggle */}
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-[10px]">
-                    <div className="flex items-center justify-center shrink-0 size-[20px]">
-                      <Image
-                        src="/assets/6cf87.svg"
-                        alt="Phân tích"
-                        width={18}
-                        height={15}
-                        className="block"
-                      />
-                    </div>
-                    <h3 className="font-bold text-[#131b2e] text-[17px] leading-[25.5px] tracking-tight">
-                      Phân tích mã nguồn tự động
+              ) : auth === "out" ? (
+                /* Thẻ Đăng nhập khi auth === "out" (không gọi getSessions, giữ phần giới thiệu) */
+                <div
+                  className="bg-white border border-[#f3f4f6] drop-shadow-[0px_10px_15px_rgba(0,0,0,0.06)] flex flex-col gap-5 items-start max-w-[608px] p-[24.8px] rounded-[16px] w-full"
+                  data-name="AuthRequiredCard"
+                >
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold text-[#944b00] text-[12px] tracking-[0.7px] uppercase bg-[#fff7ed] px-3 py-1 rounded-full border border-[#ff9640]/30 w-fit">
+                      BẮT ĐẦU HỌC TẬP
+                    </span>
+                    <h3 className="font-bold text-[#131b2e] text-[20px] leading-tight">
+                      Đăng nhập để phân tích mã nguồn
                     </h3>
+                    <p className="text-[14px] text-[#625e56] leading-relaxed">
+                      Đăng nhập tài khoản GitHub để nạp repo, lưu tiến độ học tập
+                      và theo dõi điểm kỹ năng của bạn.
+                    </p>
                   </div>
 
-                  {/* Mode Selector Tabs: GitHub URL vs Zip File */}
-                  <div className="flex items-center bg-[#f2f3ff] p-1 rounded-[8px] text-[13px] font-semibold">
+                  <div className="w-full flex flex-col gap-3">
                     <button
                       type="button"
-                      onClick={() => {
-                        setMode("url");
-                        setErrorMessage(null);
-                      }}
-                      disabled={isScanning}
-                      className={`px-3 py-1 rounded-[6px] transition-all flex items-center gap-1.5 ${
-                        mode === "url"
-                          ? "bg-white text-[#131b2e] shadow-sm font-bold"
-                          : "text-[#625e56] hover:text-[#131b2e]"
-                      }`}
+                      onClick={handleGithubLogin}
+                      disabled={isGithubLoggingIn}
+                      className="group w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-[10px] bg-[#131b2e] hover:bg-[#1f293d] active:scale-[0.98] text-white text-[15px] font-bold shadow-md hover:shadow-lg transition-all duration-200 ease-out disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                     >
-                      <Globe className="size-3.5" />
-                      <span>GitHub</span>
+                      {isGithubLoggingIn ? (
+                        <Loader2 className="size-5 animate-spin text-white" />
+                      ) : (
+                        <svg
+                          className="size-5 shrink-0 fill-current text-white"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            clipRule="evenodd"
+                            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                          />
+                        </svg>
+                      )}
+                      <span>
+                        {isGithubLoggingIn
+                          ? "Đang chuyển hướng sang GitHub..."
+                          : "Đăng nhập GitHub"}
+                      </span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("zip");
-                        setErrorMessage(null);
-                      }}
-                      disabled={isScanning}
-                      className={`px-3 py-1 rounded-[6px] transition-all flex items-center gap-1.5 ${
-                        mode === "zip"
-                          ? "bg-white text-[#131b2e] shadow-sm font-bold"
-                          : "text-[#625e56] hover:text-[#131b2e]"
-                      }`}
-                    >
-                      <FileArchive className="size-3.5" />
-                      <span>File Zip</span>
-                    </button>
+
+                    <div className="bg-[#fff7ed] border border-[#ff9640]/40 rounded-[10px] p-3 text-center text-xs text-[#944b00]">
+                      <span>Muốn trải nghiệm thử không cần đăng nhập? </span>
+                      <Link
+                        href="/learn?offline=1"
+                        className="font-bold underline hover:text-[#723900] transition-colors"
+                      >
+                        Mở bản demo Offline
+                      </Link>
+                    </div>
                   </div>
                 </div>
-
-                {/* Form with input or drag & drop and CTA */}
-                <form onSubmit={handleIngest} className="w-full">
-                  {mode === "url" ? (
-                    <div className="flex flex-col gap-2.5 w-full">
-                      <div className="flex flex-col sm:flex-row gap-[12px] items-stretch sm:items-center w-full">
-                        {/* Input field matching Figma node 5:265 */}
-                        <div className="bg-[#f2f3ff] rounded-[8px] flex items-center flex-1 px-[14.8px] py-[12px] transition-all focus-within:ring-2 focus-within:ring-[#ff9640]/30 focus-within:bg-white border border-transparent focus-within:border-[#ff9640] overflow-hidden">
-                          <div className="pr-[12px] flex items-center justify-center shrink-0 z-10 bg-inherit">
-                            <Image
-                              src="/assets/2f0de.svg"
-                              alt="URL Icon"
-                              width={16}
-                              height={16}
-                              className="shrink-0"
-                            />
-                          </div>
-                          <div className="flex-1 overflow-hidden relative min-w-0">
-                            <input
-                              type="text"
-                              value={repoUrl}
-                              onChange={(e) => {
-                                setRepoUrl(e.target.value);
-                                if (errorMessage) setErrorMessage(null);
-                              }}
-                              disabled={isScanning}
-                              placeholder="https://github.com/owner/repository"
-                              aria-label="Repository URL"
-                              className="w-full bg-transparent text-[14px] font-semibold text-[#131b2e] placeholder:text-[#99a1af] focus:outline-none disabled:opacity-60 cursor-text"
-                            />
-                          </div>
+              ) : (
+                /* auth === "in": Hiện đầy đủ Auto-resume banner, Khối form quét và Danh sách phiên */
+                <>
+                  {/* Auto-resume Banner if user has a previous session */}
+                  {lastSessionId && (
+                    <div className="w-full bg-gradient-to-r from-[#fff7ed] to-[#f2f3ff] border border-[#ff9640]/30 rounded-[14px] p-3.5 flex items-center justify-between gap-3 shadow-sm animate-fadeIn">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="size-7 rounded-full bg-[#ff9640]/15 flex items-center justify-center shrink-0">
+                          <Sparkles className="size-4 text-[#ff9640]" />
                         </div>
-
-                        {/* CTA Button matching Figma node 5:273 */}
-                        <button
-                          type="submit"
-                          disabled={isScanning}
-                          className="group bg-[#ff9640] hover:bg-[#f2852e] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-75 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-[8px] px-[24px] py-[14px] rounded-[8px] shrink-0 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out origin-center select-none"
-                        >
-                          <span className="font-bold text-white text-[17px] leading-[25.5px] whitespace-nowrap">
-                            {isScanning ? "Đang quét..." : "Quét Dự Án"}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[13px] font-bold text-[#131b2e] truncate">
+                            Tiếp tục bài học dở
                           </span>
-                          {isScanning ? (
-                            <div className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
-                          ) : (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 12 12"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
-                              aria-hidden="true"
-                            >
-                              <path
-                                d="M9.13125 6.75H0V5.25H9.13125L4.93125 1.05L6 0L12 6L6 12L4.93125 10.95L9.13125 6.75V6.75"
-                                fill="white"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Cảnh báo nhánh/thư mục con theo D-38 */}
-                      {hasSubtree && (
-                        <div className="w-full bg-[#fff7ed] border border-[#ff9640]/40 rounded-[8px] p-2.5 flex items-center gap-2 text-[#944b00] text-[12.5px] animate-fadeIn">
-                          <AlertTriangle className="size-4 text-[#ff9640] shrink-0" />
-                          <span>
-                            <strong>Lưu ý (D-38):</strong> URL trỏ vào thư mục hoặc nhánh con. SimpliFey sẽ phân tích toàn bộ kho chứa tương ứng.
+                          <span className="text-[12px] text-[#625e56] truncate">
+                            Bạn có phiên làm việc trước đó được lưu trên thiết bị
                           </span>
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Zip File Upload Dropzone */
-                    <div className="flex flex-col gap-3 w-full">
-                      <div
-                        onDragEnter={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-[10px] p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                          dragActive
-                            ? "border-[#ff9640] bg-[#fff7ed]"
-                            : "border-[#d8dbeb] bg-[#f9faff] hover:border-[#ff9640]/60 hover:bg-[#fff9f4]"
-                        } ${isScanning ? "opacity-60 pointer-events-none" : ""}`}
-                      >
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".zip,application/zip"
-                          onChange={handleFileChange}
-                          className="hidden"
-                          disabled={isScanning}
-                        />
-                        <div className="size-10 rounded-full bg-[#ff9640]/10 flex items-center justify-center text-[#ff9640]">
-                          <Upload className="size-5" />
-                        </div>
-                        {zipFile ? (
-                          <div className="flex items-center gap-2 text-[14px] font-bold text-[#131b2e]">
-                            <FileArchive className="size-4 text-[#ff9640]" />
-                            <span>{zipFile.name}</span>
-                            <span className="text-[#887365] text-[12px] font-normal">
-                              ({(zipFile.size / (1024 * 1024)).toFixed(2)} MB)
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <p className="text-[14px] font-semibold text-[#131b2e]">
-                              Kéo thả tệp .zip hoặc{" "}
-                              <span className="text-[#ff9640] underline">
-                                chọn tệp
-                              </span>
-                            </p>
-                            <p className="text-[12px] text-[#625e56] mt-0.5">
-                              Tối đa 4.5MB theo tiêu chuẩn cấu hình hệ thống
-                            </p>
-                          </div>
-                        )}
                       </div>
-
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isScanning || !zipFile}
-                          className="bg-[#ff9640] hover:bg-[#f2852e] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-[8px] px-[24px] py-[12px] rounded-[8px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1)] transition-all text-white font-bold text-[15px]"
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => handleResumeSession(lastSessionId)}
+                          isLoading={resumingSessionId === lastSessionId}
+                          rightIcon={<ArrowRight className="size-3" />}
                         >
-                          <span>{isScanning ? "Đang tải lên..." : "Bắt Đầu Quét Zip"}</span>
-                          {isScanning ? (
-                            <div className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
-                          ) : (
-                            <ArrowRight className="size-4 shrink-0" />
-                          )}
+                          Học tiếp
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              localStorage.removeItem("sf.last_session");
+                            } catch {}
+                            setLastSessionId(null);
+                          }}
+                          className="text-[#99a1af] hover:text-[#131b2e] text-xs font-semibold px-1 py-1 cursor-pointer"
+                          title="Bỏ qua"
+                        >
+                          ✕
                         </button>
                       </div>
                     </div>
                   )}
-                </form>
 
-                {/* Real-time Scanning Progress Indicator */}
-                {isScanning && (
-                  <div className="w-full bg-[#fff7ed] border border-[#ff9640]/30 rounded-[10px] p-3.5 flex flex-col gap-2 animate-fadeIn">
-                    <div className="flex items-center justify-between text-[13px] font-bold text-[#944b00]">
-                      <div className="flex items-center gap-2">
-                        <div className="size-2 rounded-full bg-[#ff9640] animate-ping" />
-                        <span>{scanStep || "Đang xử lý..."}</span>
-                      </div>
-                      <span className="font-mono text-[#ff9640]">
-                        {scanElapsed.toFixed(1)}s
-                      </span>
-                    </div>
-                    {/* Animated Progress Bar */}
-                    <div className="w-full bg-[#ffe4d1] h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-[#ff9640] h-full rounded-full animate-pulse w-3/4" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Error Banner with Friendly Vietnamese Message */}
-                {errorMessage && (
-                  <div className="w-full bg-red-50 border border-red-200 rounded-[10px] p-3.5 flex items-start gap-3 text-red-800 text-[13.5px] leading-relaxed">
-                    <AlertCircle className="size-4 text-red-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-bold text-red-900">Không thể phân tích kho chứa</p>
-                      <p className="text-red-700 mt-0.5">{errorMessage}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setErrorMessage(null)}
-                      className="text-red-500 hover:text-red-800 font-semibold text-[12px] underline shrink-0"
-                    >
-                      Đóng
-                    </button>
-                  </div>
-                )}
-
-                {/* Success Notification */}
-                {successSessionId && (
-                  <div className="w-full bg-emerald-50 border border-emerald-200 rounded-[10px] p-3 flex items-center gap-2.5 text-emerald-800 text-[13.5px]">
-                    <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                    <span className="font-semibold">
-                      Phân tích thành công! Đang chuyển hướng vào buồng lái...
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Recent Sessions Section (Tiếp tục học - Bước 5) */}
-              <div className="w-full flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[#131b2e]">
-                    <Clock className="size-4 text-[#ff9640]" />
-                    <h4 className="font-bold text-[15px] tracking-tight">
-                      Phiên học gần đây
-                    </h4>
-                  </div>
-                  <Link
-                    href="/roadmap"
-                    className="text-[13px] font-semibold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 transition-colors"
+                  {/* Automatic Code Scanner Card with Ingest Integration (Figma node 5:256) */}
+                  <div
+                    className="bg-white border border-[#f3f4f6] drop-shadow-[0px_10px_15px_rgba(0,0,0,0.06)] flex flex-col gap-[14px] items-start max-w-[608px] p-[24.8px] rounded-[16px] w-full transition-shadow duration-200 hover:drop-shadow-[0px_14px_22px_rgba(0,0,0,0.09)]"
+                    data-node-id="5:256"
                   >
-                    <span>Xem tất cả lộ trình</span>
-                    <ArrowRight className="size-3.5" />
-                  </Link>
-                </div>
-
-                {isLoadingSessions ? (
-                  /* Loading Shimmer State */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                    {[1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="bg-white border border-[#f0f1f5] rounded-[12px] p-3.5 flex flex-col gap-2.5 animate-pulse"
-                      >
-                        <div className="h-4 bg-gray-200 rounded w-3/4" />
-                        <div className="h-2.5 bg-gray-100 rounded w-1/2" />
-                        <div className="h-2 bg-gray-100 rounded-full w-full mt-1" />
+                    {/* Header title with scanner radar icon and Mode Toggle */}
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-[10px]">
+                        <div className="flex items-center justify-center shrink-0 size-[20px]">
+                          <Image
+                            src="/assets/6cf87.svg"
+                            alt="Phân tích"
+                            width={18}
+                            height={15}
+                            className="block"
+                          />
+                        </div>
+                        <h3 className="font-bold text-[#131b2e] text-[17px] leading-[25.5px] tracking-tight">
+                          Phân tích mã nguồn tự động
+                        </h3>
                       </div>
-                    ))}
-                  </div>
-                ) : recentSessions.length > 0 ? (
-                  /* Success State with Recent Sessions */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                    {recentSessions.map((session) => {
-                      const progressPct =
-                        session.total_nodes > 0
-                          ? Math.min(
-                              100,
-                              Math.round(
-                                (session.completed_count / session.total_nodes) *
-                                  100
-                              )
-                            )
-                          : 0;
-                      const isResuming =
-                        resumingSessionId === session.session_id;
 
-                      return (
-                        <div
-                          key={session.session_id}
-                          className="bg-white border border-[#eaecef] hover:border-[#ff9640]/50 drop-shadow-[0px_2px_4px_rgba(0,0,0,0.04)] rounded-[12px] p-3.5 flex flex-col justify-between gap-3 transition-all hover:shadow-md"
+                      {/* Mode Selector Tabs: GitHub URL vs Zip File */}
+                      <div className="flex items-center bg-[#f2f3ff] p-1 rounded-[8px] text-[13px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMode("url");
+                            setErrorMessage(null);
+                          }}
+                          disabled={isScanning}
+                          className={`px-3 py-1 rounded-[6px] transition-all flex items-center gap-1.5 cursor-pointer ${
+                            mode === "url"
+                              ? "bg-white text-[#131b2e] shadow-sm font-bold"
+                              : "text-[#625e56] hover:text-[#131b2e]"
+                          }`}
                         >
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <h5 className="font-bold text-[14px] text-[#131b2e] truncate max-w-[180px]">
-                                {session.repo_name}
-                              </h5>
-                              <span className="text-[11px] font-bold text-[#ff9640] bg-[#fff7ed] px-2 py-0.5 rounded-full">
-                                {progressPct}%
+                          <Globe className="size-3.5" />
+                          <span>GitHub</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMode("zip");
+                            setErrorMessage(null);
+                          }}
+                          disabled={isScanning}
+                          className={`px-3 py-1 rounded-[6px] transition-all flex items-center gap-1.5 cursor-pointer ${
+                            mode === "zip"
+                              ? "bg-white text-[#131b2e] shadow-sm font-bold"
+                              : "text-[#625e56] hover:text-[#131b2e]"
+                          }`}
+                        >
+                          <FileArchive className="size-3.5" />
+                          <span>File Zip</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Form with input or drag & drop and CTA */}
+                    <form onSubmit={handleIngest} className="w-full">
+                      {mode === "url" ? (
+                        <div className="flex flex-col gap-2.5 w-full">
+                          <div className="flex flex-col sm:flex-row gap-[12px] items-stretch sm:items-center w-full">
+                            {/* Input field matching Figma node 5:265 */}
+                            <div className="bg-[#f2f3ff] rounded-[8px] flex items-center flex-1 px-[14.8px] py-[12px] transition-all focus-within:ring-2 focus-within:ring-[#ff9640]/30 focus-within:bg-white border border-transparent focus-within:border-[#ff9640] overflow-hidden">
+                              <div className="pr-[12px] flex items-center justify-center shrink-0 z-10 bg-inherit">
+                                <Image
+                                  src="/assets/2f0de.svg"
+                                  alt="URL Icon"
+                                  width={16}
+                                  height={16}
+                                  className="shrink-0"
+                                />
+                              </div>
+                              <div className="flex-1 overflow-hidden relative min-w-0">
+                                <input
+                                  type="text"
+                                  value={repoUrl}
+                                  onChange={(e) => {
+                                    setRepoUrl(e.target.value);
+                                    if (errorMessage) setErrorMessage(null);
+                                  }}
+                                  disabled={isScanning}
+                                  placeholder="https://github.com/owner/repository"
+                                  aria-label="Repository URL"
+                                  className="w-full bg-transparent text-[14px] font-semibold text-[#131b2e] placeholder:text-[#99a1af] focus:outline-none disabled:opacity-60 cursor-text"
+                                />
+                              </div>
+                            </div>
+
+                            {/* CTA Button matching Figma node 5:273 */}
+                            <button
+                              type="submit"
+                              disabled={isScanning}
+                              className="group bg-[#ff9640] hover:bg-[#f2852e] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-75 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-[8px] px-[24px] py-[14px] rounded-[8px] shrink-0 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] transition-all duration-200 ease-out origin-center select-none"
+                            >
+                              <span className="font-bold text-white text-[17px] leading-[25.5px] whitespace-nowrap">
+                                {isScanning ? "Đang quét..." : "Quét Dự Án"}
                               </span>
-                            </div>
-                            <p className="text-[12px] text-[#625e56]">
-                              {session.completed_count}/{session.total_nodes} bài đã
-                              vượt qua
-                              {session.failed_count > 0 &&
-                                ` • ${session.failed_count} cần ôn`}
-                            </p>
-                          </div>
-
-                          {/* Progress line */}
-                          <div className="w-full bg-[#f2f3ff] h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className="bg-[#ff9640] h-full rounded-full transition-all duration-300"
-                              style={{ width: `${progressPct}%` }}
-                            />
-                          </div>
-
-                          <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                            <span className="text-[11px] text-[#99a1af]">
-                              {new Date(session.last_active_at).toLocaleDateString(
-                                "vi-VN"
+                              {isScanning ? (
+                                <div className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
+                              ) : (
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 12 12"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="shrink-0 transition-transform duration-200 group-hover:translate-x-1"
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    d="M9.13125 6.75H0V5.25H9.13125L4.93125 1.05L6 0L12 6L6 12L4.93125 10.95L9.13125 6.75V6.75"
+                                    fill="white"
+                                  />
+                                </svg>
                               )}
-                            </span>
-                            <div className="flex items-center gap-2.5">
-                              <button
-                                type="button"
-                                onClick={() => setRestartTarget(session)}
-                                disabled={isResuming || isRestarting}
-                                className="text-[11px] font-medium text-[#625e56] hover:text-[#944b00] flex items-center gap-1 transition-colors disabled:opacity-50"
-                                title="Xóa tiến trình và học lại từ đầu"
-                              >
-                                <RotateCcw className="size-3" />
-                                <span>Học lại</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleResumeSession(session.session_id)
-                                }
-                                disabled={isResuming || isRestarting}
-                                className="text-[12px] font-bold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 disabled:opacity-50"
-                              >
-                                <span>{isResuming ? "Đang mở..." : "Học tiếp"}</span>
-                                <ArrowRight className="size-3" />
-                              </button>
-                            </div>
+                            </button>
+                          </div>
+
+                          {/* Dưới ô link luôn có ghi chú "Chỉ hỗ trợ nhánh mặc định"; hasSubtree đúng thì ghi chú tô hổ phách */}
+                          <div
+                            className={`w-full rounded-[6px] px-2.5 py-1 text-[12.5px] flex items-center gap-1.5 transition-colors ${
+                              hasSubtree
+                                ? "bg-[#fffbeb] border border-[#f59e0b] text-[#b45309] font-medium"
+                                : "text-[#625e56]"
+                            }`}
+                          >
+                            {hasSubtree && (
+                              <AlertTriangle className="size-3.5 text-[#f59e0b] shrink-0" />
+                            )}
+                            <span>Chỉ hỗ trợ nhánh mặc định</span>
                           </div>
                         </div>
-                      );
-                    })}
+                      ) : (
+                        /* Zip File Upload Dropzone */
+                        <div className="flex flex-col gap-3 w-full">
+                          <div
+                            onDragEnter={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDragOver={handleDrag}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`border-2 border-dashed rounded-[10px] p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                              dragActive
+                                ? "border-[#ff9640] bg-[#fff7ed]"
+                                : "border-[#d8dbeb] bg-[#f9faff] hover:border-[#ff9640]/60 hover:bg-[#fff9f4]"
+                            } ${
+                              isScanning ? "opacity-60 pointer-events-none" : ""
+                            }`}
+                          >
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept=".zip,application/zip"
+                              onChange={handleFileChange}
+                              className="hidden"
+                              disabled={isScanning}
+                            />
+                            <div className="size-10 rounded-full bg-[#ff9640]/10 flex items-center justify-center text-[#ff9640]">
+                              <Upload className="size-5" />
+                            </div>
+                            {zipFile ? (
+                              <div className="flex items-center gap-2 text-[14px] font-bold text-[#131b2e]">
+                                <FileArchive className="size-4 text-[#ff9640]" />
+                                <span>{zipFile.name}</span>
+                                <span className="text-[#887365] text-[12px] font-normal">
+                                  ({(zipFile.size / (1024 * 1024)).toFixed(2)}{" "}
+                                  MB)
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="text-center">
+                                <p className="text-[14px] font-semibold text-[#131b2e]">
+                                  Kéo thả tệp .zip hoặc{" "}
+                                  <span className="text-[#ff9640] underline">
+                                    chọn tệp
+                                  </span>
+                                </p>
+                                <p className="text-[12px] text-[#625e56] mt-0.5">
+                                  Tối đa 4.5MB theo tiêu chuẩn cấu hình hệ thống
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={isScanning || !zipFile}
+                              className="bg-[#ff9640] hover:bg-[#f2852e] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-[8px] px-[24px] py-[12px] rounded-[8px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1)] transition-all text-white font-bold text-[15px]"
+                            >
+                              <span>
+                                {isScanning
+                                  ? "Đang tải lên..."
+                                  : "Bắt Đầu Quét Zip"}
+                              </span>
+                              {isScanning ? (
+                                <div className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
+                              ) : (
+                                <ArrowRight className="size-4 shrink-0" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </form>
+
+                    {/* Real-time Scanning Progress Indicator */}
+                    {isScanning && (
+                      <div className="w-full bg-[#fff7ed] border border-[#ff9640]/30 rounded-[10px] p-3.5 flex flex-col gap-2 animate-fadeIn">
+                        <div className="flex items-center justify-between text-[13px] font-bold text-[#944b00]">
+                          <div className="flex items-center gap-2">
+                            <div className="size-2 rounded-full bg-[#ff9640] animate-ping" />
+                            <span>{scanStep || "Đang xử lý..."}</span>
+                          </div>
+                          <span className="font-mono text-[#ff9640]">
+                            {scanElapsed.toFixed(1)}s
+                          </span>
+                        </div>
+                        {/* Animated Progress Bar */}
+                        <div className="w-full bg-[#ffe4d1] h-1.5 rounded-full overflow-hidden">
+                          <div className="bg-[#ff9640] h-full rounded-full animate-pulse w-3/4" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Error Banner with Friendly Vietnamese Message */}
+                    {errorMessage && (
+                      <div className="w-full bg-red-50 border border-red-200 rounded-[10px] p-3.5 flex items-start gap-3 text-red-800 text-[13.5px] leading-relaxed">
+                        <AlertCircle className="size-4 text-red-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-bold text-red-900">
+                            Không thể phân tích kho chứa
+                          </p>
+                          <p className="text-red-700 mt-0.5">{errorMessage}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setErrorMessage(null)}
+                          className="text-red-500 hover:text-red-800 font-semibold text-[12px] underline shrink-0 cursor-pointer"
+                        >
+                          Đóng
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Success Notification */}
+                    {successSessionId && (
+                      <div className="w-full bg-emerald-50 border border-emerald-200 rounded-[10px] p-3 flex items-center gap-2.5 text-emerald-800 text-[13.5px]">
+                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                        <span className="font-semibold">
+                          Phân tích thành công! Đang chuyển hướng vào buồng
+                          lái...
+                        </span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  /* Empty State when no previous sessions */
-                  <div className="bg-[#f9faff] border border-dashed border-[#d8dbeb] rounded-[12px] p-4 flex items-center gap-3">
-                    <BookOpen className="size-5 text-[#887365] shrink-0" />
-                    <p className="text-[13px] text-[#625e56]">
-                      Chưa có phiên học nào. Nhập liên kết GitHub ở trên hoặc tải file
-                      zip để bắt đầu phân tích mã nguồn đầu tiên của bạn!
-                    </p>
+
+                  {/* Recent Sessions Section (Tiếp tục học - Bước 5) */}
+                  <div className="w-full flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-[#131b2e]">
+                        <Clock className="size-4 text-[#ff9640]" />
+                        <h4 className="font-bold text-[15px] tracking-tight">
+                          Phiên học gần đây
+                        </h4>
+                      </div>
+                      <Link
+                        href="/roadmap"
+                        className="text-[13px] font-semibold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 transition-colors"
+                      >
+                        <span>Xem tất cả lộ trình</span>
+                        <ArrowRight className="size-3.5" />
+                      </Link>
+                    </div>
+
+                    {isLoadingSessions ? (
+                      /* Loading Shimmer State */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                        {[1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="bg-white border border-[#f0f1f5] rounded-[12px] p-3.5 flex flex-col gap-2.5 animate-pulse"
+                          >
+                            <div className="h-4 bg-gray-200 rounded w-3/4" />
+                            <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+                            <div className="h-2 bg-gray-100 rounded-full w-full mt-1" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : recentSessions.length > 0 ? (
+                      /* Success State with Recent Sessions */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                        {recentSessions.map((session) => {
+                          const progressPct =
+                            session.total_nodes > 0
+                              ? Math.min(
+                                  100,
+                                  Math.round(
+                                    (session.completed_count /
+                                      session.total_nodes) *
+                                      100
+                                  )
+                                )
+                              : 0;
+                          const isResuming =
+                            resumingSessionId === session.session_id;
+
+                          const isHistoryOnly =
+                            session.can_resume === false ||
+                            session.resume_blocker === "ENGINE_UPDATED";
+
+                          return (
+                            <div
+                              key={session.session_id}
+                              className="bg-white border border-[#eaecef] hover:border-[#ff9640]/50 drop-shadow-[0px_2px_4px_rgba(0,0,0,0.04)] rounded-[12px] p-3.5 flex flex-col justify-between gap-3 transition-all hover:shadow-md"
+                            >
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h5 className="font-bold text-[14px] text-[#131b2e] truncate max-w-[180px]">
+                                    {session.repo_name}
+                                  </h5>
+                                  <span className="text-[11px] font-bold text-[#ff9640] bg-[#fff7ed] px-2 py-0.5 rounded-full">
+                                    {progressPct}%
+                                  </span>
+                                </div>
+                                <p className="text-[12px] text-[#625e56]">
+                                  {session.completed_count}/
+                                  {session.total_nodes} bài đã vượt qua
+                                  {session.failed_count > 0 &&
+                                    ` • ${session.failed_count} cần ôn`}
+                                </p>
+                              </div>
+
+                              {/* Progress line */}
+                              <div className="w-full bg-[#f2f3ff] h-1.5 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-[#ff9640] h-full rounded-full transition-all duration-300"
+                                  style={{ width: `${progressPct}%` }}
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                                <span className="text-[11px] text-[#99a1af]">
+                                  {new Date(
+                                    session.last_active_at
+                                  ).toLocaleDateString("vi-VN")}
+                                </span>
+                                {isHistoryOnly ? (
+                                  <Link
+                                    href={`/history?session=${encodeURIComponent(
+                                      session.session_id
+                                    )}`}
+                                    className="text-[12px] font-bold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 transition-colors"
+                                  >
+                                    <span>Xem lịch sử</span>
+                                    <ArrowRight className="size-3" />
+                                  </Link>
+                                ) : (
+                                  <div className="flex items-center gap-2.5">
+                                    <Link
+                                      href={`/history?session=${encodeURIComponent(
+                                        session.session_id
+                                      )}`}
+                                      className="text-[11px] font-medium text-[#625e56] hover:text-[#131b2e] transition-colors"
+                                    >
+                                      Lịch sử
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      onClick={() => setRestartTarget(session)}
+                                      disabled={isResuming || isRestarting}
+                                      className="text-[11px] font-medium text-[#625e56] hover:text-[#944b00] flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                                      title="Xóa tiến trình và học lại từ đầu"
+                                    >
+                                      <RotateCcw className="size-3" />
+                                      <span>Học lại</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleResumeSession(session.session_id)
+                                      }
+                                      disabled={isResuming || isRestarting}
+                                      className="text-[12px] font-bold text-[#ff9640] hover:text-[#e6761c] flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <span>
+                                        {isResuming ? "Đang mở..." : "Học tiếp"}
+                                      </span>
+                                      <ArrowRight className="size-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Empty State when no previous sessions */
+                      <div className="bg-[#f9faff] border border-dashed border-[#d8dbeb] rounded-[12px] p-4 flex items-center gap-3">
+                        <BookOpen className="size-5 text-[#887365] shrink-0" />
+                        <p className="text-[13px] text-[#625e56]">
+                          Chưa có phiên học nào. Nhập liên kết GitHub ở trên
+                          hoặc tải file zip để bắt đầu phân tích mã nguồn đầu
+                          tiên của bạn!
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
               {/* Interactive Lottie Character Animation (Figma node 5:280) */}
               <div className="w-full flex items-center justify-center pt-2 sm:pt-4">
@@ -801,7 +970,7 @@ export default function Home() {
         isOpen={Boolean(restartTarget)}
         onClose={() => !isRestarting && setRestartTarget(null)}
         title="Học lại từ đầu kho lưu trữ?"
-        description="Toàn bộ tiến trình trả lời câu hỏi và đồ thị kiến thức BKT của phiên này sẽ được thiết lập lại từ đầu (0%). Bạn có chắc chắn muốn làm mới bài học?"
+        description="Mở phiên mới cho repo này: tiến độ node làm lại, điểm kỹ năng giữ nguyên, câu hỏi sinh mới."
         maxWidth="sm"
       >
         <div className="flex flex-col gap-4 mt-2">
@@ -809,7 +978,8 @@ export default function Home() {
             <div className="bg-[#f9faff] border border-[#d8dbeb] rounded-[8px] p-3 text-xs text-[#131b2e]">
               <p className="font-bold">{restartTarget.repo_name}</p>
               <p className="text-[#625e56] mt-0.5">
-                Tiến trình hiện tại: {restartTarget.completed_count}/{restartTarget.total_nodes} bài đã vượt qua
+                Tiến trình hiện tại: {restartTarget.completed_count}/
+                {restartTarget.total_nodes} bài đã vượt qua
               </p>
             </div>
           )}
@@ -829,7 +999,9 @@ export default function Home() {
               size="sm"
               leftIcon={<RotateCcw className="size-3.5" />}
               isLoading={isRestarting}
-              onClick={() => restartTarget && handleRestartSession(restartTarget)}
+              onClick={() =>
+                restartTarget && handleRestartSession(restartTarget)
+              }
             >
               Xác nhận học lại
             </Button>

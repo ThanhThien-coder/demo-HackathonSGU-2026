@@ -1,4 +1,4 @@
-export type LessonStatus = "completed" | "in-progress" | "locked";
+export type LessonStatus = "completed" | "in-progress" | "locked" | "failed";
 
 export interface LessonItem {
   id: string;

@@ -31,8 +31,8 @@
   --color-status-danger: #e7000b;
   --color-status-info: #004cff;
 
-  --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: "JetBrains Mono", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  --font-sans: var(--font-plus-jakarta), "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), Consolas, "Liberation Mono", Menlo, Courier, monospace;
 }
 
 :root {
@@ -88,4 +88,7 @@ body {
   }
 }
 
-
+:focus-visible {
+  outline: 2px solid var(--color-status-warning);
+  outline-offset: 2px;
+}

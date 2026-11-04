@@ -13,6 +13,7 @@ import {
   setEngineResultCache,
   setAliasSnapshotId,
 } from "./cache";
+import { parseJsonb } from "./progress";
 
 export interface SessionRecord {
   id: string;
@@ -53,6 +54,11 @@ export interface SessionLookup {
   user_id?: string;
 }
 
+/** Chuan hoa dong learning_sessions: graph_skeleton cu co the con dang chuoi. */
+function normalizeSessionRow(row: SessionRecord): SessionRecord {
+  return { ...row, graph_skeleton: parseJsonb<GraphSkeletonNode[]>(row.graph_skeleton) };
+}
+
 /**
  * Kiem tra quyen so huu phien (API-05).
  * session_id phai thuoc user_id hien tai, nguoc lai nem ERR_SESSION_NOT_FOUND (404);
@@ -76,7 +82,7 @@ export async function verifySessionOwnership(
     throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
   }
 
-  return rows[0];
+  return normalizeSessionRow(rows[0]);
 }
 
 /**
@@ -154,7 +160,7 @@ export async function verifyRunOwnership(
       tokens_used: row.tokens_used,
       created_at: row.created_at,
       last_active_at: row.last_active_at,
-      graph_skeleton: row.graph_skeleton,
+      graph_skeleton: parseJsonb<GraphSkeletonNode[]>(row.graph_skeleton),
     },
   };
 }
@@ -222,7 +228,7 @@ export async function getSessionStaticResult(
     throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
   }
 
-  const result = rows[0].result;
+  const result = parseJsonb<StaticEngineResult>(rows[0].result);
   setEngineResultCache(session.snapshot_id, session.subdir, session.engine_version, result);
   return result;
 }
@@ -332,7 +338,7 @@ export async function createOrResumeSession(
   `;
 
   if (existing.length > 0) {
-    const session = existing[0];
+    const session = normalizeSessionRow(existing[0]);
     // 03 Muc 6.6: tra ket qua da luu cua phien do (cache RAM hoac session_snapshots)
     const stored = await getSessionStaticResult(session, userId);
 

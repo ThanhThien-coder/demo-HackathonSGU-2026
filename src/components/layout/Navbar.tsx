@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Menu, X, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { Avatar } from "@/components/ui/Avatar";
@@ -10,11 +10,14 @@ import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useUserStore } from "@/stores/userStore";
+import { useWorkbenchStore } from "@/store/workbench";
 import {
   isOfflineMode,
   setOfflineMode,
   loadOfflineBundle,
+  getOfflineBundle,
 } from "@/lib/offline";
+import type { OfflineMockBundle } from "@/contracts";
 
 export interface NavbarProps {
   user?: {
@@ -25,30 +28,12 @@ export interface NavbarProps {
 }
 
 export function Navbar({ user: propUser, className }: NavbarProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-
-  // Hook Ctrl+Shift+D và query ?offline=1 (UI-60)
-  useEffect(() => {
-    setIsOffline(isOfflineMode());
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
-        e.preventDefault();
-        const next = !isOfflineMode();
-        setOfflineMode(next);
-        setIsOffline(next);
-        if (next) {
-          loadOfflineBundle().catch(() => {});
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  const [bundleState, setBundleState] = useState<OfflineMockBundle | null>(null);
 
   // Lấy state từ User Store (quản lý tập trung hồ sơ BKT và thông báo)
   const {
@@ -59,7 +44,49 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
     hideToast,
     fetchProfile,
     setUser,
+    showToast,
   } = useUserStore();
+
+  // Hook Ctrl+Shift+D và query ?offline=1 (UI-60)
+  useEffect(() => {
+    setIsOffline(isOfflineMode());
+    setBundleState(getOfflineBundle());
+
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+        e.preventDefault();
+        const next = !isOfflineMode();
+        if (next) {
+          setOfflineMode(true);
+          setIsOffline(true);
+          try {
+            const bundle = await loadOfflineBundle();
+            setBundleState(bundle);
+            router.push("/learn?offline=1");
+          } catch {
+            showToast("Không đọc được gói dữ liệu offline", "error");
+          }
+        } else {
+          setOfflineMode(false);
+          setIsOffline(false);
+          setBundleState(null);
+          useWorkbenchStore.getState().resetSession();
+          router.push("/");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [router, showToast]);
+
+  useEffect(() => {
+    setIsOffline(isOfflineMode());
+    const b = getOfflineBundle();
+    if (b) {
+      setBundleState(b);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     // 1. Tự động đồng bộ phiên Supabase Auth và thông tin người dùng
@@ -114,6 +141,15 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
   const activeUser =
     propUser !== undefined ? propUser : storeUser;
 
+  const currentBundle = bundleState || getOfflineBundle();
+  const baseTitle = "Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ";
+  const formattedDate = currentBundle?.recorded_from?.recorded_at
+    ? new Date(currentBundle.recorded_from.recorded_at).toLocaleString("vi-VN")
+    : "";
+  const offlineTitle = currentBundle?.recorded_from
+    ? `${baseTitle} — Ghi lại từ ${currentBundle.recorded_from.repo} lúc ${formattedDate}`
+    : baseTitle;
+
   const navLinks = [
     { label: "Trang chủ", href: "/" },
     { label: "Lộ trình học tập", href: "/roadmap" },
@@ -130,7 +166,7 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
     >
       <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-2 sm:px-6">
         {/* Brand Logo & Desktop Nav Links */}
-        <div className="flex items-center gap-8 lg:gap-12">
+        <div className="flex items-center gap-8 lg:gap-12 min-w-0">
           <Link
             href="/"
             className="flex items-center select-none"
@@ -164,12 +200,12 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
         </div>
 
         {/* User Actions & Settings */}
-        <div className="flex items-center gap-3 sm:gap-5">
+        <div className="flex items-center gap-3 sm:gap-5 min-w-0">
           {/* Offline Mode Warning Badge (UI-60) */}
           {isOffline && (
             <div
               className="bg-[#fff7ed] border border-[#ff9640]/50 text-[#944b00] px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0"
-              title="Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ lên máy chủ"
+              title={offlineTitle}
             >
               <span className="size-2 rounded-full bg-[#ff9640] animate-ping" />
               <span className="hidden sm:inline">Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ</span>
@@ -231,7 +267,7 @@ export function Navbar({ user: propUser, className }: NavbarProps) {
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center rounded-[12px] bg-[#ff9640] px-5 py-2 sm:px-6 sm:py-2.5 text-[14px] font-bold text-white shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] hover:bg-[#f2852e] hover:scale-105 active:scale-95 transition-all duration-200 ease-out origin-center"
+                className="hidden sm:inline-flex items-center justify-center rounded-[12px] bg-[#ff9640] px-5 py-2 sm:px-6 sm:py-2.5 text-[14px] font-bold text-white shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] hover:bg-[#f2852e] hover:scale-105 active:scale-95 transition-all duration-200 ease-out origin-center"
               >
                 Đăng ký
               </Link>

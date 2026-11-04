@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense, useMemo, useRef } from "react";
+import React, { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import {
@@ -16,27 +16,17 @@ import {
   GraphSidebarButton,
 } from "./components";
 import {
-  getSessionProgressSafe,
-  analyzeNodeSafe,
-  analyzeOverviewSafe,
-  enrichNodeSafe,
   evaluateFeynmanSafe,
   revealSafe,
   reportWrongSafe,
   ingestRepoSafe,
 } from "@/lib/api";
-import type {
-  SessionProgress,
-  NodeAnalysisView,
-  RepoOverviewView,
-  QuestionView,
-  QuestionState,
-  EvaluateFeynmanResponse,
-  ClientStaticEngineResult,
-} from "@/contracts";
+import type { QuestionView } from "@/contracts";
 import { CONFIG } from "@/contracts";
 import { isOfflineMode, loadOfflineBundle } from "@/lib/offline";
 import { getErrorMessage } from "./utils/messages";
+import { useWorkbenchStore } from "@/store/workbench";
+import { useUserStore } from "@/stores/userStore";
 
 // Offline không có phiên thật; dữ liệu lấy từ gói offline
 const OFFLINE_SESSION_ID = "offline";
@@ -48,9 +38,8 @@ function LearnCockpitContent() {
   const urlSessionId = searchParams.get("session") || searchParams.get("id");
   const urlNodeId = searchParams.get("node") || searchParams.get("nodeId");
 
-  const [sessionId, setSessionId] = useState<string>(
-    urlSessionId || (isOfflineEntry ? OFFLINE_SESSION_ID : "")
-  );
+  // 2. sessionId tính trực tiếp, không dùng useState
+  const sessionId = urlSessionId || (isOfflineEntry ? OFFLINE_SESSION_ID : "");
 
   // Thiếu phiên thì về lộ trình để chọn, trừ Offline
   useEffect(() => {
@@ -58,80 +47,6 @@ function LearnCockpitContent() {
       router.replace("/roadmap");
     }
   }, [urlSessionId, isOfflineEntry, router]);
-
-  useEffect(() => {
-    if (urlSessionId && urlSessionId !== sessionId) {
-      setSessionId(urlSessionId);
-    }
-  }, [urlSessionId, sessionId]);
-
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(
-    urlNodeId || ""
-  );
-
-  // Dialog & Drawer toggles
-  const [isGraphDrawerOpen, setIsGraphDrawerOpen] = useState(false);
-  const [isFullFileModalOpen, setIsFullFileModalOpen] = useState(false);
-  const [isEvaluationDialogOpen, setIsEvaluationDialogOpen] = useState(false);
-  const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
-  const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
-  const [isReportWrongDialogOpen, setIsReportWrongDialogOpen] = useState(false);
-
-  // API State: Progress (Step 6)
-  const [progress, setProgress] = useState<SessionProgress | null>(null);
-  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
-  const [progressError, setProgressError] = useState<string | null>(null);
-
-  // API State: Analyze Node (Step 8) & Analysis Prefetch Queue (D-46, UI-73, UI-74)
-  const [analysis, setAnalysis] = useState<NodeAnalysisView | null>(null);
-  const [analyses, setAnalyses] = useState<Record<string, NodeAnalysisView | "PENDING" | "FAILED">>({});
-  const analysesRef = useRef<Record<string, NodeAnalysisView | "PENDING" | "FAILED">>({});
-  analysesRef.current = analyses;
-  const inFlightRef = useRef<Set<string>>(new Set());
-  const isOverviewRequestedRef = useRef<boolean>(false);
-  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [highlightedStep, setHighlightedStep] = useState<number | null>(null);
-
-  // API State: Analyze Overview (Step 9)
-  const [overview, setOverview] = useState<RepoOverviewView | null>(null);
-  const [isLoadingOverview, setIsLoadingOverview] = useState(false);
-  const [overviewError, setOverviewError] = useState<string | null>(null);
-
-  // API State: Enrich Node (Step 10)
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<QuestionView[]>([]);
-  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
-  const [questionsError, setQuestionsError] = useState<string | null>(null);
-
-  // API State: Evaluate Feynman (Step 11)
-  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
-  const [lastSubmittedAnswer, setLastSubmittedAnswer] = useState("");
-  const [evaluationResult, setEvaluationResult] = useState<EvaluateFeynmanResponse | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // API State: Reveal (Step 12)
-  const [isRevealing, setIsRevealing] = useState(false);
-  const [activeRevealData, setActiveRevealData] = useState<QuestionState["reveal"] | null>(null);
-
-  // API State: Report Wrong (Step 13)
-  const [isReportingWrong, setIsReportingWrong] = useState(false);
-  const [reportWrongError, setReportWrongError] = useState<string | null>(null);
-
-  // Tokens Used
-  const [tokensUsed, setTokensUsed] = useState<number>(0);
-
-  // Static Engine Result from Ingest (graph, nodes, fingerprint, repo_name)
-  const [staticResult, setStaticResult] = useState<ClientStaticEngineResult | null>(null);
-
-  // Presentation Mode & Active Step synchronization
-  const [isPresentationMode, setIsPresentationMode] = useState(false);
-  const [activeStep, setActiveStep] = useState<number | null>(null);
-
-  // Drafts per question index (UI-52) & Last Failed Answers for duplicate checking
-  const [drafts, setDrafts] = useState<Record<number, string>>({});
-  const [lastFailedAnswers, setLastFailedAnswers] = useState<Record<number, string>>({});
 
   // Auto-save sf.last_session in localStorage
   useEffect(() => {
@@ -144,413 +59,236 @@ function LearnCockpitContent() {
     }
   }, [sessionId]);
 
-  // Escape key handler for presentation mode
+  // 3. Đọc từ store bằng selector
+  const result = useWorkbenchStore((s) => s.result);
+  const progress = useWorkbenchStore((s) => s.progress);
+  const analyses = useWorkbenchStore((s) => s.analyses);
+  const overview = useWorkbenchStore((s) => s.overview);
+  const runs = useWorkbenchStore((s) => s.runs);
+  const active_node_id = useWorkbenchStore((s) => s.active_node_id);
+  const active_question_index = useWorkbenchStore((s) => s.active_question_index);
+  const active_step = useWorkbenchStore((s) => s.active_step);
+  const last_failed_answers = useWorkbenchStore((s) => s.last_failed_answers);
+  const hint_step = useWorkbenchStore((s) => s.ui.hint_step);
+  const ui_drafts = useWorkbenchStore((s) => s.ui.drafts);
+  const presentation_pane = useWorkbenchStore((s) => s.ui.presentation_pane);
+  const ui_pending = useWorkbenchStore((s) => s.ui.pending);
+  const ui_errors = useWorkbenchStore((s) => s.ui.errors);
+  const ui_last_evaluations = useWorkbenchStore((s) => s.ui.last_evaluations);
+  const ui_skill_changes = useWorkbenchStore((s) => s.ui.skill_changes);
+
+  // Đồng bộ hồ sơ từ userStore sang workbenchStore khi đổi (TASK_10 mục 3)
+  const userProfile = useUserStore((s) => s.profile);
+  const serverClockOffsetMs = useUserStore((s) => s.serverClockOffsetMs);
+
+  useEffect(() => {
+    useWorkbenchStore.getState().setProfile(userProfile, serverClockOffsetMs);
+  }, [userProfile, serverClockOffsetMs]);
+
+  // 4. Chỉ giữ useState cục bộ cho 6 hộp thoại/ngăn kéo, các cờ nộp/bỏ qua/báo sai, và reloadKey
+  const [isGraphDrawerOpen, setIsGraphDrawerOpen] = useState(false);
+  const [isFullFileModalOpen, setIsFullFileModalOpen] = useState(false);
+  const [isEvaluationDialogOpen, setIsEvaluationDialogOpen] = useState(false);
+  const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
+  const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
+  const [isReportWrongDialogOpen, setIsReportWrongDialogOpen] = useState(false);
+
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+  const [lastSubmittedAnswer, setLastSubmittedAnswer] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [canRetrySubmit, setCanRetrySubmit] = useState(false);
+
+  const [isRevealing, setIsRevealing] = useState(false);
+
+  const [isReportingWrong, setIsReportingWrong] = useState(false);
+  const [reportWrongError, setReportWrongError] = useState<string | null>(null);
+
+  const [reloadKey, setReloadKey] = useState<number>(0);
+
+  // Đổi persona offline: đọc currentPersona của useUserStore; useEffect khi đổi và đang offline => tăng reloadKey, bỏ qua lần chạy đầu bằng useRef
+  const currentPersona = useUserStore((s) => s.currentPersona);
+  const isFirstPersonaMount = useRef(true);
+
+  useEffect(() => {
+    if (isFirstPersonaMount.current) {
+      isFirstPersonaMount.current = false;
+      return;
+    }
+    if (isOfflineMode()) {
+      setReloadKey((k) => k + 1);
+    }
+  }, [currentPersona]);
+
+  // Escape key handler for presentation mode (tắt trình chiếu qua store)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isPresentationMode) {
-        setIsPresentationMode(false);
+      if (e.key === "Escape" && useWorkbenchStore.getState().ui.presentation_pane) {
+        useWorkbenchStore.getState().setPresentationPane(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPresentationMode]);
-
-  const handleSaveDraft = useCallback((qIdx: number, text: string) => {
-    setDrafts((prev) => ({ ...prev, [qIdx]: text }));
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // STEP 6: Fetch Session Progress & Static Result (POST /api/ingest or GET /api/sessions/{id}/progress)
-  // ---------------------------------------------------------------------------
-  const fetchSessionProgress = useCallback(async (sid: string) => {
-    setIsLoadingProgress(true);
-    setProgressError(null);
+  // 5. Một effect nạp phiên, deps đúng [sessionId, reloadKey]; đọc node trên URL qua useRef(urlNodeId)
+  const urlNodeIdRef = useRef(urlNodeId);
+  urlNodeIdRef.current = urlNodeId;
 
-    // Nếu isOfflineMode() trả true thì tải offline bundle trước, tải lỗi thì báo lỗi và dừng hàm
-    if (isOfflineMode()) {
-      try {
-        await loadOfflineBundle();
-      } catch (err) {
-        const errorMsg =
-          err instanceof Error
-            ? err.message
-            : "Không thể tải gói dữ liệu offline.";
-        setProgressError(errorMsg);
-        setIsLoadingProgress(false);
-        return;
-      }
-    }
-
-    // 1. First try to resume session via POST /api/ingest to get full static engine result + progress
-    const ingestRes = await ingestRepoSafe({ session_id: sid });
-    if (ingestRes.ok) {
-      setStaticResult(ingestRes.data.result);
-      setProgress(ingestRes.data.progress);
-      setTokensUsed(ingestRes.data.progress.tokens_used);
-
-      // Auto-select valid node if available
-      if (ingestRes.data.result.nodes?.length > 0) {
-        setSelectedNodeId((prev) => {
-          const exists = ingestRes.data.result.nodes.some((n) => n.id === prev);
-          if (exists) return prev;
-          return ingestRes.data.result.nodes[0].id;
-        });
-      }
-      setIsLoadingProgress(false);
-      return;
-    }
-
-    // 2. If ingest resume fails, fallback to getSessionProgressSafe
-    const result = await getSessionProgressSafe(sid);
-    if (result.ok) {
-      setProgress(result.data.progress);
-      setTokensUsed(result.data.progress.tokens_used);
-    } else {
-      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
-      setProgressError(errorMsg);
-    }
-    setIsLoadingProgress(false);
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // STEP 8: Analyze Node (POST /api/analyze-node) & Prefetch Queue (D-46, UI-73, UI-74)
-  // ---------------------------------------------------------------------------
-  const checkAndTriggerOverview = useCallback(
-    async (sid: string) => {
-      if (overview || isOverviewRequestedRef.current) return;
-      if (!staticResult?.nodes || staticResult.nodes.length === 0) return;
-
-      // Kiểm tra: mọi node đều đã có bản phân tích hoặc FAILED / analysis_failed (UI-74)
-      const allDone = staticResult.nodes.every((n) => {
-        const cached = analysesRef.current[n.id];
-        const serverFailed = progress?.nodes?.[n.id]?.analysis_failed;
-        return (cached && cached !== "PENDING") || serverFailed;
-      });
-
-      if (allDone) {
-        isOverviewRequestedRef.current = true;
-        const res = await analyzeOverviewSafe(sid);
-        if (res.ok) {
-          setOverview(res.data.overview);
-          setTokensUsed(res.data.tokens_used);
-        } else {
-          // ERR_OVERVIEW_NOT_READY => im lặng, cho phép gọi lại ở lần sau (UI-74)
-          isOverviewRequestedRef.current = false;
-        }
-      }
-    },
-    [overview, staticResult, progress]
-  );
-
-  const triggerPrefetch = useCallback(
-    async (sid: string, currentNid: string) => {
-      if (!staticResult?.nodes || staticResult.nodes.length === 0) return;
-      if (tokensUsed >= CONFIG.SESSION_TOKEN_QUOTA) return;
-
-      const nodes = staticResult.nodes;
-      const currentIndex = nodes.findIndex((n) => n.id === currentNid);
-
-      // Ưu tiên thứ tự tô-pô sau node đang mở, bỏ qua node đã có bản phân tích (D-46, UI-73)
-      const candidateNodes = [
-        ...nodes.slice(currentIndex + 1),
-        ...nodes.slice(0, Math.max(0, currentIndex)),
-      ].filter((n) => {
-        const cached = analysesRef.current[n.id];
-        return !cached && !inFlightRef.current.has(n.id);
-      });
-
-      // Chỉ lấy 1–2 node kế tiếp (tối đa CONFIG.ANALYZE_CONCURRENCY đồng thời)
-      const toPrefetch = candidateNodes.slice(0, 2);
-
-      for (const targetNode of toPrefetch) {
-        if (inFlightRef.current.size >= CONFIG.ANALYZE_CONCURRENCY) break;
-
-        inFlightRef.current.add(targetNode.id);
-        setAnalyses((prev) => ({ ...prev, [targetNode.id]: "PENDING" }));
-
-        analyzeNodeSafe(sid, targetNode.id)
-          .then((res) => {
-            inFlightRef.current.delete(targetNode.id);
-            if (res.ok) {
-              const analysisVal = res.data.analysis ?? "FAILED";
-              setAnalyses((prev) => ({ ...prev, [targetNode.id]: analysisVal }));
-              setTokensUsed(res.data.tokens_used);
-            } else {
-              setAnalyses((prev) => ({ ...prev, [targetNode.id]: "FAILED" }));
-            }
-            checkAndTriggerOverview(sid);
-          })
-          .catch(() => {
-            inFlightRef.current.delete(targetNode.id);
-            setAnalyses((prev) => ({ ...prev, [targetNode.id]: "FAILED" }));
-          });
-      }
-
-      checkAndTriggerOverview(sid);
-    },
-    [staticResult, tokensUsed, checkAndTriggerOverview]
-  );
-
-  const fetchNodeAnalysis = useCallback(
-    async (sid: string, nid: string, isRetry = false) => {
-      // 1. Kiểm tra cache trước (chuyển node tức thì, 0 network call nếu đã tải trước)
-      const cached = analysesRef.current[nid];
-      if (!isRetry && cached && typeof cached === "object") {
-        setAnalysis(cached as NodeAnalysisView);
-        setIsLoadingAnalysis(false);
-        setAnalysisError(null);
-        triggerPrefetch(sid, nid);
-        return;
-      }
-
-      setIsLoadingAnalysis(true);
-      setAnalysisError(null);
-      setAnalyses((prev) => ({ ...prev, [nid]: "PENDING" }));
-      inFlightRef.current.add(nid);
-
-      const result = await analyzeNodeSafe(sid, nid);
-      inFlightRef.current.delete(nid);
-
-      if (result.ok) {
-        const analysisVal = result.data.analysis ?? "FAILED";
-        setAnalysis(result.data.analysis);
-        setAnalyses((prev) => ({ ...prev, [nid]: analysisVal }));
-        setTokensUsed(result.data.tokens_used);
-
-        // If unlocked nodes returned
-        if (result.data.unlocked_node_ids && result.data.unlocked_node_ids.length > 0) {
-          fetchSessionProgress(sid);
-        }
-
-        triggerPrefetch(sid, nid);
-      } else {
-        const errorCode = result.error?.error?.code;
-        const errorMsg = getErrorMessage(errorCode, result.error?.error?.message);
-        setAnalysisError(errorMsg);
-        setAnalyses((prev) => ({ ...prev, [nid]: "FAILED" }));
-
-        if (errorCode === "ERR_TOKEN_QUOTA_EXCEEDED") {
-          inFlightRef.current.clear();
-        }
-      }
-      setIsLoadingAnalysis(false);
-    },
-    [fetchSessionProgress, triggerPrefetch]
-  );
-
-  // ---------------------------------------------------------------------------
-  // STEP 9: Analyze Overview (POST /api/analyze-overview)
-  // ---------------------------------------------------------------------------
-  const handleOpenOverview = async () => {
-    setIsOverviewModalOpen(true);
-    if (overview) return; // already cached
-
-    setIsLoadingOverview(true);
-    setOverviewError(null);
-
-    const result = await analyzeOverviewSafe(sessionId);
-    if (result.ok) {
-      setOverview(result.data.overview);
-      setTokensUsed(result.data.tokens_used);
-    } else {
-      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
-      setOverviewError(errorMsg);
-    }
-    setIsLoadingOverview(false);
-  };
-
-  // ---------------------------------------------------------------------------
-  // STEP 10: Enrich Node (POST /api/enrich-node)
-  // ---------------------------------------------------------------------------
-  const fetchNodeQuestions = useCallback(async (sid: string, nid: string) => {
-    setIsLoadingQuestions(true);
-    setQuestionsError(null);
-    setActiveRevealData(null);
-
-    const result = await enrichNodeSafe(sid, nid, "LEARN");
-    if (result.ok) {
-      setCurrentRunId(result.data.run_id);
-      setQuestions(result.data.questions);
-      // Mở = active_question_index (câu chưa xong đầu tiên không bị DROPPED, UI Mục 6)
-      const firstValidIdx = result.data.questions.findIndex(
-        (q) => !q.state?.finished && q.state?.ended_by !== "DROPPED"
-      );
-      setActiveQuestionIdx(firstValidIdx >= 0 ? firstValidIdx : 0);
-      setTokensUsed(result.data.tokens_used);
-    } else {
-      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
-      setQuestionsError(errorMsg);
-    }
-    setIsLoadingQuestions(false);
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // STEP 11: Evaluate Feynman (POST /api/evaluate-feynman)
-  // ---------------------------------------------------------------------------
-  const handleAnswerSubmit = async (answer: string) => {
-    setIsSubmittingAnswer(true);
-    setSubmitError(null);
-    setLastSubmittedAnswer(answer);
-
-    const activeQ = questions[activeQuestionIdx];
-    const currentRun = currentRunId || "run-default";
-    const qIndex = activeQ?.question_index || 1;
-    const attemptNumber = (activeQ?.state?.attempts_used || 0) + 1;
-
-    const result = await evaluateFeynmanSafe({
-      session_id: sessionId,
-      run_id: currentRun,
-      question_index: qIndex,
-      student_answer: answer,
-      attempt_number: attemptNumber,
-    });
-
-    if (result.ok) {
-      setEvaluationResult(result.data);
-      setTokensUsed(result.data.tokens_used);
-      setIsEvaluationDialogOpen(true);
-
-      // If follow_up has step_index, highlight it in code viewer
-      if (result.data.follow_up?.step_index !== null && result.data.follow_up?.step_index !== undefined) {
-        setHighlightedStep(result.data.follow_up.step_index);
-      } else {
-        setHighlightedStep(null);
-      }
-
-      // If question finished, store reveal data
-      if (result.data.question?.reveal) {
-        setActiveRevealData(result.data.question.reveal);
-      }
-
-      // Update question state in local list
-      setQuestions((prev) =>
-        prev.map((q, idx) =>
-          idx === activeQuestionIdx ? { ...q, state: result.data.question } : q
-        )
-      );
-
-      // Record failed answer for similarity duplicate check
-      if (!result.data.is_passed) {
-        setLastFailedAnswers((prev) => ({ ...prev, [qIndex]: answer }));
-      }
-
-      // If unlocked nodes or passed, refresh progress
-      if (result.data.is_passed || (result.data.unlocked_node_ids && result.data.unlocked_node_ids.length > 0)) {
-        fetchSessionProgress(sessionId);
-      }
-    } else {
-      const errorCode = result.error?.error?.code;
-      const errorMsg = getErrorMessage(errorCode, result.error?.error?.message);
-      setSubmitError(errorMsg);
-
-      // Handle multi-tab sync error (T16 / UI-77): refresh run silently without losing input
-      if (errorCode === "ERR_ATTEMPT_OUT_OF_SYNC" || errorCode === "ERR_QUESTION_FINISHED") {
-        fetchNodeQuestions(sessionId, selectedNodeId);
-      }
-    }
-
-    setIsSubmittingAnswer(false);
-  };
-
-  // ---------------------------------------------------------------------------
-  // STEP 12: Reveal Answer / Skip Question (POST /api/reveal)
-  // ---------------------------------------------------------------------------
-  const handleConfirmSkip = async () => {
-    setIsRevealing(true);
-    const activeQ = questions[activeQuestionIdx];
-    const currentRun = currentRunId || "run-default";
-    const qIndex = activeQ?.question_index || 1;
-
-    const result = await revealSafe({
-      session_id: sessionId,
-      run_id: currentRun,
-      question_index: qIndex,
-    });
-
-    if (result.ok) {
-      setActiveRevealData(result.data.question.reveal);
-      setQuestions((prev) =>
-        prev.map((q, idx) =>
-          idx === activeQuestionIdx ? { ...q, state: result.data.question } : q
-        )
-      );
-
-      // Refresh progress to reflect failed attempt penalty
-      fetchSessionProgress(sessionId);
-    } else {
-      setSubmitError(getErrorMessage(result.error?.error?.code, result.error?.error?.message));
-    }
-
-    setIsRevealing(false);
-    setIsSkipDialogOpen(false);
-  };
-
-  // ---------------------------------------------------------------------------
-  // STEP 13: Report Wrong AI Grading (POST /api/report-wrong)
-  // ---------------------------------------------------------------------------
-  const handleReportWrongSubmit = async (note: string) => {
-    setIsReportingWrong(true);
-    setReportWrongError(null);
-
-    const activeQ = questions[activeQuestionIdx];
-    const currentRun = currentRunId || "run-default";
-    const qIndex = activeQ?.question_index || 1;
-
-    const result = await reportWrongSafe({
-      session_id: sessionId,
-      run_id: currentRun,
-      question_index: qIndex,
-      note,
-    });
-
-    if (result.ok) {
-      // Cập nhật state.disputed = true cho đúng câu trong questions (Mục 3)
-      setQuestions((prev) =>
-        prev.map((q, idx) =>
-          idx === activeQuestionIdx
-            ? { ...q, state: { ...q.state, disputed: true } }
-            : q
-        )
-      );
-      setIsReportWrongDialogOpen(false);
-      setIsEvaluationDialogOpen(false);
-
-      // Refresh progress to reflect reverted BKT state
-      fetchSessionProgress(sessionId);
-    } else {
-      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
-      setReportWrongError(errorMsg);
-    }
-
-    setIsReportingWrong(false);
-  };
-
-  // Switch node handler
-  const handleSelectNode = (nodeId: string) => {
-    setSelectedNodeId(nodeId);
-    setActiveStep(null);
-    fetchNodeAnalysis(sessionId, nodeId);
-    fetchNodeQuestions(sessionId, nodeId);
-  };
-
-  // Khi selectedNodeId đổi thì đặt activeStep về null (Mục 5)
-  useEffect(() => {
-    setActiveStep(null);
-  }, [selectedNodeId]);
-
-  // Initial load
   useEffect(() => {
     if (!sessionId) return;
-    fetchSessionProgress(sessionId);
-    if (selectedNodeId) {
-      fetchNodeAnalysis(sessionId, selectedNodeId);
-      fetchNodeQuestions(sessionId, selectedNodeId);
+
+    useWorkbenchStore.getState().setOfflineMode(isOfflineMode());
+
+    let cancelled = false;
+    const store = useWorkbenchStore.getState();
+    store.setUiPending("session", true);
+    store.setUiError("session", null);
+
+    async function loadSession() {
+      if (isOfflineMode()) {
+        try {
+          await loadOfflineBundle();
+        } catch (err) {
+          if (cancelled) return;
+          const msg =
+            err instanceof Error
+              ? err.message
+              : "Không thể tải gói dữ liệu offline.";
+          useWorkbenchStore.getState().setUiError("session", msg);
+          useWorkbenchStore.getState().setUiPending("session", false);
+          return;
+        }
+      }
+
+      const res = await ingestRepoSafe({ session_id: sessionId });
+      if (cancelled) return;
+
+      if (res.ok) {
+        useWorkbenchStore.getState().applyIngest(res.data);
+        const nodes = res.data.result?.nodes || [];
+        const requestedNode = urlNodeIdRef.current;
+        const targetNode = requestedNode
+          ? nodes.find((n) => n.id === requestedNode)
+          : undefined;
+        const targetNodeState = requestedNode
+          ? res.data.progress?.nodes?.[requestedNode]
+          : undefined;
+        const isLocked = targetNodeState?.status === "LOCKED";
+
+        if (targetNode && !isLocked) {
+          void useWorkbenchStore.getState().openNode(targetNode.id);
+        } else {
+          setIsOverviewModalOpen(true);
+        }
+
+        if (res.data.resumed && !isOfflineMode()) {
+          const repoName = res.data.result?.repo_name || "repo";
+          const completedCount = Object.values(res.data.progress?.nodes || {}).filter(
+            (n) => n.status === "COMPLETED"
+          ).length;
+          const totalNodes = nodes.length;
+          useUserStore
+            .getState()
+            .showToast(
+              `Đã mở lại ${repoName} — ${completedCount}/${totalNodes} node`,
+              "info"
+            );
+        }
+      } else {
+        const code = res.error?.error?.code;
+        const msg = res.error?.error?.message;
+        useWorkbenchStore.getState().setUiError("session", getErrorMessage(code, msg));
+        try {
+          localStorage.removeItem("sf.last_session");
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      if (!cancelled) {
+        useWorkbenchStore.getState().setUiPending("session", false);
+      }
     }
-  }, [sessionId, selectedNodeId, fetchSessionProgress, fetchNodeAnalysis, fetchNodeQuestions]);
 
-  const activeQuestion = questions[activeQuestionIdx] || null;
+    void loadSession();
 
-  // hasNextQuestion: kiểm tra còn câu nào phía sau chưa bị DROPPED
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, reloadKey]);
+
+  // 6. Dẫn xuất bằng useMemo hoặc tính thẳng
+  const currentNode = useMemo(() => {
+    if (!active_node_id || !result?.nodes) return null;
+    return result.nodes.find((n) => n.id === active_node_id) || null;
+  }, [active_node_id, result]);
+
+  const activeEntry = active_node_id ? analyses[active_node_id] : undefined;
+  const analysis = typeof activeEntry === "object" && activeEntry !== null ? activeEntry : null;
+  const isLoadingAnalysis = activeEntry === "PENDING";
+  const analysisError =
+    activeEntry === "FAILED"
+      ? (active_node_id ? ui_errors["analyze:" + active_node_id] : null) ?? "Chưa phân tích được"
+      : null;
+
+  const currentRun = active_node_id ? runs[active_node_id] : undefined;
+
+  const questions: QuestionView[] = useMemo(() => {
+    if (!active_node_id) return [];
+    if (runs[active_node_id]?.questions) {
+      return runs[active_node_id].questions;
+    }
+    const lastRunQuestions = progress?.nodes?.[active_node_id]?.last_run?.questions;
+    if (lastRunQuestions && lastRunQuestions.length > 0) {
+      return lastRunQuestions.map((qState) => ({
+        question_index: qState.question_index,
+        skill: qState.skill,
+        tier: qState.tier,
+        focus: qState.focus,
+        feynman_question: qState.feynman_question,
+        state: qState,
+      }));
+    }
+    return [];
+  }, [active_node_id, runs, progress]);
+
+  const activeQuestionIdx = useMemo(() => {
+    if (active_question_index === null || active_question_index === undefined) return 0;
+    const idx = questions.findIndex((q) => q.question_index === active_question_index);
+    return idx >= 0 ? idx : 0;
+  }, [questions, active_question_index]);
+
+  const activeQuestion = questions[activeQuestionIdx] ?? null;
+
+  const tokensUsed = progress?.tokens_used ?? 0;
+  const revealData = activeQuestion?.state?.reveal ?? null;
+
+  const evalKey =
+    currentRun && activeQuestion
+      ? `${currentRun.run_id}:${activeQuestion.question_index}`
+      : "";
+  const evaluationResult = evalKey ? ui_last_evaluations[evalKey] ?? null : null;
+
+  const draftsForSection: Record<number, string> = useMemo(() => {
+    if (!currentRun) return {};
+    const res: Record<number, string> = {};
+    for (const q of questions) {
+      const draftKey = `${currentRun.run_id}:${q.question_index}`;
+      if (ui_drafts[draftKey] !== undefined) {
+        res[q.question_index] = ui_drafts[draftKey];
+      }
+    }
+    return res;
+  }, [currentRun, questions, ui_drafts]);
+
+  const handleSaveDraft = (qIdx: number, text: string) => {
+    if (!currentRun) return;
+    const draftKey = `${currentRun.run_id}:${qIdx}`;
+    useWorkbenchStore.getState().setDraft(draftKey, text);
+  };
+
+  const lastFailedAnswer = evalKey ? last_failed_answers[evalKey] ?? null : null;
+
   const hasNextQuestion = useMemo(() => {
     for (let i = activeQuestionIdx + 1; i < questions.length; i++) {
       if (questions[i]?.state?.ended_by !== "DROPPED") {
@@ -560,12 +298,6 @@ function LearnCockpitContent() {
     return false;
   }, [questions, activeQuestionIdx]);
 
-  // Current node derived from staticResult
-  const currentNode = useMemo(() => {
-    return staticResult?.nodes?.find((n) => n.id === selectedNodeId) || null;
-  }, [staticResult, selectedNodeId]);
-
-  // Generate full file code from node's trace steps if available
   const fullFileCode = useMemo(() => {
     if (currentNode?.trace_steps && currentNode.trace_steps.length > 0) {
       const stepsCode = currentNode.trace_steps
@@ -581,23 +313,216 @@ function LearnCockpitContent() {
     return undefined;
   }, [currentNode]);
 
-  // Khi chuyển câu thì bỏ qua câu bị DROPPED
+  // 7. Event Handlers
+  const handleSelectNode = (nodeId: string) => {
+    void useWorkbenchStore.getState().openNode(nodeId);
+  };
+
+  const handleSelectQuestion = (idx: number) => {
+    if (isSubmittingAnswer) return;
+    const targetQ = questions[idx];
+    if (targetQ && targetQ.state?.ended_by !== "DROPPED") {
+      useWorkbenchStore.getState().setActiveQuestionIndex(targetQ.question_index);
+    }
+  };
+
   const handleNextQuestion = () => {
     let nextIdx = activeQuestionIdx + 1;
     while (nextIdx < questions.length && questions[nextIdx]?.state?.ended_by === "DROPPED") {
       nextIdx++;
     }
     if (nextIdx < questions.length) {
-      setActiveQuestionIdx(nextIdx);
-      setActiveRevealData(null);
+      useWorkbenchStore.getState().setActiveQuestionIndex(questions[nextIdx].question_index);
     }
   };
 
-  // Chặn đổi câu khi đang nộp (Mục 1)
-  const handleSelectQuestion = (idx: number) => {
-    if (isSubmittingAnswer) return;
-    setActiveQuestionIdx(idx);
-    setActiveRevealData(null);
+  // 8. handleAnswerSubmit
+  const handleAnswerSubmit = async (answer: string) => {
+    const store = useWorkbenchStore.getState();
+    const nodeId = store.active_node_id;
+    if (!nodeId) return;
+
+    const run = store.runs[nodeId];
+    if (!run || !activeQuestion) return;
+
+    setIsSubmittingAnswer(true);
+    setSubmitError(null);
+    setCanRetrySubmit(false);
+    setLastSubmittedAnswer(answer);
+
+    const qIndex = activeQuestion.question_index;
+    const attemptNumber = (activeQuestion.state?.attempts_used || 0) + 1;
+
+    const result = await evaluateFeynmanSafe({
+      session_id: sessionId,
+      run_id: run.run_id,
+      question_index: qIndex,
+      student_answer: answer,
+      attempt_number: attemptNumber,
+    });
+
+    if (result.ok) {
+      const data = result.data;
+      const currentEvalKey = `${run.run_id}:${qIndex}`;
+      store.setLastEvaluation(currentEvalKey, data);
+      store.setTokensUsed(data.tokens_used);
+      store.applyQuestionState(nodeId, data.question);
+
+      if (data.skill_change !== null && data.skill_change !== undefined) {
+        store.setSkillChange(currentEvalKey, data.skill_change);
+        void useUserStore.getState().fetchProfile();
+      }
+
+      const prev = store.progress?.nodes?.[nodeId]?.status;
+      store.applyNodeState(data.node_state);
+
+      if (data.follow_up?.step_index !== null && data.follow_up?.step_index !== undefined) {
+        store.setHintStep(data.follow_up.step_index);
+        store.setActiveStep(data.follow_up.step_index);
+      } else {
+        store.setHintStep(null);
+      }
+
+      if (!data.is_passed) {
+        store.setLastFailedAnswer(currentEvalKey, answer);
+      }
+
+      const hasUnlocked = data.unlocked_node_ids && data.unlocked_node_ids.length > 0;
+      if (hasUnlocked || data.node_state.status !== prev) {
+        void store.refreshProgress();
+      }
+
+      setIsEvaluationDialogOpen(true);
+    } else {
+      const errorCode = result.error?.error?.code;
+      if (errorCode === "ERR_ATTEMPT_OUT_OF_SYNC" || errorCode === "ERR_QUESTION_FINISHED") {
+        useUserStore.getState().showToast("Câu này vừa được nộp ở tab khác", "info");
+        void store.reloadRun(nodeId);
+      } else {
+        if (errorCode === "ERR_PERSISTENCE_UNAVAILABLE") {
+          setCanRetrySubmit(true);
+        }
+        const errorMsg =
+          isOfflineMode() && result.error?.error?.message
+            ? result.error.error.message
+            : getErrorMessage(errorCode, result.error?.error?.message);
+        setSubmitError(errorMsg);
+      }
+    }
+
+    setIsSubmittingAnswer(false);
+  };
+
+  // 9. handleConfirmSkip & handleReportWrongSubmit
+  const handleConfirmSkip = async () => {
+    const store = useWorkbenchStore.getState();
+    const nodeId = store.active_node_id;
+    if (!nodeId) return;
+
+    const run = store.runs[nodeId];
+    if (!run || !activeQuestion) return;
+
+    setIsRevealing(true);
+    const qIndex = activeQuestion.question_index;
+
+    const result = await revealSafe({
+      session_id: sessionId,
+      run_id: run.run_id,
+      question_index: qIndex,
+    });
+
+    if (result.ok) {
+      const currentEvalKey = `${run.run_id}:${qIndex}`;
+      if (result.data.skill_change !== null && result.data.skill_change !== undefined) {
+        store.setSkillChange(currentEvalKey, result.data.skill_change);
+        void useUserStore.getState().fetchProfile();
+      }
+      store.applyQuestionState(nodeId, result.data.question);
+      store.applyNodeState(result.data.node_state);
+      void store.refreshProgress();
+    } else {
+      setSubmitError(getErrorMessage(result.error?.error?.code, result.error?.error?.message));
+    }
+
+    setIsRevealing(false);
+    setIsSkipDialogOpen(false);
+  };
+
+  const handleReportWrongSubmit = async (note: string) => {
+    const store = useWorkbenchStore.getState();
+    const nodeId = store.active_node_id;
+    if (!nodeId) return;
+
+    const run = store.runs[nodeId];
+    if (!run || !activeQuestion) return;
+
+    setIsReportingWrong(true);
+    setReportWrongError(null);
+    const qIndex = activeQuestion.question_index;
+
+    const result = await reportWrongSafe({
+      session_id: sessionId,
+      run_id: run.run_id,
+      question_index: qIndex,
+      note,
+    });
+
+    if (result.ok) {
+      const evalKey = `${run.run_id}:${qIndex}`;
+      useUserStore
+        .getState()
+        .showToast("Đã ghi nhận — nhóm sẽ xem lại câu này", "success");
+      if (
+        result.data.skill_change !== null &&
+        result.data.skill_change !== undefined
+      ) {
+        store.setSkillChange(evalKey, result.data.skill_change);
+        void useUserStore.getState().fetchProfile();
+      }
+      store.applyQuestionState(nodeId, result.data.question);
+      store.applyNodeState(result.data.node_state);
+      void store.refreshProgress();
+      setIsReportWrongDialogOpen(false);
+      setIsEvaluationDialogOpen(false);
+    } else {
+      const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
+      setReportWrongError(errorMsg);
+    }
+
+    setIsReportingWrong(false);
+  };
+
+  // 10. handleOpenOverview chỉ mở modal, không gọi API (T33)
+  const handleOpenOverview = () => {
+    setIsOverviewModalOpen(true);
+  };
+
+  // 11. handleOtherRepo: reset session, xóa sf.last_session, về trang chủ
+  const handleOtherRepo = () => {
+    useWorkbenchStore.getState().resetSession();
+    try {
+      localStorage.removeItem("sf.last_session");
+    } catch {
+      // ignore storage errors
+    }
+    router.push("/");
+  };
+
+  // 12. handleChangeDir: đổi thư mục con, nạp lại repo
+  const handleChangeDir = async (subdir: string): Promise<string | undefined> => {
+    const key = result?.snapshot?.repo_key || "";
+    const repoUrl = key.startsWith("http") ? key : `https://github.com/${key}`;
+    const res = await ingestRepoSafe({
+      repo_url: repoUrl,
+      subdir_override: subdir,
+    });
+    if (res.ok) {
+      router.push(`/learn?session=${encodeURIComponent(res.data.session_id)}`);
+      return undefined;
+    }
+    const code = res.error?.error?.code;
+    const msg = res.error?.error?.message;
+    return getErrorMessage(code, msg);
   };
 
   return (
@@ -616,19 +541,27 @@ function LearnCockpitContent() {
 
         {/* 2. Cockpit Context Sub-Header (Figma node 5:29) */}
         <CockpitHeader
-          repoName={staticResult?.repo_name || ""}
+          repoName={result?.repo_name || ""}
           filePath={currentNode?.files?.[0] || ""}
           categoryTag={
-            staticResult?.fingerprint?.detected_framework ||
-            staticResult?.fingerprint?.archetype ||
+            result?.fingerprint?.detected_framework ||
+            result?.fingerprint?.archetype ||
             ""
           }
           sessionId={sessionId}
           tokensUsed={tokensUsed}
           tokensQuota={CONFIG.SESSION_TOKEN_QUOTA}
           onOpenOverview={handleOpenOverview}
-          isLoadingOverview={isLoadingOverview}
-          engineMetrics={staticResult?.ingestion_report}
+          isLoadingOverview={false}
+          engineMetrics={result?.ingestion_report}
+          refLabel={result?.snapshot?.ref_label ?? null}
+          snapshotId={result?.snapshot?.snapshot_id ?? ""}
+          fingerprint={result?.fingerprint ?? null}
+          report={result?.ingestion_report ?? null}
+          isGithub={result?.snapshot?.source === "GITHUB"}
+          isOffline={isOfflineEntry || isOfflineMode()}
+          onOtherRepo={handleOtherRepo}
+          onChangeDir={handleChangeDir}
         />
 
         {/* 3. Left-side Floating Tab Button: "Đồ thị bài học" (Figma node 5:217) */}
@@ -638,13 +571,13 @@ function LearnCockpitContent() {
         <LessonGraphDrawer
           isOpen={isGraphDrawerOpen}
           onClose={() => setIsGraphDrawerOpen(false)}
-          graphNodes={staticResult?.nodes}
-          graphEdges={staticResult?.edges}
+          graphNodes={result?.nodes}
+          graphEdges={result?.edges}
           progress={progress}
-          isLoading={isLoadingProgress}
-          errorMessage={progressError}
-          onRetry={() => fetchSessionProgress(sessionId)}
-          selectedNodeId={selectedNodeId}
+          isLoading={Boolean(ui_pending["session"])}
+          errorMessage={ui_errors["session"] ?? null}
+          onRetry={() => setReloadKey((k) => k + 1)}
+          selectedNodeId={active_node_id ?? ""}
           onSelectNode={handleSelectNode}
         />
 
@@ -672,42 +605,53 @@ function LearnCockpitContent() {
             analysis={analysis}
             isLoading={isLoadingAnalysis}
             errorMessage={analysisError}
-            onRetry={() => fetchNodeAnalysis(sessionId, selectedNodeId, true)}
+            onRetry={() => {
+              if (active_node_id) {
+                useWorkbenchStore.getState().requestAnalysis(active_node_id, true);
+              }
+            }}
             onOpenFullFile={() => setIsFullFileModalOpen(true)}
-            highlightedStep={highlightedStep}
-            activeStep={activeStep}
-            onSelectStep={(step) => setActiveStep(step)}
-            isPresentationMode={isPresentationMode}
-            onTogglePresentationMode={() => setIsPresentationMode((prev) => !prev)}
-            allNodes={staticResult?.nodes}
+            highlightedStep={hint_step}
+            activeStep={active_step}
+            onSelectStep={(step) => useWorkbenchStore.getState().setActiveStep(step)}
+            isPresentationMode={presentation_pane}
+            onTogglePresentationMode={() =>
+              useWorkbenchStore.getState().setPresentationPane(!presentation_pane)
+            }
+            allNodes={result?.nodes}
           />
 
           {/* Right Column: Feynman Question & Form (Figma node 5:170) - Steps 10, 11, 12, 13 */}
-          <FeynmanQuestionSection
-            question={activeQuestion}
-            questionIndex={activeQuestionIdx + 1}
-            totalQuestions={questions.length || 1}
-            questions={questions}
-            onSelectQuestion={handleSelectQuestion}
-            isLoadingQuestion={isLoadingQuestions}
-            isSubmitting={isSubmittingAnswer}
-            onSubmit={handleAnswerSubmit}
-            onSkip={() => setIsSkipDialogOpen(true)}
-            onReportWrong={() => setIsReportWrongDialogOpen(true)}
-            isRevealed={Boolean(activeRevealData)}
-            revealData={activeRevealData}
-            isDisputed={Boolean(activeQuestion?.state?.disputed)}
-            validationError={submitError}
-            errorMessage={questionsError}
-            onNextQuestion={handleNextQuestion}
-            hasNextQuestion={hasNextQuestion}
-            lastFailedAnswer={
-              lastFailedAnswers[activeQuestion?.question_index || activeQuestionIdx + 1]
-            }
-            isQuotaExceeded={tokensUsed >= CONFIG.SESSION_TOKEN_QUOTA}
-            drafts={drafts}
-            onSaveDraft={handleSaveDraft}
-          />
+          {active_node_id ? (
+            <FeynmanQuestionSection
+              question={activeQuestion}
+              questionIndex={activeQuestionIdx + 1}
+              totalQuestions={questions.length || 1}
+              questions={questions}
+              onSelectQuestion={handleSelectQuestion}
+              isLoadingQuestion={Boolean(active_node_id && ui_pending["enrich:" + active_node_id])}
+              isSubmitting={isSubmittingAnswer}
+              onSubmit={handleAnswerSubmit}
+              onRetrySubmit={canRetrySubmit ? () => handleAnswerSubmit(lastSubmittedAnswer) : undefined}
+              onSkip={() => setIsSkipDialogOpen(true)}
+              onReportWrong={() => setIsReportWrongDialogOpen(true)}
+              isRevealed={Boolean(revealData)}
+              revealData={revealData}
+              isDisputed={Boolean(activeQuestion?.state?.disputed)}
+              validationError={submitError}
+              errorMessage={active_node_id ? ui_errors["enrich:" + active_node_id] ?? null : null}
+              onNextQuestion={handleNextQuestion}
+              hasNextQuestion={hasNextQuestion}
+              lastFailedAnswer={lastFailedAnswer}
+              isQuotaExceeded={tokensUsed >= CONFIG.SESSION_TOKEN_QUOTA}
+              drafts={draftsForSection}
+              onSaveDraft={handleSaveDraft}
+              pointsCovered={evaluationResult?.points_covered ?? null}
+              skillChange={evalKey ? (ui_skill_changes[evalKey] ?? null) : null}
+              nodeState={active_node_id && progress?.nodes ? (progress.nodes[active_node_id] ?? null) : null}
+              unlockedNodeIds={evaluationResult?.unlocked_node_ids ?? []}
+            />
+          ) : null}
         </main>
       </div>
 
@@ -738,10 +682,9 @@ function LearnCockpitContent() {
       <RepoOverviewModal
         isOpen={isOverviewModalOpen}
         onClose={() => setIsOverviewModalOpen(false)}
-        overview={overview}
-        isLoading={isLoadingOverview}
-        errorMessage={overviewError}
-        onRetry={handleOpenOverview}
+        overview={typeof overview === "object" && overview !== null ? overview : null}
+        isLoading={false}
+        errorMessage={ui_errors["overview"] ?? null}
       />
 
       {/* 9. Skip Question Confirmation Dialog - Step 12 POST /api/reveal */}
@@ -749,7 +692,7 @@ function LearnCockpitContent() {
         isOpen={isSkipDialogOpen}
         onClose={() => setIsSkipDialogOpen(false)}
         onConfirm={handleConfirmSkip}
-        skillName={activeQuestion?.skill || "DB_OPTIMIZATION"}
+        skillName={activeQuestion?.skill}
         isSubmitting={isRevealing}
       />
 

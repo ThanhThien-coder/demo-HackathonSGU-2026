@@ -1,0 +1,1039 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import {
+  useWorkbenchStore,
+  topologicalOrder,
+} from "../workbench";
+import {
+  analyzeNodeSafe,
+  analyzeOverviewSafe,
+  enrichNodeSafe,
+  getSessionProgressSafe,
+} from "@/lib/api";
+import type {
+  IngestResponse,
+  NodeAnalysisView,
+  RepoOverviewView,
+  EnrichNodeResponse,
+  NodeStateView,
+  QuestionState,
+  SkillChange,
+} from "@/contracts";
+
+vi.mock("@/lib/api", () => ({
+  analyzeNodeSafe: vi.fn().mockResolvedValue({
+    ok: true,
+    data: {
+      node_id: "node-default",
+      analysis: null,
+      node_state: {
+        node_id: "node-default",
+        status: "AVAILABLE",
+        has_warning: false,
+        analysis_failed: false,
+        last_run: null,
+      },
+      tokens_used: 0,
+      unlocked_node_ids: [],
+    },
+    error: null,
+  }),
+  analyzeOverviewSafe: vi.fn().mockResolvedValue({
+    ok: false,
+    data: null,
+    error: {
+      error: {
+        code: "ERR_OVERVIEW_NOT_READY",
+        message: "Chưa sẵn sàng",
+        retryable: false,
+      },
+    },
+  }),
+  enrichNodeSafe: vi.fn().mockResolvedValue({
+    ok: false,
+    data: null,
+    error: {
+      error: {
+        code: "ERR_AI_UNAVAILABLE",
+        message: "Chưa có câu hỏi",
+        retryable: false,
+      },
+    },
+  }),
+  getSessionProgressSafe: vi.fn().mockResolvedValue({
+    ok: false,
+    data: null,
+    error: null,
+  }),
+}));
+
+function createMockAnalysis(nodeId: string): NodeAnalysisView {
+  return {
+    node_id: nodeId,
+    skills: [
+      {
+        skill: "HTTP_ROUTING",
+        step: 1,
+        symbol: "handleRequest",
+        reason: "Xử lý route",
+        file_path: "src/server.ts",
+        line_start: 1,
+        line_end: 10,
+      },
+    ],
+    architecture: {
+      patterns: ["MVC"],
+      summary: "Kiến trúc mẫu MVC",
+    },
+    steps: [
+      {
+        step: 1,
+        layer: "ENTRY_POINT",
+        file_path: "src/server.ts",
+        line_start: 1,
+        line_end: 10,
+        text: "Nhận HTTP request",
+      },
+    ],
+    strengths: [
+      {
+        step: 1,
+        text: "Tách bạch logic",
+      },
+    ],
+    weak_points: [
+      {
+        skill: "ERROR_HANDLING",
+        step: 1,
+        symbol: "handleRequest",
+        what: "Chưa bắt lỗi",
+        consequence: "Crash server",
+        file_path: "src/server.ts",
+        line_start: 1,
+        line_end: 10,
+      },
+    ],
+    shared_files: [],
+    skeleton_only: false,
+  };
+}
+
+describe("src/store/workbench.ts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useWorkbenchStore.getState().resetSession();
+  });
+
+  // ---------------------------------------------------------------------------
+  // 1. topologicalOrder
+  // ---------------------------------------------------------------------------
+  describe("topologicalOrder", () => {
+    it("trả về thứ tự tô-pô đúng cho đồ thị tuần tự", () => {
+      const nodes = [
+        { id: "C", prerequisites: ["B"] },
+        { id: "B", prerequisites: ["A"] },
+        { id: "A", prerequisites: [] },
+      ];
+      expect(topologicalOrder(nodes)).toEqual(["A", "B", "C"]);
+    });
+
+    it("hòa theo id tăng dần khi nhiều node cùng sẵn sàng", () => {
+      const nodes = [
+        { id: "node-Z", prerequisites: [] },
+        { id: "node-A", prerequisites: [] },
+        { id: "node-M", prerequisites: [] },
+      ];
+      expect(topologicalOrder(nodes)).toEqual(["node-A", "node-M", "node-Z"]);
+    });
+
+    it("bỏ qua prerequisites trỏ ra ngoài danh sách", () => {
+      const nodes = [
+        { id: "node-2", prerequisites: ["node-1", "UNKNOWN_EXTERNAL"] },
+        { id: "node-1", prerequisites: ["ANOTHER_EXTERNAL"] },
+      ];
+      expect(topologicalOrder(nodes)).toEqual(["node-1", "node-2"]);
+    });
+
+    it("không treo khi có chu trình và nối các node kẹt vào cuối theo id tăng dần", () => {
+      const nodes = [
+        { id: "node-B", prerequisites: ["node-A"] },
+        { id: "node-A", prerequisites: ["node-B"] },
+        { id: "node-0", prerequisites: [] },
+      ];
+      const order = topologicalOrder(nodes);
+      expect(order).toEqual(["node-0", "node-A", "node-B"]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 2. applyIngest
+  // ---------------------------------------------------------------------------
+  describe("applyIngest", () => {
+    it("gán đúng dữ liệu và đưa active_node_id về null, reset ui nhưng giữ offline_persona", () => {
+      // Đặt state trước để kiểm tra bị ghi đè
+      useWorkbenchStore.setState({
+        active_node_id: "old-node",
+        runs: { "old-node": {} as never },
+        overview: { facts: {} } as never,
+        active_tab: "FEYNMAN",
+        active_step: 4,
+        active_question_index: 2,
+        last_failed_answers: { "key-1": "answer" },
+        ui: {
+          pending: { "key-p": true },
+          errors: { "key-e": "err" },
+          last_evaluations: {},
+          skill_changes: {},
+          drafts: { "key-d": "draft" },
+          presentation_pane: true,
+          hint_step: 3,
+          offline_persona: "SENIOR_RUSTY",
+        },
+      });
+
+      const mockAnalysis: NodeAnalysisView = createMockAnalysis("node-1");
+
+      const mockIngest: IngestResponse = {
+        session_id: "session-abc",
+        result: {
+          nodes: [{ id: "node-1", prerequisites: [] }] as never,
+        } as never,
+        progress: {
+          session_id: "session-abc",
+          tokens_used: 1200,
+          nodes: {
+            "node-1": {
+              node_id: "node-1",
+              status: "AVAILABLE",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+          },
+        },
+        analyses: {
+          "node-1": mockAnalysis,
+        },
+        resumed: false,
+        from_cache: false,
+      };
+
+      useWorkbenchStore.getState().applyIngest(mockIngest);
+      const state = useWorkbenchStore.getState();
+
+      expect(state.session_id).toBe("session-abc");
+      expect(state.result).toBe(mockIngest.result);
+      expect(state.progress).toBe(mockIngest.progress);
+      expect(state.analyses).toEqual(mockIngest.analyses);
+      expect(state.runs).toEqual({});
+      expect(state.overview).toBeNull();
+      expect(state.active_node_id).toBeNull();
+      expect(state.active_tab).toBe("XRAY");
+      expect(state.active_step).toBeNull();
+      expect(state.active_question_index).toBeNull();
+      expect(state.last_failed_answers).toEqual({});
+      expect(state.ui.offline_persona).toBe("SENIOR_RUSTY");
+      expect(state.ui.pending).toEqual({});
+      expect(state.ui.errors).toEqual({});
+      expect(state.ui.hint_step).toBeNull();
+      expect(state.ui.presentation_pane).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3. setActiveNode
+  // ---------------------------------------------------------------------------
+  describe("setActiveNode", () => {
+    it("đặt lại active_step, active_question_index, ui.hint_step khi chọn node", () => {
+      useWorkbenchStore.setState({
+        active_step: 5,
+        active_question_index: 2,
+        ui: {
+          ...useWorkbenchStore.getState().ui,
+          hint_step: 4,
+        },
+      });
+
+      useWorkbenchStore.getState().setActiveNode("node-target");
+      const state = useWorkbenchStore.getState();
+
+      expect(state.active_node_id).toBe("node-target");
+      expect(state.active_tab).toBe("XRAY");
+      expect(state.active_step).toBe(1);
+      expect(state.active_question_index).toBeNull();
+      expect(state.ui.hint_step).toBeNull();
+    });
+
+    it("đặt active_step về null khi truyền nodeId là null", () => {
+      useWorkbenchStore.getState().setActiveNode(null);
+      const state = useWorkbenchStore.getState();
+
+      expect(state.active_node_id).toBeNull();
+      expect(state.active_tab).toBe("XRAY");
+      expect(state.active_step).toBeNull();
+      expect(state.active_question_index).toBeNull();
+      expect(state.ui.hint_step).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 4. openNode trên 7 node
+  // ---------------------------------------------------------------------------
+  describe("openNode trên 7 node", () => {
+    it("chỉ gọi analyzeNodeSafe đúng 3 lần: node đó và 2 node kế tiếp; gọi lại không phát sinh lời gọi mới", async () => {
+      const nodes = [
+        { id: "node-1", prerequisites: [] },
+        { id: "node-2", prerequisites: ["node-1"] },
+        { id: "node-3", prerequisites: ["node-2"] },
+        { id: "node-4", prerequisites: ["node-3"] },
+        { id: "node-5", prerequisites: ["node-4"] },
+        { id: "node-6", prerequisites: ["node-5"] },
+        { id: "node-7", prerequisites: ["node-6"] },
+      ];
+
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "test-session-7",
+        result: { nodes } as never,
+        progress: {
+          session_id: "test-session-7",
+          tokens_used: 0,
+          nodes: Object.fromEntries(
+            nodes.map((n) => [
+              n.id,
+              {
+                node_id: n.id,
+                status: "AVAILABLE",
+                has_warning: false,
+                analysis_failed: false,
+                last_run: null,
+              },
+            ])
+          ),
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      });
+
+      vi.mocked(analyzeNodeSafe).mockImplementation(async (sid, nid) => ({
+        ok: true,
+        data: {
+          node_id: nid,
+          analysis: createMockAnalysis(nid),
+          node_state: {
+            node_id: nid,
+            status: "AVAILABLE",
+            has_warning: false,
+            analysis_failed: false,
+            last_run: null,
+          },
+          tokens_used: 150,
+          unlocked_node_ids: [],
+        },
+        error: null,
+      }));
+
+      // Gọi openNode lần 1
+      useWorkbenchStore.getState().openNode("node-1");
+
+      // Chờ các promise phân tích hoàn tất
+      await vi.waitFor(() => {
+        expect(analyzeNodeSafe).toHaveBeenCalledTimes(3);
+      });
+
+      expect(analyzeNodeSafe).toHaveBeenNthCalledWith(1, "test-session-7", "node-1");
+      expect(analyzeNodeSafe).toHaveBeenNthCalledWith(2, "test-session-7", "node-2");
+      expect(analyzeNodeSafe).toHaveBeenNthCalledWith(3, "test-session-7", "node-3");
+
+      // Gọi lại openNode trên node-1
+      useWorkbenchStore.getState().openNode("node-1");
+
+      // Đợi thêm một khoảng thời gian để đảm bảo không có lời gọi mới
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(analyzeNodeSafe).toHaveBeenCalledTimes(3);
+    });
+
+    it("2 node kế tiếp đã có bản phân tích thì vẫn tải 2 node sau đó", async () => {
+      const nodes = [
+        { id: "node-1", prerequisites: [] },
+        { id: "node-2", prerequisites: ["node-1"] },
+        { id: "node-3", prerequisites: ["node-2"] },
+        { id: "node-4", prerequisites: ["node-3"] },
+        { id: "node-5", prerequisites: ["node-4"] },
+        { id: "node-6", prerequisites: ["node-5"] },
+        { id: "node-7", prerequisites: ["node-6"] },
+      ];
+
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "test-session-skip-cached",
+        result: { nodes } as never,
+        progress: {
+          session_id: "test-session-skip-cached",
+          tokens_used: 0,
+          nodes: Object.fromEntries(
+            nodes.map((n) => [
+              n.id,
+              {
+                node_id: n.id,
+                status: "AVAILABLE",
+                has_warning: false,
+                analysis_failed: false,
+                last_run: null,
+              },
+            ])
+          ),
+        },
+        analyses: {
+          "node-2": createMockAnalysis("node-2"),
+          "node-3": createMockAnalysis("node-3"),
+        },
+        resumed: false,
+        from_cache: false,
+      });
+
+      vi.mocked(analyzeNodeSafe).mockImplementation(async (sid, nid) => ({
+        ok: true,
+        data: {
+          node_id: nid,
+          analysis: createMockAnalysis(nid),
+          node_state: {
+            node_id: nid,
+            status: "AVAILABLE",
+            has_warning: false,
+            analysis_failed: false,
+            last_run: null,
+          },
+          tokens_used: 150,
+          unlocked_node_ids: [],
+        },
+        error: null,
+      }));
+
+      // Gọi openNode trên node-1
+      useWorkbenchStore.getState().openNode("node-1");
+
+      // Chờ các promise phân tích hoàn tất
+      await vi.waitFor(() => {
+        expect(analyzeNodeSafe).toHaveBeenCalledTimes(3);
+      });
+
+      // analyzeNodeSafe phải được gọi cho node-1, node-4, node-5 (bỏ qua node-2 và node-3 vì đã có)
+      expect(analyzeNodeSafe).toHaveBeenNthCalledWith(1, "test-session-skip-cached", "node-1");
+      expect(analyzeNodeSafe).toHaveBeenNthCalledWith(2, "test-session-skip-cached", "node-4");
+      expect(analyzeNodeSafe).toHaveBeenNthCalledWith(3, "test-session-skip-cached", "node-5");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5. ERR_TOKEN_QUOTA_EXCEEDED
+  // ---------------------------------------------------------------------------
+  describe("ERR_TOKEN_QUOTA_EXCEEDED", () => {
+    it("dừng hàng và đổi node chờ thành FAILED", async () => {
+      const nodes = [
+        { id: "node-1", prerequisites: [] },
+        { id: "node-2", prerequisites: ["node-1"] },
+        { id: "node-3", prerequisites: ["node-2"] },
+        { id: "node-4", prerequisites: ["node-3"] },
+        { id: "node-5", prerequisites: ["node-4"] },
+        { id: "node-6", prerequisites: ["node-5"] },
+        { id: "node-7", prerequisites: ["node-6"] },
+      ];
+
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "quota-session",
+        result: { nodes } as never,
+        progress: {
+          session_id: "quota-session",
+          tokens_used: 0,
+          nodes: Object.fromEntries(
+            nodes.map((n) => [
+              n.id,
+              {
+                node_id: n.id,
+                status: "AVAILABLE",
+                has_warning: false,
+                analysis_failed: false,
+                last_run: null,
+              },
+            ])
+          ),
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      });
+
+      let resolveNode1: (val: unknown) => void;
+      const node1Promise = new Promise((r) => {
+        resolveNode1 = r;
+      });
+      const pendingPromise = new Promise(() => {});
+
+      vi.mocked(analyzeNodeSafe).mockImplementation(async (sid, nid) => {
+        if (nid === "node-1") {
+          return node1Promise as never;
+        }
+        return pendingPromise as never;
+      });
+
+      // Mở node-1: node-1, node-2, node-3 vào inFlight (concurrency = 3)
+      useWorkbenchStore.getState().openNode("node-1");
+
+      // Khi inFlight đã đầy (3 node), yêu cầu phân tích node-4:
+      // node-4, node-5, node-6 sẽ được đưa vào waiting
+      useWorkbenchStore.getState().requestAnalysis("node-4");
+
+      const stateBefore = useWorkbenchStore.getState();
+      expect(stateBefore.analyses["node-4"]).toBe("PENDING");
+      expect(stateBefore.analyses["node-5"]).toBe("PENDING");
+      expect(stateBefore.analyses["node-6"]).toBe("PENDING");
+
+      // node-1 trả về lỗi hạn mức token
+      resolveNode1!({
+        ok: false,
+        data: null,
+        error: {
+          error: {
+            code: "ERR_TOKEN_QUOTA_EXCEEDED",
+            message: "Hạn mức token phiên học đã hết.",
+            retryable: false,
+          },
+        },
+      });
+
+      await vi.waitFor(() => {
+        const state = useWorkbenchStore.getState();
+        expect(state.analyses["node-1"]).toBe("FAILED");
+        expect(state.analyses["node-4"]).toBe("FAILED");
+        expect(state.analyses["node-5"]).toBe("FAILED");
+        expect(state.analyses["node-6"]).toBe("FAILED");
+      });
+
+      // Kiểm tra có thông báo lỗi UI cho node-1
+      expect(useWorkbenchStore.getState().ui.errors["analyze:node-1"]).toContain(
+        "hạn mức AI"
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6. Response về sau khi đã đổi phiên thì bị bỏ
+  // ---------------------------------------------------------------------------
+  describe("Đổi phiên", () => {
+    it("response về sau khi đã đổi phiên thì bị bỏ", async () => {
+      const nodes = [{ id: "node-1", prerequisites: [] }];
+
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "session-1",
+        result: { nodes } as never,
+        progress: {
+          session_id: "session-1",
+          tokens_used: 0,
+          nodes: {
+            "node-1": {
+              node_id: "node-1",
+              status: "AVAILABLE",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+          },
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      });
+
+      let resolveAnalysis: (val: unknown) => void;
+      const delayedPromise = new Promise((r) => {
+        resolveAnalysis = r;
+      });
+
+      vi.mocked(analyzeNodeSafe).mockImplementation(async () => delayedPromise as never);
+
+      useWorkbenchStore.getState().openNode("node-1");
+
+      // Chuyển sang phiên mới trước khi response kịp về
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "session-2",
+        result: { nodes } as never,
+        progress: {
+          session_id: "session-2",
+          tokens_used: 0,
+          nodes: {
+            "node-1": {
+              node_id: "node-1",
+              status: "AVAILABLE",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+          },
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      });
+
+      // Response của session-1 hoàn thành
+      resolveAnalysis!({
+        ok: true,
+        data: {
+          node_id: "node-1",
+          analysis: createMockAnalysis("node-1"),
+          node_state: {
+            node_id: "node-1",
+            status: "AVAILABLE",
+            has_warning: false,
+            analysis_failed: false,
+            last_run: null,
+          },
+          tokens_used: 100,
+          unlocked_node_ids: [],
+        },
+        error: null,
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+
+      // Analyses của session-2 không bị gán dữ liệu của session-1
+      const state = useWorkbenchStore.getState();
+      expect(state.session_id).toBe("session-2");
+      expect(state.analyses["node-1"]).toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 7. analyzeOverviewSafe
+  // ---------------------------------------------------------------------------
+  describe("analyzeOverviewSafe", () => {
+    it("gọi đúng 1 lần khi đủ node; ERR_OVERVIEW_NOT_READY không ghi lỗi", async () => {
+      const nodes = [
+        { id: "node-1", prerequisites: [] },
+        { id: "node-2", prerequisites: [] },
+      ];
+
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "overview-session",
+        result: { nodes } as never,
+        progress: {
+          session_id: "overview-session",
+          tokens_used: 0,
+          nodes: {
+            "node-1": {
+              node_id: "node-1",
+              status: "AVAILABLE",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+            "node-2": {
+              node_id: "node-2",
+              status: "AVAILABLE",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+          },
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      });
+
+      vi.mocked(analyzeOverviewSafe).mockResolvedValue({
+        ok: false,
+        data: null,
+        error: {
+          error: {
+            code: "ERR_OVERVIEW_NOT_READY",
+            message: "Hệ thống đang phân tích tiếp.",
+            retryable: true,
+          },
+        },
+      });
+
+      vi.mocked(analyzeNodeSafe).mockImplementation(async (sid, nid) => ({
+        ok: true,
+        data: {
+          node_id: nid,
+          analysis: createMockAnalysis(nid),
+          node_state: {
+            node_id: nid,
+            status: "AVAILABLE",
+            has_warning: false,
+            analysis_failed: false,
+            last_run: null,
+          },
+          tokens_used: 50,
+          unlocked_node_ids: [],
+        },
+        error: null,
+      }));
+
+      // Kích hoạt phân tích cho cả 2 node
+      useWorkbenchStore.getState().requestAnalysis("node-1");
+      useWorkbenchStore.getState().requestAnalysis("node-2");
+
+      // Khi cả 2 node hoàn thành, analyzeOverviewSafe được gọi
+      await vi.waitFor(() => {
+        expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
+      });
+
+      // Lỗi ERR_OVERVIEW_NOT_READY không được ghi vào ui.errors["overview"]
+      expect(useWorkbenchStore.getState().ui.errors["overview"]).toBeUndefined();
+
+      // Giả lập lời gọi thành công
+      const mockOverview: RepoOverviewView = {
+        facts: {
+          archetype: "WEB_BACKEND",
+          framework: "express",
+          tech_stack: ["typescript", "express"],
+          root_node_ids: ["node-1"],
+          main_path_node_ids: ["node-1", "node-2"],
+        },
+        ai: null,
+      };
+
+      vi.mocked(analyzeOverviewSafe).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          overview: mockOverview,
+          tokens_used: 120,
+        },
+        error: null,
+      });
+
+      // Trigger lại bơm hàng (ví dụ retry phân tích node)
+      useWorkbenchStore.getState().requestAnalysis("node-1", true);
+
+      await vi.waitFor(() => {
+        expect(useWorkbenchStore.getState().overview).toEqual(mockOverview);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 8. loadRun
+  // ---------------------------------------------------------------------------
+  describe("loadRun", () => {
+    it("không gọi 2 lần cho cùng node", async () => {
+      const mockAnalysis: NodeAnalysisView = createMockAnalysis("node-1");
+
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "loadrun-session",
+        result: {
+          nodes: [{ id: "node-1", prerequisites: [] }],
+        } as never,
+        progress: {
+          session_id: "loadrun-session",
+          tokens_used: 0,
+          nodes: {
+            "node-1": {
+              node_id: "node-1",
+              status: "AVAILABLE",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+          },
+        },
+        analyses: {
+          "node-1": mockAnalysis,
+        },
+        resumed: false,
+        from_cache: false,
+      });
+
+      let resolveEnrich: (val: unknown) => void;
+      const enrichPromise = new Promise((r) => {
+        resolveEnrich = r;
+      });
+
+      vi.mocked(enrichNodeSafe).mockImplementation(async () => enrichPromise as never);
+
+      // Gọi lần 1
+      const call1 = useWorkbenchStore.getState().loadRun("node-1");
+      expect(enrichNodeSafe).toHaveBeenCalledTimes(1);
+      expect(useWorkbenchStore.getState().ui.pending["enrich:node-1"]).toBe(true);
+
+      // Gọi lần 2 ngay khi lần 1 đang pending
+      const call2 = useWorkbenchStore.getState().loadRun("node-1");
+      expect(enrichNodeSafe).toHaveBeenCalledTimes(1);
+
+      // Cho lời gọi 1 hoàn tất
+      const mockRunResponse: EnrichNodeResponse = {
+        node_id: "node-1",
+        run_id: "run-101",
+        mode: "LEARN",
+        questions: [
+          {
+            question_index: 0,
+            skill: "HTTP_ROUTING",
+            tier: "NOVICE",
+            focus: "FLOW",
+            feynman_question: "Giải thích routing?",
+            state: {
+              question_index: 0,
+              feynman_question: "Giải thích routing?",
+              skill: "HTTP_ROUTING",
+              tier: "NOVICE",
+              focus: "FLOW",
+              attempts_used: 0,
+              finished: false,
+              outcome: null,
+              ended_by: null,
+              disputed: false,
+              reveal: null,
+            },
+          },
+        ],
+        node_state: {
+          node_id: "node-1",
+          status: "AVAILABLE",
+          has_warning: false,
+          analysis_failed: false,
+          last_run: null,
+        },
+        tokens_used: 80,
+      };
+
+      resolveEnrich!({
+        ok: true,
+        data: mockRunResponse,
+        error: null,
+      });
+
+      await Promise.all([call1, call2]);
+
+      expect(useWorkbenchStore.getState().runs["node-1"]).toEqual(mockRunResponse);
+      expect(useWorkbenchStore.getState().ui.pending["enrich:node-1"]).toBe(false);
+
+      // Gọi lần 3 sau khi run đã có trong store
+      await useWorkbenchStore.getState().loadRun("node-1");
+      expect(enrichNodeSafe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 8b. reloadRun
+  // ---------------------------------------------------------------------------
+  describe("reloadRun", () => {
+    it("bỏ qua điều kiện runs đã có và gọi lại enrichNodeSafe, áp kết quả giống loadRun trừ khi đang pending", async () => {
+      useWorkbenchStore.getState().applyIngest({
+        session_id: "reloadrun-session",
+        result: {
+          nodes: [{ id: "node-1", prerequisites: [] }],
+        } as never,
+        progress: {
+          session_id: "reloadrun-session",
+          tokens_used: 0,
+          nodes: {
+            "node-1": {
+              node_id: "node-1",
+              status: "COMPLETED",
+              has_warning: false,
+              analysis_failed: false,
+              last_run: null,
+            },
+          },
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      });
+
+      useWorkbenchStore.setState({
+        active_node_id: "node-1",
+        runs: { "node-1": { run_id: "old-run" } as never },
+      });
+
+      const mockReloadResponse: EnrichNodeResponse = {
+        node_id: "node-1",
+        run_id: "run-reloaded",
+        mode: "LEARN",
+        questions: [
+          {
+            question_index: 0,
+            skill: "HTTP_ROUTING",
+            tier: "NOVICE",
+            focus: "FLOW",
+            feynman_question: "Câu hỏi reload?",
+            state: {
+              question_index: 0,
+              feynman_question: "Câu hỏi reload?",
+              skill: "HTTP_ROUTING",
+              tier: "NOVICE",
+              focus: "FLOW",
+              attempts_used: 0,
+              finished: false,
+              outcome: null,
+              ended_by: null,
+              disputed: false,
+              reveal: null,
+            },
+          },
+        ],
+        node_state: {
+          node_id: "node-1",
+          status: "AVAILABLE",
+          has_warning: false,
+          analysis_failed: false,
+          last_run: null,
+        },
+        tokens_used: 120,
+      };
+
+      vi.mocked(enrichNodeSafe).mockResolvedValueOnce({
+        ok: true,
+        data: mockReloadResponse,
+        error: null,
+      });
+
+      await useWorkbenchStore.getState().reloadRun("node-1");
+
+      expect(enrichNodeSafe).toHaveBeenCalledWith("reloadrun-session", "node-1", "LEARN");
+      expect(useWorkbenchStore.getState().runs["node-1"]).toEqual(mockReloadResponse);
+      expect(useWorkbenchStore.getState().active_question_index).toBe(0);
+      expect(useWorkbenchStore.getState().progress?.tokens_used).toBe(120);
+
+      // Nếu đang pending thì reloadRun dừng ngay
+      useWorkbenchStore.getState().setUiPending("enrich:node-1", true);
+      vi.mocked(enrichNodeSafe).mockClear();
+      await useWorkbenchStore.getState().reloadRun("node-1");
+      expect(enrichNodeSafe).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 9. Các action phụ trợ
+  // ---------------------------------------------------------------------------
+  describe("Action phụ trợ: setTokensUsed, applyNodeState, applyQuestionState, refreshProgress", () => {
+    it("setTokensUsed cập nhật tokens_used và không làm gì khi progress = null", () => {
+      useWorkbenchStore.getState().setTokensUsed(500);
+      expect(useWorkbenchStore.getState().progress).toBeNull();
+
+      useWorkbenchStore.setState({
+        progress: {
+          session_id: "sess",
+          tokens_used: 100,
+          nodes: {},
+        },
+      });
+
+      useWorkbenchStore.getState().setTokensUsed(750);
+      expect(useWorkbenchStore.getState().progress?.tokens_used).toBe(750);
+    });
+
+    it("applyNodeState cập nhật trạng thái node trong progress", () => {
+      useWorkbenchStore.setState({
+        progress: {
+          session_id: "sess",
+          tokens_used: 0,
+          nodes: {},
+        },
+      });
+
+      const updatedNode: NodeStateView = {
+        node_id: "node-99",
+        status: "COMPLETED",
+        has_warning: true,
+        analysis_failed: false,
+        last_run: null,
+      };
+
+      useWorkbenchStore.getState().applyNodeState(updatedNode);
+      expect(useWorkbenchStore.getState().progress?.nodes["node-99"]).toEqual(updatedNode);
+    });
+
+    it("applyQuestionState cập nhật câu hỏi tương ứng trong run", () => {
+      const mockRun: EnrichNodeResponse = {
+        node_id: "node-1",
+        run_id: "run-1",
+        mode: "LEARN",
+        questions: [
+          {
+            question_index: 0,
+            skill: "HTTP_ROUTING",
+            tier: "NOVICE",
+            focus: "FLOW",
+            feynman_question: "Q1",
+            state: {
+              question_index: 0,
+              feynman_question: "Q1",
+              skill: "HTTP_ROUTING",
+              tier: "NOVICE",
+              focus: "FLOW",
+              attempts_used: 1,
+              finished: false,
+              outcome: null,
+              ended_by: null,
+              disputed: false,
+              reveal: null,
+            },
+          },
+        ],
+        node_state: {
+          node_id: "node-1",
+          status: "AVAILABLE",
+          has_warning: false,
+          analysis_failed: false,
+          last_run: null,
+        },
+        tokens_used: 10,
+      };
+
+      useWorkbenchStore.setState({
+        runs: { "node-1": mockRun },
+      });
+
+      const updatedQState: QuestionState = {
+        ...mockRun.questions[0].state,
+        attempts_used: 2,
+        finished: true,
+        outcome: "PASS_FIRST",
+      };
+
+      useWorkbenchStore.getState().applyQuestionState("node-1", updatedQState);
+      expect(
+        useWorkbenchStore.getState().runs["node-1"].questions[0].state.finished
+      ).toBe(true);
+      expect(
+        useWorkbenchStore.getState().runs["node-1"].questions[0].state.outcome
+      ).toBe("PASS_FIRST");
+    });
+
+    it("refreshProgress gọi getSessionProgressSafe và cập nhật progress", async () => {
+      useWorkbenchStore.setState({ session_id: "sess-refresh" });
+
+      const newProgress = {
+        session_id: "sess-refresh",
+        tokens_used: 999,
+        nodes: {},
+      };
+
+      vi.mocked(getSessionProgressSafe).mockResolvedValueOnce({
+        ok: true,
+        data: { progress: newProgress },
+        error: null,
+      });
+
+      await useWorkbenchStore.getState().refreshProgress();
+      expect(getSessionProgressSafe).toHaveBeenCalledWith("sess-refresh");
+      expect(useWorkbenchStore.getState().progress).toEqual(newProgress);
+    });
+
+    it("setSkillChange cập nhật ui.skill_changes theo khóa run_id:question_index", () => {
+      const mockChange: SkillChange = {
+        skill: "HTTP_ROUTING",
+        p_before: 0.25,
+        p_after: 0.4202,
+        outcome: "PASS_FIRST",
+      };
+
+      const key = "run-123:1";
+      useWorkbenchStore.getState().setSkillChange(key, mockChange);
+
+      expect(useWorkbenchStore.getState().ui.skill_changes[key]).toEqual(mockChange);
+    });
+  });
+});

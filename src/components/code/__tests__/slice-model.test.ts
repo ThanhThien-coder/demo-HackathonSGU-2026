@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSliceModel } from "../slice-model";
+import { buildSliceModel, stepAtLine } from "../slice-model";
 import shopApiFixture from "@/server/engine/__fixtures__/shop-api.json";
 import type { HybridArchitecturalNode } from "@/contracts";
 
@@ -43,10 +43,38 @@ describe("Mô hình Lát cắt Code (Slice Model) - D04 & spec/30_UI.md Mục 5"
     expect(model.stepRanges[2].startLine).toBe(step2HeaderIdx + 1);
   });
 
+  it("UI-33 đồng bộ 2 chiều: với N3 (slice-product-list), tìm dòng model có lineMap bằng 16, stepAtLine phải trả 2 (T22), dòng DTO hoặc ngoài khoảng trả null", () => {
+    expect(nodeN3).toBeDefined();
+    if (!nodeN3) return;
+
+    const model = buildSliceModel(nodeN3);
+    const lineIndex = model.lineMap.findIndex((orig) => orig === 16);
+    expect(lineIndex).toBeGreaterThanOrEqual(0);
+    // line trong Monaco là 1-based (lineIndex + 1)
+    const lineNumber16 = lineIndex + 1;
+    expect(stepAtLine(model, lineNumber16)).toBe(2);
+
+    // Dòng DTO hoặc ngoài khoảng trả null
+    const lines = model.text.split("\n");
+    const dtoHeaderIdx = lines.findIndex((l) => l.includes("Kiểu dữ liệu liên quan"));
+    if (dtoHeaderIdx >= 0) {
+      expect(stepAtLine(model, dtoHeaderIdx + 1)).toBeNull();
+      if (dtoHeaderIdx + 2 <= lines.length) {
+        expect(stepAtLine(model, dtoHeaderIdx + 2)).toBeNull();
+      }
+    }
+
+    // Ngoài khoảng trả null
+    expect(stepAtLine(model, 0)).toBeNull();
+    expect(stepAtLine(model, -5)).toBeNull();
+    expect(stepAtLine(model, lines.length + 10)).toBeNull();
+  });
+
   it("Xử lý an toàn khi node rỗng hoặc không có trace_steps", () => {
     const emptyModel = buildSliceModel(null);
     expect(emptyModel.text).toBe("");
     expect(emptyModel.lineMap).toEqual([]);
     expect(emptyModel.stepRanges).toEqual({});
+    expect(stepAtLine(emptyModel, 1)).toBeNull();
   });
 });

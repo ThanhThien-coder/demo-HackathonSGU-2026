@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,22 +15,21 @@ export function LoginForm() {
   const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("error") === "auth_failed") {
-        setErrorMsg(
-          "Đăng nhập GitHub không thành công hoặc đã bị hủy. Vui lòng thử lại."
-        );
-      }
-    }
-  }, []);
-
   const handleGithubLogin = async () => {
     try {
       setIsGithubLoading(true);
       setErrorMsg(null);
-      await signInWithGithub("/roadmap");
+
+      let destination = "/roadmap";
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const nextParam = params.get("next");
+        if (nextParam && nextParam.startsWith("/")) {
+          destination = nextParam;
+        }
+      }
+
+      await signInWithGithub(destination);
     } catch (err) {
       setIsGithubLoading(false);
       setErrorMsg(
