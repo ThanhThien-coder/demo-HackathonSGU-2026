@@ -48,6 +48,11 @@ import { verifyRunOwnership, type RunRecord, type SessionRecord } from "./sessio
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Driver postgres gửi mảng boolean sai kiểu nên truyền chuỗi mảng Postgres, ví dụ "{true,false}".
+function toPgBooleanArray(values: boolean[]): string {
+  return `{${values.join(",")}}`;
+}
+
 /** Body JSON tho => EvaluateFeynmanRequest; truong sai kieu thanh gia tri rong de cac buoc kiem bat loi. */
 export function toEvaluateRequest(body: unknown): EvaluateFeynmanRequest {
   const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
@@ -213,7 +218,7 @@ export async function evaluateFeynman(
         VALUES (
           ${run2.id}, ${q2.question_index}, ${req.attempt_number}, ${q2.skill},
           ${grading.core_accuracy}, ${grading.simplicity}, ${grading.intent}, ${isPassed},
-          ${pointsCovered}::boolean[], ${cleanAnswer}
+          ${toPgBooleanArray(pointsCovered)}::text::boolean[], ${cleanAnswer}
         )
       `;
 
