@@ -21,13 +21,13 @@ export function ReportOverview({
   totalNodes = 0,
 }: ReportOverviewProps) {
   // 1. Tên người học & câu chào
-  const displayName = profile?.display_name || "Quý";
+  const displayName = profile?.display_name || "Bạn";
   const avatarUrl = "/assets/report/avatar-quy.png";
 
   // 2. Tính toán các chỉ số thống kê thật từ attempts và profile
   const totalAttempts = attempts.length;
   const passedAttempts = attempts.filter((a) => a.is_passed).length;
-  const practiceHours = (totalAttempts * 0.25 + 2.5).toFixed(1); // Ước tính giờ học dựa trên bài làm
+  const practiceHours = (totalAttempts * 0.25).toFixed(1); // Ước tính giờ học dựa trên bài làm
 
   // Tiến độ hoàn thành bài học
   const completionPercentage =

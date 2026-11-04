@@ -20,7 +20,7 @@ interface ReportKnowledgeBreakdownProps {
 }
 
 export function ReportKnowledgeBreakdown({
-  repoName = "REPO: JAVA BACKEND",
+  repoName = "",
   attempts,
   sessionId,
 }: ReportKnowledgeBreakdownProps) {
