@@ -58,6 +58,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Đồ thị gọi hàm và danh sách entry nhận diện chính xác các route handler của Express và NestJS.
 - Kiểu nội bộ Tầng 1–2 chỉ khai báo ở `graph/types.ts`, không file nào khai báo lại.
 - `npx vitest run src/server/engine` vẫn xanh (B01–B04 không hỏng) và `npx eslint src/server/engine` 0 error, 0 warning.
+- Hàm bọc cấp cao nhất `const x = wrap(async () => {...})` (trừ `require`) là hàm có thân `file#x`, lời gọi bên trong gán cho `file#x`, không gán `<module>`.
+- Theo re-export tối đa 5 bước, có chống vòng lặp: `module.exports.X = require(p)`, `exports.X = require(p)`, `module.exports = { X: require(p) }`, `export { X as Y } from p`, `export * from p`.
+- Python absolute import thử theo thứ tự: gốc repo, `rootDirOffset`, `rootDirOffset + src/`, rồi thư mục `D` có `D/<gói>/__init__.py` (đường dẫn ngắn trước). Cần cho repo đặt code ở `backend/`.
+- `new Bar()` với `Bar` là tên import: tra lớp theo file đích và tên gốc. Kiểu biến cục bộ chỉ ghi khóa `file#biến`, không ghi tên trần, tránh tạo cạnh giả giữa các file.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -87,6 +91,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có test T-ENG-12 và các test `ENG-12`, `ENG-40`, `ENG-51`.
 - [ ] `src/server/engine/graph/types.ts` có các kiểu Mục 0, `ParsedFile`, `SymbolIndex`.
 - [ ] Đồ thị gọi hàm giải quyết chính xác các cuộc gọi qua interface và import tương đối trong TS/JS.
+- [ ] Chạy trên repo Express thật dùng `catchAsync` và `services/index.js`: lát cắt đi qua được service, không dừng ở controller.
 
 ```text
 Task "B05 — Tầng 1: symbol, đồ thị gọi hàm, entry, chọn chế độ" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

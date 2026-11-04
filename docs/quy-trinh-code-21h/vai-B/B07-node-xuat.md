@@ -61,6 +61,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Mọi điểm bắt đầu nằm cùng hàng trên cùng (D-55, T-ENG-37).
 - Bản đồ giới hạn tối đa `CONFIG.DISPLAY_MAX_NODES` node (ENG-114).
 - `npm run typecheck`, `npm test`, `npm run lint` (0 error; engine 0 warning) đều sạch.
+- `resolveHandlerKey` trả `string | null`, lấy đối số từ trường `arguments`. Lời gọi không có đối số như `cors()` là factory, không tạo binding. Tên middleware dạng factory lấy tên hàm: `validate(s)` là `validate`. Candidate không có bước nào bị bỏ trước ENG-110, không cộng vào `omitted_node_count`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -91,6 +92,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `runEngine` chỉ gọi `runIngest` 1 lần. Báo Vai A chữ ký thật của `runEngine` (có `signal` hay không).
 - [ ] Bố cục Dagre đặt mọi node có `prerequisites = []` ở cùng tọa độ `position.y` nhỏ nhất (D-55).
 - [ ] Hàm `toClientResult` loại bỏ hoàn toàn `symbol_whitelist` và `suspicious_instruction_files` (T-ENG-33).
+- [ ] `app.options('*', cors())` không sinh node, không có khóa kết thúc bằng `#()`.
 
 ```text
 Task "B07 — Ghép node, tên, bố cục, xuất runEngine" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

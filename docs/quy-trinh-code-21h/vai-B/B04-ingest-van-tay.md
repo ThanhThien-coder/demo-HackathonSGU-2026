@@ -62,6 +62,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Có đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và test D25 của spec 50 (số dòng `\n` không đổi), tất cả chạy xanh.
 - Toàn bộ secret và PII được che đúng định dạng `<REDACTED_SECRET>` và `***`.
 - `npx vitest run src/server/engine` vẫn xanh (không làm hỏng B01–B03) và `npx eslint src/server/engine` 0 error, 0 warning.
+- `pyproject.toml`: đọc `[project].dependencies` bằng hàm quét có đếm ngoặc và bỏ qua ký tự trong chuỗi, không dùng regex, vì tên gói có thể có extras như `fastapi[standard]`. Regex JavaScript không có `\z`, cuối chuỗi viết `$(?![\s\S])`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -91,6 +92,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `npx vitest run src/server/engine` và `npx eslint src/server/engine` đều sạch.
 - [ ] Có đầy đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của spec 50.
 - [ ] Số dòng `\n` của file mã nguồn được bảo toàn trước và sau khi che secret (D25).
+- [ ] Repo có `"fastapi[standard]>=0.1"` trong `pyproject.toml` ra đúng `WEB_BACKEND`, `FastAPI`.
 
 ```text
 Task "B04 — Ingest 3: định dạng đặc biệt, che secret, vân tay, runIngest" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

@@ -50,6 +50,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Test X-01 (tất định) và test X-07 (hàng điểm bắt đầu) chạy xanh.
 - Có test DoD dòng 1–3 trên repo shop-api trong RAM: `CONFIG.DISPLAY_MIN_NODES` ≤ số node ≤ `CONFIG.DISPLAY_MAX_NODES`; chạy 2 lần cùng `id` và cùng `position`; mọi node `prerequisites = []` cùng `position.y` nhỏ nhất; node `algo-*` được lát cắt gọi tới có cạnh nối (nếu repo có).
 - `npm run typecheck`, `npx vitest run src/server/engine`, `npx eslint src/server/engine` (0 warning) đều sạch.
+- Bản đồ `shop-api` có đúng 6 cạnh N1→N2, N2→N4, N3→N5, N4→N5, N6→N5, N7→N5. N5 là Capstone, điểm bắt đầu là N1, N3, N6, N7. Theo D-07 (dễ → khó) và D-12 (Capstone phức tạp nhất) thì không bài nào dùng chung hàm với N5 đứng sau N5 được.
+- Không kết luận engine xong chỉ vì test xanh trên `shop-api`: phải chạy `runEngine` trên ít nhất 1 repo Express JS, 1 repo TS, 1 repo NestJS, 1 repo FastAPI, 1 repo Expo công khai, đếm số luồng tới `DATA_ACCESS`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -78,6 +80,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Soi bản đồ repo `shop-api` (in tóm tắt node và bước): mỗi lát cắt đi tới DATA_ACCESS, không chỉ đếm số node. Lần tập, đủ 7 node mà lát cắt cụt ở ENTRY/MIDDLEWARE.
 - [ ] Test X-01 và X-07 chạy xanh.
 - [ ] Tự chạy engine trên repo demo xác nhận số node trong khoảng `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` và mọi điểm bắt đầu nằm cùng hàng trên cùng.
+- [ ] Đã chạy trên repo công khai ngoài `shop-api`, ghi số luồng có từ 2 bước và số luồng tới `DATA_ACCESS` của từng repo.
 
 ```text
 Task "B08 — Sửa theo repo demo, tất định, hàng điểm bắt đầu" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

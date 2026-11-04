@@ -52,6 +52,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
 - Có đủ các test T-ENG-39, T-ENG-40, phần TS/JS, Python của T-ENT-01, T-ENT-02 và tất cả chạy xanh; các ca ngôn ngữ khác là `it.todo` có ghi lý do.
 - Repo Expo Router và repo Python có entry `main` nhận diện chính xác các entry point tương ứng.
+- Chỉ coi file dưới `app/` là màn hình Expo khi repo có import `expo-router`, dự phòng theo thư mục `(tabs)`, nếu không repo Express có `src/app/routes/*.service.ts` bị nhận nhầm. `defaultHandler` tìm thêm `export { X as default } from p`, `export { default } from p`, `export { X as default }`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -79,6 +80,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ các test T-ENG-39, T-ENG-40, phần TS/JS, Python của T-ENT-01, T-ENT-02; ca ngôn ngữ khác là `it.todo`.
 - [ ] Repo Python đơn thuần và ứng dụng React Native trích xuất được entry point hợp lệ.
+- [ ] Repo Expo dùng `export { Screen as default } from '...'` ra đủ màn hình. Repo Express có thư mục `src/app/` không có màn hình giả.
 
 ```text
 Task "B10 — Python đủ, entry main, màn hình React Native" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

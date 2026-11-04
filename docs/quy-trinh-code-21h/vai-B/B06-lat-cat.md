@@ -49,6 +49,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Có đủ các test T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11 và tất cả chạy xanh.
 - Điểm Cognitive Complexity tính chính xác: cấu trúc `else if` không cộng thêm mức lồng (T-ENG-02).
 - `npx vitest run src/server/engine` vẫn xanh (B01–B05 không hỏng) và `npx eslint src/server/engine` 0 error, 0 warning.
+- Mỗi bước chỉ lấy dòng thuộc đúng hàm của bước đó. Entry không có thân hàm thì lấy dòng câu lệnh đăng ký route, không rơi về `<module>`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -77,6 +78,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `npx vitest run src/server/engine` và `npx eslint src/server/engine` đều sạch.
 - [ ] Có đầy đủ các test T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11.
 - [ ] Lát cắt tuân thủ đúng giới hạn dòng và token theo `CONFIG.NODE_MAX_LINES` và `CONFIG.NODE_MAX_CODE_TOKENS`.
+- [ ] Hai handler đứng liền nhau: snippet của hàm này không lẫn dòng của hàm kia.
 
 ```text
 Task "B06 — Xếp hạng, độ phức tạp, lát cắt" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
