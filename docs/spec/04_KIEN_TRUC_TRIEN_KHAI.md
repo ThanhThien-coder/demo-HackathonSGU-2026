@@ -366,7 +366,7 @@ Pipeline gồm 3 workflow tự động hóa:
   1. `verify`: Chạy lại lint, typecheck, unit test.
   2. `deploy-staging`: Xác thực GCP qua Workload Identity Federation (WIF, dự phòng secret key JSON; quyền IAM xem `05`) ⇒ deploy lên `simplifey-staging` qua `gcloud run deploy --source` (hoặc image từ Artifact Registry sau khi merge Dockerfile ở H+15).
   3. `smoke-test`: Kiểm tra tự động sau deploy staging: `GET /api/health` = 200; `POST /api/ingest` repo demo Q-03 kèm Bearer token lấy từ tài khoản bot (`grant_type=password`, `05`). Đạt khi 200, có `session_id`, `result.nodes.length >= CONFIG.DISPLAY_MIN_NODES`. Thất bại ⇒ dừng pipeline, chặn mở cổng duyệt.
-  4. `deploy-production`: Gắn GitHub Environment `production` (cổng duyệt thủ công, duy nhất Vai A duyệt) ⇒ sau khi duyệt, xác thực GCP ⇒ deploy lên `simplifey-prod` (dùng cùng source hoặc cùng image digest đã qua kiểm chứng ở staging) ⇒ kiểm tra uptime check.
+  4. `deploy-production`: Gắn GitHub Environment `production` (cổng duyệt thủ công, duy nhất Vai A duyệt) ⇒ sau khi duyệt, xác thực GCP ⇒ deploy lên `simplifey-prod` (cùng source, hoặc image prod build từ cùng commit với bản đã qua staging, D-72) ⇒ kiểm tra uptime check.
 
 ```mermaid
 flowchart TD

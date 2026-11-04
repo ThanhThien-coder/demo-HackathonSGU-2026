@@ -66,7 +66,7 @@ Quy chuẩn cấu hình dịch vụ SimpliFey trên Google Cloud Run:
   - Khởi tạo người dùng riêng không có quyền root (`USER nextjs:nodejs`, UID/GID 1001) trong stage runner.
   - Sao chép toàn bộ thư mục `public/` (chứa các grammar Tree-sitter WebAssembly `public/grammars/*.wasm`) vào stage runner để adapter phân tích cú pháp truy cập file `.wasm` cục bộ qua `fs.readFile`; chép thêm thư mục `queries/` (truy vấn Tree-sitter `queries/<lang>.scm`, D-70) vào cùng thư mục làm việc của stage runner.
   - Thiết lập `.dockerignore` loại bỏ: `.git`, `.next`, `node_modules`, `.env*`, `archive`, `.kb`, `review`, `pitch`.
-  - Sau khi Dockerfile được merge: Build image 1 lần duy nhất bằng Dockerfile, push lên Artifact Registry (`asia-southeast1-docker.pkg.dev/$PROJECT_ID/simplifey/app:$GITHUB_SHA`), deploy staging bằng `--image` rồi promote **cùng image digest** lên production sau khi được duyệt.
+  - Sau khi Dockerfile được merge (D-72): từ cùng một commit build song song **2 image**, push lên Artifact Registry: `asia-southeast1-docker.pkg.dev/$PROJECT_ID/simplifey/app:$GITHUB_SHA-staging` (build arg Supabase dev/staging, `NEXT_PUBLIC_DEMO_MODE=true`) và `...:$GITHUB_SHA-prod` (Supabase production, `NEXT_PUBLIC_DEMO_MODE=false`). Deploy staging bằng `--image` theo digest ⇒ smoke test ⇒ Vai A duyệt ⇒ deploy production bằng image prod theo digest ⇒ `GET /api/health` trên production. Lý do: Next ghi cứng `NEXT_PUBLIC_*` lúc build nên 1 image chỉ trỏ được 1 project Supabase.
 
 ---
 
