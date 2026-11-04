@@ -80,3 +80,26 @@
 | X-03 | Không lưu code (INV-04) | Dump Postgres sau kịch bản A–E: mọi dòng code dài ≥ 40 ký tự của repo mẫu xuất hiện trong Postgres phải nằm trong `snippet`/`dto_snippet` của 1 node trong `session_snapshots`; dòng code ngoài các đoạn đã cắt không xuất hiện ở bất kỳ bảng nào (`ai_cache` và `node_runs` chỉ chứa tên) | chưa chạy, chờ Lát dọc 2 | | |
 | X-04 | Mở lại phiên | Xóa cache RAM ⇒ `ingest { session_id }` ⇒ cùng `graph_skeleton`, cùng `snippet` từng bước (so `JSON.stringify`), không tải lại zip, tiến độ còn nguyên | chưa chạy, chờ Lát dọc 2 | | |
 | X-05 | RLS | Dùng anon key của người A đọc `skill_states` của B ⇒ 0 dòng; đọc `ai_cache` ⇒ 0 dòng; đọc `ai_usage` bằng anon key ⇒ 0 dòng; mọi lệnh ghi từ client ⇒ bị từ chối | chưa chạy, chờ Lát dọc 2 | | |
+
+---
+
+## 6. Kết quả chạy repo demo trên engine thật (E06)
+
+- Repo chạy tập dượt: https://github.com/vkondratiuk482/nest-e-commerce-boilerplate, commit 28b573ecb9bd20c4ea6aec841785283b1a2bf53f. Q-03 chưa chốt, đổi repo thì phải chạy lại.
+- Chạy ngày 2026-11-04 bằng runEngine trên main 7698e55, không có GITHUB_TOKEN. Các dòng ghi "giao diện" do người chạy tự làm.
+
+| Mã | Kiểm | Kết quả | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| E06-01 | Engine ra bản đồ 6–20 node | ✅ | 19 node, 13 cạnh, 42 file code, `ingest_ms` 1659, `engine_ms` 391 (1 lần đo) |
+| E06-02 | Giao diện: dán link, bản đồ và đồng hồ đo | ✅ | Dán link repo demo thành công, bản đồ hiện 19 node layout Dagre; `CockpitHeader` hiện đồng hồ đo `ingest_ms` (1659ms) + `engine_ms` (391ms) = 2050ms |
+| E06-03 | Chạy 2 lần cùng `node_id`, cùng tọa độ (INV-10) | ✅ | So ở mức engine |
+| E06-04 | Điểm bắt đầu nằm cùng hàng trên cùng (X-07) | ✅ | 8 node `prerequisites` rỗng, không node khác ở hàng đó |
+| E06-05 | Sai link | ✅ | `khong-phai-link` và link gitlab đều `ERR_INVALID_GITHUB_URL`, thông điệp khớp `30_UI` |
+| E06-06 | Repo private hoặc không tồn tại | ❌ | Mã đúng `ERR_PREFLIGHT_404_OR_PRIVATE`; thông điệp ở `src/lib/messages.ts` thiếu đoạn hướng dẫn `.zip` của `30_UI`. Thử bằng repo không tồn tại, chưa thử repo private thật |
+| E06-07 | Repo không có code | ❌ | `octocat/Hello-World`: mã đúng `ERR_NO_SOURCE_FILES_FOUND`; thông điệp thiếu phần giải thích và `{details.hint}` của `30_UI` |
+| E06-08 | Repo rỗng | ✅ | Nhánh rỗng hoặc không có commit trả đúng `ERR_EMPTY_REPOSITORY` (422), thông điệp khớp `30_UI`: "Repo này đang trống (chưa có commit)..." (ING-22, T-ING-09) |
+| E06-09 | Repo quá lớn | chưa kết luận | `torvalds/linux` không báo lỗi: `truncated` true, `selective_fetch` false, 1 file, 8 node, `degraded_mode` PROCEDURAL, có 2 cảnh báo. Lần chạy trước đó bị GitHub trả 429 nên cần chạy lại khi có token |
+| E06-10 | Repo Java | ❌ | `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang`: báo `ERR_NO_SOURCE_FILES_FOUND` hint `no_code` dù repo có code Java; `11_ENGINE_DO_THI` liệt kê `JAVA` `.java` nhưng không thấy `.java` trong code engine. Vai B |
+| E06-11 | Node nào cũng có bước để học | ❌ | `slice-list-permissions-505d25` có 0 bước. Liên quan nhánh `b/fix-B07-node-rong`. Vai B |
+| E06-12 | Node học lấy từ code thật | ❌ | `algo-user-7fcd49` lấy từ file test `src/user/tests/user.service.spec.ts`, bước là `<module>`, và là Capstone. Cần Vai B xác nhận |
+| E06-13 | Giao diện: mở từng node có bản phân tích, Tab 1 có điểm hay, điểm dở (D-46) | ✅ | Kênh AI Gemini `gemini-3.5-flash-lite` đã thông luồng; node có bản phân tích với `skills`, `patterns`, `weak_points` (hiện khung "Điểm dở — Nhận định của AI") và `must_haves` |
