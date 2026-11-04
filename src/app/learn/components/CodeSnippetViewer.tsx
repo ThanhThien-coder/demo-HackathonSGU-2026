@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   FileCode,
   Copy,
@@ -10,13 +10,13 @@ import {
   AlertTriangle,
   RefreshCw,
   Cpu,
-  ShieldAlert,
   Sparkles,
   Lightbulb,
   Workflow,
 } from "lucide-react";
 import type { NodeAnalysisView, HybridArchitecturalNode } from "@/contracts";
 import { buildSliceModel } from "@/components/code/slice-model";
+import { XRayPanel } from "./XRayPanel";
 
 interface CodeSnippetViewerProps {
   fileName?: string;
@@ -32,6 +32,7 @@ interface CodeSnippetViewerProps {
   onSelectStep?: (stepIndex: number) => void;
   isPresentationMode?: boolean;
   onTogglePresentationMode?: () => void;
+  allNodes?: HybridArchitecturalNode[];
 }
 
 export function CodeSnippetViewer({
@@ -48,8 +49,20 @@ export function CodeSnippetViewer({
   onSelectStep,
   isPresentationMode = false,
   onTogglePresentationMode,
+  allNodes = [],
 }: CodeSnippetViewerProps) {
   const [copied, setCopied] = useState(false);
+  const stepRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  // Khi activeStep đổi, cuộn khối bước đó vào giữa khung code (UI-33)
+  useEffect(() => {
+    if (activeStep !== null && activeStep !== undefined) {
+      const el = stepRefs.current[activeStep];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [activeStep]);
 
   // Compute code lines from real trace steps if available
   const hasRealSteps = Boolean(node?.trace_steps && node.trace_steps.length > 0);
@@ -189,22 +202,15 @@ export function CodeSnippetViewer({
         </div>
       )}
 
-      {/* Weak Points Warning Banner (INV-06 & UI-41: Mandatory AI Disclaimer, NO fix reveal) */}
-      {analysis?.weak_points && analysis.weak_points.length > 0 && (
-        <div className="bg-[#fff7ed] border-b border-[#fed7aa] p-3 text-xs flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 font-bold text-[#944b00]">
-            <ShieldAlert className="size-4 text-[#ea580c] shrink-0" />
-            <span>Điểm dở — </span>
-            <span className="bg-[#ffdcc5] text-[#944b00] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]">
-              Nhận định của AI
-            </span>
-          </div>
-          {analysis.weak_points.map((wp, idx) => (
-            <div key={idx} className="text-[#7c2d12] pl-5 leading-relaxed">
-              <span className="font-semibold">⚠️ {wp.what}:</span> {wp.consequence}
-            </div>
-          ))}
-        </div>
+      {/* XRayPanel (UI-33, Mục 6.1) - Chứa banner Điểm dở và toàn bộ khối X-Ray */}
+      {analysis && (
+        <XRayPanel
+          analysis={analysis}
+          node={node}
+          activeStep={activeStep}
+          onSelectStep={onSelectStep}
+          allNodes={allNodes}
+        />
       )}
 
       {/* Code Area */}
@@ -271,9 +277,7 @@ export function CodeSnippetViewer({
               const isStepActive = activeStep === step.step_number;
               const isStepHinted = highlightedStep === step.step_number;
               const hasWeakPoint = analysis?.weak_points?.some(
-                (wp) =>
-                  wp.file_path === step.file_path ||
-                  (wp as unknown as { step?: number }).step === step.step_number
+                (wp) => wp.step === step.step_number
               );
 
               const lines = step.snippet.split("\n");
@@ -281,7 +285,10 @@ export function CodeSnippetViewer({
               return (
                 <div
                   key={step.step_number}
-                  className={`flex flex-col border-b border-[#eaedff] transition-colors ${
+                  ref={(el) => {
+                    stepRefs.current[step.step_number] = el;
+                  }}
+                  className={`flex flex-col border-b border-[#eaedff] transition-colors cursor-pointer ${
                     isStepHinted
                       ? "bg-[#f5f3ff] ring-1 ring-[#a78bfa]"
                       : isStepActive
