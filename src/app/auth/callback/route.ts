@@ -50,5 +50,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL("/?error=auth_failed", origin));
+  return NextResponse.redirect(new URL(next, origin));
 }
