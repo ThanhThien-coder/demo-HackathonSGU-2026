@@ -1,17 +1,21 @@
-# Secrets cần tạo:
-# - VERCEL_TOKEN
-# - VERCEL_ORG_ID
-# - VERCEL_PROJECT_ID
-# - VERCEL_AUTOMATION_BYPASS_SECRET
-# - STAGING_SUPABASE_URL
-# - STAGING_SUPABASE_ANON_KEY
-# - SMOKE_BOT_EMAIL
-# - SMOKE_BOT_PASSWORD
+# Deploy Cloud Run bằng image (05 Mục 3, Mục 5; D-30, D-64). Dockerfile đã merge (A09).
+# Build image 1 lần ⇒ push Artifact Registry ⇒ staging `--image` ⇒ smoke test ⇒ production promote CÙNG digest sau khi Vai A duyệt.
+# Chỉ đổi image; cấu hình service (RAM, CPU, biến môi trường, secret) đặt sẵn trên Cloud Run, workflow không đụng tới.
+#
+# Secrets cần tạo (tên theo docs/doc-de-hieu/01_deploy.md Mục 3.10):
+# - GCP_PROJECT_ID
+# - Xác thực GCP (05 Mục 5), chọn 1 trong 2:
+#   + Chính (WIF): GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT
+#   + Dự phòng: GCP_SA_KEY (JSON khóa của github-deployer); có giá trị thì được dùng thay WIF
+# - SUPABASE_DEV_URL, SUPABASE_DEV_ANON_KEY (build arg NEXT_PUBLIC_* và lấy token bot)
+# - SMOKE_BOT_EMAIL, SMOKE_BOT_PASSWORD
 #
 # Variables repo cần tạo:
 # - DEMO_REPO_URL
 #
-# Tập dượt dùng Vercel, khi thi thật đổi sang Cloud Run theo D-30
+# LƯU Ý (chờ nhóm quyết): Next nhúng NEXT_PUBLIC_SUPABASE_* vào image lúc build. Image build bằng URL Supabase
+# dev/staging để smoke test qua được; promote cùng digest thì production cũng dùng Supabase dev/staging,
+# trái mô hình D2 (2 project Supabase). Chưa chốt cách xử lý thì chưa bấm duyệt production.
 
 name: deploy
 
@@ -23,44 +27,108 @@ on:
 
 permissions:
   contents: read
+  id-token: write # WIF: trao đổi token OIDC ngắn hạn (05 Mục 5)
 
 concurrency:
   group: deploy
   cancel-in-progress: false
 
 env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  REGION: asia-southeast1
+  REGISTRY: asia-southeast1-docker.pkg.dev
+  IMAGE: asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/simplifey/app:${{ github.sha }}
+  STAGING_SERVICE: simplifey-staging
+  PROD_SERVICE: simplifey-prod
+  HAS_SA_KEY: ${{ secrets.GCP_SA_KEY != '' }}
 
 jobs:
-  staging:
+  build:
     runs-on: ubuntu-latest
     outputs:
-      url: ${{ steps.deploy.outputs.url }}
+      image_ref: ${{ steps.push.outputs.image_ref }}
     steps:
       - name: Tải mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cài đặt Node.js
-        uses: actions/setup-node@v4
+      - name: Xác thực GCP bằng Workload Identity Federation
+        if: env.HAS_SA_KEY != 'true'
+        uses: google-github-actions/auth@v2
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Cài đặt Vercel CLI
-        run: npm install --global vercel@latest
+      - name: Xác thực GCP bằng khóa service account (dự phòng)
+        if: env.HAS_SA_KEY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Tải cấu hình môi trường xem trước Vercel
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Cài đặt gcloud
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Đóng gói bản xem trước Vercel
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Cấu hình Docker cho Artifact Registry
+        run: gcloud auth configure-docker "$REGISTRY" --quiet
 
-      - name: Triển khai bản xem trước lên Vercel
-        id: deploy
+      - name: Build image một lần bằng Dockerfile
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_DEV_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_DEV_ANON_KEY }}
         run: |
-          DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          docker build \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            -t "$IMAGE" .
+
+      - name: Push image lên Artifact Registry và lấy digest
+        id: push
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE"
+          IMAGE_REF=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          if [ -z "$IMAGE_REF" ]; then
+            echo "Không lấy được digest của image"
+            exit 1
+          fi
+          echo "Image đã push: $IMAGE_REF"
+          echo "image_ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+
+  staging:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Xác thực GCP bằng Workload Identity Federation
+        if: env.HAS_SA_KEY != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Xác thực GCP bằng khóa service account (dự phòng)
+        if: env.HAS_SA_KEY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Cài đặt gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy staging bằng --image (theo digest)
+        id: deploy
+        env:
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$STAGING_SERVICE" \
+            --image "$IMAGE_REF" \
+            --region "$REGION" \
+            --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --quiet
+          URL=$(gcloud run services describe "$STAGING_SERVICE" \
+            --region "$REGION" --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --format='value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
 
   smoke:
     needs: staging
@@ -72,12 +140,10 @@ jobs:
       - name: Kiểm tra sức khỏe hệ thống (/api/health)
         env:
           STAGING_URL: ${{ needs.staging.outputs.url }}
-          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
-          STATUS=$(curl -s -S -o /tmp/health_body.txt -w "%{http_code}" --max-time 10 \
-            -H "x-vercel-protection-bypass: $BYPASS_SECRET" \
-            "$STAGING_URL/api/health")
+          # Timeout 10s dự phòng cold-start khi staging min-instances = 0 (05 Mục 5)
+          STATUS=$(curl -s -S -o /tmp/health_body.txt -w "%{http_code}" --max-time 10 "$STAGING_URL/api/health")
           BODY=$(cat /tmp/health_body.txt)
           if [ "$STATUS" -ne 200 ] || [ "$BODY" != "ok" ]; then
             echo "Kiểm tra /api/health thất bại: status=$STATUS, body=$BODY"
@@ -89,8 +155,8 @@ jobs:
         env:
           BOT_EMAIL: ${{ secrets.SMOKE_BOT_EMAIL }}
           BOT_PASSWORD: ${{ secrets.SMOKE_BOT_PASSWORD }}
-          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_DEV_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_DEV_ANON_KEY }}
         run: |
           set -euo pipefail
           PAYLOAD=$(jq -n --arg email "$BOT_EMAIL" --arg password "$BOT_PASSWORD" '{email: $email, password: $password}')
@@ -109,7 +175,6 @@ jobs:
       - name: Kiểm thử nạp mã nguồn mẫu (Ingest X-09)
         env:
           DEMO_REPO: ${{ vars.DEMO_REPO_URL }}
-          BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           STAGING_URL: ${{ needs.staging.outputs.url }}
         run: |
           set -euo pipefail
@@ -119,7 +184,6 @@ jobs:
           HTTP_STATUS=$(curl -s -S -o "$RESP_FILE" -w "%{http_code}" --max-time 60 -X POST "$STAGING_URL/api/ingest" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            -H "x-vercel-protection-bypass: $BYPASS_SECRET" \
             -d "$PAYLOAD")
 
           if [ "$HTTP_STATUS" -ne 200 ]; then
@@ -145,27 +209,33 @@ jobs:
           echo "Ingest đạt: session_id hợp lệ, số nodes $NODE_COUNT >= $MIN_NODES"
 
   production:
-    needs: smoke
+    needs: [build, smoke]
     runs-on: ubuntu-latest
-    environment: production
+    environment: production # Vai A duyệt thủ công (D-30)
     steps:
-      - name: Tải mã nguồn
-        uses: actions/checkout@v4
-
-      - name: Cài đặt Node.js
-        uses: actions/setup-node@v4
+      - name: Xác thực GCP bằng Workload Identity Federation
+        if: env.HAS_SA_KEY != 'true'
+        uses: google-github-actions/auth@v2
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Cài đặt Vercel CLI
-        run: npm install --global vercel@latest
+      - name: Xác thực GCP bằng khóa service account (dự phòng)
+        if: env.HAS_SA_KEY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Tải cấu hình môi trường sản xuất Vercel
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Cài đặt gcloud
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Đóng gói bản sản xuất Vercel
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Triển khai bản sản xuất lên Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Promote cùng image digest lên production
+        env:
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$PROD_SERVICE" \
+            --image "$IMAGE_REF" \
+            --region "$REGION" \
+            --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --quiet
