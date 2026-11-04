@@ -15,10 +15,22 @@ import {
 } from "@/components/roadmap-detail";
 import {
   getSessionsSafe,
-  getSessionProgressSafe,
+  ingestRepoSafe,
+  isApiError,
   type LearningSessionSummary,
 } from "@/lib/api";
+import { formatErrorMessage } from "@/lib/messages";
 import { Button } from "@/components/ui/Button";
+
+function getErrorMessage(error: unknown): string {
+  if (isApiError(error)) {
+    return formatErrorMessage(error.error.code, error.error.message);
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Đã xảy ra lỗi không xác định khi kết nối với máy chủ.";
+}
 
 interface RoadmapDetailPageProps {
   params: Promise<{ courseId: string }>;
@@ -36,7 +48,7 @@ export default function RoadmapDetailPage({ params }: RoadmapDetailPageProps) {
     setErrorMessage(null);
 
     try {
-      // Tìm kiếm trong danh sách sessions thật từ API
+      // 1. Tìm kiếm trong danh sách sessions thật từ API
       const sessionsRes = await getSessionsSafe();
       let matchedSession: LearningSessionSummary | undefined;
 
@@ -47,25 +59,70 @@ export default function RoadmapDetailPage({ params }: RoadmapDetailPageProps) {
       }
 
       if (matchedSession) {
-        // Lấy tiến độ đồ thị các node của phiên
-        const progressRes = await getSessionProgressSafe(
-          matchedSession.session_id
-        );
+        // Nạp dữ liệu đồ thị và tiến độ thông qua ingestRepoSafe
+        const ingestRes = await ingestRepoSafe({
+          session_id: matchedSession.session_id,
+        });
+
+        if (!ingestRes.ok) {
+          setErrorMessage(getErrorMessage(ingestRes.error));
+          setCourse(null);
+          return;
+        }
+
         const detail = buildSessionDetail(
           matchedSession,
-          progressRes.ok ? progressRes.data?.progress : null
+          ingestRes.data.progress,
+          ingestRes.data.result.nodes
         );
         setCourse(detail);
       } else {
-        // Không tìm thấy phiên học tương ứng
-        setCourse(null);
+        // Thử tìm theo courseId làm session_id
+        const ingestRes = await ingestRepoSafe({
+          session_id: courseId,
+        });
+
+        if (ingestRes.ok) {
+          const summary: LearningSessionSummary = {
+            session_id: ingestRes.data.session_id,
+            repo_name:
+              ingestRes.data.result.fingerprint.detected_framework ||
+              "Repository",
+            engine_version: "1.0.0",
+            snapshot: {
+              source: "GITHUB",
+              repo_key: "",
+              snapshot_id: "",
+              snapshot_id_kind: "COMMIT_SHA",
+              subdir: "",
+              ref_label: "main",
+            },
+            created_at: Date.now(),
+            last_active_at: Date.now(),
+            total_nodes: ingestRes.data.result.nodes.length,
+            completed_count: Object.values(
+              ingestRes.data.progress.nodes
+            ).filter((n) => n.status === "COMPLETED").length,
+            failed_count: Object.values(
+              ingestRes.data.progress.nodes
+            ).filter((n) => n.status === "FAILED").length,
+            can_resume: true,
+            resume_blocker: null,
+          };
+
+          const detail = buildSessionDetail(
+            summary,
+            ingestRes.data.progress,
+            ingestRes.data.result.nodes
+          );
+          setCourse(detail);
+        } else {
+          // Không tìm thấy phiên học tương ứng
+          setCourse(null);
+        }
       }
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Đã xảy ra lỗi khi tải thông tin chi tiết lộ trình."
-      );
+      setErrorMessage(getErrorMessage(err));
       setCourse(null);
     } finally {
       setIsLoading(false);
