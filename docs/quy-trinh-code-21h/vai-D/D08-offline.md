@@ -1,5 +1,7 @@
 # D08 — Áp response, đổi màu, mở khóa, Offline
 
+Làm xong phiếu này, hệ thống sẽ tự động cập nhật màu sắc node và mở khóa bài học tiếp theo sau khi chấm đạt, đồng thời kích hoạt chế độ Offline tự vận hành hoàn chỉnh đạt mốc Lát dọc 2.
+
 | Mục | Nội dung |
 | :-- | :-- |
 | Giờ | 22:00–00:30 (H+10 → H+12.5) · **Lát dọc 2 lúc 00:00** |
@@ -23,39 +25,43 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/30_UI.md` Mục 7.5, 8, Test bắt buộc T2, T4, T18, T19, T17
-- `.kb/spec/02_CONTRACTS.md` Mục 1, 8, 10
-- `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.1, 4
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-06
-- `.kb/spec/00_QUYET_DINH.md` D-02, D-40
+- `docs/spec/30_UI.md` Mục 7.5, 8, Test bắt buộc T2, T4, T17, T18, T19
+- `docs/spec/02_CONTRACTS.md` Mục 1, 8, 10
+- `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.1, 4
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-06
+- `docs/spec/00_QUYET_DINH.md` D-02, D-40
 - `package.json`
 - `src/`
 
 ## Được ghi
 - `src/store/workbench.ts`
 - `src/lib/offline.ts`
-- `src/components/header/AppHeader.tsx`
 - `src/lib/__tests__/offline.test.ts`
+- `src/lib/api.ts`
+- `src/components/layout/Navbar.tsx`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết logic áp response trong `src/store/workbench.ts`, cập nhật trạng thái node, gọi `GET /api/sessions/{id}/progress` khi mở khóa hoặc đổi màu (UI-76), xử lý lỗi nộp bài (UI-77) theo `.kb/spec/30_UI.md` Mục 7.5.
-3. Viết `src/lib/offline.ts` cùng chữ ký với `api.ts`, dùng khóa `OfflineMockBundle` (`.kb/spec/30_UI.md` Mục 8, `.kb/spec/02_CONTRACTS.md` Mục 10), cập nhật BKT và trạng thái node tại chỗ. Viết test trong `src/lib/__tests__/offline.test.ts`; test tự dựng một bundle nhỏ kiểu `OfflineMockBundle` từ fixture trong `src/server/ai/__fixtures__/` của Vai E. Không tạo `public/demo/mock_bundle.json` (file thật do Vai C ghi lúc 05:00, phiếu C10).
-4. Viết cơ chế bật tắt Offline bằng `Ctrl+Shift+D`, `?offline=1`, hiển thị nhãn cảnh báo cố định trong `src/components/header/AppHeader.tsx` (UI-60), và hỗ trợ persona offline (UI-62) theo `.kb/spec/30_UI.md` Mục 8.
-5. Xử lý ca T17 của `.kb/spec/30_UI.md` Test bắt buộc: nộp bài gặp `ERR_PERSISTENCE_UNAVAILABLE` thì hiện "Thử lại", lượt không đổi, `localStorage` không lưu biên nhận.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. Viết logic áp response trong `src/store/workbench.ts`, cập nhật trạng thái node, gọi `GET /api/sessions/{id}/progress` khi mở khóa hoặc đổi màu (UI-76), xử lý lỗi nộp bài (UI-77) theo `docs/spec/30_UI.md` Mục 7.5.
+3. Viết `src/lib/offline.ts` có cùng chữ ký hàm với `api.ts`, dùng kiểu `OfflineMockBundle` (`docs/spec/30_UI.md` Mục 8, `docs/spec/02_CONTRACTS.md` Mục 10), tự cập nhật BKT và trạng thái node tại chỗ trên client. Viết unit test trong `src/lib/__tests__/offline.test.ts`: test tự dựng bundle nhỏ từ fixture của Vai E; tuyệt đối không tạo `public/demo/mock_bundle.json` (đây là việc của C10).
+4. Viết cơ chế bật tắt Offline bằng phím tắt `Ctrl+Shift+D` hoặc tham số URL `?offline=1`, hiển thị nhãn cảnh báo Offline cố định trên thanh điều hướng `src/components/layout/Navbar.tsx` (UI-60), hỗ trợ persona offline (UI-62) theo `docs/spec/30_UI.md` Mục 8.
+5. Xử lý ca T17 của `docs/spec/30_UI.md`: nộp bài gặp `ERR_PERSISTENCE_UNAVAILABLE` thì hiện nút "Thử lại", số lượt không đổi, `localStorage` không lưu biên nhận thừa.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/lib/__tests__/offline.test.ts && npm run build`
-- Nhãn Offline luôn hiển thị khi bật `Ctrl+Shift+D`, không gọi API học tập hay Supabase (X-06 của `.kb/spec/50_TEST_VA_FIXTURE.md`).
+- Nhãn Offline luôn hiển thị khi kích hoạt `Ctrl+Shift+D` hoặc `?offline=1`, không phát sinh request mạng nào tới `/api/*` học tập hay Supabase (X-06).
+- Node đổi màu và mở khóa chính xác sau khi nộp bài đạt (T2, T4).
+- Test offline tự dựng bundle nhỏ độc lập, không tạo `public/demo/mock_bundle.json`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
-- Không sửa `src/contracts/*`. Thiếu kiểu hoặc kiểu sai thì đổi trạng thái `kẹt` và ghi rõ cần Vai A sửa gì.
+- Không sửa `src/server/`, `src/app/api/`, `src/app/auth/`, `src/contracts/*`.
+- Chế độ offline không gọi `/api/*` học tập, không gọi Supabase.
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
-- Chế độ offline không gọi `/api/*` học tập, không gọi Supabase.
+- Không commit file làm việc của agent (`.agents/`, prompt nháp) và ảnh không dùng.
 ```
 
 Đọc task Claude tạo, thấy khớp với phiếu này thì sang Bước 2.
@@ -72,10 +78,10 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/lib/__tests__/offline.test.ts && npm run build` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Bạn nhấn `Ctrl+Shift+D` thấy nhãn Offline cố định trên header; tab Network của DevTools không có request `/api/` hay Supabase. Lúc này chưa có `public/demo/mock_bundle.json` nên màn hình báo bundle lỗi và vẫn giữ chế độ Offline, đó là đúng `.kb/spec/30_UI.md` Mục 8 (thử với gói thật ở D10, sau 05:00).
+- [ ] Bạn nhấn `Ctrl+Shift+D` thấy nhãn Offline cố định trên thanh điều hướng; tab Network của DevTools không có request `/api/` hay Supabase.
 - [ ] Thử nghiệm T2 và T4: node đổi màu chính xác và mở khóa các node tiếp theo sau khi nộp bài đạt.
+- [ ] Thử T17 của `docs/spec/30_UI.md`: giả lập DB lỗi khi nộp thấy nút "Thử lại", lượt không đổi.
 
-- [ ] Thử T17 của `.kb/spec/30_UI.md`: giả lập DB lỗi khi nộp thấy "Thử lại", lượt không đổi.
 ```text
 Task "D08 — Áp response, đổi màu, mở khóa, Offline" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```
@@ -86,11 +92,11 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 
 ```powershell
 git add src/store/workbench.ts
-git commit -m "feat(ui): áp kết quả, đổi màu, mở khóa"
+git commit -m "feat(ui): áp kết quả chấm, đổi màu và mở khóa node"
 git add src/lib/offline.ts src/lib/__tests__/offline.test.ts
-git commit -m "feat(ui): chế độ offline"
-git add src/components/header/AppHeader.tsx
-git commit -m "feat(ui): bật tắt offline, nhãn"
+git commit -m "feat(ui): chế độ offline độc lập"
+git add src/lib/api.ts src/components/layout/Navbar.tsx
+git commit -m "feat(ui): phím tắt bật tắt offline và nhãn navbar"
 git pull --rebase origin main
 git push -u origin d/D08-offline
 gh pr create --base main --title "D08 — Áp response, đổi màu, mở khóa, Offline" --body "Closes #<số Issue>"
