@@ -175,11 +175,15 @@ function resolveHandlerKey(
   routePath: string | null,
   idx: SymbolIndex,
   anonCounter: { count: number }
-): string {
+): string | null {
   // Lời gọi bọc: asyncHandler(ctrl.create)
-  if (argNode.type === "call_expression" && argNode.namedChildCount > 0) {
-    const inner = argNode.namedChild(argNode.namedChildCount - 1);
-    if (inner) return resolveHandlerKey(inner, filePath, verb, routePath, idx, anonCounter);
+  if (argNode.type === "call_expression" || argNode.type === "call") {
+    const args = argNode.childForFieldName("arguments");
+    if (!args || args.namedChildCount === 0) {
+      return null;
+    }
+    const inner = args.namedChild(args.namedChildCount - 1);
+    return inner ? resolveHandlerKey(inner, filePath, verb, routePath, idx, anonCounter) : null;
   }
 
   // Hàm ẩn danh (arrow function hoặc function expression)
@@ -446,61 +450,70 @@ export function buildCallGraph(
                     anonCounter
                   );
 
-                  const middlewares: string[] = [];
-                  for (let i = 1; i < argCount - 1; i++) {
-                    const mwArg = argsNode.namedChild(i);
-                    if (mwArg) middlewares.push(mwArg.text);
-                  }
+                  if (handlerKey) {
+                    const middlewares: string[] = [];
+                    for (let i = 1; i < argCount - 1; i++) {
+                      const mwArg = argsNode.namedChild(i);
+                      if (mwArg) {
+                        const mwText =
+                          mwArg.type === "call_expression"
+                            ? mwArg.childForFieldName("function")?.text ?? mwArg.text
+                            : mwArg.text;
+                        middlewares.push(mwText);
+                      }
+                    }
 
-                  const displayName = `${obj.text}.${verb}('${pathStr ?? ""}')`;
+                    const displayName = `${obj.text}.${verb}('${pathStr ?? ""}')`;
 
-                  const binding: RouteBinding = {
-                    file_path: filePath,
-                    line_start: node.startPosition.row + 1,
-                    line_end: node.endPosition.row + 1,
-                    kind: "HTTP",
-                    method: verb.toUpperCase(),
-                    path: pathStr,
-                    handler: handlerKey,
-                    middlewares,
-                    display_name: displayName,
-                  };
-                  bindings.push(binding);
+                    const binding: RouteBinding = {
+                      file_path: filePath,
+                      line_start: node.startPosition.row + 1,
+                      line_end: node.endPosition.row + 1,
+                      kind: "HTTP",
+                      method: verb.toUpperCase(),
+                      path: pathStr,
+                      handler: handlerKey,
+                      middlewares,
+                      display_name: displayName,
+                    };
+                    bindings.push(binding);
 
-                  // ENG-34: Hàm chứa câu lệnh đăng ký route gọi handler & middlewares
-                  let callerKey = findEnclosingFunctionKey(node, filePath, idx);
-                  if (callerKey === handlerKey) {
-                    callerKey = `${filePath}#<module>`;
-                  }
-                  if (callerKey !== handlerKey) {
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: handlerKey,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
-                  }
-                  for (const mw of middlewares) {
-                    const mwDirectKey = `${filePath}#${mw}`;
-                    const mwKey = idx.symbols.has(mwDirectKey)
-                      ? mwDirectKey
-                      : resolveHandlerKey(
-                          argsNode.namedChild(1)!,
-                          filePath,
-                          verb,
-                          null,
-                          idx,
-                          anonCounter
-                        );
-                    if (callerKey !== mwKey) {
+                    // ENG-34: Hàm chứa câu lệnh đăng ký route gọi handler & middlewares
+                    let callerKey = findEnclosingFunctionKey(node, filePath, idx);
+                    if (callerKey === handlerKey) {
+                      callerKey = `${filePath}#<module>`;
+                    }
+                    if (callerKey !== handlerKey) {
                       rawEdges.push({
                         caller: callerKey,
-                        callee: mwKey,
+                        callee: handlerKey,
                         confidence: "RESOLVED",
                         ambiguous: false,
                         call_count: 1,
                       });
+                    }
+                    for (const mw of middlewares) {
+                      const mwDirectKey = `${filePath}#${mw}`;
+                      const mwKey = idx.symbols.has(mwDirectKey)
+                        ? mwDirectKey
+                        : resolveHandlerKey(
+                            argsNode.namedChild(1)!,
+                            filePath,
+                            verb,
+                            null,
+                            idx,
+                            anonCounter
+                          );
+                      if (!mwKey) continue;
+                      if (callerKey !== mwKey) {
+                        rawEdges.push({
+                          caller: callerKey,
+                          callee: mwKey,
+                          confidence: "RESOLVED",
+                          ambiguous: false,
+                          call_count: 1,
+                        });
+                      }
                     }
                   }
                 }
@@ -776,27 +789,29 @@ export function buildCallGraph(
               anonCounter
             );
 
-            bindings.push({
-              file_path: filePath,
-              line_start: node.startPosition.row + 1,
-              line_end: node.endPosition.row + 1,
-              kind: "SCREEN",
-              method: null,
-              path: routePath,
-              handler: handlerKey,
-              middlewares: [],
-              display_name: `<${tagName} name="${screenName}">`,
-            });
-
-            const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-            if (callerKey !== handlerKey) {
-              rawEdges.push({
-                caller: callerKey,
-                callee: handlerKey,
-                confidence: "RESOLVED",
-                ambiguous: false,
-                call_count: 1,
+            if (handlerKey) {
+              bindings.push({
+                file_path: filePath,
+                line_start: node.startPosition.row + 1,
+                line_end: node.endPosition.row + 1,
+                kind: "SCREEN",
+                method: null,
+                path: routePath,
+                handler: handlerKey,
+                middlewares: [],
+                display_name: `<${tagName} name="${screenName}">`,
               });
+
+              const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+              if (callerKey !== handlerKey) {
+                rawEdges.push({
+                  caller: callerKey,
+                  callee: handlerKey,
+                  confidence: "RESOLVED",
+                  ambiguous: false,
+                  call_count: 1,
+                });
+              }
             }
           }
         }
@@ -854,27 +869,29 @@ export function buildCallGraph(
               anonCounter
             );
 
-            bindings.push({
-              file_path: filePath,
-              line_start: node.startPosition.row + 1,
-              line_end: node.endPosition.row + 1,
-              kind: "PAGE",
-              method: null,
-              path: normPath,
-              handler: handlerKey,
-              middlewares: [],
-              display_name: `<Route path="${normPath}">`,
-            });
-
-            const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-            if (callerKey !== handlerKey) {
-              rawEdges.push({
-                caller: callerKey,
-                callee: handlerKey,
-                confidence: "RESOLVED",
-                ambiguous: false,
-                call_count: 1,
+            if (handlerKey) {
+              bindings.push({
+                file_path: filePath,
+                line_start: node.startPosition.row + 1,
+                line_end: node.endPosition.row + 1,
+                kind: "PAGE",
+                method: null,
+                path: normPath,
+                handler: handlerKey,
+                middlewares: [],
+                display_name: `<Route path="${normPath}">`,
               });
+
+              const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+              if (callerKey !== handlerKey) {
+                rawEdges.push({
+                  caller: callerKey,
+                  callee: handlerKey,
+                  confidence: "RESOLVED",
+                  ambiguous: false,
+                  call_count: 1,
+                });
+              }
             }
           }
         }
@@ -910,26 +927,28 @@ export function buildCallGraph(
                   idx,
                   anonCounter
                 );
-                bindings.push({
-                  file_path: filePath,
-                  line_start: node.startPosition.row + 1,
-                  line_end: node.endPosition.row + 1,
-                  kind: "COMMAND",
-                  method: null,
-                  path: cmdName,
-                  handler: handlerKey,
-                  middlewares: [],
-                  display_name: `command('${cmdName}')`,
-                });
-                const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-                if (callerKey !== handlerKey) {
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: handlerKey,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
+                if (handlerKey) {
+                  bindings.push({
+                    file_path: filePath,
+                    line_start: node.startPosition.row + 1,
+                    line_end: node.endPosition.row + 1,
+                    kind: "COMMAND",
+                    method: null,
+                    path: cmdName,
+                    handler: handlerKey,
+                    middlewares: [],
+                    display_name: `command('${cmdName}')`,
                   });
+                  const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+                  if (callerKey !== handlerKey) {
+                    rawEdges.push({
+                      caller: callerKey,
+                      callee: handlerKey,
+                      confidence: "RESOLVED",
+                      ambiguous: false,
+                      call_count: 1,
+                    });
+                  }
                 }
               }
             }
@@ -954,26 +973,28 @@ export function buildCallGraph(
                 idx,
                 anonCounter
               );
-              bindings.push({
-                file_path: filePath,
-                line_start: node.startPosition.row + 1,
-                line_end: node.endPosition.row + 1,
-                kind: "HTTP",
-                method: "GET",
-                path: routeStr,
-                handler: handlerKey,
-                middlewares: [],
-                display_name: `path('${routeStr ?? ""}')`,
-              });
-              const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-              if (callerKey !== handlerKey) {
-                rawEdges.push({
-                  caller: callerKey,
-                  callee: handlerKey,
-                  confidence: "RESOLVED",
-                  ambiguous: false,
-                  call_count: 1,
+              if (handlerKey) {
+                bindings.push({
+                  file_path: filePath,
+                  line_start: node.startPosition.row + 1,
+                  line_end: node.endPosition.row + 1,
+                  kind: "HTTP",
+                  method: "GET",
+                  path: routeStr,
+                  handler: handlerKey,
+                  middlewares: [],
+                  display_name: `path('${routeStr ?? ""}')`,
                 });
+                const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+                if (callerKey !== handlerKey) {
+                  rawEdges.push({
+                    caller: callerKey,
+                    callee: handlerKey,
+                    confidence: "RESOLVED",
+                    ambiguous: false,
+                    call_count: 1,
+                  });
+                }
               }
             }
           }
