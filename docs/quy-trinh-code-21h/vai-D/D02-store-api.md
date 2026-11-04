@@ -96,9 +96,9 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ```powershell
 git add src/store/workbench.ts src/store/__tests__/workbench.test.ts
 git commit -m "feat(ui): store workbench khớp client state"
-git add src/lib/supabase/client.ts src/stores/
+git add src/lib/supabase/client.ts src/lib/supabase/__tests__/client.test.ts src/stores/
 git commit -m "feat(ui): quản lý phiên người dùng qua supabase"
-git add src/lib/api.ts
+git add src/lib/api.ts src/lib/__tests__/api.test.ts
 git commit -m "feat(ui): client api an toàn có kiểu"
 git add src/lib/messages.ts src/lib/__tests__/messages.test.ts
 git commit -m "feat(ui): bảng thông điệp lỗi đầy đủ"

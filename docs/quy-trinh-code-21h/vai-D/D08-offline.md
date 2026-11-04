@@ -39,14 +39,16 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/lib/__tests__/offline.test.ts`
 - `src/lib/api.ts`
 - `src/components/layout/Navbar.tsx`
+- `src/app/learn/components/FeynmanQuestionSection.tsx`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. Viết logic áp response trong `src/store/workbench.ts`, cập nhật trạng thái node, gọi `GET /api/sessions/{id}/progress` khi mở khóa hoặc đổi màu (UI-76), xử lý lỗi nộp bài (UI-77) theo `docs/spec/30_UI.md` Mục 7.5.
 3. Viết `src/lib/offline.ts` có cùng chữ ký hàm với `api.ts`, dùng kiểu `OfflineMockBundle` (`docs/spec/30_UI.md` Mục 8, `docs/spec/02_CONTRACTS.md` Mục 10), tự cập nhật BKT và trạng thái node tại chỗ trên client. Viết unit test trong `src/lib/__tests__/offline.test.ts`: test tự dựng bundle nhỏ từ fixture của Vai E; tuyệt đối không tạo `public/demo/mock_bundle.json` (đây là việc của C10).
 4. Viết cơ chế bật tắt Offline bằng phím tắt `Ctrl+Shift+D` hoặc tham số URL `?offline=1`, hiển thị nhãn cảnh báo Offline cố định trên thanh điều hướng `src/components/layout/Navbar.tsx` (UI-60), hỗ trợ persona offline (UI-62) theo `docs/spec/30_UI.md` Mục 8.
-5. Xử lý ca T17 của `docs/spec/30_UI.md`: nộp bài gặp `ERR_PERSISTENCE_UNAVAILABLE` thì hiện nút "Thử lại", số lượt không đổi, `localStorage` không lưu biên nhận thừa.
-6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+5. Xử lý ca T17 của `docs/spec/30_UI.md`: nộp bài gặp `ERR_PERSISTENCE_UNAVAILABLE` thì `FeynmanQuestionSection.tsx` hiện nút "Thử lại", số lượt không đổi, `localStorage` không lưu biên nhận thừa.
+6. Offline phải tự nạp gói dữ liệu cả khi mở thẳng `?offline=1`, và chấm, xem đáp án theo đúng node đang học, không cố định một node.
+7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/lib/__tests__/offline.test.ts && npm run build`
@@ -95,7 +97,7 @@ git add src/store/workbench.ts
 git commit -m "feat(ui): áp kết quả chấm, đổi màu và mở khóa node"
 git add src/lib/offline.ts src/lib/__tests__/offline.test.ts
 git commit -m "feat(ui): chế độ offline độc lập"
-git add src/lib/api.ts src/components/layout/Navbar.tsx
+git add src/lib/api.ts src/components/layout/Navbar.tsx src/app/learn/components/FeynmanQuestionSection.tsx
 git commit -m "feat(ui): phím tắt bật tắt offline và nhãn navbar"
 git pull --rebase origin main
 git push -u origin d/D08-offline

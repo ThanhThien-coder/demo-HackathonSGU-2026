@@ -45,7 +45,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. Thêm đúng 5 gói phụ thuộc bằng `--save-exact`: `lucide-react`, `lottie-react`, `clsx`, `tailwind-merge`, `class-variance-authority` vào `package.json` và `package-lock.json`; không tự ý thêm hoặc đổi gói khác.
-3. Cài đặt các biến token CSS trong `src/app/globals.css` (`--bg`, `--panel`, `--line`, `--text`, `--muted`, `--amber`, `--green`, `--red`, `--locked`, `--violet`, `--blue`), cấu hình font Plus Jakarta Sans và JetBrains Mono qua `next/font/google` trong `src/app/layout.tsx`, map các biến màu vào khối `@theme` trong `src/app/globals.css` theo `docs/spec/30_UI.md` Mục 11 (repo dùng Tailwind 4, không tạo `tailwind.config.ts`).
+3. Khai báo bộ màu của giao diện mới trong khối `@theme` của `src/app/globals.css`: nhóm `--color-brand-*`, `--color-surface-*`, `--color-text-*`, `--color-border-*`, `--color-status-*` (repo dùng Tailwind 4, không tạo `tailwind.config.ts`). Không dùng bộ token `--bg`, `--amber`... của `docs/spec/30_UI.md` Mục 11. Cấu hình font Plus Jakarta Sans và JetBrains Mono qua `next/font/google` trong `src/app/layout.tsx`.
 4. Viết các hàm tiện ích CSS trong `src/lib/utils.ts` (`cn`) và kiểm thử trong `src/lib/utils.test.ts`.
 5. Xây dựng các component UI cơ bản dùng chung trong `src/components/ui/`: chỉ làm Button, Card, Dialog, Drawer (các component khác sẽ thêm ở phiếu đầu tiên cần tới).
 6. Xây dựng thanh điều hướng `src/components/layout/Navbar.tsx`, export qua `src/components/layout/index.ts`, và dựng khung tĩnh trang chủ ban đầu trong `src/app/page.tsx`.
@@ -54,7 +54,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Tiêu chí xong
 - Lệnh kiểm: `npm run build && npx vitest run src/lib/utils.test.ts`
 - Thêm đúng 5 gói chỉ định bằng `--save-exact`, không thừa thiếu gói nào khác.
-- Các biến màu token được định nghĩa đầy đủ trong `globals.css` và map vào Tailwind `@theme`.
+- Bộ màu brand, surface, text, border, status có đủ trong khối `@theme` của `globals.css`. Font tải qua `next/font/google`.
 - Có đầy đủ 4 component UI cơ bản: Button, Card, Dialog, Drawer.
 - Navbar hiển thị đúng vị trí trên nền giao diện chung.
 
@@ -81,8 +81,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npm run build && npx vitest run src/lib/utils.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Chạy tay `npm run dev`, mở trình duyệt thấy thanh điều hướng và khung trang chủ hiển thị trên nền `--bg`.
-- [ ] Khối `@theme` trong `src/app/globals.css` map đủ các biến CSS token thiết kế của `docs/spec/30_UI.md` Mục 11.
+- [ ] Chạy tay `npm run dev`, mở trình duyệt thấy thanh điều hướng và khung trang chủ hiển thị đúng bộ màu mới.
+- [ ] Khối `@theme` trong `src/app/globals.css` có đủ nhóm màu brand, surface, text, border, status.
 - [ ] `package.json` chỉ thêm đúng 5 gói chỉ định bằng phiên bản chính xác (`--save-exact`).
 
 ```text

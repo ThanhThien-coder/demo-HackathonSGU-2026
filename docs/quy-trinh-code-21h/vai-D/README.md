@@ -87,7 +87,28 @@ Khi các endpoint API máy chủ chưa hoàn thành hoặc chưa merge vào `mai
 - **08:30 — Đối soát commit:** Kiểm tra `git log main` để bảo đảm các commit của bạn đã hiện diện đầy đủ trên nhánh chính.
 - **09:00 — Ngừng code:** Toàn đội dừng code, chuẩn bị slide và thuyết trình.
 
+## Trạng thái hiện tại
+
+Cập nhật 04/11/2026. So với code ở nhánh `d/don-ui` ([PR #109](https://github.com/ThanhThien-coder/demo-HackathonSGU-2026/pull/109), chưa merge). Đây là phần còn phải làm với code đã có. Phiếu mô tả cách làm đầy đủ từ đầu, nên với mỗi phiếu chỉ làm các mục dưới đây.
+
+| Phiếu | Mức | Còn thiếu | Cần sửa |
+| :-- | :-- | :-- | :-- |
+| [D01](D01-khung.md) | Gần xong | Font qua `next/font/google` | 5 gói đang dùng `^`, đổi sang số chính xác |
+| [D02](D02-store-api.md) | **Việc lớn** | Test `workbench` | `/learn` đang giữ state bằng `useState`, chuyển state dùng chung sang `src/store/workbench.ts` |
+| [D03](D03-ban-do.md) | **Việc lớn** | `DagCanvas`, `GraphNodeCard`, `CanvasToolbar`, trang nháp `/dev`, cắt tên `TITLE_MAX_CHARS` | Thay bản đồ tự vẽ bằng ReactFlow, vẽ theo `node.position`; bỏ số `pKnow` tự đặt |
+| [D04](D04-monaco.md) | **Việc lớn** | `CodePane` (Monaco), tô bước và vạch trong editor, đồng bộ 2 chiều | Nhúng Monaco vào `CodeSnippetViewer`, thay phần hiện code tự viết |
+| [D05](D05-phan-tich.md) | Trung bình | `SkillChips` với nhãn "đang mài mòn", nút "Bắt đầu trả lời (n câu) →", `lib/overview-view.ts`, Tổng quan 3 giai đoạn D-71 | Modal Tổng quan đang chỉ đọc `overview` |
+| [D06](D06-noi-api.md) | Trung bình | Ghi chú "Chỉ hỗ trợ nhánh mặc định", "Đổi thư mục", chip "Repo lớn" và Monorepo, "Repo khác", xử lý `ENGINE_UPDATED` ở trang chủ | Quét xong phải mở modal Tổng quan, `active_node_id = null`; hiện đang tự chọn node đầu |
+| [D07](D07-feynman.md) | Nhỏ | `RunSummary` (UI-57), toast "Câu này vừa được nộp ở tab khác" (T16) | Kiểm giao diện node đã xong (UI-58) |
+| [D08](D08-offline.md) | Nhỏ | Nút "Thử lại" khi lỗi lưu bài (T17), chạy thử X-06 | `?offline=1` chưa tự nạp gói dữ liệu; chấm và xem đáp án offline đang cố định node `slice-order-checkout`; đưa áp response vào store sau D02 |
+| [D09](D09-phu.md) | Nhỏ | Kiểm giao diện điện thoại | Trình chiếu đã có nút và `Esc`, cần theo `CONFIG.UI_PRESENTATION_*` |
+| [D10](D10-hoan-thien.md) | Làm cuối | Chạy với Supabase, database, Gemini thật; đi hết kịch bản demo cùng E | Xóa trang nháp `/dev` nếu có |
+
+Thứ tự làm: D01 → D02 → D03 và D04 song song → D05, D07 → D06, D08 → D09 → D10.
+
 ## So sánh D mới và D cũ
+
+Phiếu D cũ đã xóa khỏi repo; muốn xem lại thì tra lịch sử git của thư mục `vai-D`.
 
 ### 1. Bảng thiết kế
 
@@ -99,6 +120,7 @@ Khi các endpoint API máy chủ chưa hoàn thành hoặc chưa merge vào `mai
 | X-Ray / Feynman / Tổng quan | 3 tab chuyển đổi trong Cột 3 (`XRayTab`, `FeynmanTab`, `OverviewTab`). | Phân tích X-Ray nằm trực tiếp dưới mã nguồn trong `CodeSnippetViewer`; Feynman nằm trong khu vực câu hỏi `FeynmanQuestionSection`; Tổng quan repo mở bằng modal độc lập `RepoOverviewModal` đủ 3 giai đoạn D-71. |
 | Các trang | Chỉ 1 trang chính duy nhất (`src/app/page.tsx`), chuyển đổi trạng thái bằng `result`. | Hệ thống nhiều trang theo luồng tự nhiên: trang chủ `/`, đăng nhập `/login`, đăng ký `/register`, lộ trình `/roadmap`, học tập `/learn`, lịch sử `/history`, báo cáo `/report`, cách thức `/how-it-works`. |
 | Cách chờ API | Trang nháp `/dev` nạp fixture. | Không dùng mock trong route, không tạo store giả phía server; chỉ dùng fixture của Vai E qua trang nháp duy nhất `src/app/dev/page.tsx` (xóa ở D10). |
+| Màu và font | Token `--bg`, `--amber`... theo `docs/spec/30_UI.md` Mục 11. | Bộ màu brand, surface, text, border, status trong `@theme`; font vẫn qua `next/font/google`. |
 | Gói thêm | Không quy định chặt các gói UI dùng chung. | Thêm đúng 5 gói chỉ định bằng `--save-exact` ở D01: `lucide-react`, `lottie-react`, `clsx`, `tailwind-merge`, `class-variance-authority`. Không đổi gói khác. |
 
 *Lưu ý: Công nghệ cốt lõi Monaco editor, ReactFlow và store Zustand `workbench.ts` vẫn được giữ nguyên vẹn.*
@@ -139,6 +161,7 @@ Khi các endpoint API máy chủ chưa hoàn thành hoặc chưa merge vào `mai
 | Tab X-Ray / Tab 1 | Tab đầu tiên trong Cột 3 (`XRayTab`) | Khối phân tích luồng và kiến trúc hiển thị trực tiếp trong `CodeSnippetViewer` (dưới code). |
 | Tab Feynman / Tab 2 | Tab thứ hai trong Cột 3 (`FeynmanTab`) | Khu vực câu hỏi và trả lời Feynman `FeynmanQuestionSection` tại trang `/learn`. |
 | Tab Tổng quan | Tab thứ ba trong Cột 3 (`OverviewTab`) | Modal tổng quan repo `RepoOverviewModal` mở tự động sau khi quét xong hoặc mở từ thanh điều hướng. |
+| Token `--bg`, `--amber`, `--red`... | Bộ màu của buồng lái 3 cột | Nhóm `--color-brand-*`, `--color-surface-*`, `--color-text-*`, `--color-border-*`, `--color-status-*` |
 | Không ẩn cột (chế độ trình chiếu) | Cả 3 cột không được ẩn, chỉ co giãn tỉ lệ theo `CONFIG.UI_PRESENTATION_FOCUS_PCT` | Giữ nguyên thanh điều hướng, phóng to khung đang xem (code hoặc câu hỏi) và tăng cỡ chữ theo `CONFIG.UI_PRESENTATION_FONT_SCALE`. |
 
 ### 5. Ghi chú

@@ -45,6 +45,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/app/learn/components/ReportWrongDialog.tsx`
 - `src/app/learn/components/CockpitHeader.tsx`
 - `src/app/globals.css`
+- `src/store/workbench.ts`
+- `src/app/learn/page.tsx`
+- `src/app/learn/components/CodeSnippetViewer.tsx`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
@@ -108,7 +111,7 @@ git add src/components/layout/SettingsDropdown.tsx src/app/learn/components/Cock
 git commit -m "feat(ui): menu cài đặt, chọn persona và đồng hồ token"
 git add src/app/learn/components/ReportWrongDialog.tsx
 git commit -m "feat(ui): hộp thoại báo sai và cập nhật tiến độ"
-git add src/app/globals.css
+git add src/app/globals.css src/store/workbench.ts src/app/learn/page.tsx src/app/learn/components/CodeSnippetViewer.tsx
 git commit -m "feat(ui): responsive di động và chế độ trình chiếu"
 git add src/app/how-it-works/ src/components/how-it-works/ src/components/home/ public/assets/
 git commit -m "feat(ui): trang trí trang chủ và trang how-it-works"
