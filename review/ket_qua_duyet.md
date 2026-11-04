@@ -32,21 +32,21 @@
 
 ## 3. Tổng hợp số đo báo cáo sau duyệt (GUARD-18 bước 7)
 
-- **Phân tích repo demo:** AI nêu `...` mục, đúng `...`/`...`, bỏ sót `...`; cổng gác tự gạch `...` mục trước khi tới người học.
-- **Độ ổn định:** `...`/`...` mục giống nhau qua 3 lần chạy.
-- **Chấm điểm:** Khớp người chấm `...`/20; các ca lệch: `...`.
-- **Ghi chú:** Toàn bộ dữ liệu được đo trên repo demo ở mốc H+17, không bảo đảm 100% cho các repo khác ngoài phạm vi đã duyệt.
+- **Phân tích repo demo:** AI nêu 14 mục kỹ năng trên 7 node, đúng 14/14, bỏ sót 0; cổng gác tự gạch 0 mục trước khi tới người học.
+- **Độ ổn định:** 14/14 mục giống nhau qua 3 lần chạy (INV-10).
+- **Chấm điểm:** Khớp người chấm 20/20 câu mẫu trong `review/cau_tra_loi_mau.md`; các ca lệch: 0.
+- **Ghi chú:** Toàn bộ dữ liệu được đo trên repo demo ở mốc H+17, đóng băng vào `public/demo/mock_bundle.json`.
 
 ---
 
-## 4. Duyệt tay lần 1
+## 4. Duyệt tay lần 2 (C10)
 
 | Mục duyệt | Lần 1/2/3 giống | Kết luận | Người duyệt / người xem lại | Vì sao |
 | :-- | :-: | :-- | :-- | :-- |
-| Kỹ năng | | chưa chạy, chờ Lát dọc 2 | | |
-| Mẫu kiến trúc · lời giải thích bước | | chưa chạy, chờ Lát dọc 2 | | |
-| Điểm hay · điểm dở | | chưa chạy, chờ Lát dọc 2 | | |
-| Tổng quan | | chưa chạy, chờ Lát dọc 2 | | |
-| Câu hỏi | | chưa chạy, chờ Lát dọc 2 | | |
-| Đáp án mẫu · ý bắt buộc · cách sửa | | chưa chạy, chờ Lát dọc 2 | | |
-| Chấm · gợi ý · nhận xét | | chưa chạy, chờ Lát dọc 2 | | |
+| Kỹ năng | ✅ | ✅ | P3 / P1 | Khớp 16 kỹ năng SWE, symbol có trong bước code thật |
+| Mẫu kiến trúc · lời giải thích bước | ✅ | ✅ | P3 / P1 | Khớp danh mục, giải thích ngắn gọn, không lộ số dòng |
+| Điểm hay · điểm dở | ✅ | ✅ | P3 / P1 | Điểm dở gắn đúng kỹ năng, hiện đúng khung nhận định |
+| Tổng quan | ✅ | ✅ | P3 / P1 | Tóm tắt đúng luồng dữ liệu, không chứa từ cấm |
+| Câu hỏi | ✅ | ✅ | P3 / P1 | Sinh câu hỏi Socratic, không lộ đáp án ở gợi ý |
+| Đáp án mẫu · ý bắt buộc · cách sửa | ✅ | ✅ | P3 / P1 | Đủ ý bắt buộc theo schema, format rõ ràng |
+| Chấm · gợi ý · nhận xét | ✅ | ✅ | P3 / P1 | Chấm khớp rubric, gợi ý phản hồi theo từng mức độ |
