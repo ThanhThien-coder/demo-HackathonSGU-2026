@@ -607,6 +607,7 @@ export function buildFingerprint(
   if (
     scopePackagesSet.has("react-native") ||
     scopePackagesSet.has("expo") ||
+    scopePackagesSet.has("expo-router") ||
     hasFlutterInScopePubspec ||
     hasAndroidManifest ||
     hasXcodeproj

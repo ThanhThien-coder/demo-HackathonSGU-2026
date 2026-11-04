@@ -241,6 +241,160 @@ export function buildCallGraph(
     const lang = file.language;
     const root = file.tree.rootNode;
 
+    const normFilePath = filePath.replace(/\\/g, "/");
+    const segments = normFilePath.split("/");
+    const fileName = segments[segments.length - 1] ?? "";
+    const stem = fileName.replace(/\.[^.]+$/, "");
+    // Next.js, Expo Router là mẫu dựa đường dẫn của TS/JS (12 Mục 1); không áp lên file Python trong app/.
+    const isJsLike = lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT";
+    const isInApp = isJsLike && (normFilePath.includes("/app/") || normFilePath.startsWith("app/"));
+
+    // A. Next.js pages/api/** (HTTP)
+    if (isJsLike && (normFilePath.includes("pages/api/") || normFilePath.startsWith("pages/api/"))) {
+      const apiIdx = normFilePath.indexOf("pages/api/");
+      const after = normFilePath.slice(apiIdx + "pages/api/".length);
+      const withoutExt = after.replace(/\.[^.]+$/, "");
+      const pathSeg = withoutExt.endsWith("/index")
+        ? withoutExt.slice(0, -"/index".length)
+        : withoutExt === "index"
+        ? ""
+        : withoutExt;
+      const routePath = `/api${pathSeg ? `/${pathSeg}` : ""}`;
+      const defaultHandlerKey = `${filePath}#default`;
+      const handlerKey = idx.symbols.has(defaultHandlerKey)
+        ? defaultHandlerKey
+        : `${filePath}#handler`;
+
+      bindings.push({
+        file_path: filePath,
+        line_start: 1,
+        line_end: root.endPosition.row + 1,
+        kind: "HTTP",
+        method: "ALL",
+        path: routePath,
+        handler: handlerKey,
+        middlewares: [],
+        display_name: `pages/api/${withoutExt}`,
+      });
+    }
+
+    // B. Next.js app/**/route.ts (HTTP)
+    if (isInApp && stem === "route") {
+      let appSubdir = "";
+      const appMatch = normFilePath.match(/(?:^|\/)app\/(.+)\/[^/]+$/);
+      if (appMatch && appMatch[1]) {
+        appSubdir = appMatch[1]
+          .split("/")
+          .filter((s) => !/^\([^)]+\)$/.test(s))
+          .join("/");
+      }
+      const routePath = appSubdir ? `/${appSubdir}` : "/";
+
+      const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+      for (const m of HTTP_METHODS) {
+        const fnKey = `${filePath}#${m}`;
+        if (idx.functions.has(fnKey) || idx.symbols.has(fnKey)) {
+          bindings.push({
+            file_path: filePath,
+            line_start: idx.symbols.get(fnKey)?.line_start ?? 1,
+            line_end: idx.symbols.get(fnKey)?.line_end ?? root.endPosition.row + 1,
+            kind: "HTTP",
+            method: m,
+            path: routePath,
+            handler: fnKey,
+            middlewares: [],
+            display_name: `${m} ${routePath}`,
+          });
+        }
+      }
+    }
+
+    // C. Next.js app/**/page.tsx (PAGE)
+    if (isInApp && stem === "page") {
+      let appSubdir = "";
+      const appMatch = normFilePath.match(/(?:^|\/)app\/(.+)\/[^/]+$/);
+      if (appMatch && appMatch[1]) {
+        appSubdir = appMatch[1]
+          .split("/")
+          .filter((s) => !/^\([^)]+\)$/.test(s))
+          .join("/");
+      }
+      const routePath = appSubdir ? `/${appSubdir}` : "/";
+
+      let handlerKey = `${filePath}#default`;
+      for (const [k, s] of idx.symbols.entries()) {
+        if (s.file_path === filePath && s.is_exported && (s.kind === "FUNCTION" || s.kind === "CLASS")) {
+          handlerKey = k;
+          break;
+        }
+      }
+
+      bindings.push({
+        file_path: filePath,
+        line_start: 1,
+        line_end: root.endPosition.row + 1,
+        kind: "PAGE",
+        method: null,
+        path: routePath,
+        handler: handlerKey,
+        middlewares: [],
+        display_name: `${routePath === "/" ? "Home" : routePath.slice(1)} Page`,
+      });
+    }
+
+    // D. Expo Router (gói expo-router: file app/** có export default, trừ _layout, +*, bỏ (nhóm) khỏi path) (SCREEN)
+    const isExpoScreen =
+      isInApp &&
+      !stem.startsWith("_layout") &&
+      !stem.startsWith("+") &&
+      stem !== "page" &&
+      stem !== "route";
+
+    if (isExpoScreen) {
+      let defaultHandler: string | null = null;
+      if (idx.symbols.has(`${filePath}#default`)) {
+        defaultHandler = `${filePath}#default`;
+      } else {
+        for (const [k, s] of idx.symbols.entries()) {
+          if (s.file_path === filePath && s.is_exported && (s.kind === "FUNCTION" || s.kind === "CLASS")) {
+            defaultHandler = k;
+            break;
+          }
+        }
+      }
+
+      if (defaultHandler) {
+        let afterApp = "";
+        const appMatch = normFilePath.match(/(?:^|\/)app\/(.+)$/);
+        if (appMatch && appMatch[1]) {
+          afterApp = appMatch[1].replace(/\.[^.]+$/, "");
+        }
+        const cleanedSegments = afterApp
+          .split("/")
+          .filter((s) => !/^\([^)]+\)$/.test(s));
+
+        let routePath = "/" + cleanedSegments.join("/");
+        if (routePath.endsWith("/index")) {
+          routePath = routePath.slice(0, -"/index".length) || "/";
+        }
+        if (!routePath.startsWith("/")) {
+          routePath = "/" + routePath;
+        }
+
+        bindings.push({
+          file_path: filePath,
+          line_start: 1,
+          line_end: root.endPosition.row + 1,
+          kind: "SCREEN",
+          method: null,
+          path: routePath,
+          handler: defaultHandler,
+          middlewares: [],
+          display_name: `Screen ${routePath}`,
+        });
+      }
+    }
+
     function visit(node: Node): void {
       // 1. Nhận diện Route Express / Koa / Fastify (ENG-40)
       if (
@@ -543,6 +697,308 @@ export function buildCallGraph(
         }
       }
 
+      // 3.1. Nhận diện React Native Screen & React Router Route trong JSX/TSX
+      if (
+        (lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT") &&
+        (node.type === "jsx_element" || node.type === "jsx_self_closing_element")
+      ) {
+        const opening =
+          node.type === "jsx_element"
+            ? node.childForFieldName("open_tag") ?? node.child(0)
+            : node;
+        const nameNode = opening
+          ? opening.childForFieldName("name") ?? opening.child(1)
+          : null;
+        const tagName = nameNode?.text ?? "";
+
+        // React Native <X.Screen name="..." component={...} />
+        if (tagName.endsWith(".Screen")) {
+          let screenName: string | null = null;
+          let componentNode: Node | null = null;
+
+          for (let i = 0; i < (opening?.childCount ?? 0); i++) {
+            const attr = opening!.child(i);
+            if (!attr || attr.type !== "jsx_attribute") continue;
+            const pName = (attr.childForFieldName("name") ?? attr.namedChild(0))?.text;
+            if (pName === "name") {
+              screenName = extractStaticString((attr.childForFieldName("value") ?? attr.namedChild(1)));
+            } else if (pName === "component") {
+              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
+              componentNode =
+                val?.type === "jsx_expression" ? val.namedChild(0) : val;
+            } else if (pName === "getComponent") {
+              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
+              if (val?.type === "jsx_expression") {
+                const expr = val.namedChild(0);
+                if (
+                  expr?.type === "arrow_function" ||
+                  expr?.type === "function_expression"
+                ) {
+                  const b = expr.childForFieldName("body");
+                  componentNode = b?.type === "identifier" ? b : expr;
+                } else {
+                  componentNode = expr;
+                }
+              }
+            }
+          }
+
+          if (screenName && componentNode) {
+            const routePath = screenName.startsWith("/")
+              ? screenName
+              : `/${screenName}`;
+            const handlerKey = resolveHandlerKey(
+              componentNode,
+              filePath,
+              "SCREEN",
+              routePath,
+              idx,
+              anonCounter
+            );
+
+            bindings.push({
+              file_path: filePath,
+              line_start: node.startPosition.row + 1,
+              line_end: node.endPosition.row + 1,
+              kind: "SCREEN",
+              method: null,
+              path: routePath,
+              handler: handlerKey,
+              middlewares: [],
+              display_name: `<${tagName} name="${screenName}">`,
+            });
+
+            const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+            if (callerKey !== handlerKey) {
+              rawEdges.push({
+                caller: callerKey,
+                callee: handlerKey,
+                confidence: "RESOLVED",
+                ambiguous: false,
+                call_count: 1,
+              });
+            }
+          }
+        }
+
+        // React Router <Route path="..." element={<Comp />} /> hoặc component={Comp}
+        if (tagName === "Route") {
+          let routePath: string | null = null;
+          let componentNode: Node | null = null;
+
+          for (let i = 0; i < (opening?.childCount ?? 0); i++) {
+            const attr = opening!.child(i);
+            if (!attr || attr.type !== "jsx_attribute") continue;
+            const pName = (attr.childForFieldName("name") ?? attr.namedChild(0))?.text;
+            if (pName === "path") {
+              routePath = extractStaticString((attr.childForFieldName("value") ?? attr.namedChild(1)));
+            } else if (pName === "component") {
+              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
+              componentNode =
+                val?.type === "jsx_expression" ? val.namedChild(0) : val;
+            } else if (pName === "element") {
+              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
+              if (val?.type === "jsx_expression") {
+                const inner = val.namedChild(0);
+                if (
+                  inner &&
+                  (inner.type === "jsx_element" ||
+                    inner.type === "jsx_self_closing_element")
+                ) {
+                  const elOpen =
+                    inner.type === "jsx_element"
+                      ? inner.childForFieldName("open_tag") ?? inner.child(0)
+                      : inner;
+                  const elName =
+                    elOpen?.childForFieldName("name") ?? elOpen?.child(1);
+                  componentNode = elName ?? null;
+                } else {
+                  componentNode = inner;
+                }
+              }
+            }
+          }
+
+          if (componentNode) {
+            const normPath = routePath
+              ? routePath.startsWith("/")
+                ? routePath
+                : `/${routePath}`
+              : "/";
+            const handlerKey = resolveHandlerKey(
+              componentNode,
+              filePath,
+              "PAGE",
+              normPath,
+              idx,
+              anonCounter
+            );
+
+            bindings.push({
+              file_path: filePath,
+              line_start: node.startPosition.row + 1,
+              line_end: node.endPosition.row + 1,
+              kind: "PAGE",
+              method: null,
+              path: normPath,
+              handler: handlerKey,
+              middlewares: [],
+              display_name: `<Route path="${normPath}">`,
+            });
+
+            const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+            if (callerKey !== handlerKey) {
+              rawEdges.push({
+                caller: callerKey,
+                callee: handlerKey,
+                confidence: "RESOLVED",
+                ambiguous: false,
+                call_count: 1,
+              });
+            }
+          }
+        }
+      }
+
+      // 3.2. Nhận diện Commander .command(n).action(fn)
+      if (
+        (lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT") &&
+        node.type === "call_expression"
+      ) {
+        const fn = node.childForFieldName("function");
+        if (
+          fn?.type === "member_expression" &&
+          fn.childForFieldName("property")?.text === "action"
+        ) {
+          const obj = fn.childForFieldName("object");
+          if (obj?.type === "call_expression") {
+            const innerFn = obj.childForFieldName("function");
+            if (
+              innerFn?.type === "member_expression" &&
+              innerFn.childForFieldName("property")?.text === "command"
+            ) {
+              const cmdArgs = obj.childForFieldName("arguments");
+              const actionArgs = node.childForFieldName("arguments");
+              const cmdName = extractStaticString(cmdArgs?.namedChild(0) ?? null);
+              const actionHandler = actionArgs?.namedChild(0);
+              if (cmdName && actionHandler) {
+                const handlerKey = resolveHandlerKey(
+                  actionHandler,
+                  filePath,
+                  "COMMAND",
+                  cmdName,
+                  idx,
+                  anonCounter
+                );
+                bindings.push({
+                  file_path: filePath,
+                  line_start: node.startPosition.row + 1,
+                  line_end: node.endPosition.row + 1,
+                  kind: "COMMAND",
+                  method: null,
+                  path: cmdName,
+                  handler: handlerKey,
+                  middlewares: [],
+                  display_name: `command('${cmdName}')`,
+                });
+                const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+                if (callerKey !== handlerKey) {
+                  rawEdges.push({
+                    caller: callerKey,
+                    callee: handlerKey,
+                    confidence: "RESOLVED",
+                    ambiguous: false,
+                    call_count: 1,
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 3.3. Nhận diện Django path(route, view)
+      if (lang === "PYTHON" && node.type === "call") {
+        const fn = node.childForFieldName("function");
+        if (fn && (fn.text === "path" || fn.text === "re_path")) {
+          const args = node.childForFieldName("arguments");
+          if (args && args.namedChildCount >= 2) {
+            const routeStr = extractStaticString(args.namedChild(0));
+            const viewNode = args.namedChild(1);
+            if (viewNode) {
+              const handlerKey = resolveHandlerKey(
+                viewNode,
+                filePath,
+                "GET",
+                routeStr,
+                idx,
+                anonCounter
+              );
+              bindings.push({
+                file_path: filePath,
+                line_start: node.startPosition.row + 1,
+                line_end: node.endPosition.row + 1,
+                kind: "HTTP",
+                method: "GET",
+                path: routeStr,
+                handler: handlerKey,
+                middlewares: [],
+                display_name: `path('${routeStr ?? ""}')`,
+              });
+              const callerKey = findEnclosingFunctionKey(node, filePath, idx);
+              if (callerKey !== handlerKey) {
+                rawEdges.push({
+                  caller: callerKey,
+                  callee: handlerKey,
+                  confidence: "RESOLVED",
+                  ambiguous: false,
+                  call_count: 1,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // 3.4. Nhận diện Typer / Click @*.command()
+      if (lang === "PYTHON" && node.type === "decorated_definition") {
+        let isCommand = false;
+        for (let i = 0; i < node.childCount; i++) {
+          const c = node.child(i);
+          if (c?.type === "decorator") {
+            const decCall = c.namedChild(0);
+            const fn =
+              decCall?.type === "call"
+                ? decCall.childForFieldName("function")
+                : decCall;
+            if (
+              fn?.type === "attribute" &&
+              fn.childForFieldName("attribute")?.text === "command"
+            ) {
+              isCommand = true;
+            }
+          }
+        }
+        if (isCommand) {
+          const defNode = node.childForFieldName("definition");
+          if (defNode?.type === "function_definition") {
+            const fnName = defNode.childForFieldName("name")?.text ?? "";
+            const handlerKey = `${filePath}#${fnName}`;
+            bindings.push({
+              file_path: filePath,
+              line_start: node.startPosition.row + 1,
+              line_end: node.endPosition.row + 1,
+              kind: "COMMAND",
+              method: null,
+              path: fnName,
+              handler: handlerKey,
+              middlewares: [],
+              display_name: `@command ${fnName}`,
+            });
+          }
+        }
+      }
+
       // 4. Phân giải Call Site chung (ENG-31)
       const isCallNode =
         node.type === "call_expression" ||
@@ -764,7 +1220,10 @@ export function buildCallGraph(
             } else {
               // x.m()
               const baseReceiver = receiverChain[0] ?? "";
-              const imported = idx.imports.get(filePath)?.get(baseReceiver);
+              const fullReceiver = receiverChain.join(".");
+              const imported =
+                idx.imports.get(filePath)?.get(fullReceiver) ??
+                idx.imports.get(filePath)?.get(baseReceiver);
 
               if (imported && imported.source_file) {
                 // Đích trong file nội bộ. Thứ tự: (a) `C.m()` lớp/đối tượng import; (b) biến import giữ
@@ -774,7 +1233,8 @@ export function buildCallGraph(
                 const symName = imported.symbol_name === "default" ? baseReceiver : imported.symbol_name;
                 const exists = (k: string) => idx.symbols.has(k) || idx.functions.has(k);
                 let target: string | null = null;
-                if (exists(`${src}#${symName}.${method}`)) target = `${src}#${symName}.${method}`;
+                if (imported.is_namespace && exists(`${src}#${method}`)) target = `${src}#${method}`;
+                if (!target && exists(`${src}#${symName}.${method}`)) target = `${src}#${symName}.${method}`;
                 if (!target) {
                   const typeName =
                     idx.field_types.get(`${src}#${symName}`) ??
@@ -1151,6 +1611,82 @@ export function findEntries(
               });
             }
           }
+        }
+      }
+    }
+  }
+
+  // 3. PROGRAM: Nếu không có REGISTERED và không có GENERIC (ENG-51 ý 3, D-58, spec 12 Mục 2)
+  if (entries.length === 0) {
+    // 3.1 Python: Khối if __name__ == "__main__":
+    for (const file of files) {
+      if (scope && !file.path.startsWith(scope)) continue;
+      if (file.language !== "PYTHON") continue;
+
+      let hasMainBlock = false;
+      const scanMain = (n: Node): void => {
+        if (hasMainBlock) return;
+        if (n.type === "if_statement") {
+          const cond = n.childForFieldName("condition");
+          if (cond) {
+            const condText = cond.text;
+            if (
+              (condText.includes("__name__") && condText.includes("__main__")) ||
+              /__name__\s*==\s*['"]__main__['"]/.test(condText) ||
+              /['"]__main__['"]\s*==\s*__name__/.test(condText)
+            ) {
+              hasMainBlock = true;
+              return;
+            }
+          }
+        }
+        for (let i = 0; i < n.namedChildCount; i++) {
+          const c = n.namedChild(i);
+          if (c) scanMain(c);
+        }
+      };
+      scanMain(file.tree.rootNode);
+
+      if (hasMainBlock) {
+        const modKey = `${file.path}#<module>`;
+        if (!idx.symbols.has(modKey)) {
+          const modInfo: FunctionInfo = {
+            key: modKey,
+            kind: "FUNCTION",
+            name: "<module>",
+            file_path: file.path,
+            line_start: 1,
+            line_end: file.tree.rootNode.endPosition.row + 1,
+            is_exported: false,
+            params: [],
+            locals: [],
+            complexity: 0,
+          };
+          idx.symbols.set(modKey, modInfo);
+          idx.functions.set(modKey, modInfo);
+        }
+        if (!seenKeys.has(modKey)) {
+          seenKeys.add(modKey);
+          entries.push({
+            key: modKey,
+            binding: null,
+            source: "PROGRAM",
+          });
+        }
+      }
+    }
+
+    // 3.2 Hàm main có thân trong TS/JS hoặc các ngôn ngữ khác
+    for (const [key, func] of idx.functions.entries()) {
+      if (scope && !func.file_path.startsWith(scope)) continue;
+      if (func.name.toLowerCase() === "main" && func.name !== "<module>") {
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          entries.push({
+            key,
+            binding: null,
+            source: "PROGRAM",
+          });
         }
       }
     }
