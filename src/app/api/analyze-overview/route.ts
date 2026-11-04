@@ -200,7 +200,7 @@ export async function POST(request: Request): Promise<Response> {
           VALUES (
             ${cacheKey},
             'REPO_OVERVIEW',
-            ${JSON.stringify(overview)}::jsonb,
+            ${JSON.stringify(overview)}::text::jsonb,
             ${CONFIG.LLM_MODEL},
             ${CONFIG.PROMPT_VERSION},
             ${usage.tokens_in},

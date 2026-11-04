@@ -243,7 +243,7 @@ export async function lockRun(tx: DbTx, runId: string): Promise<RunRecord> {
 export async function saveRunQuestions(tx: DbTx, run: RunRecord): Promise<void> {
   await asTx(tx)`
     UPDATE node_runs
-    SET questions = ${JSON.stringify(run.questions)}::jsonb
+    SET questions = ${JSON.stringify(run.questions)}::text::jsonb
     WHERE id = ${run.id}
   `;
 }

@@ -238,8 +238,8 @@ export async function createRun(
       ${sessionId},
       ${nodeId},
       ${mode},
-      ${questionsJson}::jsonb,
-      ${stepsJson}::jsonb,
+      ${questionsJson}::text::jsonb,
+      ${stepsJson}::text::jsonb,
       ${forbiddenExternalKeywords}
     )
     RETURNING

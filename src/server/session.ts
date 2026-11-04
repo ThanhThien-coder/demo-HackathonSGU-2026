@@ -372,7 +372,7 @@ export async function createOrResumeSession(
         ${result.snapshot.ref_label ?? null},
         ${result.repo_name},
         ${result.engine_version},
-        ${JSON.stringify(graphSkeleton)}::jsonb,
+        ${JSON.stringify(graphSkeleton)}::text::jsonb,
         0
       )
       RETURNING
@@ -384,7 +384,7 @@ export async function createOrResumeSession(
 
     await tx`
       INSERT INTO session_snapshots (session_id, result)
-      VALUES (${session.id}, ${JSON.stringify(result)}::jsonb)
+      VALUES (${session.id}, ${JSON.stringify(result)}::text::jsonb)
     `;
 
     return session;
@@ -430,7 +430,7 @@ export async function restartSession(
         ${oldSession.ref_label ?? null},
         ${oldSession.repo_name},
         ${oldSession.engine_version},
-        ${JSON.stringify(oldSession.graph_skeleton)}::jsonb,
+        ${JSON.stringify(oldSession.graph_skeleton)}::text::jsonb,
         0
       )
       RETURNING
@@ -442,7 +442,7 @@ export async function restartSession(
 
     await tx`
       INSERT INTO session_snapshots (session_id, result)
-      VALUES (${session.id}, ${JSON.stringify(staticResult)}::jsonb)
+      VALUES (${session.id}, ${JSON.stringify(staticResult)}::text::jsonb)
     `;
 
     return session;
