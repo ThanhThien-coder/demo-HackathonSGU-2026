@@ -407,7 +407,7 @@ describe("POST /api/evaluate-feynman — kịch bản A (50 Mục 3.1)", () => {
     expect(q(1).attempts_used).toBe(1);
     expect(q(1).last_answer).toBe(ANSWER_Q1_L1);
     expect(state.attempts).toHaveLength(1);
-    expect(state.attempts[0]).toMatchObject({ attempt_number: 1, is_passed: false, intent: "ANSWER", points_covered: [false, false] });
+    expect(state.attempts[0]).toMatchObject({ attempt_number: 1, is_passed: false, intent: "ANSWER", points_covered: "{false,false}" });
     expect(state.skills.size).toBe(0);
     // D-66 / API-06: token cộng vào phiên, 1 dòng ai_usage GRADE
     expect(json.tokens_used).toBe(1500);

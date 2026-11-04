@@ -170,7 +170,7 @@ export async function POST(request: Request): Promise<Response> {
           VALUES (
             ${cacheKey},
             'NODE_ANALYSIS',
-            ${JSON.stringify(analysis)}::jsonb,
+            ${JSON.stringify(analysis)}::text::jsonb,
             ${CONFIG.LLM_MODEL},
             ${CONFIG.PROMPT_VERSION},
             ${usage.tokens_in},
