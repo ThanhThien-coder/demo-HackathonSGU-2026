@@ -134,7 +134,10 @@ export async function callLLMOnce<T>(req: LlmRequest<T>): Promise<LlmOutcome<T>>
           category: `HARM_CATEGORY_${c}` as unknown as HarmCategory,
           threshold: "BLOCK_ONLY_HIGH" as unknown as HarmBlockThreshold,
         })),
-        thinkingConfig: { thinkingBudget: CONFIG.LLM_THINKING_BUDGET },
+        // 20 Mục 2: model không cho tắt hoặc budget = 0 ⇒ bỏ thinkingConfig để tránh lỗi 400 INVALID_ARGUMENT
+        ...(CONFIG.LLM_THINKING_BUDGET > 0
+          ? { thinkingConfig: { thinkingBudget: CONFIG.LLM_THINKING_BUDGET } }
+          : {}),
         responseMimeType: "application/json",
         responseSchema: req.schema,
         abortSignal: AbortSignal.timeout(CONFIG.LLM_TIMEOUT_MS),
