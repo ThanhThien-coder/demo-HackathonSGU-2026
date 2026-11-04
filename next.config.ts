@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Ghim gốc dự án để Next không lấy nhầm package-lock.json ở thư mục cha.
   outputFileTracingRoot: __dirname,
+  // D-28: pino. web-tree-sitter tự import("module") lúc khởi tạo, webpack đóng gói sẽ hỏng createRequire.
+  serverExternalPackages: ["pino", "web-tree-sitter"],
   // 04 Mục 16, D-70: route ingest đọc grammar .wasm và truy vấn .scm bằng fs,
   // phải kèm vào bản Vercel dự phòng và bản build standalone.
   outputFileTracingIncludes: {
