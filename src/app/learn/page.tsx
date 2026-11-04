@@ -35,7 +35,7 @@ import type {
   ClientStaticEngineResult,
 } from "@/contracts";
 import { CONFIG } from "@/contracts";
-import { isOfflineMode } from "@/lib/offline";
+import { isOfflineMode, loadOfflineBundle } from "@/lib/offline";
 import { getErrorMessage } from "./utils/messages";
 
 // Offline không có phiên thật; dữ liệu lấy từ gói offline
@@ -118,7 +118,6 @@ function LearnCockpitContent() {
   // API State: Report Wrong (Step 13)
   const [isReportingWrong, setIsReportingWrong] = useState(false);
   const [reportWrongError, setReportWrongError] = useState<string | null>(null);
-  const [isCurrentQuestionDisputed, setIsCurrentQuestionDisputed] = useState(false);
 
   // Tokens Used
   const [tokensUsed, setTokensUsed] = useState<number>(0);
@@ -167,6 +166,21 @@ function LearnCockpitContent() {
     setIsLoadingProgress(true);
     setProgressError(null);
 
+    // Nếu isOfflineMode() trả true thì tải offline bundle trước, tải lỗi thì báo lỗi và dừng hàm
+    if (isOfflineMode()) {
+      try {
+        await loadOfflineBundle();
+      } catch (err) {
+        const errorMsg =
+          err instanceof Error
+            ? err.message
+            : "Không thể tải gói dữ liệu offline.";
+        setProgressError(errorMsg);
+        setIsLoadingProgress(false);
+        return;
+      }
+    }
+
     // 1. First try to resume session via POST /api/ingest to get full static engine result + progress
     const ingestRes = await ingestRepoSafe({ session_id: sid });
     if (ingestRes.ok) {
@@ -194,7 +208,6 @@ function LearnCockpitContent() {
     } else {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setProgressError(errorMsg);
-
     }
     setIsLoadingProgress(false);
   }, []);
@@ -319,7 +332,6 @@ function LearnCockpitContent() {
         if (errorCode === "ERR_TOKEN_QUOTA_EXCEEDED") {
           inFlightRef.current.clear();
         }
-
       }
       setIsLoadingAnalysis(false);
     },
@@ -343,7 +355,6 @@ function LearnCockpitContent() {
     } else {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setOverviewError(errorMsg);
-
     }
     setIsLoadingOverview(false);
   };
@@ -355,18 +366,20 @@ function LearnCockpitContent() {
     setIsLoadingQuestions(true);
     setQuestionsError(null);
     setActiveRevealData(null);
-    setIsCurrentQuestionDisputed(false);
 
     const result = await enrichNodeSafe(sid, nid, "LEARN");
     if (result.ok) {
       setCurrentRunId(result.data.run_id);
       setQuestions(result.data.questions);
-      setActiveQuestionIdx(0);
+      // Mở = active_question_index (câu chưa xong đầu tiên không bị DROPPED, UI Mục 6)
+      const firstValidIdx = result.data.questions.findIndex(
+        (q) => !q.state?.finished && q.state?.ended_by !== "DROPPED"
+      );
+      setActiveQuestionIdx(firstValidIdx >= 0 ? firstValidIdx : 0);
       setTokensUsed(result.data.tokens_used);
     } else {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setQuestionsError(errorMsg);
-
     }
     setIsLoadingQuestions(false);
   }, []);
@@ -434,7 +447,6 @@ function LearnCockpitContent() {
       if (errorCode === "ERR_ATTEMPT_OUT_OF_SYNC" || errorCode === "ERR_QUESTION_FINISHED") {
         fetchNodeQuestions(sessionId, selectedNodeId);
       }
-
     }
 
     setIsSubmittingAnswer(false);
@@ -492,7 +504,14 @@ function LearnCockpitContent() {
     });
 
     if (result.ok) {
-      setIsCurrentQuestionDisputed(true);
+      // Cập nhật state.disputed = true cho đúng câu trong questions (Mục 3)
+      setQuestions((prev) =>
+        prev.map((q, idx) =>
+          idx === activeQuestionIdx
+            ? { ...q, state: { ...q.state, disputed: true } }
+            : q
+        )
+      );
       setIsReportWrongDialogOpen(false);
       setIsEvaluationDialogOpen(false);
 
@@ -501,7 +520,6 @@ function LearnCockpitContent() {
     } else {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setReportWrongError(errorMsg);
-
     }
 
     setIsReportingWrong(false);
@@ -510,9 +528,15 @@ function LearnCockpitContent() {
   // Switch node handler
   const handleSelectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
+    setActiveStep(null);
     fetchNodeAnalysis(sessionId, nodeId);
     fetchNodeQuestions(sessionId, nodeId);
   };
+
+  // Khi selectedNodeId đổi thì đặt activeStep về null (Mục 5)
+  useEffect(() => {
+    setActiveStep(null);
+  }, [selectedNodeId]);
 
   // Initial load
   useEffect(() => {
@@ -525,7 +549,16 @@ function LearnCockpitContent() {
   }, [sessionId, selectedNodeId, fetchSessionProgress, fetchNodeAnalysis, fetchNodeQuestions]);
 
   const activeQuestion = questions[activeQuestionIdx] || null;
-  const hasNextQuestion = activeQuestionIdx < questions.length - 1;
+
+  // hasNextQuestion: kiểm tra còn câu nào phía sau chưa bị DROPPED
+  const hasNextQuestion = useMemo(() => {
+    for (let i = activeQuestionIdx + 1; i < questions.length; i++) {
+      if (questions[i]?.state?.ended_by !== "DROPPED") {
+        return true;
+      }
+    }
+    return false;
+  }, [questions, activeQuestionIdx]);
 
   // Current node derived from staticResult
   const currentNode = useMemo(() => {
@@ -548,12 +581,23 @@ function LearnCockpitContent() {
     return undefined;
   }, [currentNode]);
 
+  // Khi chuyển câu thì bỏ qua câu bị DROPPED
   const handleNextQuestion = () => {
-    if (hasNextQuestion) {
-      setActiveQuestionIdx((prev) => prev + 1);
-      setActiveRevealData(null);
-      setIsCurrentQuestionDisputed(false);
+    let nextIdx = activeQuestionIdx + 1;
+    while (nextIdx < questions.length && questions[nextIdx]?.state?.ended_by === "DROPPED") {
+      nextIdx++;
     }
+    if (nextIdx < questions.length) {
+      setActiveQuestionIdx(nextIdx);
+      setActiveRevealData(null);
+    }
+  };
+
+  // Chặn đổi câu khi đang nộp (Mục 1)
+  const handleSelectQuestion = (idx: number) => {
+    if (isSubmittingAnswer) return;
+    setActiveQuestionIdx(idx);
+    setActiveRevealData(null);
   };
 
   return (
@@ -635,6 +679,7 @@ function LearnCockpitContent() {
             onSelectStep={(step) => setActiveStep(step)}
             isPresentationMode={isPresentationMode}
             onTogglePresentationMode={() => setIsPresentationMode((prev) => !prev)}
+            allNodes={staticResult?.nodes}
           />
 
           {/* Right Column: Feynman Question & Form (Figma node 5:170) - Steps 10, 11, 12, 13 */}
@@ -642,6 +687,8 @@ function LearnCockpitContent() {
             question={activeQuestion}
             questionIndex={activeQuestionIdx + 1}
             totalQuestions={questions.length || 1}
+            questions={questions}
+            onSelectQuestion={handleSelectQuestion}
             isLoadingQuestion={isLoadingQuestions}
             isSubmitting={isSubmittingAnswer}
             onSubmit={handleAnswerSubmit}
@@ -649,7 +696,7 @@ function LearnCockpitContent() {
             onReportWrong={() => setIsReportWrongDialogOpen(true)}
             isRevealed={Boolean(activeRevealData)}
             revealData={activeRevealData}
-            isDisputed={isCurrentQuestionDisputed}
+            isDisputed={Boolean(activeQuestion?.state?.disputed)}
             validationError={submitError}
             errorMessage={questionsError}
             onNextQuestion={handleNextQuestion}
