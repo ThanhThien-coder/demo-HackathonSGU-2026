@@ -45,7 +45,7 @@ Quyết định Dockerfile của tôi: [ĐÃ MERGE / ĐÃ BỎ].
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Chỉ khi quyết định là ĐÃ MERGE: sửa `.github/workflows/deploy.yml` theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3: build image một lần bằng Dockerfile, push Artifact Registry, deploy staging bằng `--image`, job production promote cùng image digest sau khi được duyệt. Quyết định là ĐÃ BỎ thì không sửa file nào.
+2. Chỉ khi quyết định là ĐÃ MERGE: sửa `.github/workflows/deploy.yml` theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3: từ cùng commit build 2 image bằng Dockerfile (staging trỏ Supabase dev/staging, production trỏ Supabase production, D-72), push Artifact Registry, deploy staging bằng `--image`, job production deploy image prod sau khi được duyệt. Quyết định là ĐÃ BỎ thì không sửa file nào.
 3. Gọi thử đủ 14 endpoint của `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2 trên staging bằng `curl`. Tôi sẽ đưa URL staging; token bot nằm trong biến môi trường `SMOKE_TOKEN` của cửa sổ lệnh, không in token ra. Lập bảng: endpoint | mã HTTP nhận được | mã kỳ vọng | đạt hay chưa.
 
 ## Tiêu chí xong

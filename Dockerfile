@@ -15,11 +15,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Next ghi cứng các biến NEXT_PUBLIC_* vào client bundle lúc build
+# Next ghi cứng các biến NEXT_PUBLIC_* vào bundle lúc build, nên mỗi môi trường
+# (staging, production) build image riêng với Supabase và DEMO_MODE của mình (D-72)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_DEMO_MODE=false
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_DEMO_MODE=$NEXT_PUBLIC_DEMO_MODE
 
 # Không khai báo ARG/ENV cho bí mật (DATABASE_URL, Gemini...) vì chỉ cấp runtime trên Cloud Run
 RUN npm run build

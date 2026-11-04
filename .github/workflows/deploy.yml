@@ -1,5 +1,7 @@
-# Deploy Cloud Run bằng image (05 Mục 3, Mục 5; D-30, D-64). Dockerfile đã merge (A09).
-# Build image 1 lần ⇒ push Artifact Registry ⇒ staging `--image` ⇒ smoke test ⇒ production promote CÙNG digest sau khi Vai A duyệt.
+# Deploy Cloud Run bằng image (05 Mục 3, Mục 5; D-30, D-64, D-72). Dockerfile đã merge (A09).
+# Mỗi môi trường 1 image, build song song từ CÙNG commit (D-72): Next ghi cứng NEXT_PUBLIC_* lúc build,
+# nên staging cần image trỏ Supabase dev/staging, production cần image trỏ Supabase production (mô hình D2).
+# Luồng: build 2 image ⇒ staging `--image` ⇒ smoke test ⇒ Vai A duyệt ⇒ production `--image` (image prod cùng commit) ⇒ /api/health.
 # Chỉ đổi image; cấu hình service (RAM, CPU, biến môi trường, secret) đặt sẵn trên Cloud Run, workflow không đụng tới.
 #
 # Secrets cần tạo (tên theo docs/doc-de-hieu/01_deploy.md Mục 3.10):
@@ -7,15 +9,12 @@
 # - Xác thực GCP (05 Mục 5), chọn 1 trong 2:
 #   + Chính (WIF): GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT
 #   + Dự phòng: GCP_SA_KEY (JSON khóa của github-deployer); có giá trị thì được dùng thay WIF
-# - SUPABASE_DEV_URL, SUPABASE_DEV_ANON_KEY (build arg NEXT_PUBLIC_* và lấy token bot)
-# - SMOKE_BOT_EMAIL, SMOKE_BOT_PASSWORD
+# - SUPABASE_DEV_URL, SUPABASE_DEV_ANON_KEY (image staging và lấy token bot)
+# - SUPABASE_PROD_URL, SUPABASE_PROD_ANON_KEY (image production)
+# - SMOKE_BOT_EMAIL, SMOKE_BOT_PASSWORD (tài khoản bot trên Supabase dev/staging)
 #
 # Variables repo cần tạo:
 # - DEMO_REPO_URL
-#
-# LƯU Ý (chờ nhóm quyết): Next nhúng NEXT_PUBLIC_SUPABASE_* vào image lúc build. Image build bằng URL Supabase
-# dev/staging để smoke test qua được; promote cùng digest thì production cũng dùng Supabase dev/staging,
-# trái mô hình D2 (2 project Supabase). Chưa chốt cách xử lý thì chưa bấm duyệt production.
 
 name: deploy
 
@@ -36,13 +35,15 @@ concurrency:
 env:
   REGION: asia-southeast1
   REGISTRY: asia-southeast1-docker.pkg.dev
-  IMAGE: asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/simplifey/app:${{ github.sha }}
+  IMAGE_STAGING: asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/simplifey/app:${{ github.sha }}-staging
+  IMAGE_PROD: asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/simplifey/app:${{ github.sha }}-prod
   STAGING_SERVICE: simplifey-staging
   PROD_SERVICE: simplifey-prod
   HAS_SA_KEY: ${{ secrets.GCP_SA_KEY != '' }}
 
 jobs:
-  build:
+  # Image staging: Supabase dev/staging, DEMO_MODE bật (05 Mục 1)
+  build-staging:
     runs-on: ubuntu-latest
     outputs:
       image_ref: ${{ steps.push.outputs.image_ref }}
@@ -69,31 +70,100 @@ jobs:
       - name: Cấu hình Docker cho Artifact Registry
         run: gcloud auth configure-docker "$REGISTRY" --quiet
 
-      - name: Build image một lần bằng Dockerfile
+      - name: Build image staging bằng Dockerfile
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_DEV_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_DEV_ANON_KEY }}
         run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Thiếu secret SUPABASE_DEV_URL hoặc SUPABASE_DEV_ANON_KEY"
+            exit 1
+          fi
           docker build \
             --build-arg NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" \
             --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            -t "$IMAGE" .
+            --build-arg NEXT_PUBLIC_DEMO_MODE=true \
+            -t "$IMAGE_STAGING" .
 
-      - name: Push image lên Artifact Registry và lấy digest
+      - name: Push image staging lên Artifact Registry và lấy digest
         id: push
         run: |
           set -euo pipefail
-          docker push "$IMAGE"
-          IMAGE_REF=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          docker push "$IMAGE_STAGING"
+          IMAGE_REF=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_STAGING")
           if [ -z "$IMAGE_REF" ]; then
-            echo "Không lấy được digest của image"
+            echo "Không lấy được digest của image staging"
             exit 1
           fi
-          echo "Image đã push: $IMAGE_REF"
+          echo "Image staging đã push: $IMAGE_REF"
+          echo "image_ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+
+  # Image production: Supabase production, DEMO_MODE tắt (05 Mục 1). Build song song để duyệt xong là deploy ngay.
+  build-prod:
+    runs-on: ubuntu-latest
+    outputs:
+      image_ref: ${{ steps.push.outputs.image_ref }}
+    steps:
+      - name: Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Xác thực GCP bằng Workload Identity Federation
+        if: env.HAS_SA_KEY != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Xác thực GCP bằng khóa service account (dự phòng)
+        if: env.HAS_SA_KEY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Cài đặt gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Cấu hình Docker cho Artifact Registry
+        run: gcloud auth configure-docker "$REGISTRY" --quiet
+
+      - name: Build image production bằng Dockerfile
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PROD_ANON_KEY }}
+          SUPABASE_DEV_URL: ${{ secrets.SUPABASE_DEV_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Thiếu secret SUPABASE_PROD_URL hoặc SUPABASE_PROD_ANON_KEY"
+            exit 1
+          fi
+          # D2: production không được trỏ chung project Supabase với staging
+          if [ "$SUPABASE_URL" = "$SUPABASE_DEV_URL" ]; then
+            echo "SUPABASE_PROD_URL trùng SUPABASE_DEV_URL, trái mô hình 2 project Supabase (D2)"
+            exit 1
+          fi
+          docker build \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --build-arg NEXT_PUBLIC_DEMO_MODE=false \
+            -t "$IMAGE_PROD" .
+
+      - name: Push image production lên Artifact Registry và lấy digest
+        id: push
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE_PROD"
+          IMAGE_REF=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_PROD")
+          if [ -z "$IMAGE_REF" ]; then
+            echo "Không lấy được digest của image production"
+            exit 1
+          fi
+          echo "Image production đã push: $IMAGE_REF"
           echo "image_ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
 
   staging:
-    needs: build
+    needs: build-staging
     runs-on: ubuntu-latest
     outputs:
       url: ${{ steps.deploy.outputs.url }}
@@ -117,7 +187,7 @@ jobs:
       - name: Deploy staging bằng --image (theo digest)
         id: deploy
         env:
-          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+          IMAGE_REF: ${{ needs.build-staging.outputs.image_ref }}
         run: |
           set -euo pipefail
           gcloud run deploy "$STAGING_SERVICE" \
@@ -209,7 +279,7 @@ jobs:
           echo "Ingest đạt: session_id hợp lệ, số nodes $NODE_COUNT >= $MIN_NODES"
 
   production:
-    needs: [build, smoke]
+    needs: [build-prod, smoke]
     runs-on: ubuntu-latest
     environment: production # Vai A duyệt thủ công (D-30)
     steps:
@@ -229,9 +299,10 @@ jobs:
       - name: Cài đặt gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Promote cùng image digest lên production
+      - name: Deploy production bằng --image (image prod cùng commit với bản đã qua smoke)
+        id: deploy
         env:
-          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+          IMAGE_REF: ${{ needs.build-prod.outputs.image_ref }}
         run: |
           set -euo pipefail
           gcloud run deploy "$PROD_SERVICE" \
@@ -239,3 +310,21 @@ jobs:
             --region "$REGION" \
             --project "${{ secrets.GCP_PROJECT_ID }}" \
             --quiet
+          URL=$(gcloud run services describe "$PROD_SERVICE" \
+            --region "$REGION" --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --format='value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Kiểm tra sức khỏe production (/api/health)
+        env:
+          PROD_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -euo pipefail
+          # Production chỉ bật GitHub OAuth (05 Mục 5) nên không có bot để ingest thử; kiểm healthcheck.
+          STATUS=$(curl -s -S -o /tmp/health_body.txt -w "%{http_code}" --max-time 10 "$PROD_URL/api/health")
+          BODY=$(cat /tmp/health_body.txt)
+          if [ "$STATUS" -ne 200 ] || [ "$BODY" != "ok" ]; then
+            echo "Production /api/health thất bại: status=$STATUS, body=$BODY. Rollback revision theo 05 Mục 5"
+            exit 1
+          fi
+          echo "Production /api/health đạt"

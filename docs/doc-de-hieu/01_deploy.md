@@ -214,6 +214,9 @@ Add-Content .git\info\exclude "CLAUDE.md"
   - `SMOKE_BOT_PASSWORD` (mật khẩu bot smoke test)
   - `SUPABASE_DEV_URL`
   - `SUPABASE_DEV_ANON_KEY`
+  - `SUPABASE_PROD_URL` (project Supabase production, phải khác `SUPABASE_DEV_URL`, D-72)
+  - `SUPABASE_PROD_ANON_KEY`
+- [ ] **Khai báo GitHub Variables** (tab Variables cạnh Secrets): `DEMO_REPO_URL` (link repo demo Q-03 cho smoke test ingest).
 
 ### 3.11. Thiết lập GitHub Environment `production`
 
