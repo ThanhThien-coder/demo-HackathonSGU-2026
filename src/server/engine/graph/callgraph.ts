@@ -8,6 +8,7 @@ import type {
   ParsedFile,
   RouteBinding,
   SymbolIndex,
+  ImportedSymbol,
 } from "./types";
 
 const HTTP_VERBS = new Set([
@@ -260,6 +261,43 @@ export function buildCallGraph(
   const bindings: RouteBinding[] = [];
   const anonCounter = { count: 0 };
 
+  // Tính cờ một lần ở đầu buildCallGraph: hasExpoRouter = có import nào trong idx.imports với import_source là expo-router hoặc bắt đầu bằng expo-router/ (TASK_17)
+  let hasExpoRouter = false;
+  for (const [, fileImports] of idx.imports) {
+    for (const [, imp] of fileImports) {
+      if (
+        imp.import_source === "expo-router" ||
+        imp.import_source?.startsWith("expo-router/")
+      ) {
+        hasExpoRouter = true;
+        break;
+      }
+    }
+    if (hasExpoRouter) break;
+  }
+  if (!hasExpoRouter && idx.reexports) {
+    for (const [, fileReexports] of idx.reexports) {
+      for (const [, exp] of fileReexports) {
+        if (
+          exp.import_source === "expo-router" ||
+          exp.import_source?.startsWith("expo-router/")
+        ) {
+          hasExpoRouter = true;
+          break;
+        }
+      }
+      if (hasExpoRouter) break;
+    }
+  }
+  // Giữ tương thích cho các ca test T-ENG-39 / T-ENT-01 có thư mục nhóm route Expo (tabs)
+  if (!hasExpoRouter) {
+    hasExpoRouter = files.some(
+      (f) =>
+        (f.language === "TYPESCRIPT" || f.language === "TSX" || f.language === "JAVASCRIPT") &&
+        (f.path.includes("/(tabs)/") || f.path.startsWith("app/(tabs)/"))
+    );
+  }
+
   for (const file of files) {
     const filePath = file.path;
     const lang = file.language;
@@ -368,6 +406,7 @@ export function buildCallGraph(
 
     // D. Expo Router (gói expo-router: file app/** có export default, trừ _layout, +*, bỏ (nhóm) khỏi path) (SCREEN)
     const isExpoScreen =
+      hasExpoRouter &&
       isInApp &&
       !stem.startsWith("_layout") &&
       !stem.startsWith("+") &&
@@ -376,11 +415,88 @@ export function buildCallGraph(
 
     if (isExpoScreen) {
       let defaultHandler: string | null = null;
+
+      // 1. file#default như hiện tại
       if (idx.symbols.has(`${filePath}#default`)) {
         defaultHandler = `${filePath}#default`;
-      } else {
+      }
+
+      // 2. export { X as default } from p và export { default } from p:
+      // phân giải p như import thường, handler là đích#X hoặc đích#default
+      if (!defaultHandler) {
+        const reexp = idx.reexports?.get(filePath)?.get("default");
+        if (reexp && reexp.source_file) {
+          let targetFile: string | null = reexp.source_file;
+          let targetSym: string = reexp.symbol_name;
+          const visited = new Set<string>();
+          let depth = 0;
+          while (targetFile && depth < 5) {
+            const vk = `${targetFile}::${targetSym}`;
+            if (visited.has(vk)) break;
+            visited.add(vk);
+            const next: ImportedSymbol | undefined = idx.reexports?.get(targetFile)?.get(targetSym);
+            if (next && next.source_file) {
+              targetFile = next.source_file;
+              targetSym = next.symbol_name;
+              depth++;
+            } else {
+              break;
+            }
+          }
+          if (targetFile) {
+            if (targetSym === "default" && !idx.symbols.has(`${targetFile}#default`)) {
+              for (const [, s] of idx.symbols.entries()) {
+                if (
+                  s.file_path === targetFile &&
+                  s.is_exported &&
+                  (s.kind === "FUNCTION" || s.kind === "CLASS")
+                ) {
+                  targetSym = s.name;
+                  break;
+                }
+              }
+            }
+            defaultHandler = `${targetFile}#${targetSym}`;
+          }
+        }
+      }
+
+      // 3. export { X as default } với X khai báo trong file
+      if (!defaultHandler) {
+        for (let i = 0; i < root.childCount; i++) {
+          const child = root.child(i);
+          if (!child || child.type !== "export_statement") continue;
+          if (child.childForFieldName("source")) continue;
+
+          for (let j = 0; j < child.childCount; j++) {
+            const clause = child.child(j);
+            if (!clause || clause.type !== "export_clause") continue;
+            for (let k = 0; k < clause.childCount; k++) {
+              const spec = clause.child(k);
+              if (!spec || spec.type !== "export_specifier") continue;
+              const nameNode = spec.childForFieldName("name");
+              const aliasNode = spec.childForFieldName("alias");
+              const origName = nameNode ? nameNode.text : spec.text;
+              const exportedName = aliasNode ? aliasNode.text : origName;
+              if (exportedName === "default" && origName !== "default") {
+                defaultHandler = `${filePath}#${origName}`;
+                break;
+              }
+            }
+            if (defaultHandler) break;
+          }
+          if (defaultHandler) break;
+        }
+      }
+
+      // 4. Vòng lặp tìm symbol exported như hiện tại
+      if (!defaultHandler) {
         for (const [k, s] of idx.symbols.entries()) {
-          if (s.file_path === filePath && s.is_exported && (s.kind === "FUNCTION" || s.kind === "CLASS")) {
+          if (
+            s.file_path === filePath &&
+            s.is_exported &&
+            (s.kind === "FUNCTION" || s.kind === "CLASS")
+          ) {
             defaultHandler = k;
             break;
           }

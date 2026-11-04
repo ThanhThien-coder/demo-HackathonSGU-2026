@@ -320,6 +320,183 @@ export default function SettingsScreen() {
   it.todo(
     "T-ENT-01: LoginVC: UIViewController (Swift iOS) — chưa có grammar ở public/grammars/"
   );
+
+  it("T-ENT-01: Repo Express có src/app/routes/a.service.ts export default, không import expo-router => không có binding SCREEN", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    code.set(
+      "src/app/routes/a.service.ts",
+      `
+export default class ArticleService {
+  getArticles() {
+    return [];
+  }
+}
+`
+    );
+    langs.set("src/app/routes/a.service.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const cg = buildCallGraph(parsed, idx);
+    const screenBindings = cg.bindings.filter((b) => b.kind === "SCREEN");
+    expect(screenBindings).toHaveLength(0);
+  });
+
+  it("T-ENT-01: Repo có expo-router, app/login.tsx viết export { LoginScreen as default } from '@/features/login' => binding SCREEN, path /login, handler ở file đích", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    code.set(
+      "app/_layout.tsx",
+      `
+import { Stack } from 'expo-router';
+export default function RootLayout() {
+  return <Stack />;
+}
+`
+    );
+    langs.set("app/_layout.tsx", "TSX");
+
+    code.set(
+      "app/login.tsx",
+      `
+export { LoginScreen as default } from '@/features/login';
+`
+    );
+    langs.set("app/login.tsx", "TSX");
+
+    code.set(
+      "src/features/login.tsx",
+      `
+import React from 'react';
+export function LoginScreen() {
+  return null;
+}
+`
+    );
+    langs.set("src/features/login.tsx", "TSX");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const cg = buildCallGraph(parsed, idx);
+    const screenBinding = cg.bindings.find(
+      (b) => b.kind === "SCREEN" && b.file_path === "app/login.tsx"
+    );
+
+    expect(screenBinding).toBeDefined();
+    expect(screenBinding?.kind).toBe("SCREEN");
+    expect(screenBinding?.path).toBe("/login");
+    expect(screenBinding?.handler).toBe("src/features/login.tsx#LoginScreen");
+  });
+
+  it("T-ENT-01: app/(tabs)/index.tsx có export default function => vẫn đạt như T-ENG-39", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    code.set(
+      "app/_layout.tsx",
+      `
+import { Stack } from 'expo-router';
+export default function RootLayout() {
+  return <Stack />;
+}
+`
+    );
+    langs.set("app/_layout.tsx", "TSX");
+
+    code.set(
+      "app/(tabs)/index.tsx",
+      `
+import React from 'react';
+export default function HomeScreen() {
+  return null;
+}
+`
+    );
+    langs.set("app/(tabs)/index.tsx", "TSX");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const cg = buildCallGraph(parsed, idx);
+    const screenBinding = cg.bindings.find(
+      (b) => b.kind === "SCREEN" && b.file_path === "app/(tabs)/index.tsx"
+    );
+
+    expect(screenBinding).toBeDefined();
+    expect(screenBinding?.kind).toBe("SCREEN");
+    expect(screenBinding?.path).toBe("/");
+    expect(screenBinding?.handler).toBe("app/(tabs)/index.tsx#HomeScreen");
+  });
+
+  it("T-ENT-01: app/_layout.tsx, app/+html.tsx => không phải màn hình", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    code.set(
+      "app/_layout.tsx",
+      `
+import { Stack } from 'expo-router';
+export default function RootLayout() {
+  return <Stack />;
+}
+`
+    );
+    langs.set("app/_layout.tsx", "TSX");
+
+    code.set(
+      "app/+html.tsx",
+      `
+import React from 'react';
+export default function RootHtml() {
+  return <html><body></body></html>;
+}
+`
+    );
+    langs.set("app/+html.tsx", "TSX");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const cg = buildCallGraph(parsed, idx);
+    const layoutBinding = cg.bindings.find(
+      (b) => b.file_path === "app/_layout.tsx" && b.kind === "SCREEN"
+    );
+    const htmlBinding = cg.bindings.find(
+      (b) => b.file_path === "app/+html.tsx" && b.kind === "SCREEN"
+    );
+
+    expect(layoutBinding).toBeUndefined();
+    expect(htmlBinding).toBeUndefined();
+  });
 });
 
 describe("T-ENT-02: Quy ước export và entry chương trình", () => {
