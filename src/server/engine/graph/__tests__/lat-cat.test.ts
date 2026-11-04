@@ -613,4 +613,142 @@ export const logger = {
     }
     expect(totalLines).toBeLessThanOrEqual(CONFIG.NODE_MAX_LINES);
   });
+
+  // ---------------------------------------------------------------------------
+  // ENG-60 / ENG-80 / ENG-86: Lát cắt không lẫn hàm bên cạnh (TASK_15)
+  // ---------------------------------------------------------------------------
+  it("ENG-60 / ENG-80: register gọi createUser, login gọi loginUser cả hai bọc catchAsync - snippet login không chứa createUser", async () => {
+    const routesCode = `import express from "express";
+import * as authController from "./auth.controller";
+
+const router = express.Router();
+router.post('/register', authController.register);
+router.post('/login', authController.login);
+`;
+
+    const controllerCode = `const catchAsync = (fn: any) => fn;
+
+export const register = catchAsync(async (req: any, res: any) => {
+  const user = await userService.createUser(req.body);
+  res.status(201).send(user);
+});
+
+export const login = catchAsync(async (req: any, res: any) => {
+  const user = await authService.loginUser(req.body);
+  res.send(user);
+});
+`;
+
+    const codeMap = new Map([
+      ["src/routes/auth.routes.ts", routesCode],
+      ["src/routes/auth.controller.ts", controllerCode],
+    ]);
+
+    const langsMap = new Map([
+      ["src/routes/auth.routes.ts", "TYPESCRIPT"],
+      ["src/routes/auth.controller.ts", "TYPESCRIPT"],
+    ]);
+
+    const report = createReport();
+    const parsedFiles = await parseAll(codeMap, langsMap, report);
+    const idx = collectSymbols(parsedFiles);
+    resolveImports(parsedFiles, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const callGraph = buildCallGraph(parsedFiles, idx);
+    const entries = findEntries(parsedFiles, idx, callGraph, "");
+    expect(entries.length).toBeGreaterThan(0);
+
+    const loginEntry = entries.find((e) => e.binding?.path === "/login");
+    expect(loginEntry).toBeDefined();
+
+    const fg = fileGraph(callGraph.edges);
+    const ranks = rankFiles(fg, new Set(["src/routes/auth.routes.ts"]));
+
+    const ctx: EngineContext = {
+      files: new Map(parsedFiles.map((f) => [f.path, f])),
+      idx,
+      edges: callGraph.edges,
+      external: [],
+      tech_stack: [],
+      rank: ranks,
+      source_map: new Map(),
+    };
+
+    const candidate = buildSlice(loginEntry!, ctx);
+    expect(candidate.trace_steps.length).toBeGreaterThanOrEqual(1);
+
+    const step1 = candidate.trace_steps[0]!;
+    expect(step1.layer).toBe("ENTRY_POINT");
+    expect(step1.function_name).toBe("router.post('/login')");
+
+    // Tiêu chí spec: snippet của login phải chứa loginUser và tuyệt đối không lẫn createUser của register
+    expect(step1.snippet).toContain("loginUser");
+    expect(step1.snippet).not.toContain("createUser");
+    expect(step1.snippet).not.toContain("register");
+  });
+
+  it("ENG-60 / ENG-40: Handler là biến không có thân (const h = makeHandler(cfg)) - bước đầu chỉ có dòng câu lệnh đăng ký route, không lấy dòng của <module>", async () => {
+    const routesCode = `import express from "express";
+
+const router = express.Router();
+const h = makeHandler(cfg);
+router.get('/items', h);
+`;
+
+    const codeMap = new Map([
+      ["src/routes/item.routes.ts", routesCode],
+    ]);
+
+    const langsMap = new Map([
+      ["src/routes/item.routes.ts", "TYPESCRIPT"],
+    ]);
+
+    const report = createReport();
+    const parsedFiles = await parseAll(codeMap, langsMap, report);
+    const idx = collectSymbols(parsedFiles);
+    resolveImports(parsedFiles, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const callGraph = buildCallGraph(parsedFiles, idx);
+    const entries = findEntries(parsedFiles, idx, callGraph, "");
+    expect(entries.length).toBeGreaterThan(0);
+
+    const itemsEntry = entries.find((e) => e.binding?.path === "/items");
+    expect(itemsEntry).toBeDefined();
+
+    const fg = fileGraph(callGraph.edges);
+    const ranks = rankFiles(fg, new Set(["src/routes/item.routes.ts"]));
+
+    const ctx: EngineContext = {
+      files: new Map(parsedFiles.map((f) => [f.path, f])),
+      idx,
+      edges: callGraph.edges,
+      external: [],
+      tech_stack: [],
+      rank: ranks,
+      source_map: new Map(),
+    };
+
+    const candidate = buildSlice(itemsEntry!, ctx);
+    expect(candidate.trace_steps.length).toBeGreaterThanOrEqual(1);
+
+    const step1 = candidate.trace_steps[0]!;
+    expect(step1.layer).toBe("ENTRY_POINT");
+    expect(step1.function_name).toBe("router.get('/items')");
+    // Bước đầu chỉ có dòng câu lệnh đăng ký route (dòng 5: router.get('/items', h);)
+    // Không lấy dòng của biến h (dòng 4) và không lấy dòng của <module> (dòng 1..5)
+    expect(step1.line_start).toBe(5);
+    expect(step1.line_end).toBe(5);
+    expect(step1.snippet).toContain("router.get('/items', h)");
+    expect(step1.snippet).not.toContain("makeHandler");
+    expect(step1.snippet).not.toContain("<module>");
+    expect(step1.snippet_line_map).toEqual([5]);
+  });
 });

@@ -235,9 +235,33 @@ interface StepBuildingContext {
 }
 
 export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
-  const entrySym =
-    ctx.idx.functions.get(entry.key) ?? ctx.idx.symbols.get(entry.key);
-  const entryFile = entry.key.split("#")[0] ?? "";
+  const fnInfo =
+    ctx.idx.functions.get(entry.key);
+  const hasFunctionBody = Boolean(
+    fnInfo &&
+      fnInfo.name !== "<module>" &&
+      (fnInfo.kind === "FUNCTION" || fnInfo.kind === "METHOD")
+  );
+
+  // Entry không có FunctionInfo có thân ⇒ dùng line_start, line_end của RouteBinding, không thay bằng <module>
+  const entrySym: SymbolDefinition | undefined =
+    hasFunctionBody && fnInfo
+      ? fnInfo
+      : entry.binding
+      ? {
+          key: entry.key,
+          kind: "FUNCTION",
+          name: entry.binding.display_name,
+          file_path: entry.binding.file_path,
+          line_start: entry.binding.line_start,
+          line_end: entry.binding.line_end,
+          is_exported: false,
+        }
+      : ctx.idx.functions.get(entry.key) ?? ctx.idx.symbols.get(entry.key);
+  const entryFile =
+    entry.binding && !hasFunctionBody
+      ? entry.binding.file_path
+      : entry.key.split("#")[0] ?? "";
   const parsedEntryFile = ctx.files.get(entryFile);
 
   // 1. ENG-80 Thu hàm (Forward Slicing)
@@ -298,9 +322,11 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
   ): void {
     if (hop > CONFIG.SLICE_MAX_HOPS) return;
     if (visitedFns.has(curKey)) return;
+    if (curKey.endsWith("#<module>")) return;
 
     const sym = ctx.idx.functions.get(curKey) ?? ctx.idx.symbols.get(curKey);
-    if (!sym) return;
+    if (!sym || sym.name === "<module>") return;
+    if (sym.kind !== "FUNCTION" && sym.kind !== "METHOD") return;
     const file = ctx.files.get(sym.file_path);
     if (!file) return;
 
@@ -349,7 +375,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
   // Bước 1: Entry (hop 0)
   if (entrySym) {
     visitedFns.add(entry.key);
-    const extCalls = fnExternalCalls.get(entry.key) ?? [];
+    const extCalls = hasFunctionBody ? (fnExternalCalls.get(entry.key) ?? []) : [];
     const dataSinkLines: number[] = [];
     for (const ext of extCalls) {
       if (isDataSinkCall(ext, ctx.tech_stack)) {
@@ -394,7 +420,8 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
       }
     }
 
-    // Các hàm mà entry gọi
+    // Các hàm mà entry gọi (chỉ thu nếu entry là hàm có thân)
+    if (hasFunctionBody) {
     const entryEdges = callerEdges.get(entry.key) ?? [];
     const sortedEntryEdges = entryEdges.slice().sort((a, b) => {
       if (a.callee < b.callee) return -1;
@@ -409,6 +436,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
         stepsMeta[0]!.callsDataAccessFile = true;
       }
       collectFromFunction(resolvedKey, 1, false, false);
+    }
     }
   }
 
@@ -549,7 +577,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     // Giữ dòng đóng
     keptLines.add(endLine);
 
-    // Nếu handler ẩn danh: snippet = cả câu lệnh đăng ký
+
     const isAnonHandler =
       st.isEntry &&
       entry.binding &&
@@ -561,7 +589,8 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
 
     let moduleVarLine = 0;
 
-    if (isAnonHandler && entry.binding) {
+    if ((isAnonHandler || (st.isEntry && !hasFunctionBody)) && entry.binding) {
+      keptLines.clear();
       for (
         let l = entry.binding.line_start;
         l <= entry.binding.line_end;
@@ -645,6 +674,14 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
             // Nếu không tìm thấy trong hàm, kiểm tra biến module ở cấp file
             if (defLine === 0) {
               for (let modL = 1; modL < startLine; modL++) {
+                const isInsideOtherFn = Array.from(ctx.idx.functions.values()).some(
+                  (fn) =>
+                    fn.file_path === file.path &&
+                    fn.name !== "<module>" &&
+                    modL >= fn.line_start &&
+                    modL <= fn.line_end
+                );
+                if (isInsideOtherFn) continue;
                 const modText = allLines[modL - 1] ?? "";
                 const isModDecl = new RegExp(`\\b(const|let|var|export const|export let)\\s+[^=;]*\\b${v}\\b`).test(modText);
                 if (isModDecl) {
