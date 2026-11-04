@@ -22,6 +22,7 @@ import {
   deleteInFlightPromise,
 } from "../cache";
 import {
+  createOrResumeSession,
   getSessionStaticResult,
   verifyRunOwnership,
   verifySessionOwnership,
@@ -339,6 +340,60 @@ describe("Session Ownership & Engine Version (03 Muc 2, Muc 4, API-05)", () => {
 
     const res = await getSessionStaticResult("sess-str", "user-abc");
     expect(res).toEqual(mockStaticResult);
+  });
+});
+
+describe("Dong jsonb cu luu dang chuoi (ghi truoc ban sua ::text::jsonb)", () => {
+  const legacyRow = {
+    id: "sess-old",
+    user_id: "user-abc",
+    source: "GITHUB",
+    repo_key: "facebook/react",
+    snapshot_id: mockSnapshotKey.snapshot_id,
+    snapshot_id_kind: "COMMIT_SHA",
+    subdir: "",
+    ref_label: "main",
+    repo_name: "react",
+    engine_version: CONFIG.ENGINE_VERSION,
+    tokens_used: 0,
+    created_at: new Date().toISOString(),
+    last_active_at: new Date().toISOString(),
+    graph_skeleton: JSON.stringify(mockSkeleton),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearEngineCache();
+  });
+
+  it("createOrResumeSession mo lai phien cu: result va graph_skeleton la object", async () => {
+    mockSql.mockResolvedValueOnce([legacyRow]);
+    mockSql.mockResolvedValueOnce([{ result: JSON.stringify(mockStaticResult) }]);
+    mockSql.mockResolvedValueOnce([]);
+
+    const out = await createOrResumeSession("user-abc", mockStaticResult);
+
+    expect(out.resumed).toBe(true);
+    expect(out.result).toEqual(mockStaticResult);
+    expect(out.session.graph_skeleton).toEqual(mockSkeleton);
+  });
+
+  it("verifySessionOwnership tra graph_skeleton dang mang", async () => {
+    mockSql.mockResolvedValueOnce([legacyRow]);
+
+    const session = await verifySessionOwnership("sess-old", "user-abc");
+
+    expect(session.graph_skeleton).toEqual(mockSkeleton);
+  });
+
+  it("getSessionProgress doc duoc graph_skeleton dang chuoi", async () => {
+    mockSql.mockResolvedValueOnce([legacyRow]);
+    mockSql.mockResolvedValueOnce([]);
+    mockSql.mockResolvedValueOnce([]);
+
+    const progress = await getSessionProgress("sess-old", "user-abc");
+
+    expect(Object.keys(progress.nodes)).toEqual(["node_1", "node_2"]);
   });
 });
 
