@@ -13,12 +13,50 @@ export function resolvePythonModulePath(
   rootDirOffset: string
 ): string | null {
   const norm = normalizePosix(modulePath);
-  const prefixes = [
-    "",
-    "src/",
-    rootDirOffset,
-    rootDirOffset ? `${rootDirOffset}src/` : "",
-  ];
+  const topPackage = norm.split("/")[0] ?? norm;
+
+  // Thu thập mọi thư mục D có D/<gói đầu>/__init__.py
+  const dCandidates = new Set<string>();
+  const targetInit = `/${topPackage}/__init__.py`;
+  const rootInit = `${topPackage}/__init__.py`;
+
+  for (const f of allFiles) {
+    if (f === rootInit) {
+      dCandidates.add("");
+    } else if (f.endsWith(targetInit)) {
+      let d = f.slice(0, f.length - targetInit.length + 1);
+      if (d && !d.endsWith("/")) d += "/";
+      dCandidates.add(d);
+    }
+  }
+
+  // Xếp đường dẫn ngắn trước, cùng độ dài thì theo thứ tự chữ (ENG-01 UTF-16)
+  const sortedD = Array.from(dCandidates).sort(
+    (a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0)
+  );
+  // Thử theo thứ tự: gốc repo, rootDirOffset, rootDirOffset + src/, rồi các thư mục D
+  const prefixes: string[] = [""];
+  if (rootDirOffset) {
+    if (!prefixes.includes(rootDirOffset)) prefixes.push(rootDirOffset);
+    const rootSrc = `${rootDirOffset}src/`;
+    if (!prefixes.includes(rootSrc)) prefixes.push(rootSrc);
+  }
+  if (!prefixes.includes("src/")) {
+    prefixes.push("src/");
+  }
+
+  for (const d of sortedD) {
+    if (!prefixes.includes(d)) {
+      prefixes.push(d);
+    }
+  }
+
+
+
+
+
+
+
 
   for (const prefix of prefixes) {
     const candidateFile = normalizePosix(path.join(prefix, `${norm}.py`));

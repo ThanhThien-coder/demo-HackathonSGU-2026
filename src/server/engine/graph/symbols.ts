@@ -1,10 +1,11 @@
 // Bảng symbol — spec 11 Mục 2 (ENG-20, ENG-21, ENG-21b, ENG-22, ENG-23, ENG-24, ENG-25, ENG-27).
 import type { Node } from "web-tree-sitter";
 import { collectPythonImports } from "./resolvers/python";
-import { collectTsJsImports } from "./resolvers/ts_js";
+import { collectTsJsImports, resolveReExports } from "./resolvers/ts_js";
 import type {
   FieldTypeMap,
   FunctionInfo,
+  ImportedSymbol,
   ImportMap,
   InterfaceImplMap,
   LocalSymbolIndex,
@@ -112,7 +113,11 @@ function extractParameters(paramNode: Node | null): string[] {
 }
 
 // Trích xuất biến cục bộ trong thân hàm (ENG-24)
-function extractLocals(bodyNode: Node | null): Set<string> {
+function extractLocals(
+  bodyNode: Node | null,
+  filePath?: string,
+  field_types?: FieldTypeMap
+): Set<string> {
   const locals = new Set<string>();
   if (!bodyNode) return locals;
 
@@ -130,8 +135,15 @@ function extractLocals(bodyNode: Node | null): Set<string> {
 
     if (n.type === "variable_declarator") {
       const nameNode = n.childForFieldName("name");
+      const valNode = n.childForFieldName("value");
       if (nameNode && nameNode.type === "identifier") {
         locals.add(nameNode.text);
+        if (filePath && field_types && valNode && valNode.type === "new_expression") {
+          const ctor = valNode.childForFieldName("constructor");
+          if (ctor) {
+            field_types.set(`${filePath}#${nameNode.text}`, ctor.text);
+          }
+        }
       } else if (nameNode && (nameNode.type === "object_pattern" || nameNode.type === "array_pattern")) {
         extractPatternIdentifiers(nameNode, locals);
       }
@@ -149,8 +161,15 @@ function extractLocals(bodyNode: Node | null): Set<string> {
     } else if (n.type === "assignment") {
       // Python assignment
       const left = n.childForFieldName("left");
+      const right = n.childForFieldName("right");
       if (left && left.type === "identifier") {
         locals.add(left.text);
+        if (filePath && field_types && right && right.type === "call") {
+          const fn = right.childForFieldName("function");
+          if (fn) {
+            field_types.set(`${filePath}#${left.text}`, fn.text);
+          }
+        }
       }
     }
 
@@ -216,6 +235,24 @@ function computeComplexity(node: Node): number {
   return score;
 }
 
+// Tìm hàm đầu tiên trong đối số của call expression (hàm bọc catchAsync, etc.)
+function findFirstFunctionArg(callNode: Node): Node | null {
+  const argsNode = callNode.childForFieldName("arguments");
+  if (!argsNode) return null;
+  for (let i = 0; i < argsNode.namedChildCount; i++) {
+    const arg = argsNode.namedChild(i);
+    if (!arg) continue;
+    if (arg.type === "arrow_function" || arg.type === "function_expression") {
+      return arg;
+    }
+    if (arg.type === "call_expression") {
+      const nested = findFirstFunctionArg(arg);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
 // Thu thập symbol cho toàn bộ file
 export function collectSymbols(files: ParsedFile[]): SymbolIndex {
   const symbols: SymbolTable = new Map();
@@ -224,6 +261,7 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
   const field_types: FieldTypeMap = new Map();
   const interface_impls: InterfaceImplMap = new Map();
   const locals: LocalSymbolIndex = new Map();
+  const reexports = new Map<string, Map<string, ImportedSymbol>>();
 
   const keyCounts = new Map<string, number>();
 
@@ -319,7 +357,7 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
 
               const params = extractParameters(member.childForFieldName("parameters"));
               const body = member.childForFieldName("body");
-              const locs = extractLocals(body);
+              const locs = extractLocals(body, filePath, field_types);
               const complexity = computeComplexity(member);
 
               locals.set(methodKey, locs);
@@ -347,7 +385,6 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
                   for (let p = 0; p < paramNode.namedChildCount; p++) {
                     const paramChild = paramNode.namedChild(p);
                     if (!paramChild) continue;
-                    // Kiểm tra có modifier (public, private, protected, readonly)
                     const mod = paramChild.children.find((c: Node) =>
                       ["public", "private", "protected", "readonly"].includes(c.text)
                     );
@@ -440,7 +477,7 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
 
           const params = extractParameters(node.childForFieldName("parameters"));
           const body = node.childForFieldName("body");
-          const locs = extractLocals(body);
+          const locs = extractLocals(body, filePath, field_types);
           const complexity = computeComplexity(node);
 
           locals.set(key, locs);
@@ -526,7 +563,7 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
                 const key = uniqueKey(baseKey, keyCounts);
                 const params = extractParameters(valNode.childForFieldName("parameters"));
                 const body = valNode.childForFieldName("body");
-                const locs = extractLocals(body);
+                const locs = extractLocals(body, filePath, field_types);
                 const complexity = computeComplexity(valNode);
 
                 locals.set(key, locs);
@@ -546,25 +583,60 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
                 symbols.set(key, info);
                 functions.set(key, info);
               } else {
-                // Biến thường
-                const baseKey = `${filePath}#${varName}`;
-                const key = uniqueKey(baseKey, keyCounts);
-                symbols.set(key, {
-                  key,
-                  kind: "VARIABLE",
-                  name: varName,
-                  file_path: filePath,
-                  line_start: node.startPosition.row + 1,
-                  line_end: node.endPosition.row + 1,
-                  is_exported: isExported,
-                });
+                // Kiểm tra hàm bọc (catchAsync, wrapper...) trong JS/TS cấp cao nhất
+                const fnArg =
+                  lang !== "PYTHON" &&
+                  valNode &&
+                  valNode.type === "call_expression" &&
+                  valNode.childForFieldName("function")?.text !== "require"
+                    ? findFirstFunctionArg(valNode)
+                    : null;
 
-                // ENG-22: x = new T()
-                if (valNode && valNode.type === "new_expression") {
-                  const ctor = valNode.childForFieldName("constructor");
-                  if (ctor) {
-                    field_types.set(`${filePath}#${varName}`, ctor.text);
-                    field_types.set(varName, ctor.text);
+                if (fnArg) {
+                  const baseKey = `${filePath}#${varName}`;
+                  const key = uniqueKey(baseKey, keyCounts);
+                  const params = extractParameters(fnArg.childForFieldName("parameters"));
+                  const body = fnArg.childForFieldName("body");
+                  const locs = extractLocals(body, filePath, field_types);
+                  const complexity = computeComplexity(fnArg);
+
+                  locals.set(key, locs);
+
+                  const info: FunctionInfo = {
+                    key,
+                    kind: "FUNCTION",
+                    name: varName,
+                    file_path: filePath,
+                    line_start: getStartLineWithDecorators(node),
+                    line_end: node.endPosition.row + 1,
+                    is_exported: isExported,
+                    params,
+                    locals: Array.from(locs).sort(),
+                    complexity,
+                  };
+                  symbols.set(key, info);
+                  functions.set(key, info);
+                } else {
+                  // Biến thường
+                  const baseKey = `${filePath}#${varName}`;
+                  const key = uniqueKey(baseKey, keyCounts);
+                  symbols.set(key, {
+                    key,
+                    kind: "VARIABLE",
+                    name: varName,
+                    file_path: filePath,
+                    line_start: node.startPosition.row + 1,
+                    line_end: node.endPosition.row + 1,
+                    is_exported: isExported,
+                  });
+
+                  // ENG-22: x = new T()
+                  if (valNode && valNode.type === "new_expression") {
+                    const ctor = valNode.childForFieldName("constructor");
+                    if (ctor) {
+                      field_types.set(`${filePath}#${varName}`, ctor.text);
+                      field_types.set(varName, ctor.text);
+                    }
                   }
                 }
               }
@@ -609,7 +681,15 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
       // `module.exports = new T()` ⇒ field_types[`${file}#default`] = T, để `import x from` / `require()`
       // rồi `x.m()` ở file khác phân giải được tới `T.m` (cùng khóa "default" mà ImportMap ghi).
       const recordDefaultInstance = (valueNode: Node | null) => {
-        if (valueNode?.type !== "new_expression") return;
+        if (!valueNode) return;
+        if (valueNode.type === "identifier") {
+          const known =
+            field_types.get(`${filePath}#${valueNode.text}`) ??
+            field_types.get(valueNode.text);
+          if (known) field_types.set(`${filePath}#default`, known);
+          return;
+        }
+        if (valueNode.type !== "new_expression") return;
         const ctor = valueNode.childForFieldName("constructor");
         if (ctor) field_types.set(`${filePath}#default`, ctor.text);
       };
@@ -692,6 +772,7 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
     field_types,
     interface_impls,
     locals,
+    reexports,
   };
 }
 
@@ -704,18 +785,36 @@ export function resolveImports(
     go_module_path: string | null;
     dart_package_name: string | null;
     package_entry_files: string[];
-  }
+    root_dir_offset?: string;
+  },
+  rootDirOffset: string = ""
 ): void {
   void module_info;
   const allFiles = new Set<string>(files.map((f) => f.path));
-  // Xác định root_dir_offset nếu có
-  const rootDirOffset = "";
+
+  // Xác định root_dir_offset nếu có (TASK_14: nếu đang rỗng thì truyền đúng fingerprint.root_dir_offset)
+  let effectiveRootDirOffset =
+    rootDirOffset ||
+    (module_info as { root_dir_offset?: string })?.root_dir_offset ||
+    "";
+
+  if (!effectiveRootDirOffset) {
+    for (const seg of ["backend/", "server/", "api/"]) {
+      if (files.some((f) => f.path.startsWith(seg))) {
+        effectiveRootDirOffset = seg;
+        break;
+      }
+    }
+  }
 
   for (const file of files) {
     if (file.language === "PYTHON") {
-      collectPythonImports(file, allFiles, rootDirOffset, idx);
+      collectPythonImports(file, allFiles, effectiveRootDirOffset, idx);
     } else {
-      collectTsJsImports(file, allFiles, manifests, rootDirOffset, idx);
+      collectTsJsImports(file, allFiles, manifests, effectiveRootDirOffset, idx);
     }
   }
+
+  // Lượt 2: Phân giải lại các import trỏ tới re-export
+  resolveReExports(idx);
 }
