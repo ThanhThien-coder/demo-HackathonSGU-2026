@@ -117,7 +117,6 @@ export function resolveTsJsImport(
   }
 
   // 4. Nếu không phân giải về file nội bộ nào ⇒ coi là gói ngoài (ENG-27)
-  // Lấy tên gói (ví dụ "express", "@types/node", "lodash/fp")
   let packageName = specifier;
   if (specifier.startsWith("@")) {
     const parts = specifier.split("/");
@@ -156,6 +155,18 @@ export function followBarrelReExport(
   }
 
   return null;
+}
+
+function getFileReexports(idx: SymbolIndex, filePath: string): Map<string, ImportedSymbol> {
+  if (!idx.reexports) {
+    idx.reexports = new Map();
+  }
+  let m = idx.reexports.get(filePath);
+  if (!m) {
+    m = new Map();
+    idx.reexports.set(filePath, m);
+  }
+  return m;
 }
 
 // Thu thập các import từ cây cú pháp TS/JS
@@ -277,6 +288,115 @@ export function collectTsJsImports(
       }
     }
 
+    // 3. export { X as Y } from p, export { default as Y } from p, export * from p
+    if (node.type === "export_statement") {
+      const sourceNode = node.childForFieldName("source");
+      if (sourceNode) {
+        const specifier = sourceNode.text.replace(/^['"]|['"]$/g, "");
+        const res = resolveTsJsImport(file.path, specifier, allFiles, tsConfig, rootDirOffset);
+        const fileReexports = getFileReexports(idx, file.path);
+
+        let hasExportClause = false;
+        for (let i = 0; i < node.childCount; i++) {
+          const child = node.child(i);
+          if (!child) continue;
+          if (child.type === "export_clause") {
+            hasExportClause = true;
+            for (let j = 0; j < child.childCount; j++) {
+              const spec = child.child(j);
+              if (spec && spec.type === "export_specifier") {
+                const nameNode = spec.childForFieldName("name");
+                const aliasNode = spec.childForFieldName("alias");
+                const origName = nameNode ? nameNode.text : spec.text;
+                const exportedName = aliasNode ? aliasNode.text : origName;
+                fileReexports.set(exportedName, {
+                  source_file: res.filePath,
+                  symbol_name: origName,
+                  import_source: res.importSource,
+                });
+              }
+            }
+          }
+        }
+
+        if (!hasExportClause) {
+          const isWildcard = node.children.some((c: Node) => c.text === "*");
+          if (isWildcard) {
+            fileReexports.set("*", {
+              source_file: res.filePath,
+              symbol_name: "*",
+              import_source: res.importSource,
+              is_namespace: true,
+            });
+          }
+        }
+      }
+    }
+
+    // 4. CommonJS: module.exports.X = require(p), exports.X = require(p), module.exports = { X: require(p) }
+    if (node.type === "expression_statement") {
+      const expr = node.namedChild(0);
+      if (expr && expr.type === "assignment_expression") {
+        const left = expr.childForFieldName("left");
+        const right = expr.childForFieldName("right");
+        if (left && right) {
+          const leftText = left.text;
+          const fileReexports = getFileReexports(idx, file.path);
+
+          let exportedName: string | null = null;
+          if (leftText.startsWith("module.exports.")) {
+            exportedName = leftText.slice("module.exports.".length);
+          } else if (leftText.startsWith("exports.")) {
+            exportedName = leftText.slice("exports.".length);
+          }
+
+          if (exportedName && right.type === "call_expression") {
+            const fn = right.childForFieldName("function");
+            const args = right.childForFieldName("arguments");
+            if (fn && fn.text === "require" && args && args.namedChildCount > 0) {
+              const firstArg = args.namedChild(0);
+              if (firstArg && (firstArg.type === "string" || firstArg.type === "string_fragment")) {
+                const specifier = firstArg.text.replace(/^['"]|['"]$/g, "");
+                const res = resolveTsJsImport(file.path, specifier, allFiles, tsConfig, rootDirOffset);
+                fileReexports.set(exportedName, {
+                  source_file: res.filePath,
+                  symbol_name: "default",
+                  import_source: res.importSource,
+                });
+              }
+            }
+          }
+
+          if ((leftText === "module.exports" || leftText === "exports") && right.type === "object") {
+            for (let i = 0; i < right.namedChildCount; i++) {
+              const prop = right.namedChild(i);
+              if (prop && prop.type === "pair") {
+                const keyNode = prop.childForFieldName("key");
+                const valNode = prop.childForFieldName("value");
+                if (keyNode && valNode && valNode.type === "call_expression") {
+                  const fn = valNode.childForFieldName("function");
+                  const args = valNode.childForFieldName("arguments");
+                  if (fn && fn.text === "require" && args && args.namedChildCount > 0) {
+                    const firstArg = args.namedChild(0);
+                    if (firstArg && (firstArg.type === "string" || firstArg.type === "string_fragment")) {
+                      const specifier = firstArg.text.replace(/^['"]|['"]$/g, "");
+                      const res = resolveTsJsImport(file.path, specifier, allFiles, tsConfig, rootDirOffset);
+                      const propKey = keyNode.text.replace(/^['"]|['"]$/g, "");
+                      fileReexports.set(propKey, {
+                        source_file: res.filePath,
+                        symbol_name: "default",
+                        import_source: res.importSource,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i);
       if (child) visit(child);
@@ -284,4 +404,76 @@ export function collectTsJsImports(
   }
 
   visit(root);
+}
+
+// Lượt 2: Phân giải lại các import trỏ tới re-export
+export function resolveReExports(idx: SymbolIndex): void {
+  if (!idx.reexports || idx.reexports.size === 0) return;
+
+  for (const [, fileImportMap] of idx.imports) {
+    for (const [, imported] of fileImportMap) {
+      if (!imported.source_file) continue;
+
+      let currentFile: string | null = imported.source_file;
+      let currentSymbol: string = imported.symbol_name;
+      let currentImportSource: string | null = imported.import_source;
+      let currentIsNamespace: boolean = imported.is_namespace ?? false;
+
+      const visited = new Set<string>();
+      let steps = 0;
+
+      while (currentFile && steps < 5) {
+        const visitKey = `${currentFile}::${currentSymbol}`;
+        if (visited.has(visitKey)) {
+          break;
+        }
+        visited.add(visitKey);
+
+        const fileReexports = idx.reexports.get(currentFile);
+        if (!fileReexports) {
+          break;
+        }
+
+        // 1. Khớp trực tiếp theo tên symbol
+        const exact = fileReexports.get(currentSymbol);
+        if (exact) {
+          steps++;
+          currentFile = exact.source_file;
+          currentSymbol = exact.symbol_name;
+          currentImportSource = exact.import_source;
+          currentIsNamespace = exact.is_namespace ?? false;
+          continue;
+        }
+
+        // 2. Wildcard re-export: export * from p
+        const wildcard = fileReexports.get("*");
+        if (wildcard && wildcard.source_file) {
+          const targetFile = wildcard.source_file;
+          const targetKey = `${targetFile}#${currentSymbol}`;
+          const targetHasSymbol = idx.symbols.has(targetKey) || idx.functions.has(targetKey);
+          const targetHasReexport =
+            idx.reexports.get(targetFile)?.has(currentSymbol) ||
+            idx.reexports.get(targetFile)?.has("*");
+
+          if (targetHasSymbol || targetHasReexport) {
+            steps++;
+            currentFile = targetFile;
+            currentImportSource = wildcard.import_source;
+            continue;
+          }
+        }
+
+        break;
+      }
+
+      if (currentFile !== imported.source_file || currentSymbol !== imported.symbol_name) {
+        imported.source_file = currentFile;
+        imported.symbol_name = currentSymbol;
+        imported.import_source = currentImportSource;
+        if (currentIsNamespace) {
+          imported.is_namespace = true;
+        }
+      }
+    }
+  }
 }

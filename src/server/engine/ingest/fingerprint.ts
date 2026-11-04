@@ -246,6 +246,93 @@ function normalizePypiPackage(name: string): string {
 }
 
 /**
+ * Quét tay [project].dependencies trong pyproject.toml theo TASK_13:
+ * - Tìm dòng [project], kết thúc ở dòng kế tiếp bắt đầu bằng [
+ * - Tìm dependencies = [, đếm dấu ngoặc vuông và bỏ qua mọi ký tự nằm trong chuỗi "...", '...', tới ] đóng mảng
+ * - Lấy từng chuỗi, tên gói là phần khớp ^\s*([A-Za-z0-9_.-]+) qua normalizePypiPackage
+ */
+function extractPyprojectProjectDependencies(content: string): string[] {
+  const cleanContent = content.replace(/^\uFEFF/, "");
+  const lines = cleanContent.split(/\r?\n/);
+  let inProject = false;
+  const projectLines: string[] = [];
+
+  for (const line of lines) {
+    if (!inProject) {
+      if (/^\s*\[project\]\s*$/.test(line)) {
+        inProject = true;
+      }
+    } else {
+      if (/^\s*\[/.test(line)) {
+        break;
+      }
+      projectLines.push(line);
+    }
+  }
+
+  if (!inProject) {
+    return [];
+  }
+
+  const projectText = projectLines.join("\n");
+  const depsMatch = projectText.match(/dependencies\s*=\s*\[/);
+  if (!depsMatch || depsMatch.index === undefined) {
+    return [];
+  }
+
+  const openBracketIndex = depsMatch.index + depsMatch[0].length - 1;
+  const packages: string[] = [];
+
+  let depth = 0;
+  let inQuote: '"' | "'" | null = null;
+  let currentString = "";
+
+  for (let i = openBracketIndex; i < projectText.length; i++) {
+    const ch = projectText[i];
+
+    if (inQuote !== null) {
+      if (ch === "\\") {
+        i++;
+        if (i < projectText.length) {
+          currentString += projectText[i];
+        }
+        continue;
+      }
+      if (ch === inQuote) {
+        const m = currentString.match(/^\s*([A-Za-z0-9_.-]+)/);
+        if (m) {
+          packages.push(normalizePypiPackage(m[1]));
+        }
+        inQuote = null;
+        currentString = "";
+      } else {
+        currentString += ch;
+      }
+    } else {
+      if (ch === "#") {
+        while (i < projectText.length && projectText[i] !== "\n") {
+          i++;
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inQuote = ch;
+        currentString = "";
+      } else if (ch === "[") {
+        depth++;
+      } else if (ch === "]") {
+        depth--;
+        if (depth === 0) {
+          break;
+        }
+      }
+    }
+  }
+
+  return packages;
+}
+
+/**
  * Đọc manifest để trích xuất tên gói và metadata theo docs/spec/10_ENGINE_INGEST.md Mục 12 (ING-120..122)
  */
 export function parseManifests(
@@ -361,23 +448,14 @@ export function parseManifests(
       packages = Array.from(pkgSet);
     } else if (basename === "pyproject.toml") {
       const pkgSet = new Set<string>();
-      // [project].dependencies = [...]
-      const projDepsMatch = content.match(
-        /\[project\][\s\S]*?dependencies\s*=\s*\[([\s\S]*?)\]/
-      );
-      if (projDepsMatch) {
-        const items = projDepsMatch[1].matchAll(/["']([^"']+)["']/g);
-        for (const item of items) {
-          const raw = item[1];
-          const m = raw.match(/^\s*([A-Za-z0-9_.-]+)/);
-          if (m) {
-            pkgSet.add(normalizePypiPackage(m[1]));
-          }
-        }
+      // [project].dependencies = [...] (quét tay theo TASK_13)
+      const projDeps = extractPyprojectProjectDependencies(content);
+      for (const p of projDeps) {
+        pkgSet.add(p);
       }
       // [tool.poetry.dependencies]
       const poetryMatch = content.match(
-        /\[tool\.poetry\.dependencies\]([\s\S]*?)(?=\n\s*\[|\z)/
+        /\[tool\.poetry\.dependencies\]([\s\S]*?)(?=\n\s*\[|$(?![\s\S]))/
       );
       if (poetryMatch) {
         const lines = poetryMatch[1].split(/\r?\n/);

@@ -402,6 +402,63 @@ describe("T-ING-30", () => {
     expect(pkgs).toContain("flask-sqlalchemy");
     expect(pkgs).toContain("fastapi");
   });
+
+  it("T-ING-30: pyproject.toml [project].dependencies mảng có fastapi[standard]>=0.141.1,<1.0.0 và 2 gói khác => đủ 3 gói, có fastapi", () => {
+    const toml = [
+      "[project]",
+      'name = "fastapi-sample"',
+      "dependencies = [",
+      '    "fastapi[standard]>=0.141.1,<1.0.0",',
+      '    "pydantic>=2.0",',
+      '    "uvicorn>=0.15.0",',
+      "]",
+    ].join("\n");
+
+    const parsed = parseManifests(new Map([["pyproject.toml", toml]]));
+    expect(parsed.length).toBe(1);
+    const pkgs = parsed[0].packages;
+    expect(pkgs.length).toBe(3);
+    expect(pkgs).toContain("fastapi");
+    expect(pkgs).toContain("pydantic");
+    expect(pkgs).toContain("uvicorn");
+  });
+
+  it("T-ING-30: pyproject.toml [project].dependencies chuỗi chứa dấu ] và , trong marker => tên gói pkg", () => {
+    const toml = [
+      "[project]",
+      'name = "marker-sample"',
+      "dependencies = [",
+      '    "pkg[a,b]; python_version<\'3.12\'",',
+      "]",
+    ].join("\n");
+
+    const parsed = parseManifests(new Map([["pyproject.toml", toml]]));
+    expect(parsed.length).toBe(1);
+    const pkgs = parsed[0].packages;
+    expect(pkgs.length).toBe(1);
+    expect(pkgs).toContain("pkg");
+  });
+
+  it("T-ING-30: pyproject.toml [tool.poetry.dependencies] ở cuối file, tên gói có chữ z => đủ gói", () => {
+    const toml = [
+      "[tool.poetry]",
+      'name = "poetry-sample"',
+      "",
+      "[tool.poetry.dependencies]",
+      'python = "^3.10"',
+      'requests = "^2.28.0"',
+      'zoneinfo = "^0.2.1"',
+      'toolz = "^0.12.0"',
+    ].join("\n");
+
+    const parsed = parseManifests(new Map([["pyproject.toml", toml]]));
+    expect(parsed.length).toBe(1);
+    const pkgs = parsed[0].packages;
+    expect(pkgs.length).toBe(3);
+    expect(pkgs).toContain("requests");
+    expect(pkgs).toContain("zoneinfo");
+    expect(pkgs).toContain("toolz");
+  });
 });
 
 // ---------------------------------------------------------------------------

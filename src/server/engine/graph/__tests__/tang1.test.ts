@@ -424,3 +424,257 @@ router.post('/checkout', authMiddleware, async (req: any, res: any) => {
     expect(classEdge).toBeUndefined();
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// ENG-31: Hàm bọc, re-export CommonJS/ES6 và Python import từ thư mục con
+// ---------------------------------------------------------------------------
+describe("ENG-31: Hàm bọc catchAsync/wrapper, re-export file index và Python import từ thư mục con", () => {
+  beforeAll(async () => {
+    await initParsers();
+  });
+
+  it("ENG-31: const a = wrap(async () => { svc.go(); }) có symbol hàm #a và cạnh tới go", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const svcCode = `
+export class Svc {
+  go(): void {}
+}
+`;
+    code.set("src/svc.ts", svcCode);
+    langs.set("src/svc.ts", "TYPESCRIPT");
+
+    const wrapCode = `
+import { Svc } from './svc';
+const svc = new Svc();
+function wrap(fn: any) { return fn; }
+
+export const a = wrap(async () => {
+  svc.go();
+});
+`;
+    code.set("src/main.ts", wrapCode);
+    langs.set("src/main.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    // 1. Có symbol hàm #a
+    const fnA = idx.functions.get("src/main.ts#a");
+    expect(fnA).toBeDefined();
+    expect(fnA?.kind).toBe("FUNCTION");
+
+    // 2. Có cạnh từ src/main.ts#a tới Svc.go (hoặc go)
+    const graph = buildCallGraph(parsed, idx);
+    const edge = graph.edges.find(
+      (e) => e.caller === "src/main.ts#a" && e.callee.includes("go")
+    );
+    expect(edge).toBeDefined();
+    expect(edge?.confidence).toBe("RESOLVED");
+  });
+
+  it("ENG-31: module.exports.svc = require('./svc') rồi const { svc } = require('./index'), svc.go() ra cạnh RESOLVED", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const svcCode = `
+class Svc {
+  go() {}
+}
+module.exports = new Svc();
+`;
+    code.set("src/svc.js", svcCode);
+    langs.set("src/svc.js", "JAVASCRIPT");
+
+    const indexCode = `
+module.exports.svc = require('./svc');
+`;
+    code.set("src/index.js", indexCode);
+    langs.set("src/index.js", "JAVASCRIPT");
+
+    const callerCode = `
+const { svc } = require('./index');
+
+function run() {
+  svc.go();
+}
+`;
+    code.set("src/caller.js", callerCode);
+    langs.set("src/caller.js", "JAVASCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const graph = buildCallGraph(parsed, idx);
+    const edge = graph.edges.find(
+      (e) => e.caller === "src/caller.js#run" && e.callee.includes("go")
+    );
+    expect(edge).toBeDefined();
+    expect(edge?.confidence).toBe("RESOLVED");
+  });
+
+  it("ENG-31: export { Foo as Bar } from './foo' và export * from './foo' ra cạnh RESOLVED", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const fooCode = `
+export class Foo {
+  run(): void {}
+}
+export function helper(): void {}
+`;
+    code.set("src/foo.ts", fooCode);
+    langs.set("src/foo.ts", "TYPESCRIPT");
+
+    const barCode = `
+export { Foo as Bar } from './foo';
+export * from './foo';
+`;
+    code.set("src/bar.ts", barCode);
+    langs.set("src/bar.ts", "TYPESCRIPT");
+
+    const callerCode = `
+import { Bar, helper } from './bar';
+
+export function testNamed(): void {
+  const b = new Bar();
+  b.run();
+}
+
+export function testWildcard(): void {
+  helper();
+}
+`;
+    code.set("src/caller.ts", callerCode);
+    langs.set("src/caller.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), {
+      go_module_path: null,
+      dart_package_name: null,
+      package_entry_files: [],
+    });
+
+    const graph = buildCallGraph(parsed, idx);
+
+    const namedEdge = graph.edges.find(
+      (e) => e.caller === "src/caller.ts#testNamed" && e.callee.includes("Foo.run")
+    );
+    expect(namedEdge).toBeDefined();
+    expect(namedEdge?.confidence).toBe("RESOLVED");
+
+    const wildcardEdge = graph.edges.find(
+      (e) => e.caller === "src/caller.ts#testWildcard" && e.callee === "src/foo.ts#helper"
+    );
+    expect(wildcardEdge).toBeDefined();
+    expect(wildcardEdge?.confidence).toBe("RESOLVED");
+  });
+
+  it("ENG-31: Chuỗi re-export vòng tròn không treo và không ném lỗi", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const codeA = `
+export { b as a } from './circleB';
+export const valA = 1;
+`;
+    code.set("src/circleA.ts", codeA);
+    langs.set("src/circleA.ts", "TYPESCRIPT");
+
+    const codeB = `
+export { a as b } from './circleA';
+export const valB = 2;
+`;
+    code.set("src/circleB.ts", codeB);
+    langs.set("src/circleB.ts", "TYPESCRIPT");
+
+    const codeCaller = `
+import { a } from './circleA';
+export function testCircle(): void {
+  const x = a;
+}
+`;
+    code.set("src/callerCircle.ts", codeCaller);
+    langs.set("src/callerCircle.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+
+    expect(() => {
+      resolveImports(parsed, idx, new Map(), {
+        go_module_path: null,
+        dart_package_name: null,
+        package_entry_files: [],
+      });
+    }).not.toThrow();
+
+    const graph = buildCallGraph(parsed, idx);
+    expect(graph).toBeDefined();
+  });
+
+  it("ENG-31: Python trong backend/app/ với from app import crud và crud.f() sinh cạnh RESOLVED", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const initCode = ``;
+    code.set("backend/app/__init__.py", initCode);
+    langs.set("backend/app/__init__.py", "PYTHON");
+
+    const crudCode = `
+def f():
+    return {"id": 1}
+`;
+    code.set("backend/app/crud.py", crudCode);
+    langs.set("backend/app/crud.py", "PYTHON");
+
+    const mainCode = `
+from app import crud
+
+def register():
+    crud.f()
+`;
+    code.set("backend/app/main.py", mainCode);
+    langs.set("backend/app/main.py", "PYTHON");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+    resolveImports(
+      parsed,
+      idx,
+      new Map(),
+      {
+        go_module_path: null,
+        dart_package_name: null,
+        package_entry_files: [],
+      },
+      "backend/"
+    );
+
+    const graph = buildCallGraph(parsed, idx);
+    const edge = graph.edges.find(
+      (e) =>
+        e.caller === "backend/app/main.py#register" &&
+        e.callee === "backend/app/crud.py#f"
+    );
+    expect(edge).toBeDefined();
+    expect(edge?.confidence).toBe("RESOLVED");
+  });
+});

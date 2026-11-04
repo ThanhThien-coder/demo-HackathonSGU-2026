@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import * as fflate from "fflate";
 import { CONFIG, type HybridArchitecturalNode, type IngestionReport } from "@/contracts";
 import { initParsers, parseAll } from "../parser";
+import { buildCallGraph, findEntries } from "../callgraph";
+import { collectSymbols, resolveImports } from "../symbols";
 import { hash6, slug, nameCandidate, dedupeTitles } from "../naming";
 import { diagnoseUncleBob } from "../unclebob";
 import { layoutGraph } from "../layout";
@@ -956,5 +958,136 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
     expect(edges.some((e) => e.source === sliceA.id && e.target === vipAlgo.id)).toBe(true);
     // standaloneAlgo không ai gọi => không có cạnh vào hay ra
     expect(edges.some((e) => e.source === standaloneAlgo.id || e.target === standaloneAlgo.id)).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // ENG-40: app.options('*', cors()) và app.use(helmet()) => không có entry, không có khóa kết thúc bằng #()
+  // ---------------------------------------------------------------------------
+  it("ENG-40: app.options('*', cors()) và app.use(helmet()) => không có entry, không có khóa kết thúc bằng #()", async () => {
+    const report = createEmptyReport();
+    const code = `
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+
+const app = express();
+app.use(helmet());
+app.options("*", cors());
+`;
+    const parsed = await parseAll(
+      new Map([["src/app.ts", code]]),
+      new Map([["src/app.ts", "TYPESCRIPT"]]),
+      report
+    );
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), { go_module_path: null, dart_package_name: null, package_entry_files: [] });
+    const cg = buildCallGraph(parsed, idx);
+    const entries = findEntries(parsed, idx, cg, "");
+
+    expect(entries.length).toBe(0);
+    expect(cg.bindings.length).toBe(0);
+
+    const allKeys = [
+      ...Array.from(idx.symbols.keys()),
+      ...Array.from(idx.functions.keys()),
+      ...cg.bindings.map((b) => b.handler),
+      ...entries.map((e) => e.key),
+    ];
+    expect(allKeys.some((k) => k.endsWith("#()"))).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // ENG-40: router.post('/x', validate(s), ctrl.go) => handler vẫn là ctrl.go, validate là middleware
+  // ---------------------------------------------------------------------------
+  it("ENG-40: router.post('/x', validate(s), ctrl.go) => handler vẫn là ctrl.go, validate là middleware", async () => {
+    const report = createEmptyReport();
+    const code = `
+import express from "express";
+const router = express.Router();
+const validate = (schema: any) => (req: any, res: any, next: any) => next();
+const ctrl = {
+  go: (req: any, res: any) => res.send("ok"),
+};
+const s = {};
+
+router.post("/x", validate(s), ctrl.go);
+`;
+    const parsed = await parseAll(
+      new Map([["src/routes.ts", code]]),
+      new Map([["src/routes.ts", "TYPESCRIPT"]]),
+      report
+    );
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), { go_module_path: null, dart_package_name: null, package_entry_files: [] });
+    const cg = buildCallGraph(parsed, idx);
+    const entries = findEntries(parsed, idx, cg, "");
+
+    expect(cg.bindings.length).toBe(1);
+    const binding = cg.bindings[0]!;
+    expect(binding.handler).toBe("src/routes.ts#ctrl.go");
+    expect(binding.middlewares).toEqual(["validate"]);
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.key).toBe("src/routes.ts#ctrl.go");
+    expect(entries[0]?.binding?.middlewares).toEqual(["validate"]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // ENG-40: router.get('/y', asyncHandler(ctrl.go)) => handler vẫn là ctrl.go
+  // ---------------------------------------------------------------------------
+  it("ENG-40: router.get('/y', asyncHandler(ctrl.go)) => handler vẫn là ctrl.go", async () => {
+    const report = createEmptyReport();
+    const code = `
+import express from "express";
+const router = express.Router();
+const asyncHandler = (fn: any) => fn;
+const ctrl = {
+  go: (req: any, res: any) => res.send("ok"),
+};
+
+router.get("/y", asyncHandler(ctrl.go));
+`;
+    const parsed = await parseAll(
+      new Map([["src/routes.ts", code]]),
+      new Map([["src/routes.ts", "TYPESCRIPT"]]),
+      report
+    );
+    const idx = collectSymbols(parsed);
+    resolveImports(parsed, idx, new Map(), { go_module_path: null, dart_package_name: null, package_entry_files: [] });
+    const cg = buildCallGraph(parsed, idx);
+    const entries = findEntries(parsed, idx, cg, "");
+
+    expect(cg.bindings.length).toBe(1);
+    const binding = cg.bindings[0]!;
+    expect(binding.handler).toBe("src/routes.ts#ctrl.go");
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.key).toBe("src/routes.ts#ctrl.go");
+  });
+
+  // ---------------------------------------------------------------------------
+  // ENG-40: Candidate rỗng không thành node
+  // ---------------------------------------------------------------------------
+  it("ENG-40: Candidate rỗng không thành node và không cộng vào omitted_node_count", () => {
+    const report = createEmptyReport();
+    const ctx = createDummyContext();
+
+    const emptyCandidate = createDummyCandidate({
+      id: "cand-empty",
+      functions: ["emptyFn"],
+      cognitive_complexity: 5,
+    });
+    emptyCandidate.trace_steps = []; // candidate rỗng
+
+    const normalCandidate = createDummyCandidate({
+      id: "cand-normal",
+      functions: ["normalFn"],
+      cognitive_complexity: 10,
+    });
+
+    const { nodes } = assembleGraph([emptyCandidate, normalCandidate], ctx, report);
+
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]?.id).toBe(normalCandidate.id);
+    expect(nodes.some((n) => n.id === emptyCandidate.id)).toBe(false);
+    expect(report.omitted_node_count).toBe(0);
   });
 });

@@ -427,13 +427,17 @@ export function assembleGraph(
   ctx: EngineContext,
   report: IngestionReport
 ): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[] } {
-  if (candidates.length === 0) {
+  // ENG-40 / B07: Bỏ candidate có trace_steps rỗng trước bước gộp ENG-110 (không cộng vào omitted_node_count)
+  const validCandidates = candidates.filter(
+    (c) => c.trace_steps && c.trace_steps.length > 0
+  );
+  if (validCandidates.length === 0) {
     throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
   }
 
   // 1. ENG-110 Gộp: cùng tập functions ⇒ giữ order_key nhỏ nhất. Node ảo không gộp chung với nhau.
   const functionGroupMap = new Map<string, Candidate>();
-  for (const c of candidates) {
+  for (const c of validCandidates) {
     const key = c.kind === "VNODE" ? `vnode::${c.order_key}` : c.functions.slice().sort().join("::");
     const existing = functionGroupMap.get(key);
     if (!existing) {
