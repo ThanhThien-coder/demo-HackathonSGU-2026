@@ -8,9 +8,12 @@ import {
   offlineRevealQuestion,
   offlineGetOverview,
   offlineGetAnalysis,
-  buildOfflineProfile,
+  getOfflineProfile,
   getOfflineBundle,
+  loadOfflineBundle,
   setOfflinePersona,
+  offlineProgress,
+  offlineNodeOfRun,
 } from "./offline";
 import type {
   ErrorCode,
@@ -392,7 +395,7 @@ export async function getMeSafe(): Promise<ApiResult<UserProfileResponse>> {
     return {
       ok: true,
       data: {
-        profile: buildOfflineProfile(),
+        profile: getOfflineProfile(),
         server_now: Date.now(),
       },
       error: null,
@@ -438,7 +441,7 @@ export async function switchPersonaSafe(
     return {
       ok: true,
       data: {
-        profile: buildOfflineProfile(mode),
+        profile: getOfflineProfile(),
         server_now: Date.now(),
       },
       error: null,
@@ -527,31 +530,58 @@ export async function getSessionsSafe(params?: {
   offset?: number;
 }): Promise<ApiResult<SessionListResponse>> {
   if (isOfflineMode()) {
+    let bundle = getOfflineBundle();
+    if (!bundle) {
+      try {
+        bundle = await loadOfflineBundle();
+      } catch (err) {
+        return {
+          ok: false,
+          data: null,
+          error: {
+            error: {
+              code: "ERR_PERSISTENCE_UNAVAILABLE",
+              message:
+                err instanceof Error ? err.message : "Chưa nạp được gói offline.",
+              retryable: true,
+            },
+          },
+        };
+      }
+    }
+
+    const progress = offlineProgress();
+    const nodeStates = Object.values(progress.nodes);
+    const total_nodes = nodeStates.length;
+    let completed_count = 0;
+    let failed_count = 0;
+
+    for (const ns of nodeStates) {
+      if (ns.status === "COMPLETED") {
+        completed_count++;
+      } else if (ns.status === "FAILED") {
+        failed_count++;
+      }
+    }
+
+    const session: LearningSessionSummary = {
+      session_id: bundle.ingest.session_id,
+      snapshot: bundle.ingest.result.snapshot,
+      repo_name: bundle.ingest.result.repo_name,
+      engine_version: bundle.ingest.result.engine_version,
+      created_at: bundle.recorded_from?.recorded_at ?? Date.now(),
+      last_active_at: Date.now(),
+      completed_count,
+      failed_count,
+      total_nodes,
+      can_resume: true,
+      resume_blocker: null,
+    };
+
     return {
       ok: true,
       data: {
-        sessions: [
-          {
-            session_id: "demo-session-shop-api",
-            snapshot: {
-              source: "GITHUB",
-              repo_key: "simplifey/shop-api",
-              snapshot_id: "5be1c2a01234567890abcdef01234567890abcde",
-              snapshot_id_kind: "COMMIT_SHA",
-              subdir: "",
-              ref_label: "main",
-            },
-            repo_name: "shop-api",
-            engine_version: "1.6.0",
-            created_at: 1730000000000,
-            last_active_at: 1730000000000,
-            completed_count: 1,
-            failed_count: 0,
-            total_nodes: 7,
-            can_resume: true,
-            resume_blocker: null,
-          },
-        ],
+        sessions: [session],
       },
       error: null,
     };
@@ -591,16 +621,13 @@ export async function getSessionProgressSafe(
   sessionId: string
 ): Promise<ApiResult<SessionProgressResponse>> {
   if (isOfflineMode()) {
-    const bundle = getOfflineBundle();
-    if (bundle) {
-      return {
-        ok: true,
-        data: {
-          progress: bundle.ingest.progress,
-        },
-        error: null,
-      };
-    }
+    return {
+      ok: true,
+      data: {
+        progress: offlineProgress(),
+      },
+      error: null,
+    };
   }
 
   return apiFetchSafe<SessionProgressResponse>(
@@ -680,18 +707,20 @@ export async function analyzeNodeSafe(
   if (isOfflineMode()) {
     const res = offlineGetAnalysis(payload.node_id);
     if (!res.ok) return { ok: false, data: null, error: res.error };
+    const progress = offlineProgress();
+    const nodeState = progress.nodes[payload.node_id] ?? {
+      node_id: payload.node_id,
+      status: "AVAILABLE",
+      has_warning: false,
+      analysis_failed: false,
+      last_run: null,
+    };
     return {
       ok: true,
       data: {
         node_id: payload.node_id,
         analysis: res.data,
-        node_state: {
-          node_id: payload.node_id,
-          status: "AVAILABLE",
-          has_warning: false,
-          analysis_failed: false,
-          last_run: null,
-        },
+        node_state: nodeState,
         tokens_used: 0,
         unlocked_node_ids: [],
       },
@@ -832,8 +861,22 @@ export async function evaluateFeynmanSafe(
   data: EvaluateFeynmanRequest
 ): Promise<ApiResult<EvaluateFeynmanResponse>> {
   if (isOfflineMode()) {
+    const nodeId = offlineNodeOfRun(data.run_id);
+    if (!nodeId) {
+      return {
+        ok: false,
+        data: null,
+        error: {
+          error: {
+            code: "ERR_ANALYSIS_NOT_READY",
+            message: "Không tìm thấy lượt học offline.",
+            retryable: false,
+          },
+        },
+      };
+    }
     return offlineEvaluateFeynman(
-      "slice-order-checkout",
+      nodeId,
       "LEARN",
       data.question_index,
       data.attempt_number,
@@ -863,8 +906,22 @@ export async function revealSafe(
   data: RevealRequest
 ): Promise<ApiResult<RevealResponse>> {
   if (isOfflineMode()) {
+    const nodeId = offlineNodeOfRun(data.run_id);
+    if (!nodeId) {
+      return {
+        ok: false,
+        data: null,
+        error: {
+          error: {
+            code: "ERR_ANALYSIS_NOT_READY",
+            message: "Không tìm thấy lượt học offline.",
+            retryable: false,
+          },
+        },
+      };
+    }
     return offlineRevealQuestion(
-      "slice-order-checkout",
+      nodeId,
       "LEARN",
       data.question_index
     );
@@ -898,4 +955,3 @@ export async function reportWrongSafe(
     body: JSON.stringify(data),
   });
 }
-
