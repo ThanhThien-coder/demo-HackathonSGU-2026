@@ -24,6 +24,7 @@ import {
   setInFlightPromise,
 } from "@/server/cache";
 import { sql } from "@/server/db";
+import type postgres from "postgres";
 import { ApiHttpError, toErrorResponse } from "@/server/errors";
 import { logger } from "@/server/log";
 import { getSessionProgress } from "@/server/progress";
@@ -193,6 +194,8 @@ export async function POST(request: Request): Promise<Response> {
 
     if (overview !== null) {
       if (isInitiator) {
+        // Truyền đối tượng qua sql.json: không JSON.stringify + ::jsonb (driver mã hóa 2 lần, DB lưu thành chuỗi)
+        const payload: postgres.JSONValue = JSON.parse(JSON.stringify(overview));
         await sql`
           INSERT INTO ai_cache (
             cache_key, kind, payload, model, prompt_version, tokens_in, tokens_out
@@ -200,7 +203,7 @@ export async function POST(request: Request): Promise<Response> {
           VALUES (
             ${cacheKey},
             'REPO_OVERVIEW',
-            ${JSON.stringify(overview)}::jsonb,
+            ${sql.json(payload)},
             ${CONFIG.LLM_MODEL},
             ${CONFIG.PROMPT_VERSION},
             ${usage.tokens_in},
