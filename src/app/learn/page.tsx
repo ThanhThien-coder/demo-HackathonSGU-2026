@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import {
   CockpitHeader,
@@ -35,16 +35,29 @@ import type {
   ClientStaticEngineResult,
 } from "@/contracts";
 import { CONFIG } from "@/contracts";
+import { isOfflineMode } from "@/lib/offline";
 import { getErrorMessage } from "./utils/messages";
 
+// Offline không có phiên thật; dữ liệu lấy từ gói offline
+const OFFLINE_SESSION_ID = "offline";
+
 function LearnCockpitContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const isOfflineEntry = searchParams.get("offline") === "1" || isOfflineMode();
   const urlSessionId = searchParams.get("session") || searchParams.get("id");
   const urlNodeId = searchParams.get("node") || searchParams.get("nodeId");
 
   const [sessionId, setSessionId] = useState<string>(
-    urlSessionId || "demo-session-shop-api"
+    urlSessionId || (isOfflineEntry ? OFFLINE_SESSION_ID : "")
   );
+
+  // Thiếu phiên thì về lộ trình để chọn, trừ Offline
+  useEffect(() => {
+    if (!urlSessionId && !isOfflineEntry) {
+      router.replace("/roadmap");
+    }
+  }, [urlSessionId, isOfflineEntry, router]);
 
   useEffect(() => {
     if (urlSessionId && urlSessionId !== sessionId) {
@@ -53,7 +66,7 @@ function LearnCockpitContent() {
   }, [urlSessionId, sessionId]);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string>(
-    urlNodeId || "slice-order-checkout"
+    urlNodeId || ""
   );
 
   // Dialog & Drawer toggles
@@ -108,7 +121,7 @@ function LearnCockpitContent() {
   const [isCurrentQuestionDisputed, setIsCurrentQuestionDisputed] = useState(false);
 
   // Tokens Used
-  const [tokensUsed, setTokensUsed] = useState<number>(14250);
+  const [tokensUsed, setTokensUsed] = useState<number>(0);
 
   // Static Engine Result from Ingest (graph, nodes, fingerprint, repo_name)
   const [staticResult, setStaticResult] = useState<ClientStaticEngineResult | null>(null);
@@ -123,7 +136,7 @@ function LearnCockpitContent() {
 
   // Auto-save sf.last_session in localStorage
   useEffect(() => {
-    if (sessionId) {
+    if (sessionId && sessionId !== OFFLINE_SESSION_ID) {
       try {
         localStorage.setItem("sf.last_session", sessionId);
       } catch {
@@ -179,75 +192,9 @@ function LearnCockpitContent() {
       setProgress(result.data.progress);
       setTokensUsed(result.data.progress.tokens_used);
     } else {
-      // Dev bypass auth / network fallback
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setProgressError(errorMsg);
 
-      // Provide mock progress in dev mode if needed
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true" || !result.error) {
-        setProgress({
-          session_id: sid,
-          tokens_used: 14250,
-          nodes: {
-            "slice-auth-login": {
-              node_id: "slice-auth-login",
-              status: "COMPLETED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "slice-catalog-browse": {
-              node_id: "slice-catalog-browse",
-              status: "COMPLETED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "slice-order-checkout": {
-              node_id: "slice-order-checkout",
-              status: "AVAILABLE",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "slice-promo-apply": {
-              node_id: "slice-promo-apply",
-              status: "LOCKED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "slice-inventory-reserve": {
-              node_id: "slice-inventory-reserve",
-              status: "LOCKED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "slice-payment-gateway": {
-              node_id: "slice-payment-gateway",
-              status: "LOCKED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "slice-shipping-dijkstra": {
-              node_id: "slice-shipping-dijkstra",
-              status: "LOCKED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "scc-user-order-cluster": {
-              node_id: "scc-user-order-cluster",
-              status: "LOCKED",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-          },
-        });
-      }
     }
     setIsLoadingProgress(false);
   }, []);
@@ -373,67 +320,6 @@ function LearnCockpitContent() {
           inFlightRef.current.clear();
         }
 
-        // Dev mock fallback if bypass auth enabled
-        if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-          const fallbackAnalysis: NodeAnalysisView = {
-            node_id: nid,
-            skills: [
-              {
-                skill: "DB_OPTIMIZATION",
-                step: 2,
-                symbol: "inventoryRepo.updateStock",
-                reason: "Truy vấn tuần tự trong vòng lặp gây N+1 I/O Bottleneck",
-                file_path: "src/services/order.service.ts",
-                line_start: 21,
-                line_end: 23,
-              },
-            ],
-            architecture: {
-              patterns: ["LAYERED", "DEPENDENCY_INJECTION"],
-              summary: "Xử lý quy trình thanh toán đơn hàng qua các tầng Service, Repository và Payment Gateway Adapter.",
-            },
-            steps: [
-              {
-                step: 1,
-                layer: "BUSINESS_LOGIC",
-                file_path: "src/services/order.service.ts",
-                line_start: 18,
-                line_end: 20,
-                text: "Khởi tạo bản ghi đơn hàng mới trong cơ sở dữ liệu",
-              },
-              {
-                step: 2,
-                layer: "DATA_ACCESS",
-                file_path: "src/services/order.service.ts",
-                line_start: 21,
-                line_end: 23,
-                text: "Lặp từng sản phẩm để cập nhật tồn kho (N+1 bottleneck)",
-              },
-            ],
-            strengths: [
-              {
-                step: 1,
-                text: "Kiến trúc chia nhỏ các dependency qua cơ chế tiêm phụ thuộc (DI).",
-              },
-            ],
-            weak_points: [
-              {
-                skill: "DB_OPTIMIZATION",
-                step: 2,
-                symbol: "updateStock",
-                what: "N+1 Query Loop Mutation",
-                consequence: "Khi giỏ hàng có 100 sản phẩm, hệ thống thực hiện 100 truy vấn riêng lẻ làm nghẽn kết nối DB.",
-                file_path: "src/services/order.service.ts",
-                line_start: 21,
-                line_end: 23,
-              },
-            ],
-            shared_files: [],
-            skeleton_only: false,
-          };
-          setAnalysis(fallbackAnalysis);
-          setAnalyses((prev) => ({ ...prev, [nid]: fallbackAnalysis }));
-        }
       }
       setIsLoadingAnalysis(false);
     },
@@ -458,32 +344,6 @@ function LearnCockpitContent() {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setOverviewError(errorMsg);
 
-      // Dev mock fallback if bypass auth
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        setOverview({
-          facts: {
-            archetype: "WEB_BACKEND",
-            framework: "NestJS / Express",
-            tech_stack: ["TypeScript", "TypeORM", "PostgreSQL", "Redis"],
-            root_node_ids: ["slice-auth-login"],
-            main_path_node_ids: ["slice-auth-login", "slice-catalog-browse", "slice-order-checkout"],
-          },
-          ai: {
-            architecture_style: "LAYERED",
-            summary: "Kiến trúc phân tầng chuẩn NestJS với Controller tiếp nhận request, Service xử lý nghiệp vụ đơn hàng và Repository tương tác dữ liệu.",
-            layers: [
-              { layer: "ENTRY_POINT", role: "Tiếp nhận HTTP Request & validate DTO", nodes: ["slice-auth-login"] },
-              { layer: "BUSINESS_LOGIC", role: "Xử lý nghiệp vụ thanh toán & khuyến mãi", nodes: ["slice-order-checkout", "slice-promo-apply"] },
-              { layer: "DATA_ACCESS", role: "Tương tác cơ sở dữ liệu qua TypeORM", nodes: ["slice-inventory-reserve"] },
-              { layer: "MIDDLEWARE", role: "Tích hợp cổng thanh toán bên thứ ba", nodes: ["slice-payment-gateway"] },
-            ],
-            main_flow: "HTTP POST /checkout → OrderController → OrderService.processCheckout → InventoryRepo → PaymentAdapter",
-            notes: [
-              { text: "Cần tối ưu gộp batch update tồn kho để cải thiện thông lượng I/O", nodes: ["slice-order-checkout"] },
-            ],
-          },
-        });
-      }
     }
     setIsLoadingOverview(false);
   };
@@ -507,34 +367,6 @@ function LearnCockpitContent() {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setQuestionsError(errorMsg);
 
-      // Dev mock fallback if bypass auth
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        setCurrentRunId("mock-run-01");
-        setQuestions([
-          {
-            question_index: 1,
-            skill: "DB_OPTIMIZATION",
-            tier: "NOVICE",
-            focus: "WEAKNESS",
-            feynman_question:
-              "Hãy đóng vai bạn đang giải thích cho một lập trình viên mới vào nghề: Dòng code trên đang tiềm ẩn nguy cơ hiệu năng gì và hệ thống sẽ phản ứng ra sao khi số lượng đơn hàng tăng đột biến?",
-            state: {
-              question_index: 1,
-              feynman_question:
-                "Hãy đóng vai bạn đang giải thích cho một lập trình viên mới vào nghề: Dòng code trên đang tiềm ẩn nguy cơ hiệu năng gì và hệ thống sẽ phản ứng ra sao khi số lượng đơn hàng tăng đột biến?",
-              skill: "DB_OPTIMIZATION",
-              tier: "NOVICE",
-              focus: "WEAKNESS",
-              attempts_used: 0,
-              finished: false,
-              outcome: null,
-              ended_by: null,
-              disputed: false,
-              reveal: null,
-            },
-          },
-        ]);
-      }
     }
     setIsLoadingQuestions(false);
   }, []);
@@ -603,57 +435,6 @@ function LearnCockpitContent() {
         fetchNodeQuestions(sessionId, selectedNodeId);
       }
 
-      // Dev mock fallback if bypass auth
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        const mockEval: EvaluateFeynmanResponse = {
-          question_index: qIndex,
-          attempt_number: attemptNumber,
-          core_accuracy: 0.89,
-          simplicity: 0.95,
-          intent: "ANSWER",
-          is_passed: true,
-          points_covered: [true, true],
-          feedback: "Phép ẩn dụ bồi bàn chạy nhiều chuyến trong quán ăn phản ánh trực quan 100% cơ chế I/O bottleneck.",
-          detected_jargons: [],
-          follow_up: null,
-          question: {
-            question_index: qIndex,
-            feynman_question: activeQ?.feynman_question || "",
-            skill: "DB_OPTIMIZATION",
-            tier: "NOVICE",
-            focus: "WEAKNESS",
-            attempts_used: attemptNumber,
-            finished: true,
-            outcome: "PASS_FIRST",
-            ended_by: "ANSWER",
-            disputed: false,
-            reveal: {
-              reference_answer: "Thay vì cập nhật từng dòng trong vòng lặp, nên gộp thành một truy vấn bulk UPDATE duy nhất trong một transaction.",
-              must_have_points: ["I/O Bottleneck do truy vấn lặp", "Gộp batch update trong transaction"],
-              fix: "await this.inventoryRepo.updateStockBatch(dto.items);",
-            },
-          },
-          skill_change: {
-            skill: "DB_OPTIMIZATION",
-            p_before: 0.65,
-            p_after: 0.79,
-            outcome: "PASS_FIRST",
-          },
-          node_state: {
-            node_id: selectedNodeId,
-            status: "COMPLETED",
-            has_warning: false,
-            analysis_failed: false,
-            last_run: null,
-          },
-          unlocked_node_ids: ["slice-promo-apply"],
-          tokens_used: tokensUsed + 450,
-        };
-
-        setEvaluationResult(mockEval);
-        setActiveRevealData(mockEval.question.reveal);
-        setIsEvaluationDialogOpen(true);
-      }
     }
 
     setIsSubmittingAnswer(false);
@@ -685,14 +466,7 @@ function LearnCockpitContent() {
       // Refresh progress to reflect failed attempt penalty
       fetchSessionProgress(sessionId);
     } else {
-      // Dev mock fallback if bypass auth
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        setActiveRevealData({
-          reference_answer: "Thay vì cập nhật từng dòng trong vòng lặp, nên gộp thành một truy vấn bulk UPDATE duy nhất trong một transaction.",
-          must_have_points: ["I/O Bottleneck do truy vấn lặp", "Gộp batch update trong transaction"],
-          fix: "await this.inventoryRepo.updateStockBatch(dto.items);",
-        });
-      }
+      setSubmitError(getErrorMessage(result.error?.error?.code, result.error?.error?.message));
     }
 
     setIsRevealing(false);
@@ -728,12 +502,6 @@ function LearnCockpitContent() {
       const errorMsg = getErrorMessage(result.error?.error?.code, result.error?.error?.message);
       setReportWrongError(errorMsg);
 
-      // Dev mock fallback
-      if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
-        setIsCurrentQuestionDisputed(true);
-        setIsReportWrongDialogOpen(false);
-        setIsEvaluationDialogOpen(false);
-      }
     }
 
     setIsReportingWrong(false);
@@ -748,9 +516,12 @@ function LearnCockpitContent() {
 
   // Initial load
   useEffect(() => {
+    if (!sessionId) return;
     fetchSessionProgress(sessionId);
-    fetchNodeAnalysis(sessionId, selectedNodeId);
-    fetchNodeQuestions(sessionId, selectedNodeId);
+    if (selectedNodeId) {
+      fetchNodeAnalysis(sessionId, selectedNodeId);
+      fetchNodeQuestions(sessionId, selectedNodeId);
+    }
   }, [sessionId, selectedNodeId, fetchSessionProgress, fetchNodeAnalysis, fetchNodeQuestions]);
 
   const activeQuestion = questions[activeQuestionIdx] || null;
@@ -797,28 +568,23 @@ function LearnCockpitContent() {
         data-name="Background"
       >
         {/* 1. Global Navigation Header with Logged-in User Profile (Figma node 5:4) */}
-        <Navbar user={{ name: "Quý", avatarUrl: "/assets/learn/avatar.png" }} />
+        <Navbar />
 
         {/* 2. Cockpit Context Sub-Header (Figma node 5:29) */}
         <CockpitHeader
-          repoName={staticResult?.repo_name || "shop-api"}
-          filePath={currentNode?.files?.[0] || "src/services/order.service.ts"}
+          repoName={staticResult?.repo_name || ""}
+          filePath={currentNode?.files?.[0] || ""}
           categoryTag={
             staticResult?.fingerprint?.detected_framework ||
             staticResult?.fingerprint?.archetype ||
-            "Backend Service"
+            ""
           }
           sessionId={sessionId}
           tokensUsed={tokensUsed}
           tokensQuota={CONFIG.SESSION_TOKEN_QUOTA}
           onOpenOverview={handleOpenOverview}
           isLoadingOverview={isLoadingOverview}
-          engineMetrics={{
-            code_file_count: staticResult?.total_files || 14,
-            ingest_ms: 380,
-            engine_ms: 620,
-            redacted_secret_count: 0,
-          }}
+          engineMetrics={staticResult?.ingestion_report}
         />
 
         {/* 3. Left-side Floating Tab Button: "Đồ thị bài học" (Figma node 5:217) */}
@@ -849,14 +615,14 @@ function LearnCockpitContent() {
             fileName={
               currentNode?.files?.[0]
                 ? currentNode.files[0].split("/").pop()
-                : "order.service.ts"
+                : ""
             }
             scope={
               currentNode?.entry_symbol
                 ? `Scope: ${currentNode.entry_symbol}`
                 : currentNode?.title
                 ? `Lát cắt: ${currentNode.title}`
-                : "Scope: OrderService.processCheckout"
+                : ""
             }
             node={currentNode}
             analysis={analysis}
@@ -905,7 +671,7 @@ function LearnCockpitContent() {
         fileName={
           currentNode?.files?.[0]
             ? currentNode.files[0].split("/").pop()
-            : "order.service.ts"
+            : ""
         }
         codeContent={fullFileCode}
       />

@@ -4,11 +4,6 @@ import React, { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Copy, Check, FileCode } from "lucide-react";
 
-const DEFAULT_FILE_CODE = `// Mã nguồn tệp đang xem trong kiến trúc SimpliFey
-export class OrderService {
-  // Nội dung file được phân tích từ lát cắt kiến trúc
-}`;
-
 interface FullFileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,8 +14,8 @@ interface FullFileModalProps {
 export function FullFileModal({
   isOpen,
   onClose,
-  fileName = "order.service.ts",
-  codeContent = DEFAULT_FILE_CODE,
+  fileName = "",
+  codeContent = "",
 }: FullFileModalProps) {
   const [copied, setCopied] = useState(false);
 

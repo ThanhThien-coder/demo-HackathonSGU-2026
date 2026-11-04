@@ -14,6 +14,7 @@ import {
   FileCode2,
   Clock,
 } from "lucide-react";
+import { CONFIG } from "@/contracts";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 
@@ -37,12 +38,12 @@ interface CockpitHeaderProps {
 }
 
 export function CockpitHeader({
-  repoName = "shop-vibecode",
-  filePath = "src/services/order.service.ts",
-  categoryTag = "Java Backend",
+  repoName = "",
+  filePath = "",
+  categoryTag = "",
   sessionId,
   tokensUsed = 0,
-  tokensQuota = 200000,
+  tokensQuota = CONFIG.SESSION_TOKEN_QUOTA,
   onOpenOverview,
   isLoadingOverview = false,
   engineMetrics,
@@ -61,10 +62,10 @@ export function CockpitHeader({
   // Tính chi phí ước tính theo LLM_PRICE_INPUT_USD_PER_M (0.30 USD / 1M tokens)
   const estimatedCost = ((tokensUsed / 1_000_000) * 0.3).toFixed(4);
 
-  const ingestMs = engineMetrics?.ingest_ms ?? 340;
-  const engineMs = engineMetrics?.engine_ms ?? 520;
+  const ingestMs = engineMetrics?.ingest_ms ?? 0;
+  const engineMs = engineMetrics?.engine_ms ?? 0;
   const totalMapMs = ingestMs + engineMs;
-  const fileCount = engineMetrics?.code_file_count ?? 12;
+  const fileCount = engineMetrics?.code_file_count ?? 0;
   const secretCount = engineMetrics?.redacted_secret_count ?? 0;
 
   return (

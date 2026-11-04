@@ -34,23 +34,9 @@ interface CodeSnippetViewerProps {
   onTogglePresentationMode?: () => void;
 }
 
-const FALLBACK_CODE_LINES = [
-  { line: 18, code: "async processCheckout(dto: CheckoutDto): Promise<OrderResult> {" },
-  { line: 19, code: "    const order = await this.orderRepo.create(dto);" },
-  { line: 20, code: "" },
-  { line: 21, code: "    for (const item of dto.items) {" },
-  { line: 22, code: "        await this.inventoryRepo.updateStock(item.id, item.qty);", isTarget: true },
-  { line: 23, code: "    }" },
-  { line: 24, code: "" },
-  { line: 25, code: "    const payment = await this.paymentGateway.charge(order.id, dto.amount);" },
-  { line: 26, code: "    await this.auditLog.record('ORDER_CREATED', order.id);" },
-  { line: 27, code: "    return { orderId: order.id, status: 'SUCCESS' };" },
-  { line: 28, code: "}" },
-];
-
 export function CodeSnippetViewer({
-  fileName = "order.service.ts",
-  scope = "Scope: OrderService.processCheckout",
+  fileName = "",
+  scope = "",
   node = null,
   analysis = null,
   isLoading = false,
@@ -73,7 +59,7 @@ export function CodeSnippetViewer({
     if (hasRealSteps && node) {
       return buildSliceModel(node).text;
     }
-    return FALLBACK_CODE_LINES.map((l) => l.code).join("\n");
+    return "";
   };
 
   const handleCopy = async () => {
@@ -391,48 +377,9 @@ export function CodeSnippetViewer({
 
         {/* Fallback Code Lines if no real steps */}
         {!errorMessage && !hasRealSteps && (
-          <div className="min-w-full flex flex-col">
-            {FALLBACK_CODE_LINES.map((lineObj) => {
-              const isStepMatch = highlightedStep !== null && lineObj.isTarget;
-              const isTargetLine = lineObj.isTarget;
-
-              let lineClass =
-                "border-b-[0.8px] border-[#e5e7eb] h-8 flex items-center px-4 hover:bg-[#f2f3ff]/50 transition-colors";
-              if (isStepMatch) {
-                lineClass =
-                  "border-b-[0.8px] border-[#a78bfa] bg-[#f5f3ff] h-8 flex items-center pl-10 pr-4 transition-colors relative ring-1 ring-[#a78bfa]";
-              } else if (isTargetLine) {
-                lineClass =
-                  "border-b-[0.8px] border-[#ff9640]/40 bg-[#fff0e4]/60 h-8 flex items-center pl-10 pr-4 transition-colors relative";
-              } else if (lineObj.code.startsWith("    ")) {
-                lineClass =
-                  "border-b-[0.8px] border-[#e5e7eb] h-8 flex items-center pl-10 pr-4 hover:bg-[#f2f3ff]/50 transition-colors";
-              }
-
-              return (
-                <div key={lineObj.line} className={lineClass}>
-                  <span
-                    className={`w-6 shrink-0 text-xs select-none ${
-                      isTargetLine
-                        ? "font-bold text-[#ff9640] -ml-6"
-                        : "text-[#99a1af] -ml-6"
-                    }`}
-                  >
-                    {lineObj.line}
-                  </span>
-                  {isTargetLine && (
-                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-[#ff9640]" />
-                  )}
-                  {isStepMatch && (
-                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-[#a78bfa]" />
-                  )}
-                  <span className="text-[#131b2e] whitespace-pre font-mono">
-                    {lineObj.code}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <p className="px-4 py-8 text-center text-sm text-[#625e56]">
+            Chọn một bài trên bản đồ để xem code.
+          </p>
         )}
       </div>
 
@@ -444,7 +391,7 @@ export function CodeSnippetViewer({
         <span className="text-[12px] font-semibold text-[#625e56]">
           {hasRealSteps && node?.trace_steps
             ? `${node.trace_steps.length} bước lát cắt · ${node.languages?.join(", ") || "TypeScript"}`
-            : "order.service.ts · dòng 18–28"}
+            : ""}
         </span>
 
         <div className="flex items-center gap-2">
