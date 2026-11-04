@@ -15,6 +15,11 @@ import {
   Clock,
 } from "lucide-react";
 import { CONFIG } from "@/contracts";
+import type {
+  ProjectFingerprint,
+  IngestionReport,
+  ClientStaticEngineResult,
+} from "@/contracts";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 
@@ -25,7 +30,7 @@ export interface EngineMetricsData {
   redacted_secret_count?: number;
 }
 
-interface CockpitHeaderProps {
+export interface CockpitHeaderProps {
   repoName?: string;
   filePath?: string;
   categoryTag?: string;
@@ -35,6 +40,14 @@ interface CockpitHeaderProps {
   onOpenOverview?: () => void;
   isLoadingOverview?: boolean;
   engineMetrics?: EngineMetricsData;
+  refLabel?: string | null;
+  snapshotId?: string;
+  fingerprint?: ProjectFingerprint | null;
+  report?: ClientStaticEngineResult["ingestion_report"] | IngestionReport | null;
+  isGithub?: boolean;
+  isOffline?: boolean;
+  onOtherRepo?: () => void;
+  onChangeDir?: (subdir: string) => Promise<string | void | undefined>;
 }
 
 export function CockpitHeader({
@@ -47,11 +60,24 @@ export function CockpitHeader({
   onOpenOverview,
   isLoadingOverview = false,
   engineMetrics,
+  refLabel,
+  snapshotId,
+  fingerprint,
+  report,
+  isGithub = false,
+  isOffline = false,
+  onOtherRepo,
+  onChangeDir,
 }: CockpitHeaderProps) {
   const [showMetricsDialog, setShowMetricsDialog] = useState(false);
+  const [isChangeDirOpen, setIsChangeDirOpen] = useState(false);
+  const [newSubdir, setNewSubdir] = useState("");
+  const [changeDirError, setChangeDirError] = useState<string | null>(null);
+  const [isChangingDir, setIsChangingDir] = useState(false);
 
-  const pathParts = filePath.split("/");
-  const fileName = pathParts.pop();
+  const cleanPath = (filePath || "").trim().replace(/^\/+/, "");
+  const pathParts = cleanPath ? cleanPath.split("/") : [];
+  const fileName = pathParts.length > 0 ? pathParts.pop() : "";
 
   const isQuotaExceeded = tokensUsed >= tokensQuota;
   const tokenPercentage = Math.min(
@@ -59,24 +85,49 @@ export function CockpitHeader({
     Math.round((tokensUsed / tokensQuota) * 100)
   );
 
-  // Tính chi phí ước tính theo LLM_PRICE_INPUT_USD_PER_M (0.30 USD / 1M tokens)
-  const estimatedCost = ((tokensUsed / 1_000_000) * 0.3).toFixed(4);
+  // Tính chi phí ước tính theo LLM_PRICE_INPUT_USD_PER_M (USD / 1M tokens)
+  const estimatedCost = (
+    (tokensUsed / 1_000_000) *
+    CONFIG.LLM_PRICE_INPUT_USD_PER_M
+  ).toFixed(4);
 
-  const ingestMs = engineMetrics?.ingest_ms ?? 0;
-  const engineMs = engineMetrics?.engine_ms ?? 0;
+  const effectiveReport = report ?? engineMetrics;
+  const ingestMs = effectiveReport?.ingest_ms ?? 0;
+  const engineMs = effectiveReport?.engine_ms ?? 0;
   const totalMapMs = ingestMs + engineMs;
-  const fileCount = engineMetrics?.code_file_count ?? 0;
-  const secretCount = engineMetrics?.redacted_secret_count ?? 0;
+  const fileCount = effectiveReport?.code_file_count ?? 0;
+  const secretCount = effectiveReport?.redacted_secret_count ?? 0;
+
+  const sha7 = snapshotId ? snapshotId.slice(0, 7) : "";
+  let repoRefInfo = "";
+  if (refLabel && sha7) {
+    repoRefInfo = `· ${refLabel} @ ${sha7}`;
+  } else if (refLabel) {
+    repoRefInfo = `· ${refLabel}`;
+  } else if (sha7) {
+    repoRefInfo = `· @ ${sha7}`;
+  }
+
+  const isMonorepo = Boolean(fingerprint?.is_monorepo);
+  const isSelectiveFetch = Boolean(report?.selective_fetch);
+  const rootDirOffset = fingerprint?.root_dir_offset || "";
+
+  const monorepoLabel = rootDirOffset
+    ? `Monorepo · ${rootDirOffset}`
+    : "Monorepo";
+  const selectiveLabel = rootDirOffset
+    ? `Repo lớn · ${rootDirOffset}`
+    : "Repo lớn";
 
   return (
     <>
       <div
-        className="bg-[#ff9640] border-b-[0.8px] border-black/10 drop-shadow-[0px_2px_4px_rgba(0,0,0,0.08)] flex h-[64px] items-center justify-between px-4 sm:px-8 lg:px-[45px] w-full z-20 shrink-0 select-none"
+        className="bg-[#ff9640] border-b-[0.8px] border-black/10 drop-shadow-[0px_2px_4px_rgba(0,0,0,0.08)] flex min-h-[64px] flex-wrap items-center justify-between px-4 sm:px-8 lg:px-[45px] py-1.5 sm:py-0 w-full z-20 shrink-0 select-none"
         data-node-id="5:29"
         data-name="Background+HorizontalBorder+Shadow"
       >
         {/* Left side: Back button & Breadcrumb path */}
-        <div className="flex items-center gap-3 sm:gap-5 overflow-hidden">
+        <div className="flex items-center gap-3 sm:gap-5 min-w-0 overflow-hidden">
           {/* Back Link */}
           <Link
             href="/roadmap"
@@ -103,40 +154,90 @@ export function CockpitHeader({
 
             <span className="font-semibold text-base sm:text-[18px] text-white shrink-0">
               {repoName}
+              {repoRefInfo ? (
+                <span className="font-normal text-sm sm:text-base text-white/90 ml-1.5">
+                  {repoRefInfo}
+                </span>
+              ) : null}
             </span>
 
-            {pathParts.map((part, index) => (
-              <React.Fragment key={index}>
+            {/* Nút "Repo khác" (ẩn khi isOffline) */}
+            {!isOffline && onOtherRepo && (
+              <button
+                type="button"
+                onClick={onOtherRepo}
+                className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-semibold text-xs px-2.5 py-1 rounded-[8px] border border-white/30 transition-all cursor-pointer shrink-0 ml-1"
+                title="Quay lại trang chủ để chọn repo khác"
+              >
+                Repo khác
+              </button>
+            )}
+
+            {cleanPath && fileName ? (
+              <>
+                {pathParts.map((part, index) => (
+                  <React.Fragment key={index}>
+                    <span className="text-white/80 font-normal text-base sm:text-[18px] shrink-0">
+                      /
+                    </span>
+                    <span className="font-semibold text-base sm:text-[18px] text-white shrink-0">
+                      {part}
+                    </span>
+                  </React.Fragment>
+                ))}
+
                 <span className="text-white/80 font-normal text-base sm:text-[18px] shrink-0">
                   /
                 </span>
-                <span className="font-semibold text-base sm:text-[18px] text-white shrink-0">
-                  {part}
+                <span className="font-bold text-base sm:text-[18px] text-white underline decoration-white/70 decoration-2 underline-offset-4 shrink-0">
+                  {fileName}
                 </span>
-              </React.Fragment>
-            ))}
-
-            <span className="text-white/80 font-normal text-base sm:text-[18px] shrink-0">
-              /
-            </span>
-            <span className="font-bold text-base sm:text-[18px] text-white underline decoration-white/70 decoration-2 underline-offset-4 shrink-0">
-              {fileName}
-            </span>
+              </>
+            ) : null}
           </div>
 
-          {/* Tech Stack Badge */}
-          <div className="hidden md:flex items-center pl-2 shrink-0">
-            <div
-              className="backdrop-blur-[4px] bg-white/20 border border-white/25 text-white font-bold text-xs sm:text-sm px-3.5 py-1 rounded-full shadow-sm"
-              data-node-id="5:55"
-            >
-              {categoryTag}
-            </div>
+          {/* Badges: Tech Stack, Monorepo, Repo lớn, Đổi thư mục */}
+          <div className="hidden md:flex items-center gap-2 pl-2 shrink-0">
+            {categoryTag && (
+              <div
+                className="backdrop-blur-[4px] bg-white/20 border border-white/25 text-white font-bold text-xs sm:text-sm px-3.5 py-1 rounded-full shadow-sm shrink-0"
+                data-node-id="5:55"
+              >
+                {categoryTag}
+              </div>
+            )}
+
+            {isMonorepo && (
+              <div className="backdrop-blur-[4px] bg-white/20 border border-white/25 text-white font-medium text-xs px-3 py-1 rounded-full shadow-sm shrink-0">
+                {monorepoLabel}
+              </div>
+            )}
+
+            {isSelectiveFetch && (
+              <div className="backdrop-blur-[4px] bg-white/20 border border-white/25 text-white font-medium text-xs px-3 py-1 rounded-full shadow-sm shrink-0">
+                {selectiveLabel}
+              </div>
+            )}
+
+            {(isMonorepo || isSelectiveFetch) && isGithub && onChangeDir && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNewSubdir(rootDirOffset);
+                  setChangeDirError(null);
+                  setIsChangeDirOpen(true);
+                }}
+                className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-semibold text-xs px-2.5 py-1 rounded-full border border-white/30 transition-all cursor-pointer shrink-0"
+                title="Đổi thư mục con làm việc"
+              >
+                Đổi thư mục
+              </button>
+            )}
           </div>
         </div>
 
         {/* Right side: Engine Metrics, Token Meter, Overview, History & Report */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 pl-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 shrink-0 pl-1 sm:pl-3">
           {/* C2: Engine Metrics Button (Bản đồ {ms} ms · 0 token) */}
           <button
             type="button"
@@ -153,15 +254,21 @@ export function CockpitHeader({
           {/* Token Meter Display với tooltip ước tính USD theo spec/30_UI */}
           <div
             className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold backdrop-blur-sm cursor-help ${
-              isQuotaExceeded
+              isQuotaExceeded && !isOffline
                 ? "bg-[#e7000b]/20 border-[#e7000b]/40 text-white"
                 : "bg-white/15 border-white/25 text-white"
             }`}
-            title={`~${estimatedCost} USD (ước tính) · Hạn mức: ${tokensUsed.toLocaleString("vi-VN")} / ${tokensQuota.toLocaleString("vi-VN")} tokens`}
+            title={
+              isOffline
+                ? "Chế độ Offline — 0 token"
+                : `~${estimatedCost} USD (ước tính) · Hạn mức: ${tokensUsed.toLocaleString("vi-VN")} / ${tokensQuota.toLocaleString("vi-VN")} tokens`
+            }
           >
             <Sparkles className="size-3.5" />
             <span>
-              {tokensUsed.toLocaleString("vi-VN")} / {tokensQuota.toLocaleString("vi-VN")} tokens ({tokenPercentage}%)
+              {isOffline
+                ? "0 token"
+                : `${tokensUsed.toLocaleString("vi-VN")} / ${tokensQuota.toLocaleString("vi-VN")} tokens (${tokenPercentage}%)`}
             </span>
           </div>
 
@@ -171,14 +278,14 @@ export function CockpitHeader({
               onClick={onOpenOverview}
               type="button"
               disabled={isLoadingOverview}
-              className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-xs sm:text-sm px-3 sm:px-3.5 py-2 rounded-[10px] border border-white/30 flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-60"
+              aria-label="Tổng quan kiến trúc"
+              className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-2 rounded-[10px] border border-white/30 flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-60"
               title="Xem tổng quan kiến trúc toàn cảnh repo (Bước 9)"
             >
               <Layers className="size-4 shrink-0" />
-              <span className="hidden lg:inline">
+              <span className="hidden sm:inline">
                 {isLoadingOverview ? "Đang tải tổng quan..." : "Tổng quan kiến trúc"}
               </span>
-              <span className="lg:hidden">Tổng quan</span>
             </button>
           )}
 
@@ -189,11 +296,12 @@ export function CockpitHeader({
                 ? `/history?session=${encodeURIComponent(sessionId)}`
                 : "/history"
             }
-            className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-xs sm:text-sm px-3 sm:px-3.5 py-2 rounded-[10px] border border-white/30 flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            aria-label="Lịch sử"
+            className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-2 rounded-[10px] border border-white/30 flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
             title="Xem lịch sử trả lời câu hỏi Feynman"
           >
             <History className="size-4 shrink-0" />
-            <span className="hidden lg:inline">Lịch sử</span>
+            <span className="hidden sm:inline">Lịch sử</span>
           </Link>
 
           {/* Session Report Button */}
@@ -203,7 +311,8 @@ export function CockpitHeader({
                 ? `/report?session=${encodeURIComponent(sessionId)}`
                 : "/report"
             }
-            className="bg-[#8b4600] hover:bg-[#944b00] active:bg-[#723900] text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-[10px] drop-shadow-[0px_4px_5px_rgba(139,70,0,0.3)] flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            aria-label="Báo cáo"
+            className="bg-[#8b4600] hover:bg-[#944b00] active:bg-[#723900] text-white font-bold text-xs sm:text-sm px-2.5 sm:px-4 py-2 rounded-[10px] drop-shadow-[0px_4px_5px_rgba(139,70,0,0.3)] flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
             data-node-id="5:57"
           >
             <div className="relative size-4 shrink-0">
@@ -300,6 +409,95 @@ export function CockpitHeader({
             </Button>
           </div>
         </div>
+      </Dialog>
+
+      {/* Dialog Đổi thư mục con */}
+      <Dialog
+        isOpen={isChangeDirOpen}
+        onClose={() => {
+          if (!isChangingDir) {
+            setIsChangeDirOpen(false);
+            setChangeDirError(null);
+          }
+        }}
+        title="Đổi thư mục làm việc"
+        description="Nhập đường dẫn thư mục con trong repo để phân tích lại (ví dụ: server/ hoặc packages/backend/)"
+        maxWidth="md"
+      >
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!onChangeDir) return;
+            setIsChangingDir(true);
+            setChangeDirError(null);
+            try {
+              const err = await onChangeDir(newSubdir.trim());
+              if (err) {
+                setChangeDirError(err);
+              } else {
+                setIsChangeDirOpen(false);
+              }
+            } catch (error) {
+              setChangeDirError(
+                error instanceof Error ? error.message : "Đã có lỗi xảy ra."
+              );
+            } finally {
+              setIsChangingDir(false);
+            }
+          }}
+          className="flex flex-col gap-4 mt-3"
+        >
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="subdir-input"
+              className="text-xs font-semibold text-[#131b2e]"
+            >
+              Đường dẫn thư mục con
+            </label>
+            <input
+              id="subdir-input"
+              type="text"
+              value={newSubdir}
+              onChange={(e) => {
+                setNewSubdir(e.target.value);
+                if (changeDirError) setChangeDirError(null);
+              }}
+              placeholder="VD: server/"
+              disabled={isChangingDir}
+              className="w-full px-3 py-2 text-sm border border-[#d8dbeb] rounded-[8px] focus:outline-none focus:ring-2 focus:ring-[#ff9640] text-[#131b2e] placeholder:text-[#99a1af]"
+              autoFocus
+            />
+          </div>
+
+          {changeDirError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-[8px] text-xs text-red-600 font-medium">
+              {changeDirError}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isChangingDir}
+              onClick={() => {
+                setIsChangeDirOpen(false);
+                setChangeDirError(null);
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isChangingDir}
+              className="bg-[#ff9640] hover:bg-[#f2852e] text-white cursor-pointer"
+            >
+              {isChangingDir ? "Đang xử lý..." : "Xác nhận"}
+            </Button>
+          </div>
+        </form>
       </Dialog>
     </>
   );
