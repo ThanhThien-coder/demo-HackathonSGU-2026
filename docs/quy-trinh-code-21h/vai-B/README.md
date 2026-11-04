@@ -117,6 +117,7 @@ Bài học: 600 ca test xanh trên `shop-api` vẫn sót lỗi lớn, vì test v
 | 14 | `50` Mục 1.1 vẽ N5→N6, N5→N7, trái D-07 và D-12 | Giữ engine theo D-07, D-12: N6→N5, N7→N5 | Sửa `50`, `shop-api.json`, `KICH_BAN_DEMO.md`, `30_UI.md`, `doc-de-hieu` (cần Vai D, E đồng ý) |
 | 15 | `50` Mục 1.1 nhắc `src/repos/product.repo.ts` nhưng danh sách file `shop-api` không có | Test dựng thêm file này | Thêm vào danh sách file ở `50` |
 | 16 | ING-87 chỉ giảm ưu tiên file test | Không đổi | Repo thư viện như `expressjs/express` vẫn có node từ `test/`, cân nhắc sau thi |
+| 17 | Repo có file cực lớn: `microsoft/TypeScript` mất 64 giây ở `engine_ms` | Chưa chốt | Chọn trần thời gian hoặc trần kích thước file cho engine, nếu không request có thể quá hạn |
 
 **Việc vai khác cần làm (không phải chốt spec, đã báo)**
 
