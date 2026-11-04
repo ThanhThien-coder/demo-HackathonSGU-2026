@@ -36,3 +36,24 @@
 | Nhận xét tổng quan không có căn cứ (GUARD-11) | 0 | 0 | 0 | Có |
 | Gợi ý follow-up làm lộ đáp án hoặc sai nấc (GUARD-13) | 0 | 0 | 0 | Có |
 | Chấm sai / hiểu sai trích dẫn người học (D-13) | 0 | 0 | 0 | Kiểm tra với 22 câu mẫu |
+
+---
+
+## 4. Khung ghi nhận kết quả kịch bản A/B & Ca kiểm thử X-02
+
+| Mã | Thao tác | Kỳ vọng tóm tắt | Kết quả | Người chạy | Ghi chú |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| A1 | `ingest` repo mẫu | 7 node; N1, N3 `AVAILABLE`; còn lại `LOCKED` | chưa chạy, chờ Lát dọc 2 | | |
+| A2 | `analyze-node` N3 | Bản phân tích như 2.1 sau kiểm; N3 vẫn `AVAILABLE` | chưa chạy, chờ Lát dọc 2 | | |
+| A3 | `enrich-node` N3 `LEARN` | Kế hoạch: Q1 `DB_OPTIMIZATION` · NOVICE · `WEAKNESS`; Q2 `LAYERED_SEPARATION` · NOVICE · `FLOW`; tạo 1 run; response không có đáp án (D-36) | chưa chạy, chờ Lát dọc 2 | | |
+| A4 | Nộp Q1 lượt 1 (2.4) | Chưa đạt; gợi ý `CONCEPT`; `attempts_used = 1`; BKT chưa đổi | chưa chạy, chờ Lát dọc 2 | | |
+| A5 | Nộp Q1 lượt 2 | Đạt (PAH); `DB_OPTIMIZATION` 0.25 → 0.4202; Q1 có `reveal` | chưa chạy, chờ Lát dọc 2 | | |
+| A6 | Nộp Q2 lượt 1 (đúng) | Đạt (PF); `LAYERED_SEPARATION` 0.25 → 0.5767; run xong ⇒ N3 `COMPLETED`; `unlocked_node_ids = []` | chưa chạy, chờ Lát dọc 2 | | |
+| A7 | Đọc lại trạng thái | Kỹ năng của node đang mở: `DB_OPTIMIZATION` 0.4202, `LAYERED_SEPARATION` 0.5767; chưa có nhãn "đang mài mòn" (Δt = 0) | chưa chạy, chờ Lát dọc 2 | | |
+| B1 | `enrich-node` N2 `LEARN` | Kế hoạch: Q1 `AUTH_SECURITY` · NOVICE · `WEAKNESS`; Q2 `HTTP_ROUTING` · PRACTITIONER · `ARCHITECTURE` | chưa chạy, chờ Lát dọc 2 | | |
+| B2 | Q1 lượt 1: *"getProfile lấy user từ database rồi trả về."* | Chưa đạt; gợi ý `CONCEPT` | chưa chạy, chờ Lát dọc 2 | | |
+| B3 | Q1 lượt 2: *"Hàm getProfile kiểm tra mật khẩu người dùng."* | Chưa đạt; gợi ý `CODE_POINTER`, `step_index = 2` | chưa chạy, chờ Lát dọc 2 | | |
+| B4 | Q1 lượt 3: *"Middleware kiểm tra user có tồn tại không."* | FAILED; `AUTH_SECURITY` 0.25 → 0.0791; có `reveal` | chưa chạy, chờ Lát dọc 2 | | |
+| B5 | Q2 lượt 1 (đúng) | Đạt (PF); `HTTP_ROUTING` 0.5767 → 0.8413; run xong ⇒ N2 `FAILED` (đỏ); N4 `AVAILABLE` với `has_warning = true` | chưa chạy, chờ Lát dọc 2 | | |
+| B6 | Đọc `node_state` của N2 sau B5 | N2 giữ `FAILED` (đỏ); không có nút ôn (D-35); muốn học lại N2 ⇒ tạo phiên mới, điểm kỹ năng giữ nguyên (D-42) | chưa chạy, chờ Lát dọc 2 | | |
+| X-02 | Quét response kịch bản A–E (API-03) | Không có `misconception`, `quote`, `symbol_whitelist`, `suspicious_instruction_files`, `reference_answer`/`must_have_points` của câu chưa xong | chưa chạy, chờ Lát dọc 2 | | |
