@@ -95,12 +95,14 @@ export function RepoOverviewModal({
             {/* System Facts Bar */}
             {overview.facts && (
               <div className="bg-[#faf8ff] border border-[#eaedff] rounded-[12px] p-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#625e56] font-semibold">Archetype:</span>
-                  <span className="text-xs font-bold text-[#131b2e] bg-white px-2.5 py-1 rounded-md border border-[#eaedff]">
-                    {overview.facts.archetype || "MONOLITH_MODULAR"}
-                  </span>
-                </div>
+                {overview.facts.archetype && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#625e56] font-semibold">Archetype:</span>
+                    <span className="text-xs font-bold text-[#131b2e] bg-white px-2.5 py-1 rounded-md border border-[#eaedff]">
+                      {overview.facts.archetype}
+                    </span>
+                  </div>
+                )}
                 {overview.facts.framework && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[#625e56] font-semibold">Framework:</span>

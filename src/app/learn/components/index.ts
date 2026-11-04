@@ -8,3 +8,4 @@ export * from "./SkipConfirmDialog";
 export * from "./ReportWrongDialog";
 export * from "./FullFileModal";
 export * from "./GraphSidebarButton";
+export * from "./XRayPanel";
