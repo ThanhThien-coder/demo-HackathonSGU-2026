@@ -4,23 +4,24 @@ Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ 
 
 ## 1. Tóm tắt
 
-**25/52 phiếu đạt.** Test đều xanh, nhưng dự án chưa sẵn sàng để demo, vì còn 4 việc lớn:
+**22/52 phiếu đạt, và luồng chính hiện chưa chạy được trên database thật.** Test đều xanh vì test giả lập database. Còn 5 việc lớn:
 
-1. **Chưa deploy được.** 30 lần chạy `deploy` gần nhất đều đỏ do repo chưa có Secrets GCP.
-2. **Giao diện lệch spec ở hai phần lõi.** Code chưa dùng ReactFlow và Monaco như [`spec/30_UI.md`](../spec/30_UI.md) yêu cầu.
-3. **Engine yếu trên repo thật.** Test xanh trên `shop-api`, nhưng chạy repo GitHub thật thì nhiều lát cắt dừng ở controller, xem Mục 4 phần Vai B.
-4. **Chưa chạy thử đầu cuối.** E06–E10 chưa có kết quả nào được ghi lại.
+1. **`ingest` và chấm bài đều trả 503 trên Postgres thật.** Đây là 2 lỗi chặn đường, xem Mục 4 phần Vai A. Vá 2 lỗi này thì cả luồng học chạy được.
+2. **Chưa deploy được.** 30 lần chạy `deploy` gần nhất đều đỏ do repo chưa có Secrets GCP.
+3. **Giao diện lệch spec.** Code chưa dùng ReactFlow và Monaco như [`spec/30_UI.md`](../spec/30_UI.md) yêu cầu, và offline chỉ chạy được một đường.
+4. **Engine yếu trên repo thật.** Nhiều lát cắt dừng ở controller, xem Mục 4 phần Vai B.
+5. **Chưa có dữ liệu demo thật.** Bundle offline không ghi từ API, và E06–E10 chưa có kết quả nào.
 
 | Vai | Đạt | Đạt một phần | Chưa làm | Không kiểm được | Tổng |
 | :-- | :-: | :-: | :-: | :-: | :-: |
-| [A — Trưởng tích hợp](vai-A/README.md) | 8 | 4 | 0 | 0 | 12 |
+| [A — Trưởng tích hợp](vai-A/README.md) | 5 | 7 | 0 | 0 | 12 |
 | [B — Engine](vai-B/README.md) | 4 | 6 | 0 | 0 | 10 |
 | [C — AI + BKT](vai-C/README.md) | 8 | 2 | 0 | 0 | 10 |
-| [D — Giao diện](vai-D/README.md) | 0 | 7 | 0 | 3 | 10 |
+| [D — Giao diện](vai-D/README.md) | 0 | 10 | 0 | 0 | 10 |
 | [E — Kiểm thử, demo, slide](vai-E/README.md) | 5 | 0 | 5 | 0 | 10 |
-| **Tổng** | **25** | **19** | **5** | **3** | **52** |
+| **Tổng** | **22** | **25** | **5** | **0** | **52** |
 
-**Vai B được kiểm kỹ hơn các vai khác:** chỉ Vai B được chạy thật trên repo GitHub, vì engine chạy được mà không cần Gemini hay Supabase. Mức `ĐẠT` của Vai A và C mới dựa vào test, nếu chạy thật có thể lộ thêm lỗi tương tự.
+**Cách kiểm:** không chỉ dựa vào test có sẵn. Engine chạy trên 7 repo GitHub thật. API chạy trọn luồng trên Postgres thật (PGlite) với engine và cổng gác thật, chỉ giả đăng nhập và phản hồi Gemini. Giao diện chạy trên Chrome thật. Cổng gác được thử bằng đầu vào tự viết.
 
 **Cách đọc các mức:**
 
@@ -39,14 +40,16 @@ Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ 
 | `build` | Qua |
 | CI `ci`, `security` | Xanh |
 | CI `deploy` | **Đỏ**, dừng ở bước xác thực GCP |
+| Luồng API trên Postgres thật | Migration chạy được. `ingest` và chấm bài 503. Vá tạm 2 lỗi thì trọn luồng chạy đúng |
+| Chrome thật | 8 trang mở được. `Ctrl+Shift+D` chạy tới chấm bài, 0 request. `/learn?offline=1` ra trang trống |
 | Gọi thử app ở máy | `/api/health` trả 200, `/api/me` không token trả 401 đúng mã, các trang chính trả 200 |
 
 ## 3. Các mốc lớn
 
 | Mốc | Gồm | Tình trạng |
 | :-- | :-- | :-- |
-| Lát dọc 1 | A07, B07, C06, D06 | A07, C06 đạt theo test. B07 còn lỗi trên repo thật. D06 có code nhưng chưa ai chạy tay luồng thật |
-| Lát dọc 2 | A10, C08, D08 | Backend đạt. D08 có code nhưng chưa chạy tay, và bundle offline chưa chuẩn |
+| Lát dọc 1 | A07, B07, C06, D06 | **Chưa thông:** `ingest` 503 chặn cả lát. A07, C06 đạt, B07, D06 còn lỗi |
+| Lát dọc 2 | A10, C08, D08 | **Chưa thông:** chấm bài 503. C08 đạt, D08 còn lỗi và bundle chưa chuẩn |
 | Staging | A03, A09, A12 | **Chưa có**, vì deploy đỏ |
 | Duyệt AI và đóng băng bundle | E07, E08, C10 | **Chưa bắt đầu đúng quy trình** |
 | Definition of Done, video, slide | E09, E10 | **Chưa làm** |
@@ -61,14 +64,25 @@ Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ 
 | A02 | ĐẠT | Gõ contracts | Không |
 | A03 | ĐẠT MỘT PHẦN | CI/CD, an ninh GitHub | `ci`, `security` xanh, `deploy` chưa chạy thành công (X-09) |
 | A04 | ĐẠT | Database, auth, `/api/me` | Chạy migration trên Supabase thật |
-| A05 | ĐẠT | Phiên, cache RAM, quota | Không |
-| A06 | ĐẠT | Nối `/api/ingest` | Không |
-| A07 | ĐẠT | Nối `/api/analyze-node` | Chạy tay luồng repo demo |
-| A08 | ĐẠT | Nối `/api/enrich-node` | Không |
+| A05 | ĐẠT MỘT PHẦN | Phiên, cache RAM, quota | **Lỗi chặn:** ghi `graph_skeleton` bằng `${JSON.stringify(x)}::jsonb` nên vào DB thành chuỗi, làm `ingest` hỏng |
+| A06 | ĐẠT MỘT PHẦN | Nối `/api/ingest` | **Mọi lần ingest mới trả 503** do lỗi ở A05. Mở lại phiên trả `analyses: {}`, chưa làm phần trả bản phân tích có sẵn |
+| A07 | ĐẠT | Nối `/api/analyze-node` | Chạy đúng trên Postgres thật sau khi vá `ingest`, cache không tốn thêm lượt gọi |
+| A08 | ĐẠT | Nối `/api/enrich-node` | Chạy đúng trên Postgres thật sau khi vá `ingest`, gọi lại trả đúng run cũ |
 | A09 | ĐẠT MỘT PHẦN | Dockerfile | Chưa có bằng chứng chạy trên staging |
-| A10 | ĐẠT | Nối `/api/evaluate-feynman`, `/api/reveal` | Chạy tay kịch bản A, đóng Issue #12 |
-| A11 | ĐẠT | Các API còn lại | Đóng Issue #13 |
+| A10 | ĐẠT MỘT PHẦN | Nối `/api/evaluate-feynman`, `/api/reveal` | **Lỗi chặn: mọi lần chấm bài trả 503**, vì `${pointsCovered}::boolean[]` bị Postgres từ chối. Vá xong thì chấm, BKT, mở khóa đều đúng. Đóng Issue #12 sau khi sửa |
+| A11 | ĐẠT | Các API còn lại | `reveal`, `history`, `persona`, xóa tài khoản chạy đúng trên Postgres thật. Chưa chạy nhánh báo sai thành công. Đóng Issue #13 |
 | A12 | ĐẠT MỘT PHẦN | Kiểm đủ endpoint, deploy | Đủ 14 endpoint trong code, nhưng chưa kiểm trên staging |
+
+**Kết quả chạy API trên Postgres thật:**
+
+| Bước | Kết quả |
+| :-- | :-- |
+| Migration, `/api/me`, xóa tài khoản | Đúng |
+| `POST /api/ingest` | **503.** `JSON.stringify(x)` kèm `::jsonb` bị driver `postgres` mã hóa 2 lần, DB lưu chuỗi thay vì mảng, nên `getSessionProgress` lỗi `skeleton.filter is not a function` |
+| `POST /api/evaluate-feynman` | **503.** `${pointsCovered}::boolean[]`: driver gửi tham số kiểu `boolean`, Postgres báo `cannot cast type boolean to boolean[]` |
+| Sau khi vá tạm 2 lỗi | `ingest`, mở lại phiên, chặn truy cập chéo, cache, `enrich`, chấm trượt, chấm đạt, chặn nộp lại, `reveal`, kết thúc run, BKT, `overview`, `history`, `persona`, `restart` đều đúng |
+
+Có 9 chỗ ghi `::jsonb` theo kiểu này (`session.ts`, `enrich.ts`, `progress.ts`, 2 route phân tích). Cách sửa gợi ý: dùng `sql.json(x)` hoặc `::text::jsonb`, và `sql.array` cho mảng. Lần vá tạm chỉ nằm trong bản kiểm thử, code trên `main` chưa đổi.
 
 ### Vai B — Engine
 
@@ -81,7 +95,7 @@ Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ 
 | B05 | ĐẠT MỘT PHẦN | Tầng 1: symbol, đồ thị gọi hàm | Chưa giải được `const { x } = require('../services')` và `crud.create_user` của Python, nên lát cắt dừng ở controller |
 | B06 | ĐẠT MỘT PHẦN | Xếp hạng, độ phức tạp, lát cắt | Lát cắt `login` lẫn 2 dòng của hàm `register` đứng cạnh |
 | B07 | ĐẠT MỘT PHẦN | Ghép node, bố cục, `runEngine` | Có node `App` với 0 bước, đưa lên bản đồ là không có gì để học |
-| B08 | ĐẠT MỘT PHẦN | Sửa theo repo demo, tất định | Tất định đạt trên 7 repo, nhưng ô "lát cắt đi tới DATA_ACCESS" chỉ đạt trên `shop-api`. Repo thật hợp tiêu chí Q-03 thì 0/14 luồng tới được |
+| B08 | ĐẠT MỘT PHẦN | Sửa theo repo demo, tất định | Tất định đạt trên 7 repo, nhưng ô "lát cắt đi tới DATA_ACCESS" chỉ đạt trên `shop-api`. Repo thật hợp tiêu chí Q-03 thì 0/14 luồng tới được. Trên chính `shop-api`, quan hệ tiên quyết cũng khác sơ đồ `spec/50` Mục 1: Giỏ hàng, Gửi email, Báo cáo đều không có node cha |
 | B09 | ĐẠT | Tải chọn lọc repo lớn | Test đạt, nhưng 7 repo đã chạy chưa repo nào kích hoạt tải chọn lọc |
 | B10 | ĐẠT MỘT PHẦN | Python, entry main, React Native | Repo Expo chỉ ra 1/8 màn hình. Repo Express bị nhận nhầm 3 màn hình giả |
 
@@ -118,7 +132,7 @@ Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ 
 | C07 | ĐẠT | Đặt câu hỏi | Không |
 | C08 | ĐẠT | Chấm và gợi ý | Không |
 | C09 | ĐẠT | Tổng quan repo | Không |
-| C10 | ĐẠT MỘT PHẦN | Duyệt tay, đóng băng bundle | Thiếu `scripts/record-bundle.ts`, chưa duyệt tay. Bundle hiện tại có dấu hiệu dựng tay, cần ghi lại từ AI thật |
+| C10 | ĐẠT MỘT PHẦN | Duyệt tay, đóng băng bundle | Thiếu `scripts/record-bundle.ts`, chưa duyệt tay. **Bundle không phải ghi từ API:** 0/7 id khớp engine thật, cả 7 bài dùng chung một phân tích N+1. Phải ghi lại từ AI thật |
 
 ### Vai D — Giao diện
 
@@ -131,11 +145,17 @@ Code của cả vai vào `main` qua PR #109, chưa có PR theo từng phiếu, v
 | D03 | ĐẠT MỘT PHẦN | Bản đồ bài học | **Chưa dùng ReactFlow**, thiếu các file `components/canvas/` |
 | D04 | ĐẠT MỘT PHẦN | Khung xem code | **Chưa dùng Monaco**, thiếu `CodePane.tsx` |
 | D05 | ĐẠT MỘT PHẦN | Phân tích X-Ray, Tổng quan | Thiếu `SkillChips.tsx`, `overview-view.ts`, chưa xác nhận đủ 3 giai đoạn D-71 |
-| D06 | KHÔNG KIỂM ĐƯỢC | Trang chủ, đăng nhập, nối API | Đủ file, cần chạy tay với Supabase thật |
-| D07 | ĐẠT MỘT PHẦN | Trả lời Feynman | Thiếu `RunSummary.tsx`, các ca T chưa chạy tay |
-| D08 | KHÔNG KIỂM ĐƯỢC | Áp response, offline | Đủ file, cần chạy tay, chờ bundle chuẩn từ C10 |
-| D09 | KHÔNG KIỂM ĐƯỢC | Trang phụ, responsive | Đủ file, cần chạy tay T12, T29 |
-| D10 | ĐẠT MỘT PHẦN | Kiểm agent, sửa giao diện | Đã bỏ `/dev` và dữ liệu giả, chờ D03, D04, D05, D07 |
+| D06 | ĐẠT MỘT PHẦN | Trang chủ, đăng nhập, nối API | Trang lộ trình hiện id thô (`Kiến trúc Node: slice-cart`) thay vì tên bài. Luồng đăng nhập thật chưa chạy |
+| D07 | ĐẠT MỘT PHẦN | Trả lời Feynman | Thiếu `RunSummary.tsx`. Khi chưa có câu hỏi thì hiện câu viết cứng về "trừ kho hàng" (`FeynmanQuestionSection.tsx:264`). Các ca T chưa chạy tay |
+| D08 | ĐẠT MỘT PHẦN | Áp response, offline | `Ctrl+Shift+D` chạy được, không có request nào. Nhưng `/learn?offline=1` (link ở trang đăng nhập) ra trang trống và vẫn gọi server, vì bundle chỉ nạp khi bấm phím. Nội dung chờ bundle chuẩn từ C10 |
+| D09 | ĐẠT MỘT PHẦN | Trang phụ, responsive | Ở màn 375px, `/` tràn ngang 49px, `/learn?offline=1` tràn 90px. `/report` hiện mã thô `ERR_UNAUTHENTICATED`. T12, T29 chưa chạy tay |
+| D10 | ĐẠT MỘT PHẦN | Kiểm agent, sửa giao diện | Đã bỏ `/dev`, nhưng còn câu hỏi viết cứng ở D07. Chờ D03, D04, D05, D07 |
+
+**Kết quả chạy trên Chrome thật (không đăng nhập):**
+
+- `Ctrl+Shift+D` → lộ trình → bài học → trả lời → chấm: chạy được, 0 request `/api`.
+- Bài Giỏ hàng lại hiện phân tích N+1 và câu hỏi về sản phẩm, vì bundle dùng chung nội dung cho cả 7 bài.
+- Trong bundle, `slice-product-list` bị khóa dù theo spec N3 là điểm bắt đầu.
 
 ### Vai E — Kiểm thử, demo, slide
 
@@ -158,24 +178,27 @@ Mốc: 12:00 thứ Bảy 07/11/2026.
 
 | # | Việc | Vai | Mở khóa |
 | :-: | :-- | :-- | :-- |
-| 1 | Tạo Secrets GCP và Supabase, cho `deploy` xanh tới staging, chốt dùng Supabase nào cho production | A | A03, A09, A12 |
-| 2 | Sửa engine: giải `require` qua `index`, gọi hàm qua module Python, kiểm gói `expo-router`, regex `pyproject.toml`, lát cắt lẫn hàm, node 0 bước | B | B04–B08, B10 |
-| 3 | Chạy tay luồng thật: đăng nhập, dán repo demo, phân tích, trả lời, chấm | E, D, A | E06, D06, A07 |
-| 4 | Quyết định ReactFlow và Monaco: làm đúng spec, hay sửa spec và phiếu theo code | D, cả nhóm | D03, D04 |
-| 5 | Bù phần thiếu: chip kỹ năng, `RunSummary`, 3 giai đoạn Tổng quan, dùng hoặc bỏ `workbench.ts` | D | D02, D05, D07, D10 |
-| 6 | Viết `review-run.ts`, chạy kịch bản A, B và các ca trục trặc | E | E07, E08 |
-| 7 | Viết `record-bundle.ts`, ghi lại bundle từ AI thật, đăng số đo Gemini | C | C01, C10, D08 |
-| 8 | Chạy Definition of Done, quay video, điền số đo, làm slide | E | E09, E10 |
-| 9 | Ghim 5 gói `^`, đóng Issue #12, #13, xem lại `auth/callback` theo ghi chú PR #109 | A, D | A01, D01 |
+| 1 | Sửa 2 lỗi chặn: 9 chỗ ghi `::jsonb` và `pointsCovered::boolean[]`. Thêm test chạy trên Postgres thật để không tái phát | A | A05, A06, A10, Lát dọc 1, 2 |
+| 2 | Tạo Secrets GCP và Supabase, cho `deploy` xanh tới staging, chốt dùng Supabase nào cho production | A | A03, A09, A12 |
+| 3 | Sửa engine: giải `require` qua `index`, gọi hàm qua module Python, kiểm gói `expo-router`, regex `pyproject.toml`, lát cắt lẫn hàm, node 0 bước, quan hệ tiên quyết của `shop-api` | B | B04–B08, B10 |
+| 4 | Chạy tay luồng thật: đăng nhập, dán repo demo, phân tích, trả lời, chấm | E, D, A | E06, D06, A07 |
+| 5 | Quyết định ReactFlow và Monaco: làm đúng spec, hay sửa spec và phiếu theo code | D, cả nhóm | D03, D04 |
+| 6 | Sửa giao diện: nạp bundle cho `?offline=1`, tên bài thay id thô, bỏ câu hỏi viết cứng, tràn ngang trên điện thoại, chip kỹ năng, `RunSummary`, 3 giai đoạn Tổng quan, dùng hoặc bỏ `workbench.ts` | D | D02, D05–D10 |
+| 7 | Viết `review-run.ts`, chạy kịch bản A, B và các ca trục trặc | E | E07, E08 |
+| 8 | Viết `record-bundle.ts`, ghi lại bundle từ AI thật, đăng số đo Gemini | C | C01, C10, D08 |
+| 9 | Chạy Definition of Done, quay video, điền số đo, làm slide | E | E09, E10 |
+| 10 | Ghim 5 gói `^`, đóng Issue #13, xem lại `auth/callback` theo ghi chú PR #109 | A, D | A01, D01 |
 
 5 PR Dependabot (#77–#81) còn mở, trong đó có các bản nâng lớn. Không nên merge trước giờ thi nếu chưa thử.
 
 ## 6. Giới hạn của báo cáo
 
-- **Chưa chạy:** Gemini thật, Supabase thật, deploy, trình duyệt. Các ô chạy tay trong phiếu vì vậy chưa được chứng minh, kể cả ở những phiếu `ĐẠT`.
-- **Repo demo Q-03 chưa được chọn.** Engine mới chạy trên 7 repo công khai do người kiểm tự chọn, chưa phải repo thi. Nhóm có thể chọn repo demo tránh được các lỗi trên, nhưng ban giám khảo có thể dán repo khác.
-- **Mức `ĐẠT`** dựa vào test xanh và đọc code có chọn lọc, chưa so từng dòng với `docs/spec/`.
-- **Lần chấm đầu cho Vai B 10/10 là quá dễ.** Lần đó chỉ dựa vào test, mà test do chính AI viết. Bản này đã chấm lại sau khi chạy repo thật.
-- **Bundle dựng tay** là suy đoán từ dấu vết: `recorded_at` là 27/10/2024, thiếu script ghi, và file vào qua commit giao diện. Cần người làm xác nhận.
+- **Chưa chạy:** Gemini thật, Supabase thật, deploy, đăng nhập GitHub. Mức `ĐẠT` của Vai C nghĩa là luồng chạy đúng với fixture đi qua cổng gác thật, chưa biết chất lượng trả lời của Gemini.
+- **PGlite là Postgres thật chạy trong tiến trình, không phải Supabase.** Hai lỗi chặn đã xác minh ở tầng driver `postgres`, nên nhiều khả năng xảy ra y hệt trên Supabase, nhưng chưa chạy trên Supabase. PGlite chỉ có 1 phiên nên chưa thử được nộp bài đồng thời.
+- **Nhánh chưa chạy:** báo sai thành công, hết quota, upload zip quá cỡ.
+- **Repo demo Q-03 chưa được chọn.** Engine mới chạy trên 7 repo công khai do người kiểm tự chọn. Nhóm có thể chọn repo tránh được các lỗi trên, nhưng ban giám khảo có thể dán repo khác.
+- **Cổng gác:** `injection.ts` khớp từng ký tự với spec, 22 câu mẫu đều qua bước kiểm đầu vào. Vẫn lọt vài dạng spec không yêu cầu: lệnh tiếng Việt diễn đạt khác, khóa Slack, Stripe, biến `..._PASSWORD=` không có ngoặc kép, SĐT có dấu cách. Đây là góp ý, chưa tính là lỗi.
+- **Mức `ĐẠT`** chưa so từng dòng với `docs/spec/`.
 - **Deploy đỏ:** mới xem 30 lần chạy gần nhất, tính từ 03/11.
+- **Lịch sử chấm:** bản đầu của báo cáo này quá dễ với Vai B và Vai A (từng ghi 31/52). Các lần sau đã chấm lại khi chạy thật.
 - Báo cáo này do AI kiểm và chưa có người duyệt lại.
