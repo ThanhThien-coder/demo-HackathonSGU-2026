@@ -19,7 +19,7 @@ export function HomeFooter() {
             SIMPLIFEY
           </Link>
           <span className="font-normal text-[#554337] text-[13px] leading-[19.5px]">
-            © 2025 SimpliFey by MeoMeo Team - Hackathon 2026
+            © 2026 SimpliFey by MeoMeo Team - Hackathon 2026
           </span>
         </div>
 

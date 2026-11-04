@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { AlertCircle, RefreshCw, ArrowLeft, BookOpen } from "lucide-react";
 import type { ApiError } from "@/contracts";
+import { formatErrorMessage } from "@/lib/messages";
 
 export function ReportLoadingSkeleton() {
   return (
@@ -86,26 +87,17 @@ interface ReportErrorViewProps {
 }
 
 export function ReportErrorView({ error, onRetry, sessionId }: ReportErrorViewProps) {
-  // Chuẩn hóa thông điệp lỗi tiếng Việt theo spec/30_UI.md Mục 10
-  let errorCode = "ERR_CLIENT_NETWORK";
-  let errorMessage =
-    "Không thể tải báo cáo phiên học. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau.";
+  let errorCode: string | undefined = undefined;
+  let rawMessage: string | undefined = undefined;
 
   if (error && "error" in error && error.error) {
     errorCode = error.error.code;
-    errorMessage = error.error.message || errorMessage;
+    rawMessage = error.error.message;
   } else if (error instanceof Error) {
-    errorMessage = error.message;
+    rawMessage = error.message;
   }
 
-  // Map mã lỗi sang tiếng Việt thân thiện
-  if (errorCode === "ERR_UNAUTHENTICATED") {
-    errorMessage = "Phiên đăng nhập đã hết hạn hoặc chưa được xác thực.";
-  } else if (errorCode === "ERR_SESSION_NOT_FOUND") {
-    errorMessage = "Không tìm thấy phiên học yêu cầu. Phiên có thể đã bị xóa hoặc không hợp lệ.";
-  } else if (errorCode === "ERR_PERSISTENCE_UNAVAILABLE") {
-    errorMessage = "Máy chủ lưu trữ đang gặp sự cố tạm thời. Vui lòng thử lại sau giây lát.";
-  }
+  const errorMessage = formatErrorMessage(errorCode, rawMessage);
 
   return (
     <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-12 flex flex-col items-center justify-center min-h-[500px]">
@@ -115,9 +107,6 @@ export function ReportErrorView({ error, onRetry, sessionId }: ReportErrorViewPr
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-bold text-[#e7000b] bg-[#fee2e2] px-2.5 py-0.5 rounded-full uppercase tracking-wider self-center">
-            {errorCode}
-          </span>
           <h2 className="text-[20px] sm:text-[22px] font-bold text-[#131b2e]">
             Đã xảy ra lỗi tải báo cáo
           </h2>
@@ -135,13 +124,23 @@ export function ReportErrorView({ error, onRetry, sessionId }: ReportErrorViewPr
             <span>Thử lại</span>
           </button>
 
-          <Link
-            href={sessionId ? `/learn?session=${encodeURIComponent(sessionId)}` : "/learn"}
-            className="w-full sm:flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-[12px] bg-[#faf8ff] hover:bg-[#f0edff] text-[#131b2e] border border-[#eaedff] font-bold text-[14px] transition-all select-none"
-          >
-            <ArrowLeft className="size-4 text-[#554337]" />
-            <span>Về buồng lái</span>
-          </Link>
+          {errorCode === "ERR_UNAUTHENTICATED" ? (
+            <Link
+              href="/login?next=/report"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-[12px] bg-[#faf8ff] hover:bg-[#f0edff] text-[#131b2e] border border-[#eaedff] font-bold text-[14px] transition-all select-none"
+            >
+              <ArrowLeft className="size-4 text-[#554337]" />
+              <span>Đăng nhập</span>
+            </Link>
+          ) : (
+            <Link
+              href={sessionId ? `/learn?session=${encodeURIComponent(sessionId)}` : "/learn"}
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-[12px] bg-[#faf8ff] hover:bg-[#f0edff] text-[#131b2e] border border-[#eaedff] font-bold text-[14px] transition-all select-none"
+            >
+              <ArrowLeft className="size-4 text-[#554337]" />
+              <span>Về buồng lái</span>
+            </Link>
+          )}
         </div>
       </div>
     </div>
