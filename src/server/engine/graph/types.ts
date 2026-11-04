@@ -93,6 +93,7 @@ export interface SymbolIndex {
   field_types: FieldTypeMap;
   interface_impls: InterfaceImplMap;
   locals: LocalSymbolIndex;
+  reexports?: Map<string, Map<string, ImportedSymbol>>;
 }
 
 // Mục 8: EngineContext cho lát cắt (slicing)

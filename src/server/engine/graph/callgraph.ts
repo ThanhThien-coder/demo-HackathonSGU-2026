@@ -92,6 +92,26 @@ function findEnclosingFunctionKey(
   let cur: Node | null = node.parent;
   while (cur) {
     if (FUNCTION_NODE_TYPES.has(cur.type)) {
+      // 1. Kiểm tra nếu cur là hàm nằm trong hàm bọc cấp cao nhất hoặc biến giữ hàm
+      let p: Node | null = cur.parent;
+      while (p && (p.type === "arguments" || p.type === "call_expression")) {
+        p = p.parent;
+      }
+      if (p && p.type === "variable_declarator") {
+        const nameNode = p.childForFieldName("name");
+        if (nameNode && nameNode.type === "identifier") {
+          const varName = nameNode.text;
+          const varKey = `${filePath}#${varName}`;
+          if (idx.functions.has(varKey)) {
+            return varKey;
+          }
+          for (const [k, f] of idx.functions) {
+            if (f.file_path === filePath && f.name === varName) {
+              return k;
+            }
+          }
+        }
+      }
       // ENG-20: line_start của symbol tính từ decorator đầu tiên (NestJS @Post + @UseGuards, Flask @route +
       // @login_required…) nên có thể nằm trên node hàm nhiều dòng. Khớp theo dòng kết thúc trùng khít,
       // line_start ≤ dòng đầu node, ưu tiên trùng tên; nhiều ứng viên ⇒ line_start lớn nhất, rồi khóa nhỏ.
@@ -1122,10 +1142,11 @@ export function buildCallGraph(
               const loc = `${filePath}#${typeStr}.${method}`;
               if (idx.symbols.has(loc) || idx.functions.has(loc)) return loc;
               // 3. Quét toàn bộ symbols
+              const targetSymName = imp && imp.symbol_name !== "default" ? imp.symbol_name : typeStr;
               for (const [sKey, sym] of idx.symbols) {
                 if (
                   sym.kind === "METHOD" &&
-                  (sKey.endsWith(`#${typeStr}.${method}`) || sKey.includes(`#${typeStr}.${method}~`))
+                  (sKey.endsWith(`#${targetSymName}.${method}`) || sKey.includes(`#${targetSymName}.${method}~`))
                 ) {
                   return sKey;
                 }
@@ -1166,7 +1187,14 @@ export function buildCallGraph(
               }
 
               if (fieldType) {
-                const impls = idx.interface_impls.get(fieldType);
+                const typeImp = idx.imports.get(filePath)?.get(fieldType);
+                const effectiveType =
+                  typeImp && typeImp.source_file && typeImp.symbol_name !== "default"
+                    ? typeImp.symbol_name
+                    : fieldType;
+                const impls =
+                  idx.interface_impls.get(effectiveType) ??
+                  idx.interface_impls.get(fieldType);
                 if (impls && impls.length === 1) {
                   const implClassKey = impls[0]!;
                   const targetMethodKey = `${implClassKey}.${method}`;
@@ -1271,12 +1299,52 @@ export function buildCallGraph(
                 });
               } else {
                 // Kiểm tra field_types cho biến cục bộ / module (ENG-22, ENG-31 (3))
-                const fieldType =
+                let fieldType =
                   idx.field_types.get(`${filePath}#${baseReceiver}`) ??
                   idx.field_types.get(baseReceiver);
 
+                if (!fieldType) {
+                  let pNode: Node | null = node.parent;
+                  while (pNode && !FUNCTION_NODE_TYPES.has(pNode.type)) {
+                    pNode = pNode.parent;
+                  }
+                  if (pNode) {
+                    const scanLocal = (n: Node): void => {
+                      if (fieldType) return;
+                      if (n !== pNode && FUNCTION_NODE_TYPES.has(n.type)) return;
+                      if (n.type === "variable_declarator") {
+                        const nameNode = n.childForFieldName("name");
+                        const valNode = n.childForFieldName("value");
+                        if (nameNode?.text === baseReceiver && valNode?.type === "new_expression") {
+                          const ctor = valNode.childForFieldName("constructor");
+                          if (ctor) fieldType = ctor.text;
+                        }
+                      } else if (n.type === "assignment") {
+                        const left = n.childForFieldName("left");
+                        const right = n.childForFieldName("right");
+                        if (left?.text === baseReceiver && right?.type === "call") {
+                          const fn = right.childForFieldName("function");
+                          if (fn) fieldType = fn.text;
+                        }
+                      }
+                      for (let i = 0; i < n.childCount; i++) {
+                        const c = n.child(i);
+                        if (c) scanLocal(c);
+                      }
+                    };
+                    scanLocal(pNode);
+                  }
+                }
+
                 if (fieldType) {
-                  const impls = idx.interface_impls.get(fieldType);
+                  const typeImp = idx.imports.get(filePath)?.get(fieldType);
+                  const effectiveType =
+                    typeImp && typeImp.source_file && typeImp.symbol_name !== "default"
+                      ? typeImp.symbol_name
+                      : fieldType;
+                  const impls =
+                    idx.interface_impls.get(effectiveType) ??
+                    idx.interface_impls.get(fieldType);
                   if (impls && impls.length === 1) {
                     rawEdges.push({
                       caller: callerKey,
