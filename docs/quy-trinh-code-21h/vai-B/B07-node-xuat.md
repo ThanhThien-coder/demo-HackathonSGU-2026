@@ -8,6 +8,8 @@
 | Mở đường cho | Lát dọc 1, E06, B08 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B07`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -53,9 +55,17 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
    - **`hash6(s)`** = 6 ký tự hex đầu của SHA-1 (UTF-8) bằng `node:crypto` (D-08, ENG-111); kiểm bằng id kỳ vọng của T-ENG-18.
    - **Input test**: dựng zip trong RAM bằng `fflate` ⇒ `runIngest({ kind: "ZIP_UPLOAD", … })` ⇒ `buildGraph` (không tự dựng `StaticEngineResult` bằng tay, trừ test hàm thuần như `mainPath`, `toClientResult`). Bẫy khi viết test (đã gặp lúc tập): `edges` sort theo `id` (Mục 15 ý 4, id là mã băm) ⇒ so tập cạnh đã sort, không so thứ tự A→B→C; 2 candidate cùng tập `functions` bị ENG-110 gộp làm một ⇒ ca "chuỗi A→B→C giữ {A,C}" của T-ENG-15 phải dùng > `CONFIG.DISPLAY_MAX_NODES` candidate để Display Budget bỏ B, hoặc test riêng hàm tính cạnh trên tập giữ `K` (Mục 11 ý 6); không dựng `ParsedFile` với `tree: null`; không ép kiểu `as HybridArchitecturalNode` từ `Candidate`. Hàm của B06 tên là `cognitiveComplexity` (không có `computeCognitiveComplexity`). T-ENG-34: chạy 2 lần cùng zip, so `JSON.stringify` của `nodes`, `edges`, `symbol_whitelist` (không so `engine_ms`).
    - **Node từ file test:** còn từ `CONFIG.DISPLAY_MIN_NODES` candidate không mang cờ ING-87 thì bỏ candidate mang cờ, không cộng vào `omitted_node_count`. Ít hơn thì giữ để repo thư viện vẫn có bản đồ. Capstone không được nằm ở file test khi đã bỏ.
-   - **Cây bài học (D-73):** D-07 đơn thuần để nhiều bài không có cha nên mở sẵn từ đầu (BrewLite 13/20). Sau Display Budget, gọi `addTreeEdges`: trong mỗi module, bài dễ nhất chưa có cạnh vào là bài đầu nhánh; các bài chưa có cạnh vào còn lại là con của nó; module dùng module khác thì bài đầu nhánh là con của bài đầu nhánh module đó. Module = thư mục cha của `files[0]`; cả đồ thị dưới 3 module thì module = `files[0]`. Cạnh thêm là `INFERRED`, vào `edges` và `prerequisites`, có khóa bài thật. Cạnh tạo vòng thì bỏ. Không nối ép giữa các cây.
+   - **Cây bài học (D-73, ENG-115, lỗi B-04, B-05):** sau Display Budget, gọi `addTreeEdges` đúng 6 ý của ENG-115. Chỉ xét lát cắt, không áp cho node thuật toán, node ảo, để giữ D-56 và T-ENG-38. Cạnh khác module chỉ thêm khi bài đầu nhánh của module được dùng **dễ hơn** bài đầu nhánh của module đang xét. Bỏ điều kiện này thì `shop-api` chỉ còn 1 bài mở đầu là `Order Email`, `Đăng ký` bị khóa sau nó. Cạnh thêm là `INFERRED`, vào `edges` và `prerequisites`, có khóa bài thật. Cạnh tạo vòng thì bỏ.
 6. Viết test trong `src/server/engine/graph/__tests__/node.test.ts` bao phủ các ca T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-25, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-31, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38 (T-ENG-25, T-ENG-31 chạy đủ đường `buildGraph`; B05 mới kiểm phần chọn chế độ và `parseAll`).
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Bỏ `<module>` (lỗi B-27, ENG-90):** `<module>` không là ứng viên bài thuật toán, ở cả (a) và (b). Bản cũ có 3/6 repo lấy `<module>` làm Capstone.
+- **File test (lỗi B-02):** dùng `isTestPath` của `ingest/priority.ts`, không viết lại.
+- **Bước thuật toán (lỗi B-11, B-28, ENG-91, ENG-86):** bỏ bước rỗng. Khi cắt bước, dựng lại `snippet_line_map` để marker có map bằng 0, không chỉ cắt mảng.
+- **Tên bài (lỗi B-30, Mục 13 Bậc 1):** tách `-`, `_` trong đoạn path. `S[-1]` thuộc `ACTION_SEGMENTS` ⇒ tên là hành động + tài nguyên, bỏ `auth`. `DELETE` có `|S| ≥ 2` giữ động từ. Id có `slug(base_title)`, nên phải chốt tên trước khi có dữ liệu cần giữ.
+- **Đường lùi (lỗi B-17, `docs/spec/10_ENGINE_INGEST.md` Mục 8 ý 3):** offset tự chọn gây `ERR_NO_ARCHITECTURAL_SLICE` ⇒ `runEngine` thử ứng viên kế tiếp, cuối cùng `""`, không tải lại zip.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
@@ -64,8 +74,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Bản đồ giới hạn tối đa `CONFIG.DISPLAY_MAX_NODES` node (ENG-114).
 - `npm run typecheck`, `npm test`, `npm run lint` (0 error; engine 0 warning) đều sạch.
 - `resolveHandlerKey` trả `string | null`, lấy đối số từ trường `arguments`. Lời gọi không có đối số như `cors()` là factory, không tạo binding. Tên middleware dạng factory lấy tên hàm: `validate(s)` là `validate`. Candidate không có bước nào bị bỏ trước ENG-110, không cộng vào `omitted_node_count`.
-- Học xong mới mở bài tiếp theo: không còn bài cùng module mở sẵn ngoài bài đầu nhánh (D-73).
+- Học xong mới mở bài tiếp theo: lát cắt cùng module chỉ còn bài đầu nhánh mở sẵn (D-73). `shop-api` có điểm bắt đầu N1, N3, N6.
 - Không có node từ file test khi còn đủ candidate thật; Capstone không nằm ở file test.
+- T-ENG-22, T-ENG-22b, T-ENG-41 xanh; T-ENG-28, T-ENG-37, T-ENG-38 vẫn xanh.
+- Không có node `ALGORITHMIC_CORE` có `function_name` là `<module>`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -99,6 +111,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `app.options('*', cors())` không sinh node, không có khóa kết thúc bằng `#()`.
 - [ ] Đếm số bài mở lúc đầu trên repo thật: BrewLite không quá 6 bài, không còn bài nào của module có từ 2 bài đứng lẻ.
 - [ ] Capstone là luồng thật của ứng dụng, không phải file `.spec` hay `test_`.
+- [ ] BrewLite: 17 bài, Capstone `Create Order`, 4 bài mở đầu, 0 bài lẻ, đọc tay thứ tự bài.
+- [ ] `t3-oss/create-t3-turbo` ra được bản đồ, không báo `ERR_NO_ARCHITECTURAL_SLICE`.
 
 ```text
 Task "B07 — Ghép node, tên, bố cục, xuất runEngine" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

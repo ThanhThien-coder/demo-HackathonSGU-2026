@@ -10,6 +10,8 @@ Làm xong phiếu này, toàn bộ giao diện SimpliFey được rà soát sạ
 | Mở đường cho | Đóng băng, E09 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D10`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 Bạn thức dậy lúc 03:00, dùng `kiem-task` kiểm task D09 của agy và tự gõ lệnh mở PR cho D09 trước. Sau đó chuẩn bị nhánh mới:

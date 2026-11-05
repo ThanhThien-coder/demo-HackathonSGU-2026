@@ -8,6 +8,8 @@
 | Mở đường cho | Lát dọc 1, D06, smoke X-09, B08 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A06`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,12 +25,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 4, 6.6
-- `.kb/spec/02_CONTRACTS.md` Mục 3, 7, 8, 9
-- `.kb/spec/10_ENGINE_INGEST.md` Mục 1 (`IngestionError`)
-- `.kb/spec/11_ENGINE_DO_THI.md` Mục 0 (chữ ký `runEngine`)
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-09
-- `.kb/spec/00_QUYET_DINH.md` D-27, D-31, D-42, D-59, D-64
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2, 4, 6.6
+- `docs/spec/02_CONTRACTS.md` Mục 3, 7, 8, 9
+- `docs/spec/10_ENGINE_INGEST.md` Mục 1 (`IngestionError`)
+- `docs/spec/11_ENGINE_DO_THI.md` Mục 0 (chữ ký `runEngine`)
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-09
+- `docs/spec/00_QUYET_DINH.md` D-27, D-31, D-42, D-59, D-64
 - `package.json`
 - `src/`
 
@@ -39,21 +41,27 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Xử lý link GitHub: giới hạn đồng thời `CONFIG.MAX_CONCURRENT_INGESTIONS` ⇒ gọi `runEngine` (bên trong `runEngine` đã gọi `runIngest` rồi `buildGraph`, `.kb/spec/11_ENGINE_DO_THI.md` Mục 0; route KHÔNG gọi `runIngest` riêng, gọi cả hai là ingest 2 lần) ⇒ ghi `learning_sessions`, `session_snapshots` (D-59) ⇒ trả về `IngestResponse` qua hàm `toClientResult`; cấu hình `export const runtime = "nodejs"`.
+2. B1: Xử lý link GitHub: giới hạn đồng thời `CONFIG.MAX_CONCURRENT_INGESTIONS` ⇒ gọi `runEngine` (bên trong `runEngine` đã gọi `runIngest` rồi `buildGraph`, `docs/spec/11_ENGINE_DO_THI.md` Mục 0; route KHÔNG gọi `runIngest` riêng, gọi cả hai là ingest 2 lần) ⇒ ghi `learning_sessions`, `session_snapshots` (D-59) ⇒ trả về `IngestResponse` qua hàm `toClientResult`; cấu hình `export const runtime = "nodejs"`.
 3. B2: Xử lý mở lại phiên `{ session_id }` từ snapshot đã lưu trong CSDL, không tải lại file zip; xử lý tùy chọn `restart` (D-42); xử lý `subdir_override`.
 4. B3: Xử lý upload file `.zip` qua trường `archive`, kiểm tra trần kích thước `CONFIG.MAX_UPLOAD_BYTES` (D-27).
-5. B4: Bắt lỗi engine. `toErrorResponse` của `src/server/errors.ts` (A04) chỉ nhận ra `ApiHttpError`; lỗi khác (kể cả `IngestionError`) bị trả về thành `ERR_PERSISTENCE_UNAVAILABLE` (503). Vì vậy bọc lời gọi `runEngine` trong `try/catch`: lỗi là `IngestionError` (lớp ở `src/server/engine/ingest/types.ts`, mang mã `IngestionErrorCode`, `.kb/spec/10_ENGINE_INGEST.md` Mục 1) ⇒ đổi thành `new ApiHttpError(err.code, undefined, err.details)` rồi trả về qua `toErrorResponse` (hoặc `.toResponse()`). Giữ nguyên `code` và `details` (VD `language`, `hint`); mã HTTP, `retryable` và thông điệp do `ApiHttpError` tự lấy theo `.kb/spec/02_CONTRACTS.md` Mục 9. KHÔNG truyền `err.message` (mặc định chính là chuỗi mã lỗi). Không viết lại bảng mã HTTP trong route. Lỗi khác không phải `IngestionError` thì ném tiếp, không gắn mã ingest. Không sửa `src/server/errors.ts`.
+5. B4: Bắt lỗi engine. `toErrorResponse` của `src/server/errors.ts` (A04) chỉ nhận ra `ApiHttpError`; lỗi khác (kể cả `IngestionError`) bị trả về thành `ERR_PERSISTENCE_UNAVAILABLE` (503). Vì vậy bọc lời gọi `runEngine` trong `try/catch`: lỗi là `IngestionError` (lớp ở `src/server/engine/ingest/types.ts`, mang mã `IngestionErrorCode`, `docs/spec/10_ENGINE_INGEST.md` Mục 1) ⇒ đổi thành `new ApiHttpError(err.code, undefined, err.details)` rồi trả về qua `toErrorResponse` (hoặc `.toResponse()`). Giữ nguyên `code` và `details` (VD `language`, `hint`); mã HTTP, `retryable` và thông điệp do `ApiHttpError` tự lấy theo `docs/spec/02_CONTRACTS.md` Mục 9. KHÔNG truyền `err.message` (mặc định chính là chuỗi mã lỗi). Không viết lại bảng mã HTTP trong route. Lỗi khác không phải `IngestionError` thì ném tiếp, không gắn mã ingest. Không sửa `src/server/errors.ts`.
 6. Viết test trong `src/app/api/__tests__/ingest.test.ts`: dùng `vi.mock` hàm `runEngine` trả về fixture `src/server/engine/__fixtures__/shop-api.json`. Thêm test lỗi engine:
    - `runEngine` ném `IngestionError("ERR_INVALID_GITHUB_URL")` ⇒ HTTP 400, body là `ApiError` có `error.code = "ERR_INVALID_GITHUB_URL"` (không phải `ERR_PERSISTENCE_UNAVAILABLE`).
    - `runEngine` ném `IngestionError("ERR_UNSUPPORTED_LANGUAGE", undefined, { language: "Go" })` ⇒ HTTP 422, `error.details.language = "Go"`.
-7. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **`analyses` (lỗi A-05, `docs/spec/03_API_VA_LUU_TRU.md` Mục 6.6):** không trả `analyses: {}` cố định. Mở lại phiên thì trả các phân tích đã có.
+- **`maxDuration`:** khai báo cho `/api/ingest`. Repo lớn mất 10–25 giây (đo ở máy local).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/app/api/__tests__/ingest.test.ts`
 - Response trả về không chứa các trường nội bộ `symbol_whitelist`, `suspicious_instruction_files` (API-03).
 - Mở lại phiên `{ session_id }` không thực hiện bất kỳ lệnh tải file zip nào.
 - Lệnh `grep -n "runIngest" src/app/api/ingest/route.ts src/server/session.ts` không có kết quả (chỉ gọi `runEngine`).
-- `IngestionError` từ `runEngine` được đổi sang `ApiHttpError`, trả về `ApiError` giữ đúng `code`, `details` và mã HTTP của `.kb/spec/02_CONTRACTS.md` Mục 9, không rơi về `ERR_PERSISTENCE_UNAVAILABLE` (có test).
+- `IngestionError` từ `runEngine` được đổi sang `ApiHttpError`, trả về `ApiError` giữ đúng `code`, `details` và mã HTTP của `docs/spec/02_CONTRACTS.md` Mục 9, không rơi về `ERR_PERSISTENCE_UNAVAILABLE` (có test).
+- Test mở lại phiên có `analyses` khác rỗng khi đã phân tích.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.

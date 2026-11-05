@@ -8,6 +8,8 @@
 | Mở đường cho | A08 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C07`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,11 +25,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 6, Test bắt buộc
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 5, Test bắt buộc
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 2.3, Mục 3.4
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5.3
-- `.kb/spec/00_QUYET_DINH.md` D-36, D-37
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 6, Test bắt buộc
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 5, Test bắt buộc
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.3, Mục 3.4
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5.3
+- `docs/spec/00_QUYET_DINH.md` D-36, D-37
 - `package.json`
 - `src/`
 
@@ -39,15 +41,19 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1 luồng đặt câu hỏi, bước gửi AI, prompt (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 6, AI-22, AI-23, AI-25): hiện thực `generateQuestions`, prompt QUESTIONS_SYSTEM kèm FOCUS_GUIDE_A/B, schema câu hỏi; chỉ gửi code các bước trong step_indices (AI-23); gọi lại câu hỏng kèm lý do phản hồi cổng gác; câu hỏng sau retry đánh dấu DROPPED.
-3. B2 `checkQuestions` (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 5, GUARD-12): kiểm tra câu hỏi và đáp án mẫu theo Q1–Q8 (kỹ năng, số ý bắt buộc, tên trong code, số dòng, từ cấm, từ cuối symbol cho WEAKNESS, số bước cho FLOW, tên file cho CHANGE).
-4. Viết test trong `src/server/ai/__tests__/questions.test.ts` cho các trường hợp AI-22, AI-23, GUARD-12 dùng file fixture có sẵn `src/server/ai/__fixtures__/questions-n3.json` (fixture 2.3 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture.
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B1 luồng đặt câu hỏi, bước gửi AI, prompt (docs/spec/20_AI_GOI_VA_PROMPT.md Mục 6, AI-22, AI-23, AI-25): hiện thực `generateQuestions`, prompt QUESTIONS_SYSTEM kèm FOCUS_GUIDE_A/B, schema câu hỏi; chỉ gửi code các bước trong step_indices (AI-23); gọi lại câu hỏng kèm lý do phản hồi cổng gác; câu hỏng sau retry đánh dấu DROPPED.
+3. B2 `checkQuestions` (docs/spec/21_AI_KIEM_VA_DUYET.md Mục 5, GUARD-12): kiểm tra câu hỏi và đáp án mẫu theo Q1–Q8 (kỹ năng, số ý bắt buộc, tên trong code, số dòng, từ cấm, từ cuối symbol cho WEAKNESS, số bước cho FLOW, tên file cho CHANGE).
+4. Viết test trong `src/server/ai/__tests__/questions.test.ts` cho các trường hợp AI-22, AI-23, GUARD-12 dùng file fixture có sẵn `src/server/ai/__fixtures__/questions-n3.json` (fixture 2.3 của docs/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 6. Thêm khối `<learner_history>` và 2 luật câu hỏi theo `20` AI-22..AI-25 (quyết định D-74).
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Câu hỏi (lỗi C-03, C-04):** dòng nhắc tới phải đúng quan hệ trong code, không trả lời được bằng cách chép phần X-Ray. Ca thật: bài `Order` nói `Object.keys` kết hợp `canTransition` trong khi dòng đó là ca viết tay. Thêm ca vào `review/loi_da_gap.md`. Cổng gác không kiểm được nghĩa, phải duyệt tay.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai`
-- Có test (mock AI hoặc mock DB) cho ca D4, D5 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
+- Có test (mock AI hoặc mock DB) cho ca D4, D5 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
 - Test AI-22: câu 2 trượt gác thì request 2 chỉ gửi lại câu 2; câu trượt 2 lần đánh dấu DROPPED, câu 1 giữ; cả 2 câu trượt 2 lần thì trả `ERR_AI_REJECTED`; không ghi `ai_cache` (D-37).
 - Test AI-37: câu 2 bị chặn thì request 2 chỉ có câu 2 và lý do của câu 2.
 - Test AI-23: kế hoạch N3 gửi bước 1–3 vào code_data; prompt không cache (D-37).
@@ -78,9 +84,10 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Test AI-22, AI-23 đạt: luồng đặt câu hỏi và phân phối bước đúng kế hoạch.
 - [ ] Test GUARD-12 đạt: cổng gác câu hỏi kiểm tra đầy đủ các quy tắc Q1–Q8 trên fixture 2.3.
 
-- [ ] Có test cho ca D4, D5 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Có test cho ca D4, D5 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 - [ ] Test khối `<learner_history>` đạt: không lịch sử thì không có khối, có thì tối đa `HISTORY_MISSED_POINTS_MAX` ý, mới nhất trước.
 - [ ] Đọc 3 câu hỏi trên AI thật: quan hệ giữa các dòng đúng với code, không trả lời được bằng cách chép phần giải thích (lỗi C-03, C-04).
+- [ ] Chạy AI thật, đọc nội dung câu hỏi và đáp án của 3 bài, không chỉ xem test xanh.
 ```text
 Task "C07 — Đặt câu hỏi enrich-node" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

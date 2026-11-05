@@ -55,7 +55,7 @@ Không tự nhận đã phát minh Compound AI, BKT, PageRank, hay repo-map bằ
 | Giới hạn | Cách bù hiện tại |
 | :-- | :-- |
 | AI chấm và cổng gác không bảo đảm 100%; cổng gác chặn tên bịa và công nghệ không có trong repo, nhưng **không kiểm được nghĩa** AI nói đúng hay sai (INV-08) | Duyệt tay toàn bộ output của repo demo; hiện bằng chứng (bước + tên); nhãn "Nhận định của AI"; nút "Báo sai" |
-| Chỉ **TS/JS và Python** được kiểm chứng cho bản thi. Java, Go, Dart có bộ phân giải riêng trong thiết kế nhưng chưa kiểm chứng. Ngôn ngữ khác có grammar Tree-sitter chạy ở tầng `STRUCTURAL`: cạnh là suy luận, chưa kiểm chứng (INV-09) | Cạnh suy luận vẽ nét đứt và có huy hiệu độ tin cậy thấp; ngôn ngữ không có grammar thì báo `ERR_UNSUPPORTED_LANGUAGE` |
+| Bản thi chỉ có **TS/JS và Python** (D-76). Java, Go, Dart và các ngôn ngữ khác là lộ trình sau thi; repo chủ yếu viết bằng ngôn ngữ đó sẽ được báo là chưa hỗ trợ (INV-09) | Cạnh suy luận vẽ nét đứt và có huy hiệu độ tin cậy thấp; ngôn ngữ không có grammar thì báo `ERR_UNSUPPORTED_LANGUAGE` |
 | Repo nén quá `MAX_STREAM_BYTES` (15 MB) thì tải chọn lọc 1 thư mục (D-63), upload `.zip` ≤ `MAX_UPLOAD_BYTES` (4,5 MB), giữ ≤ `MAX_CLEAN_FILES` (100) file code. Chỉ nhận link gốc repo, chạy nhánh mặc định (D-38) | Repo lớn chỉ phân tích 1 thư mục, tối đa 100 file, có cảnh báo. Link tới nhánh / thư mục con tự cắt về gốc kèm ghi chú; đổi thư mục trên giao diện, hoặc upload `.zip` chỉ chứa thư mục mã nguồn |
 | Phân tích tĩnh có thể **sót cạnh** khi code dùng gọi động, DI qua cấu hình, reflection hoặc import động | Không bịa cạnh để bù; cạnh không chắc thì gắn nhãn |
 | Bộ chấm AI **chưa được hiệu chuẩn** với giảng viên; ngưỡng `PASS_CORE_ACCURACY` do nhóm tự đặt | Server tự quyết đạt (D-13); duyệt tay câu trả lời mẫu; hiệu chuẩn nằm ở roadmap GĐ2 |
@@ -111,10 +111,10 @@ Mỗi câu chỉ một người trả lời, người đỡ chỉ thêm khi đư
 ### B. Engine & bản đồ
 
 **B1. "Đây là repo của tôi, chạy thử ngay được không?"**
-Đ: Được, với link gốc của repo public trên github.com (nhánh mặc định) hoặc `.zip` ≤ 4,5 MB; repo nén quá 15 MB thì tự chọn thư mục chính, giữ tối đa 100 file code. TS/JS và Python đã kiểm chứng; ngôn ngữ khác có grammar thì cạnh là suy luận, vẽ nét đứt. Output AI trên repo của thầy chưa qua duyệt tay như repo demo. Rồi chạy thật theo [`KICH_BAN_DEMO.md`](KICH_BAN_DEMO.md) Mục 4.
+Đ: Được, với link gốc của repo public trên github.com (nhánh mặc định) hoặc `.zip` ≤ 4,5 MB; repo nén quá 15 MB thì tự chọn thư mục chính, giữ tối đa 100 file code. Bản thi hỗ trợ TS/JS và Python; repo chủ yếu viết bằng ngôn ngữ khác sẽ được báo là chưa hỗ trợ. Output AI trên repo của thầy chưa qua duyệt tay như repo demo. Rồi chạy thật theo [`KICH_BAN_DEMO.md`](KICH_BAN_DEMO.md) Mục 4.
 
 **B2. "Làm sao biết hàm nào gọi hàm nào mà không cần compiler?"**
-Đ: Tree-sitter đọc cú pháp, lập danh bạ tên hàm; hệ thống phân giải import rồi nối từng lời gọi tới định nghĩa thật. Ngôn ngữ có bộ phân giải riêng thì cạnh khá chính xác với code viết theo mẫu phổ biến; ngôn ngữ khác nối bằng luật chung, cạnh gắn nhãn suy luận. Gọi động, DI qua cấu hình, reflection có thể làm sót cạnh; hệ thống không bịa cạnh để bù.
+Đ: Tree-sitter đọc cú pháp, lập danh bạ tên hàm; hệ thống phân giải import rồi nối từng lời gọi tới định nghĩa thật. Với TS/JS và Python, cạnh khá chính xác khi code viết theo mẫu phổ biến. Gọi động, DI qua cấu hình, reflection có thể làm sót cạnh; hệ thống không bịa cạnh để bù.
 
 **B3. "Hai file gọi vòng nhau (A gọi B, B gọi A) thì đồ thị có lặp vô tận không?"**
 Đ: Không ạ. Tarjan tìm các nhóm gọi vòng nhau và gộp mỗi nhóm thành một cụm, nên đồ thị sau khi gộp luôn không có chu trình; chạy tuyến tính theo số đỉnh + cạnh.
@@ -132,13 +132,13 @@ Mỗi câu chỉ một người trả lời, người đỡ chỉ thêm khi đư
 Đ: Engine chuyển sang chế độ suy biến:
 - ≤ 2 file thì dùng `PROCEDURAL`; nhiều file rời không có entry thì vẫn chạy chế độ thường, chỉ ra node thuật toán;
 - hàm có độ phức tạp nhận thức > `VIP_COMPLEXITY_MIN` (15, trùng ngưỡng mặc định của SonarQube) thành một node thuật toán riêng.
-AI khi đó hỏi kiểu thuật toán: chạy tay với input nhỏ, Big-O, tình huống biên. Điểm dở như "hàm gánh quá nhiều việc" hiện ngay ở Tab 1 dưới nhãn "Nhận định của AI"; câu hỏi hỏi tiếp về hậu quả và cách sửa.
+AI khi đó hỏi kiểu thuật toán: chạy tay với input nhỏ, Big-O, tình huống biên. Điểm dở như "hàm gánh quá nhiều việc" hiện ngay ở phần X-Ray dưới nhãn "Nhận định của AI"; câu hỏi hỏi tiếp về hậu quả và cách sửa.
 
 **B7. "Monorepo, hay app mobile Flutter BLoC, React Native Redux thì sao?"**
-Đ: Monorepo: nhận ra cặp thư mục client/server, ưu tiên server, cho chọn lại thư mục trên giao diện. Có 6 loại dự án (web backend, frontend, mobile, desktop, CLI, thuật toán); entry có thể là route, command hoặc screen. Bản thi nhận màn hình của app mobile phổ biến — React Native (Stack, Tab, Drawer), Expo Router, Flutter (GoRouter hoặc `MaterialApp` routes / Navigator), Android (Activity, Fragment, Compose), iOS (UIViewController, SwiftUI) (D-57); các kiểu ít gặp để roadmap. Luồng đi qua `dispatch` sự kiện kiểu BLoC/Redux có thể thiếu một mắt xích — cầu nối sự kiện ở roadmap. Dart/Flutter và các framework mobile khác chưa kiểm chứng ở bản thi (chỉ TS/JS và Python được kiểm chứng).
+Đ: Monorepo: nhận ra cặp thư mục client/server, ưu tiên server, cho chọn lại thư mục trên giao diện; thư mục tự chọn không ra bài thì thử thư mục khác. Có 6 loại dự án (web backend, frontend, mobile, desktop, CLI, thuật toán); entry có thể là route, command hoặc screen. Bản thi nhận màn hình React Native (Stack, Tab, Drawer) và Expo Router. Flutter, Android, iOS là lộ trình sau thi. Luồng đi qua `dispatch` sự kiện kiểu BLoC/Redux có thể thiếu một mắt xích — cầu nối sự kiện ở roadmap. Dart/Flutter và các framework mobile khác chưa kiểm chứng ở bản thi (chỉ TS/JS và Python được kiểm chứng).
 
 **B7b. "Code C, C++, Rust, C# không có route thì sao?"**
-Đ: Engine nhận hàm `main` của mọi ngôn ngữ có grammar làm điểm vào (D-58), và nhận thêm thư mục kiểu `controllers/`, `screens/`; thuật toán mà một luồng gọi tới được nối dây vào luồng đó, chỉ thuật toán không ai gọi hoặc gọi gián tiếp mới đứng riêng (D-56); mọi điểm bắt đầu xếp 1 hàng trên cùng bản đồ (D-55). Các ngôn ngữ này đều chưa kiểm chứng ở bản thi (chỉ TS/JS và Python được kiểm chứng).
+Đ: Engine nhận hàm `main` của TS/JS, Python làm điểm vào (D-58), và nhận thêm thư mục kiểu `controllers/`, `screens/`; thuật toán mà một luồng gọi tới được nối dây vào luồng đó, chỉ thuật toán không ai gọi hoặc gọi gián tiếp mới đứng riêng (D-56); mọi điểm bắt đầu xếp 1 hàng trên cùng bản đồ (D-55); bài chưa có cha được nối theo thư mục thành cây, cạnh nét đứt là thứ tự học do engine đề xuất (D-73). Các ngôn ngữ này đều chưa kiểm chứng ở bản thi (chỉ TS/JS và Python được kiểm chứng).
 
 **B8. "Uncle Bob tính trên file không có interface thì chia cho 0, kết luận oan à?"**
 Đ: Không ạ. Khi mẫu số bằng 0, hoặc lát cắt không có cú pháp trừu tượng, chỉ số được miễn trừ (`is_exempt`, D = 0, `BALANCED`). Chỉ số này chỉ là gợi ý phụ cho AI, không phải điểm của người học.
@@ -157,13 +157,13 @@ AI khi đó hỏi kiểu thuật toán: chạy tay với input nhỏ, Big-O, tì
 2. **Chốt từ cấm:** danh sách công nghệ phổ biến, trừ những gói có trong manifest; so theo tên gói, nguyên từ.
 3. **Chốt kỹ năng:** kỹ năng phải thuộc danh mục 16, và bằng chứng phải nằm đúng trong code của bước được chỉ.
 
-Vi phạm thì gọi AI lại 1 lần, kèm lý do do code dựng; vẫn sai thì bỏ phần đó (bỏ câu hỏi, hoặc Tab 1 chỉ còn khung). Cổng gác **không** kiểm được AI hiểu đúng hay sai; phần đó bù bằng duyệt tay, hiện bằng chứng và nút "Báo sai".
+Vi phạm thì gọi AI lại 1 lần, kèm lý do do code dựng; vẫn sai thì bỏ phần đó (bỏ câu hỏi, hoặc phần X-Ray chỉ còn khung). Cổng gác **không** kiểm được AI hiểu đúng hay sai; phần đó bù bằng duyệt tay, hiện bằng chứng và nút "Báo sai".
 
-**C2. "Tab 1 đã nói điểm dở rồi, sang Tab 2 chỉ việc chép lại à? Mà chép câu hỏi sang ChatGPT thì sao?"**
-Đ: Dạ, Tab 1 có nêu điểm dở và hậu quả, nên người học dựa vào đó được, và nhóm không giấu. Câu hỏi là để học hiểu, không phải bài kiểm tra kín. Người học vẫn phải tự viết lại và nối vào tình huống trong câu hỏi. Thứ Tab 1 chưa có là con số, cách sửa, tình huống biên, và đổi một chỗ thì phải sửa những file nào; các phần đó chỉ mở khi xong câu hoặc được hỏi ở góc khác.
+**C2. "Phần X-Ray đã nói điểm dở rồi, sang phần Feynman chỉ việc chép lại à? Mà chép câu hỏi sang ChatGPT thì sao?"**
+Đ: Dạ, phần X-Ray có nêu điểm dở và hậu quả, nên người học dựa vào đó được, và nhóm không giấu. Câu hỏi là để học hiểu, không phải bài kiểm tra kín. Người học vẫn phải tự viết lại và nối vào tình huống trong câu hỏi. Thứ phần X-Ray chưa có là con số, cách sửa, tình huống biên, và đổi một chỗ thì phải sửa những file nào; các phần đó chỉ mở khi xong câu hoặc được hỏi ở góc khác.
 
 
-Muốn đạt thì phải có đủ 2–3 ý bắt buộc, và AI phải trích ra đúng câu có thật trong bài làm. Chép Tab 1 hay ChatGPT vẫn làm được; nhóm không nói là chặn được. Thiết kế này làm khó việc học vẹt, chứ không chống gian lận tuyệt đối. Cờ nghi dán và câu hỏi nối tiếp nằm ở roadmap.
+Muốn đạt thì phải có đủ 2–3 ý bắt buộc, và AI phải trích ra đúng câu có thật trong bài làm. Chép phần X-Ray hay ChatGPT vẫn làm được; nhóm không nói là chặn được. Thiết kế này làm khó việc học vẹt, chứ không chống gian lận tuyệt đối. Cờ nghi dán và câu hỏi nối tiếp nằm ở roadmap.
 
 **C3. "Sao biết AI chấm 70 điểm là đúng?"**
 Đ: Thật lòng là bộ chấm chưa được hiệu chuẩn với giảng viên; ngưỡng `PASS_CORE_ACCURACY` do nhóm đặt. Để bớt phụ thuộc vào AI, **server tự quyết đạt** khi đủ ba điều: điểm ≥ ngưỡng; là câu trả lời thật, không phải "chịu"; mọi ý bắt buộc được đánh dấu kèm đoạn trích mà code kiểm là có thật trong bài. Nhóm chấm tay một bộ câu trả lời mẫu rồi so với AI: *[chỉ nói "khớp X/20" khi đã đo]*. Hiệu chuẩn với giảng viên là việc đầu tiên của roadmap GĐ2.
@@ -334,12 +334,12 @@ Nhóm kiểm soát bằng:
 | "Lần đầu tiên…", "đầu tiên ở Việt Nam" | "Cách kết hợp mới, áp vào học kiến trúc trên repo của chính người học" |
 | "Zero Hallucination", "triệt tiêu / diệt 100% ảo giác" | "Chặn tên bịa và công nghệ không có trong repo; không kiểm được nghĩa" |
 | "100% không rò rỉ", "an toàn tuyệt đối" | "Không lưu file mã nguồn, chỉ lưu đoạn code đã cắt của từng ô trong phiên; mỗi lần gửi AI tối đa 100 dòng đã che secret" |
-| "Hỗ trợ hơn 100 ngôn ngữ", "liên kết chính xác 100%" | "Đã kiểm chứng TS/JS và Python; ngôn ngữ khác có grammar thì cạnh suy luận, chưa kiểm chứng" |
+| "Hỗ trợ hơn 100 ngôn ngữ", "liên kết chính xác 100%" | "Đã kiểm chứng TS/JS và Python; ngôn ngữ khác chưa hỗ trợ" |
 | "Duolingo dùng BKT" | Không nhắc. BKT: Corbett & Anderson 1995, Cognitive Tutor |
 | "Program slicing", "inter-procedural slicing" | "Scoped Call-Chain Slicing" |
 | "< 1.000đ/phiên", "~400 token", "< $0.002", "1.000 SV < $15/tháng" | "Người đầu tiên học 1 repo ~0,05 USD; người học sau cùng repo ~0,03 USD (câu hỏi không cache, D-37) — ước lượng, chưa đo" (`02` Mục 1.1) |
 | "AI chỉ gọi 2 lần", "1 lời gọi mỗi node" | "4 lời gọi AI" |
-| "Pha 1 giấu điểm dở" | "Tab 1 hiện điểm dở, gắn nhãn 'Nhận định của AI'; đáp án chỉ mở khi câu xong" |
+| "Pha 1 giấu điểm dở" | "Phần X-Ray hiện điểm dở, gắn nhãn 'Nhận định của AI'; đáp án chỉ mở khi câu xong" |
 | "0 ms", "mở tức thì nhờ tải trước" | Không nói; chỉ tải trước 1–2 node kế tiếp (D-46), node khác vẫn phải chờ AI |
 | Dashboard giảng viên, đăng nhập Google SGU, Redis, nhập bằng giọng nói, VS Code extension "đã có" | "Nằm trong lộ trình" |
 | "Giảm 60% thời gian soạn đề", "AUC 0,82", "1.000 MAU" như kết quả | "Mục tiêu của roadmap, cần đo baseline" |
@@ -356,7 +356,7 @@ BGK hỏi tới hạng mục nào thì trích đúng dòng đó. Khi lệch, `sp
 
 | Hạng mục | Chọn | Vì sao chọn | Không chọn | Vì sao không |
 | :-- | :-- | :-- | :-- | :-- |
-| **Frontend** | **Next.js 15, React 19, ReactFlow, Monaco, Zustand** | ReactFlow hợp với đồ thị DAG; Monaco chuẩn code viewer; Zustand nhẹ, ít re-render thừa (`spec/01` §3, `spec/30`). | Nuxt, SvelteKit, Canvas tự vẽ | Tốn thời gian dựng buồng lái 3 cột trong 21h; ReactFlow và Monaco hoàn thiện nhất cho sơ đồ và mã nguồn. |
+| **Frontend** | **Next.js 15, React 19, ReactFlow, Monaco, Zustand** | ReactFlow hợp với đồ thị DAG; Monaco chuẩn code viewer; Zustand nhẹ, ít re-render thừa (`spec/01` §3, `spec/30`). | Nuxt, SvelteKit, Canvas tự vẽ | Tốn thời gian dựng giao diện học trong 21h; ReactFlow và Monaco hoàn thiện nhất cho sơ đồ và mã nguồn. |
 | **Backend** | **Next.js 15 Route Handlers chạy trên Google Cloud Run (`asia-southeast1`, D-64)** | Chia sẻ kiểu dữ liệu (`src/contracts/`) giữa client và server; một repo, chạy container độc lập, tự co giãn 1–4 bản sao (`spec/03` API-08, `spec/05`). | Tách Fastify/Express; Python FastAPI | Tách backend tăng chi phí tích hợp và deploy lúc thi. |
 | **AI (LLM)** | **Google Gemini (`CONFIG.LLM_MODEL` qua SDK `@google/genai`) trên Vertex AI (`location: "global"`, service account `roles/aiplatform.user`); Vercel dự phòng dùng AI Studio trả phí (D-66)** | Hỗ trợ JSON `responseSchema`; xác thực an toàn qua service account không API key trên Cloud Run; chi phí ước tính ~0,05 USD người đầu / ~0,03 USD người sau mỗi repo; chi phí phân tích mỗi repo 7 node ~$0.018; tỷ lệ trúng cache = (N − 1)/N; credit cuộc thi trả được Vertex hay không: chưa kiểm chứng (`spec/02` §1.1, `spec/05`). | GPT-4o, Claude 3.5 Sonnet | Giá token cao hơn ở thời điểm chọn; nhóm chỉ cần 1 nhà cung cấp cho bản thi. |
 | **Database** | **Supabase Postgres (AWS Singapore `ap-southeast-1`)** | ACID cho BKT và transaction chấm điểm; RLS bảo vệ dữ liệu; cùng vùng Singapore với host (`spec/03` §3). | MongoDB, Firestore, SQLite | BKT cần toàn vẹn giao dịch (`BEGIN ... SELECT FOR UPDATE`); NoSQL dễ xung đột khi nhiều tab nộp bài cùng lúc. |

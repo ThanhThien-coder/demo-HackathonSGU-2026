@@ -6,6 +6,8 @@ Bạn chịu trách nhiệm thiết lập nền móng dự án ở đầu giờ,
 
 ## Một phiếu làm thế nào
 
+**Cách nhanh:** nhắn AI `Làm phiếu <mã>`, xem [`lam-phieu.md`](../lam-phieu.md). AI làm tới bước commit, bạn chỉ kiểm và dán lệnh commit. Các bước dưới là cách làm tay.
+
 Mỗi phiếu đọc từ trên xuống, làm đúng thứ tự:
 1. Bước 0: tự gõ lệnh cập nhật `main`, cài thư viện, tạo nhánh.
 2. Bước 1: copy prompt, dán cho Claude trên máy bạn. Claude kiểm các phiếu cần có trước đã có trên nhánh. **Thiếu thì Claude dừng**, báo thiếu gì và đó là việc của vai nào: bạn nhắn vai đó, không bảo Claude làm thay. Đủ thì Claude tạo task trong `.kb/tasks/`. Đọc task, thấy khớp phiếu thì đi tiếp.
@@ -58,6 +60,6 @@ Máy không có Antigravity (agy) hoặc không có ai-kit: làm cùng phiếu n
 ## Về đích (05:00 → 09:00)
 
 - **Quy tắc sửa lỗi:** Sau mốc đóng băng tính năng lúc 05:00, nhóm ngừng tiếp nhận tính năng mới. Bạn chỉ sửa các lỗi có GitHub Issue gắn nhãn `bug`. Mỗi lần sửa lỗi được thực hiện trên một nhánh riêng có tên dạng `a/fix-<issue>`, mở PR và merge khi CI xanh.
-- **07:00 — Gắn tag stable:** Kiểm tra bản triển khai staging đang hoạt động ổn định nhất và gắn tag `stable` cho revision đó theo hướng dẫn tại `.kb/spec/05_HA_TANG_CLOUD.md` Mục 5 để dự phòng kịch bản khôi phục khi demo.
+- **07:00 — Gắn tag stable:** Kiểm tra bản triển khai staging đang hoạt động ổn định nhất và gắn tag `stable` cho revision đó theo hướng dẫn tại `docs/spec/05_HA_TANG_CLOUD.md` Mục 5 để dự phòng kịch bản khôi phục khi demo.
 - **08:30 — Đối soát commit:** Chạy lệnh `git log main` để kiểm tra và xác nhận cả 5 thành viên trong nhóm đều có ít nhất một commit đã được merge vào nhánh chính `main` theo đúng điều lệ cuộc thi.
 - **09:00 — Ngừng merge:** Toàn đội ngừng code và ngừng merge PR vào `main`, sẵn sàng nộp slide và bước vào phần thuyết trình.

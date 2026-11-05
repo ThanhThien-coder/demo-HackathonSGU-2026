@@ -42,7 +42,7 @@ Toàn bộ hệ thống SimpliFey được cấu thành từ 4 trụ cột chuy�
 flowchart TD
     ENG["Trụ cột 1 · Engine phân tích tĩnh<br/>(Tầng 0–2: Tải zip, Tree-sitter, lát cắt, Dagre — 0 token)"] --> AI["Trụ cột 2 · AI và Cổng gác kiểm duyệt<br/>(4 lời gọi cấu trúc, đối chiếu ký hiệu thật)"]
     AI --> BKT["Trụ cột 3 · BKT và Thử thách Feynman<br/>(Ước lượng độ thạo, gợi ý 3 nấc)"]
-    BKT --> DATA["Trụ cột 4 · Dữ liệu, API và Giao diện buồng lái<br/>(Postgres RLS, 14 endpoint, buồng lái 3 cột)"]
+    BKT --> DATA["Trụ cột 4 · Dữ liệu, API và Giao diện học<br/>(Postgres RLS, 14 endpoint, trang học)"]
 ```
 
 ### Trụ cột 1: Engine phân tích tĩnh (Tầng 0 đến Tầng 2)
@@ -57,8 +57,8 @@ Hệ thống chỉ sử dụng AI cho đúng 4 tác vụ logic cụ thể: phân
 Dựa trên phương pháp học tập nổi tiếng của nhà vật lý Richard Feynman (học sâu bằng cách tự giải thích lại bằng lời của mình), hệ thống đưa ra các câu hỏi tình huống thực tế bám sát các dòng code. Năng lực của người học trên 16 kỹ năng kỹ nghệ phần mềm được theo dõi liên tục bằng mô hình toán học BKT (Bayesian Knowledge Tracing). Mỗi câu trả lời đúng hoặc sai sẽ cập nhật xác suất thành thạo của kỹ năng đó. Khi người học gặp khó khăn, hệ thống cho tối đa 3 lượt trả lời với gợi ý 3 nấc: nấc 1 gợi mở về khái niệm, nấc 2 chỉ tới bước code cụ thể, nấc 3 là hiện đáp án khi câu kết thúc.
 - *Đọc sâu tài liệu:* [04_bkt_va_cau_hoi.md](04_bkt_va_cau_hoi.md)
 
-### Trụ cột 4: Nền tảng dữ liệu, API và Giao diện buồng lái 3 cột
-Toàn bộ dữ liệu tiến độ học tập, điểm kỹ năng lâu dài và câu hỏi được lưu trữ an toàn trong cơ sở dữ liệu Supabase Postgres, được bảo vệ bằng chính sách phân quyền cấp hàng (RLS). Hệ thống cung cấp 14 endpoint API thực hiện các nghiệp vụ học tập và vận hành (gồm 13 endpoint học tập và 1 endpoint GET /api/health kiểm tra sức khỏe). Ở phía người dùng, giao diện được tổ chức theo buồng lái 3 cột trực quan: Cột trái là bản đồ kiến trúc có thể tương tác; Cột giữa là trình xem code lát cắt tô sáng chính xác từng bước; Cột phải là buồng lái học tập gồm tab X-Ray phân tích cấu trúc, tab Feynman trả lời thử thách và tab Tổng quan toàn dự án.
+### Trụ cột 4: Nền tảng dữ liệu, API và Giao diện học
+Toàn bộ dữ liệu tiến độ học tập, điểm kỹ năng lâu dài và câu hỏi được lưu trữ an toàn trong cơ sở dữ liệu Supabase Postgres, được bảo vệ bằng chính sách phân quyền cấp hàng (RLS). Hệ thống cung cấp 14 endpoint API thực hiện các nghiệp vụ học tập và vận hành (gồm 13 endpoint học tập và 1 endpoint GET /api/health kiểm tra sức khỏe). Ở phía người dùng, trang học đặt code lát cắt tô sáng từng bước và phần X-Ray ở cột trái, phần Feynman ở cột phải. Đồ thị bài học nằm trong ngăn kéo, Tổng quan toàn dự án nằm trong cửa sổ riêng.
 - *Đọc sâu tài liệu:* [05_du_lieu_va_api.md](05_du_lieu_va_api.md) và [06_giao_dien.md](06_giao_dien.md)
 
 Tra chi tiết: spec/01_KIEN_TRUC_VA_LUONG.md Mục 3 và 4.
@@ -125,14 +125,14 @@ findById(id) {
 }
 ```
 
-#### Bước 3: Xem phân tích kiến trúc tại Tab X-Ray
+#### Bước 3: Xem phân tích kiến trúc tại phần X-Ray
 Trình duyệt gọi endpoint phân tích node lên máy chủ. AI gửi về bản phân tích thô có chứa 3 kỹ năng: Tối ưu hóa cơ sở dữ liệu, Phân tầng kiến trúc và Xác thực bảo mật. Khi qua cổng gác kiểm duyệt:
 - Cổng gác phát hiện kỹ năng Xác thực bảo mật chỉ định hàm kiểm tra quyền ở bước 3, nhưng trong code bước 3 không hề có hàm đó. Cổng gác lập tức gạch bỏ kỹ năng này.
 - Hai kỹ năng còn lại được giữ nguyên vì có bằng chứng thật trong code: Tối ưu hóa cơ sở dữ liệu xuất hiện tại bước 2 qua lời gọi `findById` trong vòng lặp; Phân tầng kiến trúc xuất hiện tại bước 1 khi route chỉ chuyển tiếp cho service mà không tự truy vấn database.
-- Tab X-Ray hiển thị điểm hay (tách biệt tầng rõ ràng) và điểm dở kỹ thuật kèm nhãn "Nhận định của AI" (vòng lặp gọi database cho từng sản phẩm khiến trang tải chậm).
+- Phần X-Ray hiển thị điểm hay (tách biệt tầng rõ ràng) và điểm dở kỹ thuật kèm nhãn "Nhận định của AI" (vòng lặp gọi database cho từng sản phẩm khiến trang tải chậm).
 
-#### Bước 4: Chuyển sang Tab Feynman và nhận câu hỏi
-Lan chuyển sang tab Feynman để luyện tập. Máy chủ nhận thấy cả hai kỹ năng của N3 Lan đều chưa vững (điểm 0.25, dưới ngưỡng đã thạo 0.92) nên tạo một lần học gồm 2 câu hỏi ở bậc `NOVICE`. AI tạo câu hỏi, đáp án mẫu và danh sách ý bắt buộc rồi lưu toàn bộ vào bảng cơ sở dữ liệu trên máy chủ. Máy chủ chỉ gửi nội dung câu hỏi về cho trình duyệt của Lan mà không gửi kèm đáp án.
+#### Bước 4: Chuyển sang phần Feynman và nhận câu hỏi
+Lan chuyển sang phần Feynman để luyện tập. Máy chủ nhận thấy cả hai kỹ năng của N3 Lan đều chưa vững (điểm 0.25, dưới ngưỡng đã thạo 0.92) nên tạo một lần học gồm 2 câu hỏi ở bậc `NOVICE`. AI tạo câu hỏi, đáp án mẫu và danh sách ý bắt buộc rồi lưu toàn bộ vào bảng cơ sở dữ liệu trên máy chủ. Máy chủ chỉ gửi nội dung câu hỏi về cho trình duyệt của Lan mà không gửi kèm đáp án.
 
 #### Bước 5: Trả lời Câu hỏi 1 về Tối ưu hóa cơ sở dữ liệu
 Nội dung câu hỏi hiển thị cho Lan:
@@ -223,7 +223,7 @@ Một hệ thống đáng tin cậy không phải là hệ thống tự nhận m
 ### Những giới hạn hệ thống phải nói thật
 
 1. **AI không kiểm soát được hoàn toàn ngữ nghĩa:** Cổng gác của hệ thống chỉ kiểm tra được sự tồn tại của tên biến, tên hàm, số dòng và danh mục từ cấm; cổng gác không thể biết được AI có thực sự hiểu đúng bản chất nghiệp vụ hay không. Do đó, mọi nhận định của AI về điểm yếu trong code luôn phải mang nhãn rõ ràng: "Nhận định của AI" và đi kèm nút Báo sai để bảo vệ người học.
-2. **Phạm vi ngôn ngữ được kiểm chứng:** Trong phạm vi bản thi, hệ thống chỉ kiểm chứng độ chính xác hoàn chỉnh trên hai ngôn ngữ là TypeScript/JavaScript và Python. Đối với các ngôn ngữ khác, hệ thống chỉ hỗ trợ phân tích cấu trúc cú pháp cơ bản và các mũi tên phụ thuộc trên bản đồ được hiển thị bằng nét đứt thể hiện mức độ suy luận.
+2. **Phạm vi ngôn ngữ:** Bản thi chỉ hỗ trợ và kiểm chứng TypeScript/JavaScript và Python. Repo chủ yếu viết bằng ngôn ngữ khác sẽ được báo là chưa hỗ trợ, các ngôn ngữ đó nằm trong lộ trình sau thi.
 3. **Mô hình tính điểm chưa qua hiệu chuẩn thực tế:** Ngưỡng 70 điểm để công nhận đạt câu hỏi và các tham số xác suất trong mô hình BKT hiện tại do nhóm tự đặt, chưa được hiệu chuẩn với giảng viên.
 4. **Các số đo về thời gian và chi phí:** Mọi con số về thời gian chạy Engine (ví dụ: mục tiêu dưới 1,5 giây), chi phí và thời gian gọi AI được nhắc đến trong các tài liệu thiết kế đều là **mục tiêu kỹ thuật hoặc số liệu ước tính, chưa đo đạc đầy đủ trên môi trường sản xuất quy mô lớn**. Khi chạy thực tế, hệ thống luôn hiển thị số đo thực đo được trên đồng hồ bấm giờ tại giao diện.
 
@@ -262,7 +262,7 @@ Sau khi đọc xong bức tranh toàn cảnh trong tài liệu này, các thành
 | **Phụ trách AI và Cổng gác** | Cấu trúc 4 lời gọi AI, cơ chế bọc thẻ an toàn, bộ lọc từ cấm và cổng đối chiếu ký hiệu thật | [03_ai_va_cong_gac.md](03_ai_va_cong_gac.md) |
 | **Phụ trách Thuật toán học tập** | Công thức toán BKT, mô hình suy giảm trí nhớ theo thời gian, thuật toán lập kế hoạch câu hỏi | [04_bkt_va_cau_hoi.md](04_bkt_va_cau_hoi.md) |
 | **Phụ trách Backend và Dữ liệu** | Cấu trúc 10 bảng database, 14 endpoint API, bảo mật RLS và giao dịch chống nghẽn | [05_du_lieu_va_api.md](05_du_lieu_va_api.md) |
-| **Phụ trách Giao diện người dùng** | Buồng lái 3 cột, đồng bộ trạng thái chỉ đọc, tô sáng code Monaco và đồ thị ReactFlow | [06_giao_dien.md](06_giao_dien.md) |
+| **Phụ trách Giao diện người dùng** | Trang học, đồng bộ trạng thái chỉ đọc, tô sáng code Monaco và đồ thị ReactFlow | [06_giao_dien.md](06_giao_dien.md) |
 
 Tra chi tiết: doc-de-hieu/07_ke_hoach_21h.md Mục 1.
 

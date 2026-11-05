@@ -8,6 +8,8 @@
 | Mở đường cho | B04 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B03`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -51,12 +53,23 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 7. Viết test trong `src/server/engine/ingest/__tests__/loc.test.ts` bao phủ các ca T-ING-12, T-ING-13, T-ING-14, T-ING-15, T-ING-16, T-ING-17, T-ING-18, T-ING-19, T-ING-20, T-ING-21. Tên mỗi test (kể cả `describe` bọc ngoài nếu có) bắt đầu bằng mã T-ING hoặc ING. T-ING-12 kiểm `receiveUpload` có sẵn của B02 (chỉ import, không sửa `download.ts`). Zip mẫu dựng trong RAM bằng `fflate` (`zipSync`), không đọc file trên đĩa. Số kỳ vọng (FPS 5.25, 2.3333…) lấy đúng bảng test spec, so sánh số thực bằng `toBeCloseTo`. Dữ liệu test cần file lớn (T-ING-20, T-ING-21) phải dùng nội dung giả ngẫu nhiên tất định (vd. LCG sinh hex, không `Math.random`), dòng ngắn dưới `CONFIG.MAX_LINE_LENGTH`: nội dung lặp lại nén vượt `CONFIG.MAX_COMPRESSION_RATIO` sẽ bị chống zip bomb loại hết.
 8. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Dừng giải nén thật (lỗi B-18, Mục 9 ý 1):** không đẩy cả file vào `Inflate` một lần. Đẩy theo từng phần nhỏ, vượt trần thì dừng ngay, không chạy tiếp. Đo thật: bản cũ bị zip 0,5 MB bung 512 MB chiếm 2,8 giây dù vẫn loại đúng file. `listEntriesStreaming` đặt trần tổng byte và kiểm `signal`. Manifest qua cùng lớp kiểm với ING-88.
+- **Zip macOS (lỗi B-19, ING-60, ING-71):** bỏ `__MACOSX/` và `._*` trước khi tìm segment chung.
+- **Thư mục viết hoa (lỗi B-21, ING-80):** scope tường minh so không phân biệt hoa thường, dùng tên thư mục thật. Repo có `Backend/`, nhập `backend` vẫn chạy.
+- **Cờ test (lỗi B-20, ING-87):** có đủ `integration`, `sample`, `samples`, `mocks`. Viết 1 hàm `isTestPath` export từ `priority.ts`, `filePriorityScore` dùng lại nó, không viết bản thứ hai.
+- **Ứng viên scope (lỗi B-17):** `candidates` gồm cả client, thứ tự server rồi client, `bytes` giảm dần, để `runEngine` có đường lùi (B07).
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest/__tests__/loc.test.ts`
 - Có đủ các test T-ING-12, T-ING-13, T-ING-14, T-ING-15, T-ING-16, T-ING-17, T-ING-18, T-ING-19, T-ING-20, T-ING-21 và tất cả chạy xanh.
 - Giải nén tuân thủ đúng trần `CONFIG.MAX_INFLATED_BYTES` và `CONFIG.MAX_CLEAN_FILES`.
 - `npx vitest run src/server/engine` vẫn xanh (không làm hỏng test B01, B02).
 - `npx eslint src/server/engine` 0 error, 0 warning (CI chạy lint).
+- Test zip khai 10 KB bung 512 MB: dừng ngay sau trần, không giải nén hết. Đo số byte đã nhận, không đo giờ.
+- Test zip có `__MACOSX/` vẫn cắt được segment chung.
+- Test `isTestPath` cho `integration/a.ts`, `mocks/a.ts`, `src/a.spec.ts`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -86,6 +99,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `npx vitest run src/server/engine` vẫn xanh (test B01, B02 không hỏng).
 - [ ] Tên test đầy đủ (gồm cả `describe` bọc ngoài) bắt đầu bằng mã T-ING hoặc ING.
 - [ ] Bạn tự chạy tay một script nhỏ tải repo demo trong RAM và in ra số file giữ lại phù hợp.
+- [ ] `nestjs/nest` không còn file `integration/` trong nhóm ưu tiên đầu.
 
 ```text
 Task "B03 — Ingest 2: mục lục zip, phân loại, phạm vi, giải nén" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

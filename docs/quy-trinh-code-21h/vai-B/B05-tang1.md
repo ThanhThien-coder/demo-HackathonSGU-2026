@@ -8,6 +8,8 @@
 | Mở đường cho | B06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B05`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -54,6 +56,13 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 5. Viết test trong `src/server/engine/graph/__tests__/tang1.test.ts`: T-ENG-12; test tên bắt đầu `ENG-12` cho `parseAll` (file 40% byte trong `ERROR` ⇒ bị bỏ, `parse_error` = 1, lấy input từ T-ENG-31); test tên bắt đầu `ENG-40` cho route của **cả 4 nhóm ✅** (Express, NestJS, Flask, FastAPI; code có mà không test thì không biết chạy đúng) (input `router.post('/checkout', …)` của T-ENG-08, kỳ vọng `RouteBinding.display_name` = `"router.post('/checkout')"`, có `middlewares`); test tên bắt đầu `ENG-51` cho chọn chế độ (input của T-ENG-25: 1 file Express 5 route ⇒ NORMAL, `main.py` không route 5 hàm ⇒ `PROCEDURAL`). T-ENG-08, T-ENG-09 làm ở B06; T-ENG-25, T-ENG-31 đầy đủ làm ở B07 (cần lát cắt, node). Test cần parser thì gọi `initParsers()` trong `beforeAll`. Tên test đầy đủ (gồm `describe`) bắt đầu bằng mã luật hoặc mã test. Bắt buộc có thêm test `ENG-31` cho: biến module `const svc = new Svc()` rồi `svc.m()` trong handler ẩn danh ⇒ cạnh `RESOLVED` tới `Svc.m` (ENG-22, ENG-31 (3)); không có cạnh tự trỏ; không có cạnh tới `CLASS` (ENG-30). Lần tập, 3 lỗi này lọt qua B05 và chỉ lộ ra ở T-ENG-08 của B06. Thêm 4 lỗi lộ ra khi chạy thật ở B07: (a) tìm hàm bao quanh call site phải khớp theo dòng kết thúc + tên, vì `line_start` tính từ decorator đầu (ENG-20), khớp ±1 dòng làm mất cạnh khi method có ≥ 2 decorator (NestJS `@Post` + `@UseGuards`, Flask `@route` + `@login_required`); (b) tiền tố mount: `R.use(prefix, R2)` (cả `R2` import từ file khác), `APIRouter(prefix=)`, `Blueprint(url_prefix=)`, `include_router(r, prefix=)`, `register_blueprint(bp, url_prefix=)` ⇒ ghép vào `binding.path` (không đổi `display_name` và khóa handler); (c) Flask `methods=[…]`, mọi decorator khác là middleware (không lọc theo tên), FastAPI `Depends(fn)` là middleware; (d) `display_name` Python lấy đúng receiver (`@router.post`, không cứng `@app.`).
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Receiver của route (lỗi B-03, B-34, `docs/spec/12_ENGINE_MAU_ENTRY.md` Mục 1):** ngoài luật đối số cuối, `R` phải được gán từ `express()`, `Router()`, `express.Router()`, `new Router()`, `fastify()` trong cùng file, hoặc là tham số, import nội bộ tên `app`, `router`, `server`, `fastify`, kết thúc `Router`. `http.get(...)` của `msw` và `cache.get('k', loadFn)` không phải route.
+- Đối số cuối là biến gán từ lời gọi vẫn là handler: `const h = makeHandler(cfg); router.get('/x', h)`. Bản thử từng chặn nhầm ca này.
+- **Alias (lỗi B-26, ENG-25):** tìm `tsconfig`/`jsconfig` gần file đang xét nhất, không chỉ ở gốc repo, và tính `paths` theo thư mục đó. Dùng hàm bỏ comment của B04. Thiếu `paths` thì `@/`, `~/` ⇒ `src/` cạnh file cấu hình gần nhất. Đo thật: bản cũ mất 147/147 import `@/` của BrewLite `frontend/`.
+- **Route dạng `.route()` (lỗi B-29):** `R.route('/:id').get(a).delete(b)` tạo 2 binding, mỗi binding có đúng `path`, `method`, `display_name` 1 dòng như `router.delete('/:id')`.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/graph/__tests__/tang1.test.ts`
 - Có đủ test T-ENG-12 và các test `ENG-12`, `ENG-40`, `ENG-51` nêu ở Việc cần làm, tất cả chạy xanh.
@@ -64,6 +73,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Theo re-export tối đa 5 bước, có chống vòng lặp: `module.exports.X = require(p)`, `exports.X = require(p)`, `module.exports = { X: require(p) }`, `export { X as Y } from p`, `export * from p`.
 - Python absolute import thử theo thứ tự: gốc repo, `rootDirOffset`, `rootDirOffset + src/`, rồi thư mục `D` có `D/<gói>/__init__.py` (đường dẫn ngắn trước). Cần cho repo đặt code ở `backend/`.
 - `new Bar()` với `Bar` là tên import: tra lớp theo file đích và tên gốc. Kiểu biến cục bộ chỉ ghi khóa `file#biến`, không ghi tên trần, tránh tạo cạnh giả giữa các file.
+- T-ENT-03 của `docs/spec/12_ENGINE_MAU_ENTRY.md` xanh (phần TS/JS).
+- Test tsconfig mặc định của Next.js và `frontend/tsconfig.json` phân giải được `@/`.
+- Test `.route()` có đúng `path` cho từng verb.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -96,6 +108,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Chạy trên repo Express thật dùng `catchAsync` và `services/index.js`: lát cắt đi qua được service, không dừng ở controller.
 - [ ] Chạy trên repo NestJS thật có controller nhiều method, đọc bước đầu của 3 route cùng controller: mỗi bài chỉ có code method của chính nó.
 - [ ] Repo có `config.get('X', mặc_định)`: không có node nào sinh từ lời gọi đó.
+- [ ] BrewLite: 17 route thật, không có `config.get`, `@/` không còn trong external khi chọn `frontend/`.
+- [ ] `alan2207/bulletproof-react`: không có route từ `msw`.
 
 ```text
 Task "B05 — Tầng 1: symbol, đồ thị gọi hàm, entry, chọn chế độ" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

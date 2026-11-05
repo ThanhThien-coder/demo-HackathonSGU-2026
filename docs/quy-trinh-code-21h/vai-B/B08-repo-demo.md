@@ -8,6 +8,8 @@
 | Mở đường cho | B09, Lát dọc 2 (00:00) |
 | Cách làm | agy sửa lỗi · Claude kiểm · bạn chạy repo demo và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B08`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -45,13 +47,19 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 3. B2: Viết test trong `src/server/engine/__tests__/repo-demo.test.ts` kiểm tra tính tất định X-01 (chạy engine 2 lần cùng zip, so `JSON.stringify`) và kiểm tra bố cục bản đồ X-07 (hàng điểm bắt đầu, cạnh thuật toán D-55, D-56).
 4. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Test theo repo demo thật (lỗi B-31):** thêm repo mẫu NestJS + Prisma dựng trong RAM vào `repo-demo.test.ts`, có controller nhiều method dùng decorator, service gọi `this.prisma.x`, `tx.x` trong transaction, `config.get('K', '7d')`, file `.spec.ts`. `shop-api` là Express + TypeORM nên không bắt được lỗi B-01, B-02, B-03, B-06 của BrewLite.
+- Lệnh đo repo thật phải có ngưỡng, không chỉ đếm. Ví dụ `cnpm_brewlite:toi_data>=14`, `route_gia==0`, `tu_file_test==0`.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
 - Test X-01 (tất định) và test X-07 (hàng điểm bắt đầu) chạy xanh.
 - Có test DoD dòng 1–3 trên repo shop-api trong RAM: `CONFIG.DISPLAY_MIN_NODES` ≤ số node ≤ `CONFIG.DISPLAY_MAX_NODES`; chạy 2 lần cùng `id` và cùng `position`; mọi node `prerequisites = []` cùng `position.y` nhỏ nhất; node `algo-*` được lát cắt gọi tới có cạnh nối (nếu repo có).
 - `npm run typecheck`, `npx vitest run src/server/engine`, `npx eslint src/server/engine` (0 warning) đều sạch.
-- Bản đồ `shop-api` có đúng 6 cạnh N1→N2, N2→N4, N3→N5, N4→N5, N6→N5, N7→N5. N5 là Capstone, điểm bắt đầu là N1, N3, N6, N7. Theo D-07 (dễ → khó) và D-12 (Capstone phức tạp nhất) thì không bài nào dùng chung hàm với N5 đứng sau N5 được.
+- Bản đồ `shop-api` có đúng 7 cạnh N1→N2, N2→N4, N3→N5, N4→N5, N6→N5, N7→N5, N3→N7 (cạnh cây D-73). N5 là Capstone, điểm bắt đầu là N1, N3, N6. Theo D-07 (dễ → khó) và D-12 (Capstone phức tạp nhất) thì không bài nào dùng chung hàm với N5 đứng sau N5 được.
 - Không kết luận engine xong chỉ vì test xanh trên `shop-api`: phải chạy `runEngine` trên ít nhất 1 repo Express JS, 1 repo TS, 1 repo NestJS, 1 repo FastAPI, 1 repo Expo công khai, đếm số luồng tới `DATA_ACCESS`.
+- Test repo mẫu NestJS + Prisma: mỗi route có dòng đầu riêng, có bài tới `DATA_ACCESS`, không có route từ `config.get`, Capstone không từ `.spec.ts`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -83,6 +91,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Đã chạy trên repo công khai ngoài `shop-api`, ghi số luồng có từ 2 bước và số luồng tới `DATA_ACCESS` của từng repo.
 - [ ] Bộ repo thật có cả repo NestJS nghiệp vụ như BrewLite, không chỉ Express và FastAPI. Bộ đo `engine-that.mjs` phải đọc nội dung bài, đếm route giả, node từ file test, số bài mở lúc đầu.
 - [ ] Mở bản đồ trên trình duyệt: tiêu đề đọc được ngay lúc mở, kéo được để xem hết cây. Số node đúng chưa đủ để kết luận bản đồ ổn.
+- [ ] Đo 9 repo trong `engine-that.mjs`: `khong_buoc = 0`, tất định đúng ở cả 9 repo.
 
 ```text
 Task "B08 — Sửa theo repo demo, tất định, hàng điểm bắt đầu" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

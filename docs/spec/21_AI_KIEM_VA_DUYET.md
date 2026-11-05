@@ -282,7 +282,7 @@ Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi tr
 
 `flowSteps`: `common` = từ có trong code **mọi** bước của `step_indices` (khi có ≥ 2 bước). Bước `s` được tính khi có chuỗi backtick `b` trong `reference_answer` sao cho `b` là file của bước `s`, **hoặc** một từ dạng tên (không thuộc `LANGUAGE_WORDS`) của `b` nằm trong `identWords(function_name + snippet của s) \ common`.
 
-`ARCHITECTURE` không có kiểm riêng ngoài Q1–Q5. Code không kiểm: câu có đúng trọng tâm, có lộ đáp án, có lặp Tab 1, đáp án có đúng (GUARD-21 ⇒ duyệt tay).
+`ARCHITECTURE` không có kiểm riêng ngoài Q1–Q5. Code không kiểm: câu có đúng trọng tâm, có lộ đáp án, có lặp phần X-Ray, đáp án có đúng (GUARD-21 ⇒ duyệt tay).
 
 ---
 
@@ -445,7 +445,7 @@ flowchart TD
 | Mẫu kiến trúc · lời giải thích bước | Đúng mẫu? Tả đúng việc đoạn code làm? |
 | Điểm hay · điểm dở | Có thật, đúng chỗ? Hậu quả đúng? Lỗi rõ nào AI không nêu? |
 | Tổng quan | Kiểu kiến trúc, vai trò tầng, luồng chính, nhận xét đúng? |
-| Câu hỏi | Đúng kỹ năng, góc, độ sâu tier? Trả lời được chỉ bằng code của node? Có 1 đáp án rõ? Lộ đáp án hay chỉ hỏi lại Tab 1? |
+| Câu hỏi | Đúng kỹ năng, góc, độ sâu tier? Trả lời được chỉ bằng code của node? Có 1 đáp án rõ? Lộ đáp án hay chỉ hỏi lại phần X-Ray? |
 | Đáp án mẫu · ý bắt buộc · cách sửa | Khớp bài tự giải? Ý bắt buộc đủ và đúng? Cách sửa sửa được thật? |
 | Chấm · gợi ý · nhận xét | Đạt / chưa đạt đúng? Gợi ý có lộ đáp án, chỉ đúng bước? |
 

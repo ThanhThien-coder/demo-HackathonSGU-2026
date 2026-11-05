@@ -8,6 +8,8 @@
 | Mở đường cho | E09, D10 |
 | Cách làm | Claude viết và chạy `record-bundle.ts`, chạy lại `review-run.ts` · bạn và người thứ 2 duyệt · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C10`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 Lúc 03:00 thức dậy, làm tay theo thứ tự, **Claude không làm các việc này**:
@@ -18,7 +20,7 @@ Lúc 03:00 thức dậy, làm tay theo thứ tự, **Claude không làm các vi�
 git checkout main; git pull; npm ci; git checkout -b c/C10-duyet-bundle
 ```
 
-2. Bạn cùng người thứ 2 (Vai A hoặc Vai D) đọc bảng `review/ket_qua_duyet.md` do Vai E lập ở E08, **tự tay** đối soát và điền kết quả vào bảng. Xử lý mọi ô ❌ hoặc ❓ theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 bước 4–5. Có ❌ thì sửa nguyên nhân trong prompt, nhờ Vai A tăng `CONFIG.PROMPT_VERSION`, rồi chạy lại `scripts/review-run.ts` và duyệt lại.
+2. Bạn cùng người thứ 2 (Vai A hoặc Vai D) đọc bảng `review/ket_qua_duyet.md` do Vai E lập ở E08, **tự tay** đối soát và điền kết quả vào bảng. Xử lý mọi ô ❌ hoặc ❓ theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 bước 4–5. Có ❌ thì sửa nguyên nhân trong prompt, nhờ Vai A tăng `CONFIG.PROMPT_VERSION`, rồi chạy lại `scripts/review-run.ts` và duyệt lại.
 3. Mọi ô đã thống nhất thì commit bảng duyệt trước (bảng này người điền, AI không ghi):
 
 ```powershell
@@ -35,9 +37,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG), Mục 10
-- `.kb/spec/00_QUYET_DINH.md` D-15, D-51
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG), Mục 10
+- `docs/spec/00_QUYET_DINH.md` D-15, D-51
 - `package.json`
 - `src/`
 - `scripts/`
@@ -50,9 +52,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết script `scripts/record-bundle.ts` theo GUARD-19 (`.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10, phần Đóng băng) và `.kb/spec/02_CONTRACTS.md` Mục 10: gọi API thật theo kịch bản demo (phân tích, tổng quan, câu hỏi, chấm) trên repo demo, thu thành đối tượng kiểu `OfflineMockBundle`. Tôi sẽ đưa URL server; token nằm trong biến môi trường của cửa sổ lệnh, không in token ra.
+2. Viết script `scripts/record-bundle.ts` theo GUARD-19 (`docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10, phần Đóng băng) và `docs/spec/02_CONTRACTS.md` Mục 10: gọi API thật theo kịch bản demo (phân tích, tổng quan, câu hỏi, chấm) trên repo demo, thu thành đối tượng kiểu `OfflineMockBundle`. Tôi sẽ đưa URL server; token nằm trong biến môi trường của cửa sổ lệnh, không in token ra.
 3. Chạy script `scripts/record-bundle.ts` ghi gói dữ liệu offline hoàn chỉnh vào `public/demo/mock_bundle.json`.
-4. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+4. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit`

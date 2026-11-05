@@ -8,6 +8,8 @@
 | Mở đường cho | A10 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C08`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,11 +25,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 7, Test bắt buộc
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 6, Test bắt buộc
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 2.4, Mục 3.4
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI và Nộp bài), Mục 5.4, 6
-- `.kb/spec/00_QUYET_DINH.md` D-13, D-36
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 7, Test bắt buộc
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 6, Test bắt buộc
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.4, Mục 3.4
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI và Nộp bài), Mục 5.4, 6
+- `docs/spec/00_QUYET_DINH.md` D-13, D-36
 - `package.json`
 - `src/`
 
@@ -39,16 +41,16 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1 `gradeWithAI`, prompt, schema, luật Đạt (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 7: AI-27, AI-28, AI-29, AI-30): hiện thực hàm `gradeWithAI` (không nhận code, D-36); prompt GRADE_SYSTEM; hàm kẹp chuẩn hóa `normalizeGrading`; kiểm tra trích dẫn có thật `coveredFlags` và quyết định đạt `decidePass` (AI-30, D-13).
+2. B1 `gradeWithAI`, prompt, schema, luật Đạt (docs/spec/20_AI_GOI_VA_PROMPT.md Mục 7: AI-27, AI-28, AI-29, AI-30): hiện thực hàm `gradeWithAI` (không nhận code, D-36); prompt GRADE_SYSTEM; hàm kẹp chuẩn hóa `normalizeGrading`; kiểm tra trích dẫn có thật `coveredFlags` và quyết định đạt `decidePass` (AI-30, D-13).
 3. B2 gợi ý theo lượt, mẫu tĩnh, `injectionGrading`, `toEvaluateResponse` (AI-31, AI-32, AI-33, AI-34): gợi ý theo lượt `expectedFollowUpType`, `decideFollowUp`; mẫu tĩnh `staticHint`, `staticFeedback` (AI-32); hàm `injectionGrading` (AI-33); hàm chuyển đổi response `toEvaluateResponse` (AI-34).
-4. B3 `verifyFollowUp`, làm sạch (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 6, GUARD-13, GUARD-14): hàm `verifyFollowUp` kiểm tra gợi ý không lộ vị trí/con số (leaksNumbers) và feedback người học; hàm làm sạch thuật ngữ và giới hạn số câu.
-5. Viết test trong `src/server/ai/__tests__/grade.test.ts` cho các trường hợp AI-27, AI-30a, AI-30b, AI-31, AI-32, AI-33, GUARD-13, GUARD-14 dùng file fixture có sẵn `src/server/ai/__fixtures__/grading-n3-q1.json` (fixture 2.4 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Nhận diện câu tấn công dùng `isInjection` của `src/server/ai/guard/injection.ts` (E04), không viết lại.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+4. B3 `verifyFollowUp`, làm sạch (docs/spec/21_AI_KIEM_VA_DUYET.md Mục 6, GUARD-13, GUARD-14): hàm `verifyFollowUp` kiểm tra gợi ý không lộ vị trí/con số (leaksNumbers) và feedback người học; hàm làm sạch thuật ngữ và giới hạn số câu.
+5. Viết test trong `src/server/ai/__tests__/grade.test.ts` cho các trường hợp AI-27, AI-30a, AI-30b, AI-31, AI-32, AI-33, GUARD-13, GUARD-14 dùng file fixture có sẵn `src/server/ai/__fixtures__/grading-n3-q1.json` (fixture 2.4 của docs/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Nhận diện câu tấn công dùng `isInjection` của `src/server/ai/guard/injection.ts` (E04), không viết lại.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 7. Gợi ý theo lượt và bậc (`20` AI-31), khối lượt trước và khối tra tên xuyên bài (`20` AI-27, AI-28), quyết định D-74.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai`
-- Có test (mock AI hoặc mock DB) cho ca D8 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
+- Có test (mock AI hoặc mock DB) cho ca D8 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
 - Test AI-30a, AI-30b: fixture 2.4 lượt 2 đạt (true); đổi trích dẫn sang câu không có thật thì không đạt (false); core_accuracy < 70 không đạt.
 - Test AI-31, AI-32: lượt 1 gợi ý CONCEPT, lượt 2 gợi ý CODE_POINTER, lượt cuối null; gợi ý vi phạm cổng gác tự động chuyển sang mẫu tĩnh.
 - Test AI-33: câu lệnh tiêm prompt thì nhận injectionGrading, 0 điểm, 0 token, không gợi ý.
@@ -83,7 +85,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Test khối lượt trước đạt: lượt 1 không có, lượt 2 đủ 2 khối; tên chỉ có trong câu trả lời lượt trước bị cổng gác coi là tên lạ.
 - [ ] Test tra tên xuyên bài đạt: khối chỉ có tên, không có code; tên của bài điều kiện xếp trước; đọc snapshot lỗi thì chấm như cũ.
 
-- [ ] Có test cho ca D8 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Có test cho ca D8 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Chạy AI thật, nộp 1 câu đúng và 1 câu sai, đọc nhận xét và gợi ý, không chỉ xem test xanh.
 ```text
 Task "C08 — Chấm và gợi ý evaluate-feynman" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

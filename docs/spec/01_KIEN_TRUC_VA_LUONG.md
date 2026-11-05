@@ -25,10 +25,10 @@ Mô hình **BKT** ghi nhận năng lực của 16 kỹ năng lâu dài trong Pos
 | **INV-03** | **Zero-Trust:** không `git clone`, không chạy code người dùng; chỉ phân tích tĩnh. Tải từ `codeload.github.com` sau HEAD probe; zip bị cắt ⇒ GitHub API + `raw.githubusercontent.com` (D-63); file zip upload chỉ nằm trong RAM. |
 | **INV-04** | **Không lưu file mã nguồn:** file code, buffer zip, AST không bao giờ ghi đĩa hay DB. Thứ duy nhất có code được lưu là **đoạn code đã cắt của các node** trong `StaticEngineResult` của phiên (bảng `session_snapshots`, D-59), để mọi lần vào phiên hiện cùng đoạn code; client không đọc trực tiếp bảng này. Ngoài ra Postgres chỉ chứa dữ liệu học tập + văn bản AI đã qua kiểm (API-01). |
 | **INV-05** | **Server là nơi ghi duy nhất** của tiến độ học: lập kế hoạch câu hỏi, BKT, đếm lượt, mở khóa, quyết định mở đáp án. Client giữ bản sao chỉ đọc. `localStorage` chỉ giữ tiện ích giao diện, không giữ hồ sơ người học. |
-| **INV-06** | **Tab 1 (X-Ray)** hiện luồng, kiến trúc, điểm hay **và điểm dở** do AI tìm, gắn nhãn "Nhận định của AI". Tab 1 **không** nêu con số theo tình huống, cách sửa, tình huống biên — đó là thứ câu hỏi hỏi. |
+| **INV-06** | **Phần X-Ray** hiện luồng, kiến trúc, điểm hay **và điểm dở** do AI tìm, gắn nhãn "Nhận định của AI". Phần X-Ray **không** nêu con số theo tình huống, cách sửa, tình huống biên — đó là thứ câu hỏi hỏi. |
 | **INV-07** | **Đáp án** (`reference_answer`, `must_have_points`, `fix`) chỉ nằm ở server: cột câu hỏi của `node_runs` (`03` Mục 3.1), client không có quyền đọc bảng này (RLS, `03`); chỉ gửi xuống client khi câu **xong** (đạt / hết lượt / bỏ qua). |
 | **INV-08** | **Mọi văn bản AI phải qua cổng gác trước khi hiển thị** (`21`). Cổng gác chặn tên bịa, kỹ năng ngoài danh mục, công nghệ ngoài repo; nó **không** kiểm được nghĩa đúng/sai. Không bao giờ tuyên bố "diệt 100% ảo giác". Câu hỏi hỏng ⇒ gọi lại 1 lần ⇒ bỏ câu đó; **không có** câu dự phòng dựng từ AST. |
-| **INV-09** | **Đa ngôn ngữ theo tầng** (Language Registry): `RESOLVED` (có `ImportResolver`: TS/JS, Python, Java, Go, Dart) cạnh chính xác; `STRUCTURAL` (có grammar Tree-sitter) cạnh `INFERRED`, không bảo đảm 100%; `UNSUPPORTED` ⇒ `ERR_UNSUPPORTED_LANGUAGE`. Chỉ TS/JS và Python được kiểm chứng cho bản thi. Không regex fallback, không dùng LLM để dựng đồ thị. |
+| **INV-09** | **Đa ngôn ngữ theo tầng** (Language Registry): `RESOLVED` (có `ImportResolver`: TS/JS, Python, Java, Go, Dart) cạnh chính xác; `STRUCTURAL` (có grammar Tree-sitter) cạnh `INFERRED`, không bảo đảm 100%; `UNSUPPORTED` ⇒ `ERR_UNSUPPORTED_LANGUAGE`. Bản thi chỉ nạp và kiểm chứng TS/JS, Python (D-76). Không regex fallback, không dùng LLM để dựng đồ thị. |
 | **INV-10** | **Engine tất định:** cùng repo + cùng commit + cùng `ENGINE_VERSION` ⇒ cùng đồ thị, cùng `node_id`, cùng tọa độ (D-10). Mọi vòng lặp duyệt theo khóa đã sort. |
 | **INV-11** | **Màu & lớp hiển thị:** nền `#0F172A`; `AVAILABLE` `#F59E0B`; `COMPLETED` `#10B981`; `FAILED` `#EF4444` (vẫn mở node con — soft-bypass); `LOCKED` xám, viền đứt. Mã màu chi tiết: `30` Mục 11. Tam giác cảnh báo, "đang phân tích…" (trên node) và "đang mài mòn" (kỹ năng của node đang mở, D-35) là **lớp hiển thị**, không phải trạng thái FSM. |
 | **INV-12** | **Mọi con số nằm ở `CONFIG`** (`02` Mục 1); mọi kiểu nằm ở `02`. File khác chỉ nhắc tên. |
@@ -41,7 +41,7 @@ Mô hình **BKT** ghi nhận năng lực của 16 kỹ năng lâu dài trong Pos
 ```mermaid
 flowchart LR
     subgraph Browser["Trình duyệt (Next.js client, Zustand chỉ đọc)"]
-        UI["Buồng lái 3 cột<br/>ReactFlow · Monaco · Tab X-Ray / Feynman / Tổng quan"]
+        UI["Giao diện học<br/>ReactFlow · Monaco · X-Ray · Feynman · Tổng quan"]
     end
     subgraph Server["Cloud Run (Next.js route handlers, D-27, D-64)"]
         API["/api/* (03)"]
@@ -70,7 +70,7 @@ flowchart LR
 | :-- | :-- | :-: | :-- |
 | 0 | Phân tích link, HEAD probe, tải zip vào RAM, đọc commit SHA, lọc rác, chọn ≤ `MAX_CLEAN_FILES` file, che secret, nhận diện monorepo / archetype / tech_stack | 0 | `10` |
 | 1 | Tree-sitter + Language Registry, bảng symbol, đồ thị gọi hàm (`RESOLVED` / `INFERRED`), Tarjan SCC | 0 | `11` |
-| 2 | Lát cắt từ entry (D-06), độ phức tạp & VIP, PageRank xếp hạng, Uncle Bob, cạnh giữa node (D-07), Display Budget, đặt tên tất định, Dagre | 0 | `11` |
+| 2 | Lát cắt từ entry (D-06), độ phức tạp & VIP, PageRank xếp hạng, Uncle Bob, cạnh giữa node (D-07, D-73), Display Budget, đặt tên tất định, Dagre | 0 | `11` |
 | 3a | `analyze-node`: kỹ năng + bằng chứng, mẫu kiến trúc, giải thích từng bước, điểm hay, điểm dở — cache dùng chung | AI | `20`, `21` |
 | 3b | `analyze-overview`: tổng quan repo từ các bản phân tích (không gửi code) | AI | `20`, `21` |
 | 4 | `enrich-node`: server lập kế hoạch câu hỏi theo hồ sơ người học, AI viết câu hỏi + đáp án | AI | `20`, `21`, `22` |
@@ -110,7 +110,7 @@ sequenceDiagram
     BE-->>FE: AnalyzeOverviewResponse
 ```
 
-Node chưa phân tích xong hiện "đang phân tích…". Bấm vào node đó thì Tab 1 chờ bản phân tích; Tab 2 khóa cho tới khi có bản phân tích.
+Node chưa phân tích xong hiện "đang phân tích…". Bấm vào node đó thì phần X-Ray chờ bản phân tích; phần Feynman khóa cho tới khi có bản phân tích.
 
 ### 5.2. Học 1 node
 
@@ -123,7 +123,7 @@ sequenceDiagram
     participant DB as Postgres
     participant AI as Gemini
     U->>FE: Bấm node VÀNG
-    FE->>FE: Tab 1 hiện ngay từ NodeAnalysisView
+    FE->>FE: Phần X-Ray hiện ngay từ NodeAnalysisView
     FE->>BE: POST /api/enrich-node { session_id, node_id, mode: LEARN } (chạy nền)
     alt Đã có run LEARN chưa xong (tải lại trang, tab khác)
         BE-->>FE: Trả lại đúng run đó (câu hỏi đọc từ DB)

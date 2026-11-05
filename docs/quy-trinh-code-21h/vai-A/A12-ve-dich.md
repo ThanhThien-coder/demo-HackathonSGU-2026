@@ -8,6 +8,8 @@
 | Mở đường cho | Đóng băng (05:00) |
 | Cách làm | Bạn kiểm A11, merge, quyết Dockerfile · Claude sửa `deploy.yml` (nếu bạn merge Dockerfile) và gọi thử 14 endpoint · bạn duyệt production |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A12`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 Ngay khi dậy (03:00), làm tay theo thứ tự, **Claude không làm các việc này**:
@@ -33,24 +35,31 @@ Quyết định Dockerfile của tôi: [ĐÃ MERGE / ĐÃ BỎ].
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/05_HA_TANG_CLOUD.md` Mục 1, 3, 5
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2
-- `.kb/spec/00_QUYET_DINH.md` D-30, D-64
+- `docs/spec/05_HA_TANG_CLOUD.md` Mục 1, 3, 5
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2
+- `docs/spec/00_QUYET_DINH.md` D-30, D-64
 - `package.json`
 - `.github/workflows/`
 - `Dockerfile`
 
 ## Được ghi
 - `.github/workflows/deploy.yml`
+- `src/server/errors.ts`
+- `src/instrumentation.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Chỉ khi quyết định là ĐÃ MERGE: sửa `.github/workflows/deploy.yml` theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3: từ cùng commit build 2 image bằng Dockerfile (staging trỏ Supabase dev/staging, production trỏ Supabase production, D-72), push Artifact Registry, deploy staging bằng `--image`, job production deploy image prod sau khi được duyệt. Quyết định là ĐÃ BỎ thì không sửa file nào.
-3. Gọi thử đủ 14 endpoint của `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2 trên staging bằng `curl`. Tôi sẽ đưa URL staging; token bot nằm trong biến môi trường `SMOKE_TOKEN` của cửa sổ lệnh, không in token ra. Lập bảng: endpoint | mã HTTP nhận được | mã kỳ vọng | đạt hay chưa.
+2. Chỉ khi quyết định là ĐÃ MERGE: sửa `.github/workflows/deploy.yml` theo `docs/spec/05_HA_TANG_CLOUD.md` Mục 3: từ cùng commit build 2 image bằng Dockerfile (staging trỏ Supabase dev/staging, production trỏ Supabase production, D-72), push Artifact Registry, deploy staging bằng `--image`, job production deploy image prod sau khi được duyệt. Quyết định là ĐÃ BỎ thì không sửa file nào.
+3. Gọi thử đủ 14 endpoint của `docs/spec/03_API_VA_LUU_TRU.md` Mục 2 trên staging bằng `curl`. Tôi sẽ đưa URL staging; token bot nằm trong biến môi trường `SMOKE_TOKEN` của cửa sổ lệnh, không in token ra. Lập bảng: endpoint | mã HTTP nhận được | mã kỳ vọng | đạt hay chưa.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Lỗi lạ (lỗi A-02, `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9):** `toErrorResponse` ghi thêm `error_name`, `error_message` đã che secret. Không ghi biến môi trường, body request.
+- **Khởi động (lỗi A-04, B-13):** `instrumentation.ts` kiểm biến môi trường bắt buộc và gọi `initParsers` 1 lần.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `git diff --stat`
-- ĐÃ MERGE: `git diff` chỉ có `.github/workflows/deploy.yml`, đúng các ý ở `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3. ĐÃ BỎ: `git diff` rỗng.
+- ĐÃ MERGE: `git diff` chỉ có `.github/workflows/deploy.yml`, đúng các ý ở `docs/spec/05_HA_TANG_CLOUD.md` Mục 3. ĐÃ BỎ: `git diff` rỗng.
 - Bảng 14 endpoint đủ 14 dòng, có mã nhận được thật (không đoán).
 
 ## Cấm
@@ -82,9 +91,12 @@ Claude chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, làm tiếp t�
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `git diff --stat` thấy đúng như Tiêu chí xong.
 - [ ] `git status` chỉ có các file ở mục Được ghi (hoặc không có file nào nếu đã bỏ Dockerfile).
-- [ ] **04:00:** bảng 14 endpoint của `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2 đều đạt trên staging. Endpoint nào chưa đạt thì mở Issue nhãn `bug` cho đúng người.
+- [ ] **04:00:** bảng 14 endpoint của `docs/spec/03_API_VA_LUU_TRU.md` Mục 2 đều đạt trên staging. Endpoint nào chưa đạt thì mở Issue nhãn `bug` cho đúng người.
 - [ ] Bạn tự thử ngắt AI khẩn cấp X-11: đặt `AI_DISABLED="true"` trên staging, gọi một lời gọi AI thấy `ERR_AI_UNAVAILABLE`, rồi đặt lại `"false"`.
 - [ ] Quyết định Dockerfile (merge hay bỏ) đã ghi vào báo cáo và nhắn cho cả nhóm.
+- [ ] Server có `GITHUB_TOKEN`: dán `fastapi/fastapi` không thấy "Không lấy được danh sách file".
+- [ ] Dán 5 repo chưa dùng trên site thật, ghi thời gian thăm dò vào lỗi B-14.
+- [ ] Lỗi 401 gặp lại thì lưu request và phản hồi (lỗi A-03).
 
 ```text
 Task "A12 — Deploy bằng image, gọi thử 14 endpoint" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -105,7 +117,7 @@ gh pr create --base main --title "A12 — Deploy bằng image" --body "Closes #<
 ```
 
 Sau đó bạn tự làm, theo thứ tự:
-1. Chạy migration trên project Supabase **production** nếu chưa chạy (`.kb/spec/05_HA_TANG_CLOUD.md` Mục 5: staging đạt rồi mới production).
+1. Chạy migration trên project Supabase **production** nếu chưa chạy (`docs/spec/05_HA_TANG_CLOUD.md` Mục 5: staging đạt rồi mới production).
 2. Chờ staging chạy smoke test xanh, rồi bấm duyệt production trên GitHub Environment `production`.
 3. **05:00:** nhắn cả nhóm "đóng băng tính năng", từ giờ chỉ sửa lỗi có Issue nhãn `bug`. Chuyển sang mục Về đích trong README vai.
 

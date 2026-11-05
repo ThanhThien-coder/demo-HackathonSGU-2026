@@ -8,6 +8,8 @@
 | Mở đường cho | B05 |
 | Cách làm | bạn thử curl ở Bước 0 · Claude nạp grammar ở Bước 2 · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B01`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 1. **12:00–12:30, chưa cần khung code:** dùng `curl` thử 3 giả định ⚠️ của `docs/spec/10_ENGINE_INGEST.md` trên repo demo Q-03 (codeload trả đúng mã cho `HEAD`; `archive/HEAD.zip` chuyển hướng tới nhánh mặc định; comment EOCD có commit SHA), đăng kết quả lên Issue chung.
@@ -48,12 +50,20 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 4. Viết test `src/server/engine/graph/__tests__/parser.test.ts` kiểm tra nạp thành công grammar TS/JS và Python; test tên bắt đầu bằng `ENG-11`.
 5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Phạm vi ngôn ngữ (D-76, lỗi B-07):** `LANGUAGE_REGISTRY` chỉ có `TYPESCRIPT`, `TSX`, `JAVASCRIPT`, `PYTHON`. Mọi đuôi còn lại ở dòng `RESOLVED`, `STRUCTURAL` của `docs/spec/11_ENGINE_DO_THI.md` Mục 1 (`.java`, `.go`, `.dart`, `.cs`, `.php`, `.kt`, `.kts`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.rs`, `.rb`, `.swift`, `.scala`) phải có trong `KNOWN_NO_GRAMMAR`. Thiếu thì engine coi là không có code và báo sai.
+- **Không nuốt lỗi nạp query (lỗi B-12):** ngôn ngữ trong `LANGUAGE_REGISTRY` thiếu query hoặc query hỏng ⇒ `initParsers` ném lỗi, không bỏ qua trong `catch`.
+- **Nạp sớm (lỗi B-13):** `initParsers` an toàn khi gọi nhiều lần, để Vai A gọi lúc server khởi động. `parseAll` vẫn tự gọi nếu chưa nạp.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/engine/graph/__tests__/parser.test.ts`
 - Test tên bắt đầu bằng `ENG-11` nạp được TS/JS và Python.
 - Các file grammar `.wasm` tồn tại trong thư mục `public/grammars/` và cùng ABI với `web-tree-sitter`.
 - Lệch ABI ⇒ làm theo D-32 (đổi bản `web-tree-sitter`, không tự build grammar), báo Vai A sửa `package.json`.
 - `npx tsc --noEmit` không lỗi. A02 chưa merge thì lỗi duy nhất được phép là `Cannot find module '@/contracts'`; ghi rõ vào báo cáo, không đổi sang `kẹt`.
+- Test `getQuery` khác `null` cho cả 4 ngôn ngữ; query hỏng làm `initParsers` ném lỗi.
+- Test `.java`, `.go`, `.dart` nằm trong `KNOWN_NO_GRAMMAR`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -86,6 +96,7 @@ Claude chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, làm tiếp t�
 - [ ] Test tên bắt đầu bằng `ENG-11` nạp được TS/JS và Python.
 - [ ] Lệch ABI ⇒ làm theo D-32 (đổi bản `web-tree-sitter`, không tự build grammar), báo Vai A sửa `package.json`.
 - [ ] `npx tsc --noEmit` xanh. Còn lỗi `Cannot find module '@/contracts'` nghĩa là A02 chưa merge: vẫn commit, nhưng chỉ mở PR sau khi A02 lên `main` (rebase rồi chạy lại `tsc`).
+- [ ] Phiếu đã xử lý lỗi B-07, B-12, B-13 trong `loi-can-sua.md`.
 
 ```text
 Task "B01 — Thử 3 giả định tải repo, nạp grammar" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

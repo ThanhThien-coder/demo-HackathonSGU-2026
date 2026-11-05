@@ -10,6 +10,8 @@ Làm xong phiếu này, ứng dụng có kho quản lý trạng thái máy khác
 | Mở đường cho | D03, D06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D02`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -52,11 +54,16 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 6. Viết test trong `src/lib/__tests__/messages.test.ts` kiểm tra đủ mọi mã lỗi (`docs/spec/30_UI.md` T27), và các test tương ứng cho `userStore` và `workbench`.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **`details.hint` (lỗi D-04, `30` Mục 10):** đổi mã `submodule`, `only_unsupported`, `only_manifests`, `no_code`, `empty_subdir` thành câu tiếng Việt, không in thẳng mã.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/lib/__tests__/messages.test.ts`
 - Bảng `ERROR_MESSAGES` có đầy đủ mọi mã của `ErrorCode`, thiếu một mã sẽ báo lỗi biên dịch (T27).
 - Store `workbench.ts` khớp với kiểu `ClientWorkbenchState`.
 - Các hàm API Safe trả về đối tượng lỗi `ApiError` chứ không throw exception.
+- Test mỗi `details.hint` ra đúng câu tiếng Việt.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.

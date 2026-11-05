@@ -8,6 +8,8 @@
 | Mở đường cho | Lát dọc 2, D08, E07 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A10`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,14 +25,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 6.2, 6.3, 6.5
-- `.kb/spec/02_CONTRACTS.md` Mục 6, 8
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 7
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7, 8
-- `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.1, 7
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.1, 3.4, Mục 3.4
-- `.kb/spec/00_QUYET_DINH.md` D-13, D-18, D-36, D-40, D-65, D-66
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2, 6.2, 6.3, 6.5
+- `docs/spec/02_CONTRACTS.md` Mục 6, 8
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 7
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 7, 8
+- `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.1, 7
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.1, 3.4, Mục 3.4
+- `docs/spec/00_QUYET_DINH.md` D-13, D-18, D-36, D-40, D-65, D-66
 - `package.json`
 - `src/`
 
@@ -44,16 +46,16 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết `src/server/evaluate.ts` thực hiện các bước kiểm tra đầu vào đúng thứ tự quy định tại `.kb/spec/03_API_VA_LUU_TRU.md` Mục 6.2: kiểm tra độ dài và trùng lặp (GUARD-16), phát hiện từ xấu trả mã lỗi `ERR_ANSWER_INAPPROPRIATE` không tính lượt (0 token), che dữ liệu nhạy cảm theo `maskSensitive(redactSecrets(·).code)` (`.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5), kiểm tra lệch số lượt nộp trả `ERR_ATTEMPT_OUT_OF_SYNC`, kiểm tra regex tấn công (GUARD-15) chấm 0 điểm theo AI-33.
-3. B2: Gọi chấm bài của Vai C ngoài transaction, mở transaction ngắn ghi lượt nộp, cập nhật BKT, gọi `finalizeRunIfDone` (`.kb/spec/03_API_VA_LUU_TRU.md` Mục 6.5), trả về `unlocked_node_ids`, ghi dòng `ai_usage`. Nếu cơ sở dữ liệu lỗi sau các lần thử lại ⇒ trả mã lỗi `ERR_PERSISTENCE_UNAVAILABLE`, hủy bỏ kết quả chấm (`.kb/spec/50_TEST_VA_FIXTURE.md` D14).
-4. B3: Viết `src/server/reveal.ts` và route `src/app/api/reveal/route.ts` theo `.kb/spec/03_API_VA_LUU_TRU.md` Mục 6.3. Bổ sung `finalizeRunIfDone` trong `src/server/progress.ts`.
+2. B1: Viết `src/server/evaluate.ts` thực hiện các bước kiểm tra đầu vào đúng thứ tự quy định tại `docs/spec/03_API_VA_LUU_TRU.md` Mục 6.2: kiểm tra độ dài và trùng lặp (GUARD-16), phát hiện từ xấu trả mã lỗi `ERR_ANSWER_INAPPROPRIATE` không tính lượt (0 token), che dữ liệu nhạy cảm theo `maskSensitive(redactSecrets(·).code)` (`docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5), kiểm tra lệch số lượt nộp trả `ERR_ATTEMPT_OUT_OF_SYNC`, kiểm tra regex tấn công (GUARD-15) chấm 0 điểm theo AI-33.
+3. B2: Gọi chấm bài của Vai C ngoài transaction, mở transaction ngắn ghi lượt nộp, cập nhật BKT, gọi `finalizeRunIfDone` (`docs/spec/03_API_VA_LUU_TRU.md` Mục 6.5), trả về `unlocked_node_ids`, ghi dòng `ai_usage`. Nếu cơ sở dữ liệu lỗi sau các lần thử lại ⇒ trả mã lỗi `ERR_PERSISTENCE_UNAVAILABLE`, hủy bỏ kết quả chấm (`docs/spec/50_TEST_VA_FIXTURE.md` D14).
+4. B3: Viết `src/server/reveal.ts` và route `src/app/api/reveal/route.ts` theo `docs/spec/03_API_VA_LUU_TRU.md` Mục 6.3. Bổ sung `finalizeRunIfDone` trong `src/server/progress.ts`.
 5. Viết test trong `src/app/api/__tests__/evaluate.test.ts`.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/app/api/__tests__/evaluate.test.ts`
-- Có test (mock AI hoặc mock DB) cho ca D6, D7, D15 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 (AI lỗi 503 hoặc hết hạn mức khi chấm thì không tính lượt, `attempts_used` không đổi; Postgres lỗi thì `ERR_PERSISTENCE_UNAVAILABLE`, không gọi AI), tên test ghi mã ca.
-- Test (mock AI) cho các ca `.kb/spec/50_TEST_VA_FIXTURE.md` D1, D12, D21, D23 và `ERR_QUESTION_FINISHED` đều xanh.
+- Có test (mock AI hoặc mock DB) cho ca D6, D7, D15 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 (AI lỗi 503 hoặc hết hạn mức khi chấm thì không tính lượt, `attempts_used` không đổi; Postgres lỗi thì `ERR_PERSISTENCE_UNAVAILABLE`, không gọi AI), tên test ghi mã ca.
+- Test (mock AI) cho các ca `docs/spec/50_TEST_VA_FIXTURE.md` D1, D12, D21, D23 và `ERR_QUESTION_FINISHED` đều xanh.
 - Lỗi ghi nhận `ERR_PERSISTENCE_UNAVAILABLE` khi DB lỗi, không trừ lượt làm bài.
 
 ## Cấm
@@ -81,7 +83,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Các ca test D1 (prompt injection), D12 (lệch attempt), D21 (từ xấu), D23 (che PII/secret) và `ERR_QUESTION_FINISHED` chạy đạt.
 - [ ] Chạy tay kịch bản A trên máy cục bộ hoàn thành thông suốt từ N3 đến nộp bài đạt.
 
-- [ ] Có test cho ca D6, D7, D15 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Có test cho ca D6, D7, D15 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 ```text
 Task "A10 — Nối /api/evaluate-feynman, /api/reveal" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

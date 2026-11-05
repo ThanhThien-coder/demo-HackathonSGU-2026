@@ -6,6 +6,8 @@ Bạn phụ trách kiểm thử toàn diện hệ thống theo từng giai đo�
 
 ## Một phiếu làm thế nào
 
+**Cách nhanh:** nhắn AI `Làm phiếu <mã>`, xem [`lam-phieu.md`](../lam-phieu.md). AI làm tới bước commit, bạn chỉ kiểm và dán lệnh commit. Các bước dưới là cách làm tay.
+
 Mỗi phiếu đọc từ trên xuống, làm đúng thứ tự:
 1. Bước 0: tự gõ lệnh cập nhật `main`, cài thư viện, tạo nhánh.
 2. Bước 1: copy prompt, dán cho Claude trên máy bạn. Claude kiểm các phiếu cần có trước đã có trên nhánh. **Thiếu thì Claude dừng**, báo thiếu gì và đó là việc của vai nào: bạn nhắn vai đó, không bảo Claude làm thay. Đủ thì Claude tạo task trong `.kb/tasks/`. Đọc task, thấy khớp phiếu thì đi tiếp.
@@ -62,9 +64,9 @@ Vai E gồm 3 phần công việc rõ ràng:
 
 ## Về đích (05:00 → 09:30)
 
-- **05:00 — Đóng băng tính năng & Kiểm tra DoD:** Toàn đội ngừng tiếp nhận tính năng mới. Bạn tự thực hiện kiểm tra Definition of Done theo danh sách tại `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 5. Kiểm tra chế độ offline `Ctrl+Shift+D` cùng Vai D.
+- **05:00 — Đóng băng tính năng & Kiểm tra DoD:** Toàn đội ngừng tiếp nhận tính năng mới. Bạn tự thực hiện kiểm tra Definition of Done theo danh sách tại `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5. Kiểm tra chế độ offline `Ctrl+Shift+D` cùng Vai D.
 - **06:00 — Video dự phòng:** Quay video demo kịch bản hoàn chỉnh (cả chế độ kết nối thật và chế độ offline) để dự phòng mọi tình huống kỹ thuật trên sân khấu.
-- **07:00 — Điền số đo thật:** Mở `review/ket_qua_duyet.md` và điền phần "Số đo báo cáo" theo đúng hướng dẫn tại `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 bằng số liệu thực tế đo được từ bảng duyệt tay.
+- **07:00 — Điền số đo thật:** Mở `review/ket_qua_duyet.md` và điền phần "Số đo báo cáo" theo đúng hướng dẫn tại `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 bằng số liệu thực tế đo được từ bảng duyệt tay.
 - **07:30 — Hoàn tất slide:** Slide thuyết trình hoàn thiện lúc 07:30 từ kịch bản trình bày tại `pitch/` (mở ở repo tài liệu: `pitch/KICH_BAN_DEMO.md`).
 - **09:00 — Ngừng code & Đối soát commit:** Cả nhóm dừng code, đối soát để bảo đảm cả 5 thành viên đều có commit hợp lệ trên `main`.
 - **09:30 — Nộp bài:** Nộp file thuyết trình trước 09:30 theo đúng quy định của ban tổ chức cuộc thi.

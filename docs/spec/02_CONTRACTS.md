@@ -52,7 +52,8 @@ export const CONFIG = {
   SELECTIVE_TIMEOUT_MS: 15000,        // Hạn `10` Mục 4A; đo lại ở H+1 (D-63)
   SELECTIVE_FETCH_CONCURRENCY: 16,
   AUTO_SCOPE_CHILD_RATIO: 0.5,        // `10` ING-47
-  PREFLIGHT_TIMEOUT_MS: 300,
+  PREFLIGHT_TIMEOUT_MS: 1500,
+  PREFLIGHT_PAGE_TIMEOUT_MS: 12000,  // Chỉ gọi trang repo khi archive/HEAD.zip trả 404 (10 Mục 2)
   PREFLIGHT_RETRY_DELAY_MS: 1000,     // Thử lại probe 1 lần
   DEFAULT_BRANCH_FALLBACKS: ["main", "master", "dev"],
   MAX_CONCURRENT_INGESTIONS: 4,       // Semaphore trong 1 instance, hàng đợi FIFO (D-31)
@@ -60,7 +61,7 @@ export const CONFIG = {
   INGESTION_CACHE_TTL_MS: 10 * 60 * 1000,
   INGESTION_CACHE_MAX_ENTRIES: 20,    // LRU StaticEngineResult trong RAM — chỉ để nhanh, không được dựa vào (D-27)
   SECRET_MIN_VALUE_LENGTH: 6,
-  UNSUPPORTED_LANGUAGE_RATIO: 0.5,    // > 50% byte code thuộc tier UNSUPPORTED và 0 file code ⇒ ERR_UNSUPPORTED_LANGUAGE
+  UNSUPPORTED_LANGUAGE_RATIO: 0.5,    // > 50% byte code thuộc tier UNSUPPORTED ⇒ ERR_UNSUPPORTED_LANGUAGE
   MONOREPO_DOMINANT_RATIO: 0.7,
   GRAPH_CONFIDENCE_HIGH_RATIO: 0.8,   // ≥ 80% byte thuộc RESOLVED ⇒ HIGH
   GRAPH_CONFIDENCE_LOW_RATIO: 0.5,    // ≥ 50% byte thuộc STRUCTURAL ⇒ LOW
@@ -171,7 +172,6 @@ export const CONFIG = {
   REPORT_NOTE_MAX_CHARS: 500,         // = check char_length(note) của dispute_reports
 
   // ---------- Giao diện (30_UI) ----------
-  UI_PANE_WIDTHS_PCT: [25, 45, 30],
   UI_PRESENTATION_FOCUS_PCT: 60,      // Cột đang chọn ở chế độ trình chiếu; 2 cột còn lại chia phần còn lại
   UI_PRESENTATION_FONT_SCALE: 1.25,
 
@@ -311,7 +311,7 @@ export interface GraphEdge {
   id: string;                          // `${source}->${target}`
   source: string;
   target: string;
-  confidence: "RESOLVED" | "INFERRED"; // INFERRED nếu chuỗi lời gọi tạo ra cạnh có ≥ 1 cạnh hàm suy luận
+  confidence: "RESOLVED" | "INFERRED"; // INFERRED nếu chuỗi lời gọi tạo ra cạnh có ≥ 1 cạnh hàm suy luận, hoặc là cạnh cây D-73
 }
 
 export type IngestionErrorCode =
@@ -341,7 +341,7 @@ export interface RepoSnapshotKey {
   snapshot_id: string;                 // Commit SHA 40 hex hoặc SHA-256 của TOÀN BỘ buffer zip; phiên gắn cố định (D-39)
   snapshot_id_kind: "COMMIT_SHA" | "ARCHIVE_HASH";
   subdir: string;                      // "" khi phân tích cả repo
-  ref_label: string | null;            // Nhánh mặc định đã phân giải — chỉ hiển thị
+  ref_label: string | null;            // Nhánh mặc định nếu biết; null khi GitHub chỉ trả SHA — chỉ hiển thị
 }
 
 // Bản đầy đủ — CHỈ SERVER: cache RAM + session_snapshots (D-59), không có file nguồn
@@ -456,7 +456,7 @@ export interface NodeAnalysis extends NodeAnalysisRaw {  // Sau khi qua kiểm (
   skeleton_only: boolean;               // true ⇒ phần chữ bị bỏ sau 2 lần trượt gác, chỉ còn skills + khung bước
 }
 
-export interface NodeAnalysisView {     // Gửi trình duyệt (Tab 1)
+export interface NodeAnalysisView {     // Gửi trình duyệt (phần X-Ray)
   node_id: string;
   skills: Array<AnalysisSkill & { file_path: string; line_start: number; line_end: number }>;
   architecture: { patterns: ArchitecturePattern[]; summary: string };

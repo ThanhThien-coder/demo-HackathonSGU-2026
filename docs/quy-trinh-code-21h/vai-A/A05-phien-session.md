@@ -8,6 +8,8 @@
 | Mở đường cho | A06, A07, D06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A05`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,10 +25,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 4
-- `.kb/spec/02_CONTRACTS.md` Mục 6, 7, 8
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 1
-- `.kb/spec/00_QUYET_DINH.md` D-59
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2, 4
+- `docs/spec/02_CONTRACTS.md` Mục 6, 7, 8
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 1
+- `docs/spec/00_QUYET_DINH.md` D-59
 - `package.json`
 - `src/`
 
@@ -41,11 +43,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết `src/server/cache.ts` và `src/server/session.ts`: kiểm tra quyền sở hữu phiên (API-05), hàm `getSessionStaticResult` dựng lại từ bảng `session_snapshots` (`.kb/spec/03_API_VA_LUU_TRU.md` Mục 4).
+2. B1: Viết `src/server/cache.ts` và `src/server/session.ts`: kiểm tra quyền sở hữu phiên (API-05), hàm `getSessionStaticResult` dựng lại từ bảng `session_snapshots` (`docs/spec/03_API_VA_LUU_TRU.md` Mục 4).
 3. B2: Viết `src/server/quota.ts` kiểm soát trần token phiên (AI-06); viết `src/app/api/sessions/route.ts` xử lý `GET /api/sessions` bằng đúng một câu truy vấn SQL (`jsonb_array_length`, `LEFT JOIN … GROUP BY`, không lặp N+1), tính toán `can_resume`/`resume_blocker`.
-4. B3: Viết `src/server/progress.ts` gọi `deriveNodeStates`; tạo route `src/app/api/sessions/[id]/progress/route.ts` chỉ đọc cơ sở dữ liệu (`.kb/spec/03_API_VA_LUU_TRU.md` Mục 2 dòng 13).
+4. B3: Viết `src/server/progress.ts` gọi `deriveNodeStates`; tạo route `src/app/api/sessions/[id]/progress/route.ts` chỉ đọc cơ sở dữ liệu (`docs/spec/03_API_VA_LUU_TRU.md` Mục 2 dòng 13).
 5. Viết test trong `src/server/__tests__/session.test.ts` kiểm tra các trường hợp bảo vệ quyền sở hữu và phiên cập nhật engine.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server`

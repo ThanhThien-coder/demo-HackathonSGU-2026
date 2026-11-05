@@ -8,6 +8,8 @@
 | Mở đường cho | B08 |
 | Cách làm | Bạn tự làm · bạn commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E06`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -26,13 +28,16 @@ Không có, bạn tự làm theo Bước 3.
 
 - [ ] Bạn tự chạy lại `git diff --stat main -- review/loi_da_gap.md` thấy có thay đổi ở file `review/loi_da_gap.md`.
 - [ ] `git status` chỉ có các file ở mục Được ghi (`review/loi_da_gap.md`).
-- [ ] Dán link repo demo: bản đồ ra 6–20 node, đồng hồ đo hiện `ingest_ms + engine_ms` thật theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 5.
+- [ ] Dán link repo demo: bản đồ ra 6–20 node, đồng hồ đo hiện `ingest_ms + engine_ms` thật theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5.
 - [ ] Chạy 2 lần cùng một link repo: cùng `node_id` và cùng tọa độ (INV-10).
 - [ ] Hàng điểm bắt đầu nằm cùng hàng trên cùng (X-07).
-- [ ] Thử nghiệm các ca lỗi: repo private / sai link / repo rỗng / quá lớn trả đúng mã lỗi và thông điệp theo `.kb/spec/30_UI.md` Mục 10.
-- [ ] Mở từng node của repo demo: node nào cũng có bản phân tích (D-46), Tab 1 có điểm hay và điểm dở "Nhận định của AI".
+- [ ] Thử nghiệm các ca lỗi: repo private / sai link / repo rỗng / quá lớn trả đúng mã lỗi và thông điệp theo `docs/spec/30_UI.md` Mục 10.
+- [ ] Mở từng node của repo demo: node nào cũng có bản phân tích (D-46), phần X-Ray có điểm hay và điểm dở "Nhận định của AI".
 - [ ] Mỗi dòng DoD đã chạy có kết quả ✅ / ❌ ghi trong `review/loi_da_gap.md`.
 - [ ] Mỗi lỗi tìm thấy được mở một GitHub Issue với nhãn `bug` + nhãn vai liên quan (`engine`, `ai`, `api`, `ui`).
+- [ ] Chạy thêm 1 repo NestJS nghiệp vụ. Đọc nội dung 3 bài: code đúng method, có bài tới `DATA_ACCESS`, không có bài từ `config.get`, `<module>`, file test (lỗi B-01, B-02, B-03, B-06, B-27).
+- [ ] Học trọn 1 vòng trên site thật ở 1366×768: bấm node vào bài, nộp đúng, nộp sai, xem Tổng quan, Báo sai (lỗi D-05, D-07, D-15).
+- [ ] Dán 5 repo chưa dùng, không có `ERR_NETWORK_TIMEOUT` (lỗi B-14). Dán repo Go, báo chưa hỗ trợ (lỗi B-07).
 
 ## Bước 4 — Commit và PR (bạn tự gõ)
 

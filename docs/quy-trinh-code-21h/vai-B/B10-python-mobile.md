@@ -8,6 +8,8 @@
 | Mở đường cho | Đủ endpoint |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B10`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -48,11 +50,17 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 5. Viết test trong `src/server/engine/graph/__tests__/entry.test.ts` bao phủ các ca T-ENG-39, T-ENG-40, và phần TS/JS, Python của T-ENT-01 (`Tab.Screen`, `app/(tabs)/settings.tsx`) và T-ENT-02 (Python `_helper`). Các ca Dart, Kotlin, Swift, C, C#, Go của T-ENT-01, T-ENT-02 viết `it.todo` ghi lý do "chưa có grammar ở `public/grammars/`" (chỉ có 4 grammar TS, TSX, JS, Python của B01; INV-09).
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Phạm vi (D-76):** chỉ làm TS/JS và Python. Flutter, Android, iOS và entry của ngôn ngữ khác là sau thi.
+- **React có mock API (lỗi B-34):** kiểm thêm repo dùng `msw`. Bản cũ cho `alan2207/bulletproof-react` 20 bài đều là mock, tên `<anon@l111>`.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine`
 - Có đủ các test T-ENG-39, T-ENG-40, phần TS/JS, Python của T-ENT-01, T-ENT-02 và tất cả chạy xanh; các ca ngôn ngữ khác là `it.todo` có ghi lý do.
 - Repo Expo Router và repo Python có entry `main` nhận diện chính xác các entry point tương ứng.
 - Chỉ coi file dưới `app/` là màn hình Expo khi repo có import `expo-router`, dự phòng theo thư mục `(tabs)`, nếu không repo Express có `src/app/routes/*.service.ts` bị nhận nhầm. `defaultHandler` tìm thêm `export { X as default } from p`, `export { default } from p`, `export { X as default }`.
+- Không có bài từ thư mục `mocks/`; tên bài không chứa `<`, `>`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -81,6 +89,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có đầy đủ các test T-ENG-39, T-ENG-40, phần TS/JS, Python của T-ENT-01, T-ENT-02; ca ngôn ngữ khác là `it.todo`.
 - [ ] Repo Python đơn thuần và ứng dụng React Native trích xuất được entry point hợp lệ.
 - [ ] Repo Expo dùng `export { Screen as default } from '...'` ra đủ màn hình. Repo Express có thư mục `src/app/` không có màn hình giả.
+- [ ] Chạy thật `shadcn-ui/taxonomy`, `obytes/react-native-template-obytes`, `alan2207/bulletproof-react`, ghi số bài và số bài chỉ có 1 bước.
 
 ```text
 Task "B10 — Python đủ, entry main, màn hình React Native" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

@@ -10,6 +10,8 @@ Làm xong phiếu này, hệ thống sẽ tự động cập nhật màu sắc n
 | Mở đường cho | Lát dọc 2, E07, E09 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D08`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell

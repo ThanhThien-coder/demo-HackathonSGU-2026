@@ -2,6 +2,8 @@
 
 Đọc chung: [README tổng](README.md). Phiếu của mọi vai viết cho máy có đủ ai-kit và Antigravity (agy). File này là cách làm **cùng phiếu đó** trên máy thiếu công cụ, để kết quả vẫn giống máy khác: cùng file được sửa, cùng tiêu chí, cùng commit.
 
+**Cách nhanh:** nhắn AI `Làm phiếu <mã>`. [`lam-phieu.md`](lam-phieu.md) đã xử lý cả máy thiếu ai-kit hoặc thiếu agy, nên chỉ cần đọc file này khi làm tay.
+
 ## 1. Máy bạn thuộc trường hợp nào
 
 | Trường hợp | Máy có gì | Làm theo |
@@ -105,7 +107,7 @@ Mở file Claude vừa ghi, thấy khớp phiếu thì sang 4.4.
 Đọc `.kb/README.md` rồi `.kb/tasks/<MÃ>.md`, làm đúng mục Việc cần làm từ đầu đến hết. Luật:
 - Chỉ mở các file và mục ở Được đọc; chỉ tạo hoặc sửa file ở Được ghi.
 - Gặp "Dùng skill doc-spec": tự mở đúng các mục spec ghi ở Được đọc, không đọc cả thư mục.
-- Gặp "Dùng skill kiem-contract": tự so code với `.kb/spec/02_CONTRACTS.md` (tên kiểu, tên trường, mã lỗi, tên hằng `CONFIG`); lệch thì sửa code của mình, không sửa `src/contracts/`.
+- Gặp "Dùng skill kiem-contract": tự so code với `docs/spec/02_CONTRACTS.md` (tên kiểu, tên trường, mã lỗi, tên hằng `CONFIG`); lệch thì sửa code của mình, không sửa `src/contracts/`.
 - Tuân thủ từng dòng ở mục Cấm.
 - Chạy lệnh kiểm ở Tiêu chí xong tới khi xanh hoặc kẹt.
 - KHÔNG `git add`, KHÔNG commit, KHÔNG push.

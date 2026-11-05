@@ -8,6 +8,8 @@
 | Mở đường cho | B03, A06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B02`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -50,10 +52,20 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 6. Viết test trong `src/server/engine/ingest/__tests__/tai.test.ts` bao phủ các ca T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 bằng mock `fetch`, thêm ca `stream_cut` + ref 40 hex. Tên test đầy đủ (gồm cả `describe` bọc ngoài) bắt đầu bằng mã T-ING hoặc ING, không bắt đầu bằng tên task. Trong test, `new File([...])` nhận `Uint8Array` thì bọc `new Uint8Array(x)` để `tsc` không báo lỗi `BlobPart`.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Thăm dò (lỗi B-14, `docs/spec/10_ENGINE_INGEST.md` Mục 2):** gọi `HEAD .../archive/HEAD.zip` trước, không gọi trang repo. Đo thật: trang repo lần đầu mất 8–11 giây, `archive/HEAD.zip` chỉ 0,4–0,5 giây. Chỉ khi 404 mới gọi trang repo với `CONFIG.PREFLIGHT_PAGE_TIMEOUT_MS` để phân biệt repo không có với repo rỗng. 301 ⇒ lấy `owner/repo` mới từ `Location`, gọi lại 1 lần.
+- `probeRepo` trả thêm `head_zip`. `resolveRef` dùng lại kết quả đó, không gọi `HEAD.zip` lần 2.
+- **Link viết hoa (lỗi B-15, ING-11):** `https://GitHub.com/a/b`, `HTTPS://github.com/a/b` phải chạy được. Chỉ đổi scheme, host về chữ thường, giữ nguyên owner, repo.
+- **`ref_label` (lỗi B-16, ING-32):** GitHub hiện chuyển hướng tới commit SHA. `ref` là SHA 40 hex ⇒ `ref_label = null`, giữ nguyên `ref`.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest/__tests__/tai.test.ts`
 - Có test T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33 (mạng giả bằng mock `fetch`).
 - Zero-Disk: toàn bộ xử lý tải và buffer zip chỉ thực hiện trong RAM (ING-01).
+- T-ING-07, T-ING-08, T-ING-09 theo bản mới của spec, có ca 301 và ca `HEAD.zip` 404 mà trang repo 200.
+- Test đếm `fetch`: repo bình thường không gọi trang repo.
+- Test `HTTPS://GitHub.com/a/b` ⇒ `a/b`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -80,6 +92,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ các test T-ING-01, T-ING-02, T-ING-03, T-ING-04, T-ING-06, T-ING-07, T-ING-08, T-ING-09, T-ING-33.
 - [ ] Xác nhận code tải không ghi bất kỳ file tạm nào ra đĩa (ING-01).
+- [ ] Chạy thật 5 repo chưa từng dùng: không có `ERR_NETWORK_TIMEOUT`, không mất thêm hơn 1 giây vì thử lại.
+- [ ] BrewLite có `ref_label = null`, `snapshot_id` là SHA.
 
 ```text
 Task "B02 — Ingest 1: link, thăm dò, nhánh, tải, phiên bản" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

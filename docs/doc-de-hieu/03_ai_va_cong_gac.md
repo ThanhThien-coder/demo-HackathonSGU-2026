@@ -110,7 +110,7 @@ Tra chi tiết: spec/20_AI_GOI_VA_PROMPT.md Mục 2, 3.
 ## 3. Lời gọi 1 — Phân tích lát cắt nghiệp vụ (analyze-node)
 
 ### Tình huống thực tế và mục đích
-Khi người học mở đồ án web bán hàng `shop-api` và bấm vào ô bài học mang tên **"N3 — Danh sách sản phẩm"**, hệ thống cần hiển thị ngay tại tab X-Ray:
+Khi người học mở đồ án web bán hàng `shop-api` và bấm vào ô bài học mang tên **"N3 — Danh sách sản phẩm"**, hệ thống cần hiển thị ngay tại phần X-Ray:
 - Đoạn code này thể hiện những kỹ năng kỹ nghệ phần mềm nào?
 - Kiến trúc của luồng xử lý này chia làm mấy tầng?
 - Từng bước nhận gì, làm gì và bàn giao gì cho bước sau?
@@ -153,7 +153,7 @@ Khi nhận được JSON này, máy chủ không dùng trực tiếp mà thực 
 - **Lưu vào bộ nhớ đệm:** Kết quả sau khi được cổng gác duyệt đạt chuẩn sẽ được lưu vào bảng bộ nhớ đệm `ai_cache` trên cơ sở dữ liệu. Lần sau bất kỳ sinh viên nào mở ô N3 này đều được nhận ngay kết quả mà không tốn thêm token nào.
 
 ### Xử lý lỗi: Bản khung và khi AI thất bại
-- **Trường hợp nhận bản khung (`skeleton_only`):** Nếu AI phản hồi thiếu phần diễn giải chi tiết nhưng vẫn xác định đúng cấu trúc các bước và kỹ năng, hệ thống vẫn chấp nhận lưu bản khung này vào bộ nhớ đệm. Tab X-Ray sẽ hiển thị khung các bước và kỹ năng để người học không bị gián đoạn hoàn toàn.
+- **Trường hợp nhận bản khung (`skeleton_only`):** Nếu AI phản hồi thiếu phần diễn giải chi tiết nhưng vẫn xác định đúng cấu trúc các bước và kỹ năng, hệ thống vẫn chấp nhận lưu bản khung này vào bộ nhớ đệm. Phần X-Ray sẽ hiển thị khung các bước và kỹ năng để người học không bị gián đoạn hoàn toàn.
 - **Trường hợp phân tích thất bại hoàn toàn:** Nếu sau 1 lần thử lại mà AI vẫn không phản hồi hoặc bị cổng gác chặn toàn bộ, hệ thống không lưu cache và đánh dấu ô N3 là phân tích thất bại. Trên bản đồ, ô N3 vẫn hiển thị màu vàng bình thường kèm một nút bấm "Thử lại phân tích". Các ô bài học kế tiếp phía sau vẫn được mở khóa kèm theo một biểu tượng tam giác vàng nhắc nhở, đảm bảo tiến trình học tập của sinh viên không bao giờ bị tắc nghẽn vì sự cố của dịch vụ AI.
 
 ### Ví dụ thực tế với node N3 của `shop-api`
@@ -207,7 +207,7 @@ Prompt đặt ra những ranh giới rất nghiêm ngặt cho mô hình:
 ### Nhận gì từ AI và cách kết hợp với dữ liệu tĩnh?
 Mô hình trả về một chuỗi JSON gồm: kiểu kiến trúc chủ đạo, tóm tắt chung, vai trò từng tầng, luồng chính, và các ghi chú điểm dở.
 
-Khi hiển thị tab Tổng quan, hệ thống không phụ thuộc hoàn toàn vào AI mà kết hợp hai nguồn dữ liệu:
+Khi hiển thị cửa sổ Tổng quan, hệ thống không phụ thuộc hoàn toàn vào AI mà kết hợp hai nguồn dữ liệu:
 - **Dữ liệu tĩnh do máy tính toán trực tiếp:** Loại dự án, framework, danh sách công nghệ, danh sách ô gốc, và đường đi chính giữa các ô được máy tính toán bằng thuật toán đồ thị. Phần này hiển thị ngay lập tức và chính xác tuyệt đối.
 - **Dữ liệu do AI diễn giải:** Đoạn văn tổng quan, vai trò từng tầng và các ghi chú tổng hợp.
 
@@ -216,14 +216,14 @@ Kết quả sau khi được cổng gác duyệt đạt chuẩn sẽ được l�
 ### Xử lý lỗi khi AI thất bại
 Nếu mô hình gặp sự cố mạng, phản hồi sai định dạng, hoặc bị cổng gác chặn sau 1 lần thử lại (ví dụ AI bịa ra một điểm dở không có trong bản tóm tắt), hệ thống không lưu bộ nhớ đệm và để phần diễn giải AI là giá trị rỗng (`null`).
 
-Trên giao diện người dùng, tab Tổng quan vẫn hoạt động bình thường: toàn bộ dữ liệu tĩnh (khung công nghệ, bản đồ luồng chính, danh sách các ô bài học) vẫn được hiển thị đầy đủ, không gây lỗi màn hình trắng hay làm gián đoạn trải nghiệm của sinh viên.
+Trên giao diện người dùng, cửa sổ Tổng quan vẫn hoạt động bình thường: toàn bộ dữ liệu tĩnh (khung công nghệ, bản đồ luồng chính, danh sách các ô bài học) vẫn được hiển thị đầy đủ, không gây lỗi màn hình trắng hay làm gián đoạn trải nghiệm của sinh viên.
 
 ### Ví dụ thực tế với repo `shop-api`
 Với dự án `shop-api` chứa các ô N1 đến N7, AI đưa ra bản tổng quan kiến trúc:
 - **Kiểu kiến trúc:** `LAYERED` (kiến trúc phân tầng).
 - **Tóm tắt:** Ứng dụng web bán hàng chia làm 3 tầng rõ rệt. Các trang cần bảo mật đều đi qua lớp trung gian kiểm tra token trước khi xử lý nghiệp vụ.
 - **Tầng trung gian (`MIDDLEWARE`):** Có vai trò kiểm tra tính hợp lệ của token trước khi người dùng truy cập các tính năng cá nhân hoặc thanh toán, xuất hiện tại ô Xem hồ sơ (N2) và Thanh toán (N5).
-- **Luồng chính:** Người dùng đăng ký tài khoản, xem hồ sơ, thêm sản phẩm vào giỏ hàng rồi thực hiện thanh toán; sau khi thanh toán thành công hệ thống sẽ gửi email xác nhận.
+- **Lộ trình học chính:** Người dùng đăng ký tài khoản, xem hồ sơ, thêm sản phẩm vào giỏ hàng rồi thực hiện thanh toán; sau khi thanh toán thành công hệ thống sẽ gửi email xác nhận.
 - **Tổng hợp điểm dở:** Hệ thống ghi nhận hai vị trí truy vấn cơ sở dữ liệu đặt trong vòng lặp (tại ô Danh sách sản phẩm N3 và ô Thanh toán N5), điều này sẽ khiến hệ thống bị chậm khi lượng dữ liệu phình to.
 
 Nếu trong phản hồi, AI tự tiện viết thêm một ghi chú rằng: *"Ô Báo cáo doanh thu N7 cũng bị truy vấn trong vòng lặp"*, hệ thống cổng gác sẽ đối chiếu lại bản tóm tắt của N7, thấy N7 không hề có điểm dở nào, và lập tức gạch bỏ dòng ghi chú vô căn cứ này trước khi hiển thị cho người học.
@@ -407,8 +407,8 @@ Trong môi trường thực tế, việc tương tác với các mô hình ngôn
 | **Mọi lời gọi** | Biến `AI_DISABLED="true"` (bán tự động khi chạm trần ngân sách) | Khóa khẩn cấp toàn bộ lời gọi AI, không gọi Gemini, không tính lượt; trả ngay `ERR_AI_UNAVAILABLE` (D-66) | Báo dịch vụ AI tạm ngưng hoạt động; người học vẫn xem được kết quả phân tích có sẵn, nạp repo và chạy chế độ Offline bình thường. |
 | **Mọi lời gọi** | Đã chạm mức 200.000 token trong phiên học | Không gửi yêu cầu tới AI, không tính lượt làm bài; báo lỗi cạn kiệt hạn mức token | Thông báo: "Phiên này đã dùng hết hạn mức AI: vẫn đọc được bản phân tích đã có và bỏ qua câu để xem đáp án, nhưng không chấm được bài mới." |
 | **Phân tích lát cắt** (`analyze-node`) | Yêu cầu cuối cùng bị lỗi mạng hoặc bị cổng gác loại bỏ toàn bộ | Không lưu vào bộ nhớ đệm; đánh dấu ô bài học là phân tích thất bại | Ô bài học vẫn hiện màu vàng bình thường kèm nút "Thử lại phân tích". Các ô kế tiếp vẫn mở khóa bình thường kèm biểu tượng tam giác vàng. |
-| **Phân tích lát cắt** (`analyze-node`) | AI chỉ trả về được cấu trúc các bước và kỹ năng cơ bản (bản khung) | Vẫn lưu bản khung này vào bộ nhớ đệm `ai_cache` | Tab X-Ray hiển thị khung các bước và kỹ năng, phần diễn giải chi tiết ghi: "(chưa có lời giải thích)". |
-| **Tổng quan kiến trúc** (`analyze-overview`) | Bị sự cố mạng hoặc bị cổng gác chặn sau khi thử lại | Không lưu bộ nhớ đệm; để phần tóm tắt AI là giá trị rỗng | Tab Tổng quan vẫn hiển thị đầy đủ các dữ liệu đo đếm tĩnh (loại dự án, framework, công nghệ, danh sách ô gốc, đường đi chính). |
+| **Phân tích lát cắt** (`analyze-node`) | AI chỉ trả về được cấu trúc các bước và kỹ năng cơ bản (bản khung) | Vẫn lưu bản khung này vào bộ nhớ đệm `ai_cache` | Phần X-Ray hiển thị khung các bước và kỹ năng, phần diễn giải chi tiết ghi: "(chưa có lời giải thích)". |
+| **Tổng quan kiến trúc** (`analyze-overview`) | Bị sự cố mạng hoặc bị cổng gác chặn sau khi thử lại | Không lưu bộ nhớ đệm; để phần tóm tắt AI là giá trị rỗng | Cửa sổ Tổng quan vẫn hiển thị đầy đủ các dữ liệu đo đếm tĩnh (loại dự án, framework, công nghệ, danh sách ô gốc, đường đi chính). |
 | **Đặt câu hỏi** (`enrich-node`) | Yêu cầu cuối cùng bị lỗi mạng hoặc sai định dạng JSON | Không tạo lượt luyện tập mới. Token của các request đã gửi vẫn được đếm | Báo lỗi dịch vụ AI tạm thời không khả dụng, mời sinh viên bấm nút thử lại. |
 | **Đặt câu hỏi** (`enrich-node`) | Một câu hỏi bị cổng gác chặn sau khi đã thử lại | Đánh dấu riêng câu hỏi đó là bị loại bỏ (`DROPPED`); các câu đạt chuẩn vẫn giữ nguyên | Giao diện bỏ qua câu hỏi lỗi này, không bắt sinh viên làm câu bị hỏng và không tính vào điểm số BKT. |
 | **Đặt câu hỏi** (`enrich-node`) | Mọi câu đều bị cổng gác chặn sau khi đã thử lại | Không tạo lượt luyện tập mới; trả lỗi `ERR_AI_REJECTED` | Báo không tạo được câu hỏi, mời sinh viên thử lại. |

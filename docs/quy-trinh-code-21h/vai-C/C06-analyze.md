@@ -8,6 +8,8 @@
 | Mở đường cho | A07, Lát dọc 1, E06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C06`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,11 +25,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 1, 4, Test bắt buộc
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 3
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5.1
-- `.kb/spec/00_QUYET_DINH.md` D-03, D-46, D-51
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 1, 4, Test bắt buộc
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 3
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5.1
+- `docs/spec/00_QUYET_DINH.md` D-03, D-46, D-51
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
 - `package.json`
 - `src/`
 
@@ -38,14 +40,19 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1 luồng phân tích, prompt, schema (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 4, AI-15, AI-16, AI-17): hiện thực hàm `analyzeNode`, prompt hệ thống ANALYZE_SYSTEM, ghép MODE_A hoặc MODE_B và LOW_CONFIDENCE, ANALYZE_SCHEMA; luồng retry kèm phản hồi cổng gác AI-37; so sánh bản kết quả `better` (đầy đủ > skeleton_only > null).
-3. B2 `toAnalysisView` (AI-18): chuyển đổi NodeAnalysis sang NodeAnalysisView gửi client (Tab 1); gắn file_path, số dòng cho skills và weak_points; tính `shared_files` liên quan.
+2. B1 luồng phân tích, prompt, schema (docs/spec/20_AI_GOI_VA_PROMPT.md Mục 4, AI-15, AI-16, AI-17): hiện thực hàm `analyzeNode`, prompt hệ thống ANALYZE_SYSTEM, ghép MODE_A hoặc MODE_B và LOW_CONFIDENCE, ANALYZE_SCHEMA; luồng retry kèm phản hồi cổng gác AI-37; so sánh bản kết quả `better` (đầy đủ > skeleton_only > null).
+3. B2 `toAnalysisView` (AI-18): chuyển đổi NodeAnalysis sang NodeAnalysisView gửi client (phần X-Ray); gắn file_path, số dòng cho skills và weak_points; tính `shared_files` liên quan.
 4. Viết test trong `src/server/ai/__tests__/analyze.test.ts` cho các trường hợp AI-15, AI-18, AI-37 (lần 1 skeleton_only thì request 2 có `<guard_feedback>`).
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Điểm dở rỗng (lỗi C-06):** câu "Không chắc thì mảng rỗng" có thể làm model nhỏ không nêu điểm dở. Chạy 2 repo thật, đếm `weak_points` trước và sau cổng gác, ghi lý do bị chặn.
+- **Trần token (lỗi C-02):** phân tích hết repo demo trên AI thật, đếm bài lỗi cắt chữ rồi mới chỉnh `LLM_MAX_OUTPUT_TOKENS`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/__tests__/analyze.test.ts`
-- Có test (mock AI) cho ca D2, D3 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca. D2 chỉ kiểm phần của `analyzeNode`: AI lỗi 2 lần thì trả `null` (phần `analysis_failed`, màu vàng, mở node con thuộc route của Vai A và giao diện của Vai D). D3: tên bịa ở phần chữ 2 lần thì trả `skeleton_only = true`, kỹ năng đã qua kiểm vẫn giữ.
+- Có test (mock AI) cho ca D2, D3 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca. D2 chỉ kiểm phần của `analyzeNode`: AI lỗi 2 lần thì trả `null` (phần `analysis_failed`, màu vàng, mở node con thuộc route của Vai A và giao diện của Vai D). D3: tên bịa ở phần chữ 2 lần thì trả `skeleton_only = true`, kỹ năng đã qua kiểm vẫn giữ.
 - Test AI-15: lần 1 skeleton_only, lần 2 null thì giữ bản skeleton_only.
 - Test AI-18: chuyển đổi toAnalysisView gắn đúng số dòng gốc và file_path cho từng kỹ năng.
 - Test AI-37: lần 1 trả skeleton_only thì request 2 được bổ sung thẻ `<guard_feedback>` chứa mã lỗi.
@@ -76,8 +83,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Test AI-37 đạt: phản hồi cổng gác được truyền sang lượt gọi lại khi gặp bản khung.
 - [ ] Báo cho Vai A chữ ký hàm `analyzeNode` để nối vào route `POST /api/analyze-node` (A07) kịp mốc Lát dọc 1.
 
-- [ ] Có test cho ca D2, D3 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Có test cho ca D2, D3 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 - [ ] Chạy AI thật trên repo demo, đọc phần điểm dở: không phải bài nào cũng rỗng (lỗi C-06).
+- [ ] Chạy AI thật trên repo demo, có ít nhất 1 bài có điểm dở hợp lý, đọc tay nội dung, không chỉ xem test xanh.
 ```text
 Task "C06 — Lời gọi analyze-node" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

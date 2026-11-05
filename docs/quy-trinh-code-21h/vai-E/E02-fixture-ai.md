@@ -8,6 +8,8 @@
 | Mở đường cho | C05, C06, C07, C08, C09, D05 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E02`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,8 +25,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 2.1, 2.2, 2.3, 2.4
-- `.kb/spec/02_CONTRACTS.md` Mục 3, 5
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.1, 2.2, 2.3, 2.4
+- `docs/spec/02_CONTRACTS.md` Mục 3, 5
 - `package.json`
 - `src/`
 
@@ -37,9 +39,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết 4 file fixture AI: `src/server/ai/__fixtures__/analysis-n3.json` (`NodeAnalysisRaw`), `overview.json` (`RepoOverviewRaw`), `questions-n3.json` (`GeneratedQuestionRaw[]`), `grading-n3-q1.json` (`GradingRaw`) theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 2.1–2.4. Giữ nguyên chỗ cố ý sai: 2.1 có 1 kỹ năng sai chỗ (`AUTH_SECURITY` ở bước 3), 2.2 có 1 nhận xét không căn cứ (báo cáo doanh thu N7).
-3. Viết `src/__tests__/fixtures.test.ts`: test nạp 5 fixture (cả `shop-api.json` và 4 fixture AI) và kiểm khớp kiểu contracts `.kb/spec/02_CONTRACTS.md` Mục 3, 5 bằng toán tử `satisfies`.
-4. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. Viết 4 file fixture AI: `src/server/ai/__fixtures__/analysis-n3.json` (`NodeAnalysisRaw`), `overview.json` (`RepoOverviewRaw`), `questions-n3.json` (`GeneratedQuestionRaw[]`), `grading-n3-q1.json` (`GradingRaw`) theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.1–2.4. Giữ nguyên chỗ cố ý sai: 2.1 có 1 kỹ năng sai chỗ (`AUTH_SECURITY` ở bước 3), 2.2 có 1 nhận xét không căn cứ (báo cáo doanh thu N7).
+3. Viết `src/__tests__/fixtures.test.ts`: test nạp 5 fixture (cả `shop-api.json` và 4 fixture AI) và kiểm khớp kiểu contracts `docs/spec/02_CONTRACTS.md` Mục 3, 5 bằng toán tử `satisfies`.
+4. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/__tests__/fixtures.test.ts`

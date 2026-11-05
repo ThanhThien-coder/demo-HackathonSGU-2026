@@ -10,7 +10,7 @@
 
 Cuối = handler, trước = middleware, trừ khi ghi khác. Đối số, `path`, `display_name` theo `11` ENG-40 mục 2.
 
-- **Express / Koa-router / Fastify ✅:** `R.<verb>(path, ...fns)` (verb: get post put patch delete all options head), `R.route(path).<verb>(...)`, `R` từ `express()`, `Router()`, `express.Router()`, `new Router()`, `fastify()`. Cuối = handler, trước = middleware; `R.use(fn)` = middleware; `R.use(prefix, R2)` = tiền tố `R2`.
+- **Express / Koa-router / Fastify ✅:** `R.<verb>(path, ...fns)` (verb: get post put patch delete all options head), `R.route(path).<verb>(...)`, `R` từ `express()`, `Router()`, `express.Router()`, `new Router()`, `fastify()` trong cùng file, hoặc `R` là tham số, import nội bộ tên `app`, `router`, `server`, `fastify`, kết thúc `Router`; `R` từ gói ngoài khác ⇒ không phải route. Cuối = handler (hàm, lời gọi bọc, tên hàm, biến gán từ lời gọi; chuỗi, số, boolean, `null`, object, mảng ⇒ không phải route), trước = middleware; `R.use(fn)` = middleware; `R.use(prefix, R2)` = tiền tố `R2`.
 - **NestJS ✅:** `@Controller(prefix?)` + `@Get/@Post/@Put/@Patch/@Delete/@All(path?)`; `@UseGuards/@UseInterceptors/@UsePipes(X)` ⇒ middleware `X.canActivate|intercept|transform`.
 - **Flask ✅:** `@X.route(path, methods=…)`, `@X.get/post/…`; `X = Flask()`/`Blueprint(url_prefix=)`, `register_blueprint(bp, url_prefix=)`; decorator khác (`@login_required`) = middleware.
 - **FastAPI ✅:** `@X.get/post/put/patch/delete(path)`; `X = FastAPI()`/`APIRouter(prefix=)`, `include_router(r, prefix=)`; `Depends(fn)` ⇒ middleware theo thứ tự tham số.
@@ -42,3 +42,4 @@ TS/JS `export`, `module.exports`, `exports.x`; Python, Dart tên không mở đ�
 | :-- | :-- | :-- |
 | T-ENT-01 | `Tab.Screen` · `app/(tabs)/settings.tsx` · `routes: {'/cart': (_) => CartPage()}` · `MainActivity : ComponentActivity()` · `LoginVC: UIViewController` | SCREEN: component · `/settings` · `CartPage.build` · `onCreate` · `viewDidLoad` |
 | T-ENT-02 | Repo C lớn, `int main`, 0 route · `Controllers/OrderController.cs` · Python `_helper`, Go `helper` | `PROGRAM` ⇒ có lát cắt · `GENERIC` · không export |
+| T-ENT-03 | `config.get('K', '7d')` · `cache.get('k', loadFn)` · `http.get(url, fn)` import từ `msw` · `const h = makeHandler(cfg); router.get('/x', h)` · `function reg(app) { app.get('/x', h) }` | Không route · không route · không route · có route · có route |

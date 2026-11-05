@@ -72,12 +72,12 @@ Nhóm chia 5 vai:
 
 Cắt từ trên xuống. Mỗi mục cắt phải ghi lại vào `00_QUYET_DINH.md` sau cuộc thi.
 
-1. Resolver Java / Go / Dart và tầng `STRUCTURAL` (giữ TS/JS + Python; INV-09 vẫn đúng vì chỉ hai ngôn ngữ này được tuyên bố đã kiểm chứng). Gồm cả màn hình Flutter, Android, iOS của D-57 và entry D-58 của ngôn ngữ ngoài TS/JS, Python. React Native vẫn thuộc TS/JS nhưng làm sau lõi. Tải chọn lọc D-63 cũng cắt ở mục này: repo lớn dùng phần zip đã giữ.
+1. Đã cắt, xem D-76. Resolver Java / Go / Dart và tầng `STRUCTURAL` (giữ TS/JS + Python; INV-09 vẫn đúng vì chỉ hai ngôn ngữ này được tuyên bố đã kiểm chứng). Gồm cả màn hình Flutter, Android, iOS của D-57 và entry D-58 của ngôn ngữ ngoài TS/JS, Python. React Native vẫn thuộc TS/JS nhưng làm sau lõi. Tải chọn lọc D-63 cũng cắt ở mục này: repo lớn dùng phần zip đã giữ.
 2. `report-wrong` (ẩn nút "Báo sai").
 3. Màn hình lịch sử học (`/history`).
 4. Phần AI của tổng quan (chỉ hiện `facts`).
 
-Không bao giờ cắt: bản đồ tất định, Tab 1, câu hỏi + chấm + gợi ý, BKT ở server, offline mode, cổng gác.
+Không bao giờ cắt: bản đồ tất định, phần X-Ray, câu hỏi + chấm + gợi ý, BKT ở server, offline mode, cổng gác.
 
 ---
 

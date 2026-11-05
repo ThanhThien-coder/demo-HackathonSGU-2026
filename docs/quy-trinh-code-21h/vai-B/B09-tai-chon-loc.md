@@ -8,6 +8,8 @@
 | Mở đường cho | DoD dòng `tiangolo/fastapi` |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B09`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -44,11 +46,19 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 4. Viết test trong `src/server/engine/ingest/__tests__/chon-loc.test.ts` bao phủ các ca T-ING-10, T-ING-11 và X-08 của `docs/spec/50_TEST_VA_FIXTURE.md`.
 5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Manifest (lỗi B-32, ING-48):** tải manifest song song, chỉ lấy manifest trong scope và ở gốc. Bản cũ tải từng file, `vercel/next.js` hết 15 giây chỉ với 37 file nhỏ, chưa tới code.
+- Lùi về zip (ING-49) thì xóa warning phạm vi ING-47, không để báo đang phân tích `packages/next/` khi kết quả là toàn repo.
+- Dùng `isTestPath` của `priority.ts`, bỏ bản riêng trong `selective.ts`.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest`
 - Có đủ các test T-ING-10, T-ING-11 và X-08, tất cả chạy xanh.
 - Khi zip bị cắt và có token, hệ thống lấy được danh sách file từ Git Trees API và tải các file được chọn trong hạn `CONFIG.SELECTIVE_TIMEOUT_MS`.
 - Tải chọn lọc chỉ bật khi có biến server `GITHUB_TOKEN`. Thiếu token thì lùi về zip bị cắt kèm cảnh báo (ING-49), đây là hành vi đúng, không phải lỗi. Test mock không chứng minh được đường có token.
+- Test có nhiều manifest: tải song song, không chạy tuần tự.
+- Test lùi về zip không còn warning ING-47.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -76,6 +86,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có đầy đủ các test T-ING-10, T-ING-11 và X-08.
 - [ ] Nếu bị chậm tiến độ, xác nhận có thể cắt giảm phiếu này theo [`07`](../../doc-de-hieu/07_ke_hoach_21h.md) Mục 3 bước 1.
 - [ ] Đặt `GITHUB_TOKEN` rồi chạy repo lớn thật như `tiangolo/fastapi`: `selective_fetch = true`, bản đồ dựng từ thư mục chính (DoD spec 50).
+- [ ] Có `GITHUB_TOKEN`: `fastapi/fastapi` ra 100 file trong `fastapi/`, `vercel/next.js` có `selective_fetch = true`.
+- [ ] Báo Vai A kiểm `GITHUB_TOKEN` trên server deploy.
 
 ```text
 Task "B09 — Tải chọn lọc repo lớn (D-63)" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

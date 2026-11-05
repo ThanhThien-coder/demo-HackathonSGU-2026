@@ -6,9 +6,11 @@ Làm xong phiếu này, người học có thể đăng nhập GitHub, dán link
 | :-- | :-- |
 | Giờ | 18:30–20:00 (H+6.5 → H+8) · **Lát dọc 1 lúc 20:00** |
 | Nhánh | `d/D06-noi-api` |
-| Cần có trước | A04, A05, A06; A07 (`analyze-node`, xong 20:00; trong lúc chờ thì Tab 1 dùng fixture) |
+| Cần có trước | A04, A05, A06; A07 (`analyze-node`, xong 20:00; trong lúc chờ thì phần X-Ray dùng fixture) |
 | Mở đường cho | Lát dọc 1, E06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
+
+**Cách nhanh:** nhắn AI `Làm phiếu D06`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
 
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
@@ -21,7 +23,7 @@ git checkout main; git pull; npm ci; git checkout -b d/D06-noi-api
 ```text
 Dùng skill tao-task để tạo task tên "D06 — Trang chủ, đăng nhập, lộ trình, nối API lát dọc 1". Nội dung đã chốt sẵn dưới đây: chép đúng vào các mục của task, không thêm bớt, không tự đổi quyết định. Tạo xong thì đưa tôi duyệt, CHƯA giao cho ai làm.
 
-Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: A04, A05, A06; A07 (`analyze-node`, xong 20:00; trong lúc chờ thì Tab 1 dùng fixture). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
+Trước khi tạo task: kiểm các phiếu cần có trước đã có trên nhánh hiện tại (cách kiểm ở `.kb/phieu-can-co.md`). Phiếu này cần: A04, A05, A06; A07 (`analyze-node`, xong 20:00; trong lúc chờ thì phần X-Ray dùng fixture). Thiếu phiếu nào thì DỪNG, báo tôi thiếu gì và đó là việc của vai nào. KHÔNG tự làm thay, KHÔNG tạo task.
 
 ## Được đọc
 - `.kb/README.md`
@@ -55,6 +57,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 6. Viết hàng đợi phân tích D-46 trong `src/store/workbench.ts`: chỉ gọi `analyze-node` cho node đang mở và 1–2 node kế tiếp theo thứ tự tô-pô, tối đa `CONFIG.ANALYZE_CONCURRENCY` đồng thời. Xử lý các ca T14 (nút "Thử lại phân tích"), T28 (mở lại phiên giữa chừng vẫn đúng lượt và cùng `run_id`).
 7. State dùng chung giữa bản đồ, code và Feynman đặt trong `src/store/workbench.ts`, không nhân bản bằng `useState` trong page.
 8. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Đổi phiên (lỗi D-11):** store khác `sessionId` thì gọi `resetSession()` trước khi tải, đang tải hiện màn chờ.
+- **Tiến độ (lỗi D-09):** không dùng chữ "cần ôn" (D-35). Hiện rõ số bài đã học và số bài chưa đạt.
+- **Thanh trên (lỗi D-14, B-16):** chia cố định 2 hàng. Hàng 1: nút quay lại, tên repo, mã 7 ký tự, đường dẫn rút gọn. Hàng 2: huy hiệu và nút. `ref_label` rỗng ⇒ `repo_name · @ sha7`. Định nghĩa `no-scrollbar` trong CSS hoặc bỏ thanh cuộn. Dùng chung một kiểu nút.
+- **Hai thẻ repo (lỗi D-10):** thẻ phiên hiện thêm mã commit hoặc ngày tạo.
+- **Số đo:** "Khóa bí mật đã che" đổi thành "Nội dung nhạy cảm đã che", vì số này đếm cả email.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
@@ -91,6 +101,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] DevTools (Network): chỉ gửi yêu cầu `analyze-node` cho node đang mở và 1–2 node kế tiếp (D-46, `docs/spec/30_UI.md` T13).
 - [ ] Thử T31 của `docs/spec/30_UI.md`: chưa đăng nhập mở `/` thấy màn hình "Đăng nhập GitHub"; đăng xuất thì quay về màn hình đó.
 - [ ] Thử T14, T28, T30 của `docs/spec/30_UI.md`: node phân tích lỗi có nút "Thử lại phân tích"; tải lại trang giữa chừng vẫn đúng lượt; "Học lại từ đầu" ra phiên mới.
+- [ ] Mở phiên A, về Lộ trình, mở phiên B: không thấy bài của A.
+- [ ] Ở 1366px và 1920px, thanh trên không có thanh cuộn, tên file đọc được, nút không dạt lệch.
 
 ```text
 Task "D06 — Trang chủ, đăng nhập, lộ trình, nối API lát dọc 1" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

@@ -8,6 +8,8 @@
 | Mở đường cho | Lát dọc 1, D06, E06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A07`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,11 +25,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 3.3, 6, 6.6
-- `.kb/spec/02_CONTRACTS.md` Mục 5, 8
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 1, 4
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-13, Mục 3.4
-- `.kb/spec/00_QUYET_DINH.md` D-46, D-66
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2, 3.3, 6, 6.6
+- `docs/spec/02_CONTRACTS.md` Mục 5, 8
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 1, 4
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-13, Mục 3.4
+- `docs/spec/00_QUYET_DINH.md` D-46, D-66
 - `package.json`
 - `src/`
 
@@ -37,14 +39,14 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết route `src/app/api/analyze-node/route.ts`: kiểm tra quyền sở hữu phiên, kiểm tra hạn mức token (AI-06), tra cứu `ai_cache` theo khóa `.kb/spec/03_API_VA_LUU_TRU.md` Mục 3.3, gọi hàm phân tích của Vai C, ghi kết quả vào `ai_cache`, cộng dồn `tokens_used`, ghi nhận cờ `analysis_failed` khi kết quả trả về `null` (`.kb/spec/03_API_VA_LUU_TRU.md` Mục 6.6).
-3. B2: Mỗi lời gọi AI thành công ghi 1 dòng vào bảng `ai_usage` ngoài transaction học; nếu trúng cache thì không ghi dòng nào (`.kb/spec/03_API_VA_LUU_TRU.md` Mục 6, X-13).
+2. B1: Viết route `src/app/api/analyze-node/route.ts`: kiểm tra quyền sở hữu phiên, kiểm tra hạn mức token (AI-06), tra cứu `ai_cache` theo khóa `docs/spec/03_API_VA_LUU_TRU.md` Mục 3.3, gọi hàm phân tích của Vai C, ghi kết quả vào `ai_cache`, cộng dồn `tokens_used`, ghi nhận cờ `analysis_failed` khi kết quả trả về `null` (`docs/spec/03_API_VA_LUU_TRU.md` Mục 6.6).
+3. B2: Mỗi lời gọi AI thành công ghi 1 dòng vào bảng `ai_usage` ngoài transaction học; nếu trúng cache thì không ghi dòng nào (`docs/spec/03_API_VA_LUU_TRU.md` Mục 6, X-13).
 4. Viết test trong `src/app/api/__tests__/analyze-node.test.ts`.
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/app/api/__tests__/analyze-node.test.ts`
-- Có test (mock AI hoặc mock DB) cho ca D7 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 (hết hạn mức thì mọi lời gọi AI mới trả `ERR_TOKEN_QUOTA_EXCEEDED`, trúng cache vẫn chạy), tên test ghi mã ca.
+- Có test (mock AI hoặc mock DB) cho ca D7 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 (hết hạn mức thì mọi lời gọi AI mới trả `ERR_TOKEN_QUOTA_EXCEEDED`, trúng cache vẫn chạy), tên test ghi mã ca.
 - Khi trúng cache: tính 0 token và không có dòng mới nào trong bảng `ai_usage`.
 - Khi `tokens_used` vượt quota mà trượt cache: trả mã lỗi HTTP 429 `ERR_TOKEN_QUOTA_EXCEEDED`.
 
@@ -72,9 +74,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Yêu cầu trúng cache tiêu tốn 0 token và không tạo bản ghi trong bảng `ai_usage`.
 - [ ] Khi vượt hạn mức token của phiên mà trượt cache, route trả về `ERR_TOKEN_QUOTA_EXCEEDED`.
-- [ ] Thử nghiệm thủ công: dán link repo demo ⇒ bản đồ tải thành công ⇒ bấm chọn node ⇒ Tab 1 nạp dữ liệu phân tích thật.
+- [ ] Thử nghiệm thủ công: dán link repo demo ⇒ bản đồ tải thành công ⇒ bấm chọn node ⇒ phần X-Ray nạp dữ liệu phân tích thật.
 
-- [ ] Có test cho ca D7 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Có test cho ca D7 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 ```text
 Task "A07 — Nối POST /api/analyze-node" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```
@@ -91,7 +93,7 @@ git push -u origin a/A07-analyze-node
 gh pr create --base main --title "A07 — Nối POST /api/analyze-node" --body "Closes #<số Issue>"
 ```
 
-Chạy migration trên project production (`.kb/spec/05_HA_TANG_CLOUD.md` Mục 5), duyệt production lần đầu khi smoke test xanh, báo cả nhóm hoàn thành lát dọc 1. Vai A merge khi CI xanh.
+Chạy migration trên project production (`docs/spec/05_HA_TANG_CLOUD.md` Mục 5), duyệt production lần đầu khi smoke test xanh, báo cả nhóm hoàn thành lát dọc 1. Vai A merge khi CI xanh.
 
 ## Tiếp theo
 

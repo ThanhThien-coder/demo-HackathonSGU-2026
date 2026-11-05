@@ -10,6 +10,8 @@ Làm xong phiếu này, người học đọc được khối phân tích X-Ray 
 | Mở đường cho | D06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D05`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -50,6 +52,13 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 5. Cập nhật trang nháp `src/app/dev/page.tsx` nạp fixture AI N3 từ `src/server/ai/__fixtures__/` của Vai E để hiển thị và kiểm tra.
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Tên tầng (lỗi D-06):** hiện tiếng Việt theo `30` Mục 6.3, không hiện `ENTRY_POINT`, `BUSINESS_LOGIC`.
+- **Nhãn (lỗi D-03):** dùng "Lộ trình học chính", không dùng "Luồng chính".
+- **Thư viện (lỗi B-09):** Tổng quan lọc đồ dev như `@types/*`, `ts-node` lúc hiển thị. Không đổi `fingerprint.tech_stack`.
+- **Backtick (lỗi D-08):** chữ AI có `` ` `` hiện dạng code, không in nguyên dấu.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
 - Điểm dở gắn nhãn "Điểm dở — Nhận định của AI", không hiện cách sửa hay con số tình huống (INV-06, T23).
@@ -83,6 +92,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Người chạy tay: mở `/dev`, chọn N3 thấy phân tích X-Ray nạp dữ liệu từ fixture `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.1.
 - [ ] Phần Điểm dở có tiêu đề "Điểm dở — Nhận định của AI" và không để lộ cách sửa hay con số tình huống (INV-06, T23).
 - [ ] Modal Tổng quan hiển thị đủ 3 giai đoạn theo D-71 (T33, T34).
+- [ ] Ở 1366×768, cửa sổ Tổng quan thấy đủ tiêu đề và nút, tên tầng tiếng Việt.
 
 ```text
 Task "D05 — Phân tích AI, Tổng quan" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
