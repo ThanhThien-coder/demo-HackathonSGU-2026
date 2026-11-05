@@ -17,7 +17,7 @@ Mức độ: **Nặng** là ban giám khảo thấy ngay khi mở bài. **Vừa*
 
 | Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| B-01 | Nặng | Bài NestJS hiện code của method khác. BrewLite 11/17 route, repo demo 14/18 bài | Quét repo NestJS chưa từng quét, mở `Get Order`: bước đầu không được có `create` | `symbols.ts`, `getStartLineWithDecorators` | Có bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, chưa vào `main` | |
+| B-01 | Nặng | Bài NestJS hiện code của method khác. BrewLite 11/17 route, repo demo 14/18 bài | Quét repo NestJS chưa từng quét, mở `Get Order`: bước đầu không được có `create` | `symbols.ts`, `getStartLineWithDecorators` | Có bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, chưa vào `main` | còn lỗi |
 | B-02 | Nặng | Capstone lấy từ file test (E06-12). Với BrewLite, bài này còn hiện làm bài đang học ở đầu đồ thị | Xem bài Capstone: file không được là `.spec` hay `test_` | `nodes.ts`, `selective.ts`, TASK_20 | Chưa làm | còn lỗi |
 | B-03 | Vừa | `config.get()` thành route giả: `List Jwt_expires_ins`, `Charge` | Quét BrewLite, tìm 2 bài này | `callgraph.ts`, TASK_20 | Chưa làm | còn lỗi |
 | B-04 | Vừa | Nhiều bài mở sẵn: BrewLite 13/20, `nestjs/nest` 19/20 | Quét repo, đếm bài chưa khóa lúc đầu | `nodes.ts`, TASK_21, thêm D-73 | Chưa làm, đổi cách khóa bài nên cần cân nhắc | còn lỗi |
@@ -38,6 +38,7 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 | C-01 | Vừa | Gemini lỗi nhưng server không ghi log, màn hình lại giống hệt mọi loại lỗi | Xem log Vercel khi có bài phân tích hỏng | `callLLMOnce` trong `gemini.ts` | Chưa làm | |
 | C-02 | Vừa | Rủi ro: `ANALYZE` 900 token có thể bị cắt với tiếng Việt | Phân tích hết các bài của repo demo, đếm bài lỗi | `LLM_MAX_OUTPUT_TOKENS` trong `config.ts` | Cần đo trên AI thật | |
 | C-03 | Vừa | Câu hỏi gắn sai dòng code. Bài `Order` hỏi `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 thay vì viết thủ công, nhưng dòng 21–25 chính là các ca viết thủ công; `ALL` chỉ dùng ở dòng 44 và 49. Cổng gác không phát hiện | Đối chiếu dòng trong câu hỏi với code bên trái | Prompt câu hỏi và cổng gác Vai C | Chưa làm | còn lỗi |
+| C-04 | Vừa | Câu hỏi chỉ hỏi lại đúng nội dung phần Luồng thực thi, người học chép lại là trả lời được. Spec ghi code không kiểm lỗi này, chỉ duyệt tay | Mở `Auth Me`, so Câu 1 với mô tả Bước 1–3 | Prompt câu hỏi Vai C, yêu cầu suy luận thay vì nhắc lại; duyệt tay theo spec 21 | Chưa làm | còn lỗi |
 
 ## Vai D — Giao diện
 
@@ -53,6 +54,8 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 | D-09 | Vừa | Bài học xong nhưng chưa đạt vẫn hiện 0/20, 0%, kèm "1 bài cần ôn". Người học tưởng tiến độ không cập nhật. D-35 đã bỏ ôn tập nên chữ "cần ôn" cũng sai | Học hết một bài mà có câu chưa đạt, mở Lộ trình học tập | Đổi nhãn thành "1 bài chưa đạt" và hiện rõ số bài đã học ở trang chủ, trang lộ trình | Chưa làm | còn lỗi |
 | D-10 | Nhẹ | Lộ trình hiện 2 thẻ BrewLite giống hệt nhau, không phân biệt được phiên nào | Quét lại hoặc học lại một repo, mở Lộ trình học tập | Hiện commit hoặc ngày tạo trên thẻ, hoặc gom phiên cùng repo | Cần xác minh 2 phiên có do học lại không | còn lỗi |
 | D-11 | Vừa | Chuyển trang hoặc vào phiên khác vẫn hiện bài cũ một lúc rồi mới đổi. Trong lúc đó người học có thể bấm nhầm vào dữ liệu cũ | Mở phiên A, về Lộ trình học tập, mở phiên B, xem màn hình ngay lúc vào | `src/app/learn/page.tsx` effect nạp phiên: store khác `sessionId` thì gọi `resetSession()` trước khi tải; đang tải thì hiện màn chờ thay vì dữ liệu cũ | Chưa làm | còn lỗi |
+| D-12 | Vừa | Phần giải thích từng bước hiện cùng màn hình với ô trả lời, lộ gần hết đáp án. Spec thiết kế X-Ray và Feynman là 2 tab riêng | Mở một bài, vừa xem Luồng thực thi vừa trả lời | Thu gọn hoặc ẩn Luồng thực thi khi đang trả lời, nộp xong mới mở lại | Chưa làm | còn lỗi |
+| D-13 | Nhẹ | Cảnh báo "giống 100%" hiện với 2 câu trả lời dài khác nhau (84 và 129 ký tự) trong ảnh test | Nộp sai một lần, sửa hẳn câu trả lời, xem % có giảm không | `FeynmanQuestionSection.tsx`, `last_failed_answers` | Cần xác minh, code tính theo Levenshtein có vẻ đúng | |
 
 ## Vai A — Tích hợp, deploy
 
