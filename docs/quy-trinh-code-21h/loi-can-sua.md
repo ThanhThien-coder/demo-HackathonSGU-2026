@@ -187,12 +187,12 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 
 ### B-22 · Nặng · Che secret bỏ sót nhiều mẫu phổ biến
 
-- **Hiện tượng:** chạy 15 mẫu thì 10 mẫu không được che. Lọt: `SECRET_KEY` của Django, `app.secret_key` của Flask, `JWT_SECRET_KEY`, `{"password": "..."}`, `{'apiKey': '...'}`, `DB_PASSWORD_PROD`, Stripe `sk_live_`, Slack `xoxb-`, `https://user:pass@host`, private key viết trong một chuỗi. Repo thật `gothinkster/django-realworld-example-app` giữ nguyên `SECRET_KEY` 65 ký tự trong `conduit/settings.py`.
+- **Hiện tượng:** chạy 14 mẫu secret thì 10 mẫu không được che. Lọt: `SECRET_KEY` của Django, `app.secret_key` của Flask, `JWT_SECRET_KEY`, `{"password": "..."}`, `{'apiKey': '...'}`, `DB_PASSWORD_PROD`, Stripe `sk_live_`, Slack `xoxb-`, `https://user:pass@host`, private key viết trong một chuỗi. Repo thật `gothinkster/django-realworld-example-app` giữ nguyên `SECRET_KEY` 65 ký tự trong `conduit/settings.py`.
 - **Nguyên nhân:** mẫu ING-110 yêu cầu từ khóa đứng ngay trước `=` hoặc `:`, nên `SECRET_KEY` và khóa có dấu nháy không khớp. Danh sách token cũng thiếu Stripe, Slack và URL `https`. Lỗ hổng nằm ở cả spec, không riêng code.
 - **Hậu quả:** phần code này được hiện trên giao diện và có thể gửi cho Gemini, nguy hiểm nhất với zip upload của repo riêng tư.
 - **Cần sửa:** mở rộng ING-110 và `secrets.ts`: tên khóa có hậu tố (`SECRET_KEY`, `*_PASSWORD_*`), khóa có nháy, thêm các dạng token trên. Đổi `ENGINE_VERSION` vì code đã lưu trong cache vẫn chưa được che.
 - **Cần sửa thêm:** `RESET_PASSWORD: 'resetPassword'` đang bị che dù chỉ là hằng, chuỗi hex `'0...'` bị coi là số điện thoại. "Khóa bí mật đã che" ở `CockpitHeader.tsx` đếm cả email: `miguelgrinberg/microblog` báo 9 nhưng cả 9 đều là email.
-- **Kiểm tra:** thêm 15 mẫu trên vào test, repo Django trên không còn `SECRET_KEY` thật.
+- **Kiểm tra:** thêm các mẫu trên vào test, repo Django trên không còn `SECRET_KEY` thật.
 - **Trạng thái:** đã chạy thật, chưa làm.
 
 ### B-23 · Nhẹ · Đọc thiếu gói trong Pipfile, Cargo.toml, pubspec.yaml
