@@ -81,6 +81,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Test X-01 và X-07 chạy xanh.
 - [ ] Tự chạy engine trên repo demo xác nhận số node trong khoảng `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` và mọi điểm bắt đầu nằm cùng hàng trên cùng.
 - [ ] Đã chạy trên repo công khai ngoài `shop-api`, ghi số luồng có từ 2 bước và số luồng tới `DATA_ACCESS` của từng repo.
+- [ ] Bộ repo thật có cả repo NestJS nghiệp vụ như BrewLite, không chỉ Express và FastAPI. Bộ đo `engine-that.mjs` phải đọc nội dung bài, đếm route giả, node từ file test, số bài mở lúc đầu.
+- [ ] Mở bản đồ trên trình duyệt: tiêu đề đọc được ngay lúc mở, kéo được để xem hết cây. Số node đúng chưa đủ để kết luận bản đồ ổn.
 
 ```text
 Task "B08 — Sửa theo repo demo, tất định, hàng điểm bắt đầu" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

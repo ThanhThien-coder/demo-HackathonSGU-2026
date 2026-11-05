@@ -79,6 +79,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có đầy đủ các test T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11.
 - [ ] Lát cắt tuân thủ đúng giới hạn dòng và token theo `CONFIG.NODE_MAX_LINES` và `CONFIG.NODE_MAX_CODE_TOKENS`.
 - [ ] Hai handler đứng liền nhau: snippet của hàm này không lẫn dòng của hàm kia.
+- [ ] Đọc nội dung `snippet` của từng bước trên repo thật, không chỉ đếm số bước. Lần tập, số bước đúng nhưng 11/17 route BrewLite hiện code của method khác.
 
 ```text
 Task "B06 — Xếp hạng, độ phức tạp, lát cắt" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
