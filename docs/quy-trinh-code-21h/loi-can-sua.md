@@ -8,11 +8,11 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 2 | 5 | 4 | 11 |
+| B — Engine | 3 | 4 | 6 | 13 |
 | D — Giao diện | 2 | 4 | 6 | 12 |
 | C — AI | 0 | 4 | 0 | 4 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **4** | **16** | **12** | **32** |
+| **Tổng** | **5** | **15** | **14** | **34** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -20,7 +20,7 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 ## Thứ tự nên sửa
 
-1. **B-01, B-02, B-03:** nội dung bài đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
+1. **B-01, B-02, B-03, B-07:** nội dung bài và ngôn ngữ đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
 2. **D-05, D-07:** cửa sổ tràn màn hình và không bấm được node.
 3. **D-12, C-03, C-04:** câu hỏi đúng và không lộ đáp án.
 4. **D-01, B-04, B-05:** bản đồ đọc được và học theo cây.
@@ -80,11 +80,13 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`.
 - **Trạng thái:** chưa xác minh.
 
-### B-07 · Vừa · Repo Java báo không có code
+### B-07 · Nặng · Repo Java, Go, Dart bị báo sai hoặc phân tích sai
 
-- **Hiện tượng:** `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang` báo `ERR_NO_SOURCE_FILES_FOUND` (E06-10).
-- **Cần sửa:** kiểm tra engine có nhận `.java` không. Nếu chưa hỗ trợ thì báo đúng lý do cho người dùng.
-- **Trạng thái:** chưa xác minh.
+- **Hiện tượng:** `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang` báo `no_code`, `spring-petclinic` báo `only_manifests`, dù đều có code Java. `gin-gonic/examples` (Go) ra 13 node với ngôn ngữ `JAVASCRIPT`, `flutter/samples` (Dart) ra 2 node với ngôn ngữ `PYTHON`.
+- **Nguyên nhân:** spec 11 Mục 1 có 7 ngôn ngữ `RESOLVED` và 9 `STRUCTURAL`, nhưng `LANGUAGE_REGISTRY` chỉ có 4. `.java`, `.go`, `.dart` cũng không nằm trong `KNOWN_NO_GRAMMAR`, nên engine coi như không có code và `ERR_UNSUPPORTED_LANGUAGE` không chạy. Điểm 10 trong README Vai B ghi việc này từ trước nhưng chưa ai chốt.
+- **Cần sửa:** tối thiểu, nhận các đuôi spec có nhưng chưa có grammar: repo chủ yếu ngôn ngữ đó thì trả `ERR_UNSUPPORTED_LANGUAGE`, repo trộn thì cảnh báo chỉ phân tích một phần. Muốn hỗ trợ thật thì thêm phiếu B11 cho grammar và resolver. Sửa spec cho khớp phạm vi đã chốt.
+- **Kiểm tra:** 4 repo trên báo đúng ngôn ngữ, không còn `no_code`, không gọi repo Go là `JAVASCRIPT`.
+- **Trạng thái:** đã chạy thật trên engine, chưa làm.
 
 ### B-08 · Nhẹ · Node 0 bước
 
@@ -109,6 +111,18 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Hiện tượng:** bài `Order` có Bước 3 ở dòng 65, file chỉ có 64 dòng code. AI vẫn viết mô tả cho bước rỗng.
 - **Cần sửa:** áp đúng luật "Bỏ bước rỗng" của ENG-91 trong `nodes.ts`.
 - **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### B-12 · Nhẹ · Lỗi nạp query bị bỏ qua
+
+- **Hiện tượng:** `catch` trong `loadAll` ở `parser.ts` nuốt lỗi khi nạp file `.scm`. Nếu query hỏng, engine vẫn chạy nhưng có thể mất symbol mà không báo gì. Hiện 4 query đều nạp được.
+- **Cần sửa:** ngôn ngữ `RESOLVED` thiếu query thì báo lỗi, thêm test `getQuery` khác `null`.
+- **Trạng thái:** chưa làm.
+
+### B-13 · Nhẹ · Grammar chưa nạp lúc khởi động
+
+- **Hiện tượng:** spec ghi `initParsers` chạy 1 lần khi server khởi động, code gọi lúc `parseAll`, nên request đầu chậm hơn.
+- **Cần sửa:** gọi ở bước khởi động, làm cùng A-04.
+- **Trạng thái:** chưa làm.
 
 ---
 
