@@ -49,6 +49,7 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 | D-05 | Nặng | Cửa sổ Tổng quan và cửa sổ kết quả chấm bài dài hơn màn hình thì bị cắt mất đầu và cuối, không cuộn được, không thấy đủ tiêu đề và nút. Các `Dialog` nội dung dài khác cũng có thể bị | Mở Tổng quan của BrewLite ở màn 1920×1080 | `src/components/ui/Dialog.tsx`: thêm `max-h-[calc(100vh-2rem)]`, `flex flex-col`, phần thân `overflow-y-auto` | Chưa làm | còn lỗi |
 | D-06 | Nhẹ | Tổng quan hiện tên tầng thô như `ENTRY_POINT`, `BUSINESS_LOGIC`, khó hiểu với người mới | Xem mục Bản đồ tầng | `RepoOverviewModal.tsx` | Chưa làm | còn lỗi |
 | D-07 | Nặng | Bấm node "Sẵn sàng" trên đồ thị không vào được bài, phải qua Lộ trình học tập. Nút "Thử lại" trong card cũng bị ảnh hưởng | Mở Đồ thị bài học, bấm một node Sẵn sàng | `DagCanvas.tsx`: `nodesDraggable` và `elementsSelectable` đều `false`, không có `onNodeClick` nên ReactFlow đặt `pointerEvents: none` cho node. Thêm `onNodeClick` hoặc đặt `pointer-events-auto` cho card. Ở `LessonGraphDrawer.tsx` dòng 273, chọn bài xong phải gọi `onClose()` | Chưa làm | còn lỗi |
+| D-08 | Nhẹ | Câu hỏi, nhận xét và gợi ý hiện nguyên dấu ` quanh tên code, ví dụ ``Object.keys(ORDER_TRANSITIONS)`` | Xem câu hỏi và cửa sổ kết quả chấm bài | Hiển thị đoạn trong dấu ` dạng code ở các thành phần Feynman | Chưa làm | còn lỗi |
 
 ## Vai A — Tích hợp, deploy
 
