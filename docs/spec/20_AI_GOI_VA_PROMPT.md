@@ -306,7 +306,7 @@ VIỆC CẦN LÀM
 1. architecture_style: 1 mã trong <pattern_catalogue> mô tả đúng nhất cả repo.
 2. summary: tối đa 3 câu: repo làm gì, chia tầng ra sao, điểm hay chung.
 3. layers: mỗi tầng xuất hiện ở dòng "tang" là 1 mục: layer = mã tầng; role = 1 câu: tầng đó làm gì trong repo này; nodes = id các node có tầng đó.
-4. main_flow: 1–2 câu kể luồng chính theo thứ tự "duong_chinh"; node_goc có nhiều id ⇒ nói repo có nhiều điểm bắt đầu.
+4. main_flow: 1–2 câu kể lộ trình học chính theo thứ tự "duong_chinh", không nói đây là thứ tự chạy của ứng dụng; node_goc có nhiều id ⇒ nói repo có nhiều điểm bắt đầu.
 5. notes: CHỈ dùng cho điểm dở chung hoặc đáng chú ý nhất; mỗi mục chỉ dựa trên dòng "diem_do" có sẵn của các node ghi trong nodes; KHÔNG nêu điểm dở mới, KHÔNG nêu cách sửa. Không có điểm dở ⇒ mảng rỗng.
 6. che_do_suy_bien khác "không": không nói về route, service, repository; tả các nhóm thuật toán hoặc hàm.
 ```
@@ -637,7 +637,7 @@ export const injectionGrading = (t: Pick<RunQuestion, "must_have_points">): Grad
 | mọi | `AI_DISABLED="true"` | Không gọi Gemini, không tính lượt ⇒ `ERR_AI_UNAVAILABLE` (D-66) |
 | mọi | Hết quota | Không gọi, không tính lượt ⇒ `ERR_TOKEN_QUOTA_EXCEEDED` |
 | analyze | Request cuối hỏng / mọi lần `checkAnalysis = null` | Không cache; `analysis_failed = true` ⇒ `analysis = null`, node VÀNG + "Thử lại phân tích", node con mở kèm tam giác (D-03) |
-| analyze | Tốt nhất là `skeleton_only` | Cache ⇒ Tab 1 chỉ có khung bước + kỹ năng |
+| analyze | Tốt nhất là `skeleton_only` | Cache ⇒ phần X-Ray chỉ có khung bước + kỹ năng |
 | overview | Hỏng / bị chặn sau thử lại | Không cache ⇒ `ai = null`, vẫn có `facts` |
 | questions | Request cuối hỏng | Không tạo run ⇒ `ERR_AI_UNAVAILABLE` |
 | questions | Câu bị chặn sau thử lại / mọi câu | `DROPPED`, không BKT (D-03) / không tạo run ⇒ `ERR_AI_REJECTED` |

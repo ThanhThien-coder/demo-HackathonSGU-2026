@@ -60,7 +60,7 @@ export function parseGithubUrl(raw: string): GithubRepoInfo;   // lỗi ⇒ Inge
 ```
 
 1. `trim()`; cắt từ `?` hoặc `#` đầu tiên (ING-10).
-2. Chuẩn hóa theo thứ tự (ING-11): `git@github.com:` ⇒ `https://github.com/`; `http://` ⇒ `https://`; thiếu scheme bắt đầu `github.com/` hoặc `www.github.com/` ⇒ thêm `https://`; bỏ `www.`; bỏ `/` cuối.
+2. Chuẩn hóa theo thứ tự (ING-11): scheme, host về chữ thường, giữ nguyên owner, repo; `git@github.com:` ⇒ `https://github.com/`; `http://` ⇒ `https://`; thiếu scheme bắt đầu `github.com/` hoặc `www.github.com/` ⇒ thêm `https://`; bỏ `www.`; bỏ `/` cuối.
 3. Host khác `github.com` ⇒ `ERR_INVALID_GITHUB_URL` (ING-12).
 4. **Chỉ link gốc repo (D-38).** Khớp `^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?(?:/(tree|blob)(?:/.*)?|/[^/]+(?:/.*)?)?$` (ING-13), không khớp ⇒ `ERR_INVALID_GITHUB_URL`. `owner` = nhóm 1; `repo` = nhóm 2; phần sau tên repo bị cắt, không đọc nhánh / thư mục từ link; `path_trimmed` = có nhóm 3 (`/tree/…` hoặc `/blob/…`) ⇒ UI ghi chú "Chỉ hỗ trợ nhánh mặc định"; trang khác (`/pulls`…) bỏ qua, `path_trimmed = false`; `clean_url` = `https://github.com/{owner}/{repo}`. Thư mục con chỉ qua `subdir_override` (ING-80).
 
@@ -71,11 +71,11 @@ export function parseGithubUrl(raw: string): GithubRepoInfo;   // lỗi ⇒ Inge
 **Mục đích:** phân biệt không có repo với mạng chậm. **Input:** `GithubRepoInfo`. **Output:** `{ result: ProbeResult; owner; repo }`.
 
 ```typescript
-export async function probeRepo(info: GithubRepoInfo): Promise<{ result: ProbeResult; owner: string; repo: string }>;
+export async function probeRepo(info: GithubRepoInfo): Promise<{ result: ProbeResult; owner: string; repo: string; head_zip: ResolvedRef | null }>;
 ```
 
-1. `HEAD https://github.com/{owner}/{repo}` (ING-20), `redirect: "follow"`, `User-Agent: SimpliFey`, timeout `CONFIG.PREFLIGHT_TIMEOUT_MS`; `clearTimeout` trong `finally`.
-2. 200 ⇒ `OK` (ING-21) (chuyển hướng ⇒ lấy `owner/repo` mới từ `res.url` cho bước sau) · 404 (cả repo private) ⇒ `NOT_FOUND_OR_PRIVATE` ⇒ `ERR_PREFLIGHT_404_OR_PRIVATE` · 451 ⇒ `UNAVAILABLE_451` ⇒ `ERR_REPO_UNAVAILABLE_451` · 429, 403 ⇒ `RATE_LIMITED` ⇒ `ERR_GITHUB_RATE_LIMIT_CDN` · hết giờ, lỗi mạng, 5xx ⇒ `TIMEOUT` ⇒ chờ `CONFIG.PREFLIGHT_RETRY_DELAY_MS`, thử lại 1 lần, vẫn `TIMEOUT` ⇒ `ERR_NETWORK_TIMEOUT`.
+1. `HEAD https://github.com/{owner}/{repo}/archive/HEAD.zip` (ING-20), `redirect: "manual"`, `User-Agent: SimpliFey`, timeout `CONFIG.PREFLIGHT_TIMEOUT_MS`; `clearTimeout` trong `finally`. Kết quả ghi vào `head_zip`, dùng cho ING-32 (1).
+2. 200, 3xx ⇒ `OK` (ING-21) · 301 tới `archive/HEAD.zip` của repo khác ⇒ lấy `owner/repo` mới từ `Location`, gọi lại 1 lần · 404 ⇒ `HEAD https://github.com/{owner}/{repo}`, timeout `CONFIG.PREFLIGHT_PAGE_TIMEOUT_MS`: 404 (cả repo private) ⇒ `NOT_FOUND_OR_PRIVATE` ⇒ `ERR_PREFLIGHT_404_OR_PRIVATE`; 200 ⇒ `OK`, `head_zip = null`, Mục 3 chạy ING-32 (2) · 451 ⇒ `UNAVAILABLE_451` ⇒ `ERR_REPO_UNAVAILABLE_451` · 429, 403 ⇒ `RATE_LIMITED` ⇒ `ERR_GITHUB_RATE_LIMIT_CDN` · hết giờ, lỗi mạng, 5xx ⇒ `TIMEOUT` ⇒ chờ `CONFIG.PREFLIGHT_RETRY_DELAY_MS`, thử lại 1 lần, vẫn `TIMEOUT` ⇒ `ERR_NETWORK_TIMEOUT`.
 3. `probeRepo` không trả `EMPTY` (Mục 3 gán, ING-33); `TIMEOUT` không báo thành "repo không tồn tại" (ING-22).
 
 ---
@@ -93,7 +93,7 @@ async function refExists(owner: string, repo: string, ref: string): Promise<bool
 1. **Kiểm 1 ref (ING-30):** `HEAD https://codeload.github.com/{owner}/{repo}/zip/{ref}`, timeout `CONFIG.PREFLIGHT_TIMEOUT_MS`: 200 ⇒ có; 404 ⇒ không; 429/403 ⇒ `ERR_GITHUB_RATE_LIMIT_CDN`; 451 ⇒ `ERR_REPO_UNAVAILABLE_451`; hết giờ/5xx ⇒ thử lại 1 lần sau `CONFIG.PREFLIGHT_RETRY_DELAY_MS`, vẫn lỗi ⇒ `ERR_NETWORK_TIMEOUT`.
    > ⚠️ Giờ 0: codeload trả đúng mã cho `HEAD`. Fallback: `HEAD` trả 405/501 ⇒ `GET` cùng URL rồi `abort()` ngay khi có header.
 2. **ING-31 Không thử ref từ link (D-38).** Link `/tree/…`, `/blob/…` bị cắt về gốc ở ING-13 ⇒ mọi link `GITHUB_URL` đi theo ING-32.
-3. **ING-32 Nhánh mặc định.** (1) `HEAD https://github.com/{owner}/{repo}/archive/HEAD.zip`, `redirect: "manual"`: 3xx có `Location` khớp `^https://codeload\.github\.com/[^/]+/[^/]+/zip/(?:refs/heads/)?(.+)$` ⇒ `ref` = nhóm 1, `download_url = Location`, `ref_label = ref`; 3xx khác mẫu hoặc 200 ⇒ `download_url` = chính URL `archive/HEAD.zip` (tải chuyển hướng), `ref = ref_label = null`; 404 ⇒ (2). (2) Thử lần lượt `CONFIG.DEFAULT_BRANCH_FALLBACKS` bằng ING-30.
+3. **ING-32 Nhánh mặc định.** (1) Từ kết quả `archive/HEAD.zip` của Mục 2: 3xx có `Location` khớp `^https://codeload\.github\.com/[^/]+/[^/]+/zip/(?:refs/heads/)?(.+)$` ⇒ `ref` = nhóm 1, `download_url = Location`, `ref_label = ref` (`ref` là SHA 40 hex ⇒ `ref_label = null`); 3xx khác mẫu hoặc 200 ⇒ `download_url` = chính URL `archive/HEAD.zip` (tải chuyển hướng), `ref = ref_label = null`; `head_zip = null` ⇒ (2). (2) Thử lần lượt `CONFIG.DEFAULT_BRANCH_FALLBACKS` bằng ING-30.
    > ⚠️ Giờ 0: `archive/HEAD.zip` chuyển hướng tới nhánh mặc định thật. Fallback: khác ⇒ coi như 404, chạy (2).
 4. **ING-33** Mọi bước của ING-32 đều 404 ⇒ `ProbeResult = "EMPTY"` ⇒ `ERR_EMPTY_REPOSITORY`.
 5. **ING-34** `subdir_override` chuẩn hóa như ING-60.4; không có code dưới đó ⇒ `ERR_NO_SOURCE_FILES_FOUND` (ING-80).
@@ -125,7 +125,7 @@ export async function receiveUpload(body: ReadableStream<Uint8Array>, contentTyp
 
 1. **ING-46 Danh sách** (gửi `GITHUB_TOKEN`). `GET api.github.com/repos/{owner}/{repo}/commits/{ref ?? "HEAD"}`, `Accept: application/vnd.github.sha` ⇒ `sha` (`GITHUB_COMMIT`: `sha` phiên) là `snapshot_id`, `COMMIT_SHA`. `GET …/git/trees/{sha}?recursive=1`: `type = "blob"`, `mode ≠ "120000"` ⇒ `ZipEntryMeta` (`compressed_size = 0`).
 2. **ING-47 Phạm vi.** Mục 8 ra `""`, không có scope tường minh ⇒ offset = thư mục độ sâu 1 nhiều `bytes` nhất (bỏ file cờ ING-87, hòa ⇒ path nhỏ hơn); con lớn nhất ≥ `CONFIG.AUTO_SCOPE_CHILD_RATIO` × cha ⇒ lấy con. Warning "Repo lớn — đang phân tích {offset}; có thể chọn thư mục khác."
-3. **ING-48 Tải.** `GET raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}`, song song `CONFIG.SELECTIVE_FETCH_CONCURRENCY`, xử lý theo `ordered_candidates` như Mục 9; warning "Repository lớn" ghi `{n}/{tổng file code}`. `report.selective_fetch = true`.
+3. **ING-48 Tải.** `GET raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}`, song song `CONFIG.SELECTIVE_FETCH_CONCURRENCY`, xử lý theo `ordered_candidates` như Mục 9; manifest tải song song, chỉ lấy manifest trong scope và ở gốc; warning "Repository lớn" ghi `{n}/{tổng file code}`. `report.selective_fetch = true`.
 4. **ING-49 Lùi.** Thiếu token, API 401/403/429, cây `truncated: true`, 1 file lỗi sau 1 lần thử lại, hoặc hết hạn ⇒ chạy Mục 5, 6, 9 trên zip đã giữ + warning "Không lấy được danh sách file, có thể thiếu thư mục chính."
 
 ---
@@ -163,7 +163,7 @@ export function readCentralDirectory(bytes: Uint8Array): ZipEntryMeta[] | null;
 export function listEntriesStreaming(bytes: Uint8Array, signal: AbortSignal): ZipEntryMeta[];
 ```
 
-1. **ING-60 Chuẩn hóa đường dẫn.** (1) Cờ bit 11 ⇒ UTF-8; tắt mà mọi byte < 0x80 ⇒ ASCII; còn lại ⇒ loại, `skipped.binary++`. (2) `\` ⇒ `/`. (3) Mọi entry chung segment đầu (zip GitHub có `<repo>-<ref>/`) ⇒ cắt segment đó, ngược lại giữ. (4) `path.posix.normalize`; bắt đầu `../` hoặc `/`, hoặc chứa NUL ⇒ loại. (5) Trùng path ⇒ giữ entry đầu theo thứ tự mục lục, sau đó `skipped.garbage++`.
+1. **ING-60 Chuẩn hóa đường dẫn.** (1) Cờ bit 11 ⇒ UTF-8; tắt mà mọi byte < 0x80 ⇒ ASCII; còn lại ⇒ loại, `skipped.binary++`. (2) `\` ⇒ `/`. (3) Bỏ `__MACOSX/` và file `._*`; mọi entry còn lại chung segment đầu (zip GitHub có `<repo>-<ref>/`) ⇒ cắt segment đó, ngược lại giữ. (4) `path.posix.normalize`; bắt đầu `../` hoặc `/`, hoặc chứa NUL ⇒ loại. (5) Trùng path ⇒ giữ entry đầu theo thứ tự mục lục, sau đó `skipped.garbage++`.
 2. **ING-61 Central-Directory-First (mặc định).** Từ EOCD (ING-50) lấy offset Central Directory, duyệt bản ghi `0x02014b50`: cờ, `method`, kích thước, tên, `external_attrs`, offset local header. `is_symlink` = `((external_attrs >>> 16) & 0xF000) === 0xA000`; `is_dir` = tên kết thúc `/`; `is_encrypted` = cờ bit 0. Offset/chữ ký sai ⇒ `null`.
 3. **Streaming (dự phòng)** khi ING-61 trả `null` (mục lục hỏng hoặc `stream_cut`): lượt 1 chạy `fflate.Unzip` + `UnzipInflate`, không lưu nội dung, chỉ ghi tên + đếm byte giải nén thật (entry chưa trọn bị bỏ); chọn theo FPS (không theo thứ tự zip); lượt 2 chạy lại, chỉ giữ entry đã chọn. Không nhận diện symlink ở chế độ này. Tất định vì buffer cố định độ dài (ING-42); codeload sinh byte khác cùng commit ⇒ `ARCHIVE_HASH` khác.
 4. **ING-63** Cả hai chế độ không ra entry hợp lệ ⇒ GitHub: thử lại theo ING-44 ⇒ `ERR_STREAM_CORRUPTED`; upload: `ERR_UPLOAD_INVALID`.
@@ -184,7 +184,7 @@ Luật đầu tiên khớp thắng. Segment so **nguyên segment**, không phân
 | Luật | Điều kiện | Lớp |
 | :-- | :-- | :-- |
 | **ING-70** | `is_dir`, `is_symlink` (`skipped.garbage`); `is_encrypted`, `method` ∉ {0, 8} (`skipped.binary`) | `GARBAGE` |
-| **ING-71** | Có segment thư mục ∈ `node_modules .git .github dist build out .next .nuxt .turbo coverage vendor venv .venv env __pycache__ .pytest_cache .mypy_cache target obj .gradle .idea .vscode Pods .dart_tool` | `GARBAGE` |
+| **ING-71** | Có segment thư mục ∈ `node_modules .git .github dist build out .next .nuxt .turbo coverage vendor venv .venv env __pycache__ .pytest_cache .mypy_cache target obj .gradle .idea .vscode Pods .dart_tool __MACOSX` | `GARBAGE` |
 | **ING-72** | Có segment `bin` và đuôi không thuộc Language Registry (`bin/cli.js` được giữ; `.dll`, `.class`, `.pdb` bị bỏ) | `GARBAGE` |
 | **ING-73** | Tên khớp `/(\.min\.(js\|css)\|\.d\.ts\|\.map\|\.lock\|-lock\.json\|\.pb\.go\|_pb2\.py\|\.generated\.\w+\|\.g\.dart\|\.freezed\.dart)$/i`, hoặc đuôi `png jpg jpeg gif webp ico svg mp4 mov mp3 wav pdf zip gz jar exe dll so woff woff2 ttf psd class pyc` | `GARBAGE` |
 | **ING-74** | Basename ∈ hợp `manifest_files` của mọi adapter ∪ {`package.json`, `tsconfig.json`, `jsconfig.json`, `requirements.txt`, `pyproject.toml`, `setup.py`, `Pipfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `go.mod`, `pubspec.yaml`, `Cargo.toml`, `composer.json`, `Gemfile`} và độ sâu thư mục ≤ `CONFIG.MAX_MANIFEST_DEPTH` (gốc = 0) | `MANIFEST` |
@@ -208,11 +208,11 @@ export function filePriorityScore(path: string, size: number, scope: string): nu
 export function selectFiles(entries: ClassifiedEntry[], scope: ScopeDecision): { manifests: ZipEntryMeta[]; ordered_candidates: ZipEntryMeta[] };
 ```
 
-1. **Scope tường minh (ING-80):** ưu tiên: `subdir_override` (`IngestRequest` / trường `subdir` upload) ⇒ `subdir` của phiên khi dựng lại. Link không mang thư mục con (D-38). Chuẩn hóa dạng `"server/"`. Không có entry `CODE`/`SPECIAL` dưới đó ⇒ `ERR_NO_SOURCE_FILES_FOUND` (details `{ subdir, hint: "empty_subdir" }`). Có scope tường minh ⇒ bỏ bước 3, `is_monorepo` tính theo bước 2–3.
+1. **Scope tường minh (ING-80):** ưu tiên: `subdir_override` (`IngestRequest` / trường `subdir` upload) ⇒ `subdir` của phiên khi dựng lại. Link không mang thư mục con (D-38). Chuẩn hóa dạng `"server/"`, so không phân biệt hoa thường, dùng tên thư mục thật. Không có entry `CODE`/`SPECIAL` dưới đó ⇒ `ERR_NO_SOURCE_FILES_FOUND` (details `{ subdir, hint: "empty_subdir" }`). Có scope tường minh ⇒ bỏ bước 3, `is_monorepo` tính theo bước 2–3.
 2. **Ứng viên** (chỉ đếm entry `CODE`/`SPECIAL`, khớp nguyên segment ⇒ `api-docs/`, `apiClient/` không khớp):
    - *Server:* `<x>/` ở gốc, `x ∈ {server, backend, api}`; `apps/<x>/`, `packages/<x>/` với `x ∈ {server, backend, api}` hoặc kết thúc `-api`/`-server`/`-backend`, **có manifest**; `services/<x>/` có manifest riêng.
    - *Client:* `<x>/`, `apps/<x>/`, `packages/<x>/` với `x ∈ {client, frontend, web, ui, mobile, webapp, app-web}` hoặc kết thúc `-web`/`-client`/`-ui`/`-mobile`.
-3. **Quyết định.** `bytes(d)` = tổng `size` entry `CODE`/`SPECIAL` dưới `d`; server tốt nhất = `bytes` lớn nhất, hòa ⇒ path nhỏ hơn. (a) ≥ 1 client và ≥ 1 server, hoặc ≥ 2 server ⇒ `is_monorepo = true`, offset = server tốt nhất. (b) Đúng 1 server, không client, `bytes(server)/bytes(repo) > CONFIG.MONOREPO_DOMINANT_RATIO` ⇒ offset = server đó, `is_monorepo = false`. (c) Còn lại ⇒ `""`, `false`.
+3. **Quyết định.** `bytes(d)` = tổng `size` entry `CODE`/`SPECIAL` dưới `d`; server tốt nhất = `bytes` lớn nhất, hòa ⇒ path nhỏ hơn. (a) ≥ 1 client và ≥ 1 server, hoặc ≥ 2 server ⇒ `is_monorepo = true`, offset = server tốt nhất. (b) Đúng 1 server, không client, `bytes(server)/bytes(repo) > CONFIG.MONOREPO_DOMINANT_RATIO` ⇒ offset = server đó, `is_monorepo = false`. (c) Còn lại ⇒ `""`, `false`. **Đường lùi:** offset tự chọn làm `buildGraph` báo `ERR_NO_ARCHITECTURAL_SLICE` ⇒ `runEngine` thử ứng viên kế tiếp (server, rồi client, `bytes` giảm dần), cuối cùng `""`, không tải lại zip; hết ứng viên ⇒ giữ lỗi. `candidates` gồm cả client.
 4. ≥ 2 server ⇒ warning "Phát hiện nhiều thư mục backend: {danh sách}. Đang phân tích {offset}; có thể chọn thư mục khác." UI gửi lại `POST /api/ingest` kèm `subdir_override`.
 5. **Hiệu lực (ING-84):** Offset ≠ `""` ⇒ (a) file trong scope cộng `CONFIG.FPS_IN_SCOPE`; (b) file ngoài scope nạp nếu còn chỗ (`packages/shared`); (c) `11` chỉ lấy entry, hàm VIP trong scope; (d) ngôn ngữ, `graph_confidence`, archetype, framework tính trong scope.
 
@@ -220,7 +220,7 @@ $$\text{FPS}(f) = \texttt{FPS\_IN\_SCOPE}\cdot\mathbf 1_{\text{scope}} + \texttt
 
 6. `depth(f)` = số segment thư mục (gốc: 0 ⇒ hạng tử = 1). `1_scope` = path bắt đầu bằng offset.
 7. **Tên vai trò.** `ROLE_NAMES = controller(s) route(s) router(s) handler(s) service(s) usecase(s) repository repositories repo(s) model(s) entity entities schema(s) middleware(s) api main app server index screen(s) page(s) view(s) activity activities fragment(s) command(s)`. Khớp khi segment thư mục ∈ tập, hoặc stem basename tách `.` `_` `-` và camelCase có token cuối hoặc cả stem ∈ tập (`order.controller.ts`, `main.go` khớp; `distance.ts`, `apiClient.ts` không).
-8. **Cờ test (ING-87):** Segment ∈ {test, tests, \_\_tests\_\_, spec, specs, example, examples, demo, demos, e2e, fixtures, \_\_mocks\_\_, migrations, seeds, docs, scripts, testdata, bench, benches, benchmark, benchmarks}, segment bắt đầu `.` hoặc kết thúc `_src`, hoặc stem kết thúc `.test`/`.spec`/`_test`, hoặc bắt đầu `test_`.
+8. **Cờ test (ING-87):** Segment ∈ {test, tests, \_\_tests\_\_, spec, specs, example, examples, demo, demos, e2e, fixtures, integration, sample, samples, mocks, \_\_mocks\_\_, migrations, seeds, docs, scripts, testdata, bench, benches, benchmark, benchmarks}, segment bắt đầu `.` hoặc kết thúc `_src`, hoặc stem kết thúc `.test`/`.spec`/`_test`, hoặc bắt đầu `test_`.
 9. **Xếp (ING-88):** Bỏ trước giải nén (`skipped.oversized++`): `size > CONFIG.MAX_SINGLE_FILE_BYTES` (`.ipynb`: `CONFIG.MAX_NOTEBOOK_BYTES`), hoặc `compressed_size > 0` và `size/compressed_size > CONFIG.MAX_COMPRESSION_RATIO`. Còn lại sắp FPS giảm dần, hòa ⇒ path tăng dần. Manifest theo path tăng dần.
 
 ---
@@ -269,10 +269,10 @@ export function hasInjectionText(code: string): boolean;
 ```
 
 1. **ING-110 Mẫu** (theo thứ tự, trên toàn văn bản; `MASK = "<REDACTED_SECRET>"`):
-   - Khối `-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----` … `-----END …PRIVATE KEY-----` ⇒ từng dòng (cả BEGIN/END) thay bằng thụt lề + `MASK`, giữ `\n`.
-   - `AKIA[0-9A-Z]{16}`, `\b(ghp|gho|ghs|ghu)_[A-Za-z0-9]{36}\b`, `\bgithub_pat_[A-Za-z0-9_]{22,}\b`, `\bsk-[A-Za-z0-9_-]{20,}\b`, JWT `\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`, `\bAIza[0-9A-Za-z_-]{35}\b` ⇒ thay cả token.
-   - `(password|passwd|pwd|secret|api_?key|token|private_?key|access_?key)\s*[:=]\s*(["'`])([^"'`\s]+)\2` (không phân biệt hoa thường, khớp cả trong `JWT_SECRET`, chuỗi trong nháy đơn, nháy kép hoặc dấu \` \`), nhóm 3 dài ≥ `CONFIG.SECRET_MIN_VALUE_LENGTH` ⇒ thay nội dung trong nháy (giữ tên biến, giữ nháy).
-   - `(mongodb(\+srv)?|postgres(ql)?|mysql|redis|amqp)://([^:/\s]+):([^@\s]+)@` ⇒ thay phần mật khẩu.
+   - Khối `-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----` … `-----END …PRIVATE KEY-----` ⇒ từng dòng (cả BEGIN/END) thay bằng thụt lề + `MASK`, giữ `\n`. Khối nằm trong 1 dòng (chuỗi có `\n` dạng chữ) ⇒ thay cả đoạn.
+   - `AKIA[0-9A-Z]{16}`, `\b(ghp|gho|ghs|ghu)_[A-Za-z0-9]{36}\b`, `\bgithub_pat_[A-Za-z0-9_]{22,}\b`, `\bsk-[A-Za-z0-9_-]{20,}\b`, JWT `\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`, `\bAIza[0-9A-Za-z_-]{35}\b`, `\bsk_(live|test)_[A-Za-z0-9]{16,}\b`, `\bxox[abprs]-[A-Za-z0-9-]{10,}\b` ⇒ thay cả token.
+   - `K` = `[A-Za-z0-9_]*(password|passwd|pwd|secret|api_?key|token|private_?key|access_?key)(_[A-Za-z0-9]+)*`. Mẫu: `K` hoặc `K` trong cặp nháy, rồi `\s*[:=]\s*`, rồi chuỗi không khoảng trắng trong nháy đơn, nháy kép hoặc dấu \` \` (không phân biệt hoa thường; khớp `JWT_SECRET`, `SECRET_KEY`, `"password":`). Giá trị dài ≥ `CONFIG.SECRET_MIN_VALUE_LENGTH` ⇒ thay nội dung trong nháy (giữ tên biến, giữ nháy).
+   - `(mongodb(\+srv)?|postgres(ql)?|mysql|redis|amqp|https?)://([^:/\s]+):([^@/\s]+)@` ⇒ thay phần mật khẩu.
 2. **Bảo toàn dòng.** Số `\n` trước/sau che bằng nhau (lệch ⇒ bỏ file + warning, không giữ bản chưa che). `redacted_secret_count` = tổng số lần khớp (1 khối key = 1).
 3. Bản đã che là duy nhất trong RAMCodeStore; Tầng 1–2, `snippet` và lát cắt gửi AI đọc từ bản này. Sau đó chạy `maskSensitive` (`04` Mục 13, D-65); số lần che cộng vào `redacted_secret_count`.
 4. **ING-113 Cờ injection** (không sửa code): khớp `/(ignore|disregard|forget)\s+(all\s+)?(the\s+)?(previous|above|prior)\s+(instructions?|prompts?)|you\s+are\s+now\b|system\s+prompt|<\/?\s*(system|instructions?)\s*>/i` ⇒ path vào `suspicious_instruction_files` (sort, không trùng). Chỉ server — `toClientResult` loại bỏ (`11` Mục 15); phòng thủ thuộc `20`/`21`.
@@ -311,8 +311,8 @@ export function buildFingerprint(entries: ClassifiedEntry[], manifests: Map<stri
 export function assertNotEmpty(out: IngestOutput, flags: { stream_cut: boolean; inflated_cap_hit: boolean; has_submodules: boolean; unsupported_ratio: number; top_unsupported: LanguageId | null }): void;
 ```
 
-1. `report.code_file_count` = số file trong RAMCodeStore; `manifest_count` = số manifest. `code_file_count > 0` ⇒ trả `IngestOutput`.
-2. **ING-131** `code_file_count = 0`, xét theo thứ tự: (1) `stream_cut ∨ inflated_cap_hit` ⇒ `ERR_STREAM_QUOTA_EXCEEDED`; (2) `unsupported_ratio` = byte `NO_GRAMMAR` / byte (`CODE` + `SPECIAL` + `NO_GRAMMAR`) trong scope `> CONFIG.UNSUPPORTED_LANGUAGE_RATIO` ⇒ `ERR_UNSUPPORTED_LANGUAGE`, `ApiError.error.details.language` = ngôn ngữ `UNSUPPORTED` nhiều byte nhất (C#, PHP, Rust có grammar nên là `STRUCTURAL`, không vào nhánh này); (3) còn lại ⇒ `ERR_NO_SOURCE_FILES_FOUND` với `details.hint`: `has_submodules` ⇒ `"submodule"`; có byte `NO_GRAMMAR` ⇒ `"only_unsupported"`; `manifest_count > 0` ⇒ `"only_manifests"`; còn lại ⇒ `"no_code"`. Scope tường minh rỗng (ING-80) ⇒ `details = { subdir, hint: "empty_subdir" }`.
+1. `report.code_file_count` = số file trong RAMCodeStore; `manifest_count` = số manifest. Không vướng ING-131 ⇒ trả `IngestOutput`.
+2. **ING-131** Xét theo thứ tự: (1) `code_file_count = 0` và `stream_cut ∨ inflated_cap_hit` ⇒ `ERR_STREAM_QUOTA_EXCEEDED`; (2) `unsupported_ratio` = byte `NO_GRAMMAR` / byte (`CODE` + `SPECIAL` + `NO_GRAMMAR`) trong scope `> CONFIG.UNSUPPORTED_LANGUAGE_RATIO` ⇒ `ERR_UNSUPPORTED_LANGUAGE`, `ApiError.error.details.language` = ngôn ngữ `UNSUPPORTED` nhiều byte nhất, kể cả khi còn file code; `unsupported_ratio > 0` và còn file code ⇒ warning "Repo có code {ngôn ngữ} chưa hỗ trợ, chỉ phân tích phần còn lại."; (3) `code_file_count = 0` ⇒ `ERR_NO_SOURCE_FILES_FOUND` với `details.hint`: `has_submodules` ⇒ `"submodule"`; có byte `NO_GRAMMAR` ⇒ `"only_unsupported"`; `manifest_count > 0` ⇒ `"only_manifests"`; còn lại ⇒ `"no_code"`. Scope tường minh rỗng (ING-80) ⇒ `details = { subdir, hint: "empty_subdir" }`.
 3. Thông điệp (`30_UI`). Quá lớn: đổi thư mục hoặc tải `.zip` chỉ chứa mã nguồn.
 
 Nơi phát mã lỗi (`retryable` theo `02` Mục 9): `ERR_INVALID_GITHUB_URL` ING-12/13 · `ERR_PREFLIGHT_404_OR_PRIVATE` ING-21 · `ERR_NETWORK_TIMEOUT` ING-21/30 · `ERR_REPO_UNAVAILABLE_451` ING-21/30/43 · `ERR_GITHUB_RATE_LIMIT_CDN` ING-21/30/43 · `ERR_BRANCH_NOT_FOUND` ING-43 · `ERR_EMPTY_REPOSITORY` ING-33 · `ERR_STREAM_TIMEOUT`, `ERR_STREAM_CORRUPTED` ING-44 · `ERR_STREAM_QUOTA_EXCEEDED` ING-45/131 · `ERR_UPLOAD_INVALID` ING-45/63 · `ERR_UNSUPPORTED_LANGUAGE` ING-131 · `ERR_NO_SOURCE_FILES_FOUND` ING-80/131 · `ERR_SERVER_BUSY` `03` §6.6.
@@ -330,9 +330,9 @@ Số liệu theo `CONFIG` hiện tại. Tên test bắt đầu bằng mã luật
 | T-ING-03 | `.../a/b/tree/release/v2/src` (D-38) | `a/b`, `path_trimmed true`, không HEAD thử ref; tải nhánh mặc định theo ING-32, `subdir ""` |
 | T-ING-04 | `.../a/b/blob/main/src/app.ts` (D-38) | `a/b`, `path_trimmed true`, `subdir ""` |
 | T-ING-06 | `https://gitlab.com/a/b` · `https://github.com/a` | `ERR_INVALID_GITHUB_URL` |
-| T-ING-07 | Probe 404 · 451 · 429 · 2 lần hết 300 ms · 200 sau chuyển hướng tới `/c/d` | `ERR_PREFLIGHT_404_OR_PRIVATE` · `ERR_REPO_UNAVAILABLE_451` · `ERR_GITHUB_RATE_LIMIT_CDN` · `ERR_NETWORK_TIMEOUT` · `OK`, `owner c`, `repo d` |
-| T-ING-08 | Link gốc; `HEAD.zip` 302 ⇒ `https://codeload.github.com/a/b/zip/refs/heads/develop` | `ref "develop"`, không thử `main` |
-| T-ING-09 | Link gốc; `HEAD.zip`, `main`, `master`, `dev` đều 404 | `ERR_EMPTY_REPOSITORY` |
+| T-ING-07 | `HEAD.zip` 404 và trang repo 404 · 451 · 429 · 2 lần hết `CONFIG.PREFLIGHT_TIMEOUT_MS` · 301 tới `/c/d/archive/HEAD.zip` rồi 302 | `ERR_PREFLIGHT_404_OR_PRIVATE` · `ERR_REPO_UNAVAILABLE_451` · `ERR_GITHUB_RATE_LIMIT_CDN` · `ERR_NETWORK_TIMEOUT` · `OK`, `owner c`, `repo d` |
+| T-ING-08 | Link gốc; `HEAD.zip` 302 ⇒ `https://codeload.github.com/a/b/zip/refs/heads/develop` · 302 ⇒ `…/zip/<SHA 40 hex>` | `ref "develop"`, không thử `main`, không gọi trang repo · `ref` = SHA, `ref_label null` |
+| T-ING-09 | Link gốc; `HEAD.zip`, `main`, `master`, `dev` đều 404, trang repo 200 | `ERR_EMPTY_REPOSITORY` |
 | T-ING-10 | Zip GitHub > 15 728 640 byte; 3 file `.ts` trọn vẹn trong phần đầu; API lỗi (ING-49) | `stream_cut`, giữ đúng 15 728 640 byte, streaming 2 lượt, 3 file, `truncated`, `ARCHIVE_HASH` = SHA-256 phần giữ |
 | T-ING-11 | Như T-ING-10 nhưng phần đầu chỉ có `node_modules/**` | `ERR_STREAM_QUOTA_EXCEEDED` |
 | T-ING-12 | Upload 4 718 593 byte (> `MAX_UPLOAD_BYTES`) | `ERR_STREAM_QUOTA_EXCEEDED`, không giải nén |
@@ -350,12 +350,12 @@ Số liệu theo `CONFIG` hiện tại. Tên test bắt đầu bằng mã luật
 | T-ING-24 | Notebook kernel `ir` · JSON hỏng | `skipped.unsupported_lang` · bỏ + warning |
 | T-ING-25 | `App.vue` 12 dòng, `<template>` dòng 1–5, `<script lang="ts">` dòng 6–10 | `App.vue.ts` 12 dòng, dòng 1–5 rỗng, `TYPESCRIPT`, nhãn dòng 7 = `"<script>"` |
 | T-ING-26 | Khối RSA private key 5 dòng | 5 dòng `<REDACTED_SECRET>`, `count 1`, số `\n` không đổi |
-| T-ING-27 | `const JWT_SECRET = "abc123xyz";` · `password = "12345"` · `postgres://u:p4ss@h/db` | `"<REDACTED_SECRET>"` · không che (5 < 6) · `postgres://u:<REDACTED_SECRET>@h/db` |
+| T-ING-27 | `const JWT_SECRET = "abc123xyz";` · `password = "12345"` · `postgres://u:p4ss@h/db` · `SECRET_KEY = "abc123xyz"` · `{"password": "abc123xyz"}` · `x ? 'current-password' : 'new-password'` | `"<REDACTED_SECRET>"` · không che (5 < 6) · `postgres://u:<REDACTED_SECRET>@h/db` · che · che · không che |
 | T-ING-28 | `// Ignore all previous instructions` trong `src/a.ts` | `suspicious_instruction_files ["src/a.ts"]`, code không đổi |
 | T-ING-29 | `deps_scope` {express, react-dom} · {react-native, express} · `bin`, không framework · không manifest · {`@nestjs/core`, express} · không gói, có `AndroidManifest.xml` | `WEB_BACKEND` · `MOBILE_APP` · `CLI_TOOL` · `ALGORITHM_CORE` · framework `"NestJS"` · `MOBILE_APP`, `"Android"` |
 | T-ING-30 | `requirements.txt`: `Flask_SQLAlchemy==3.0`, `# x`, `-r base.txt`, `FastAPI` | `tech_stack` ⊇ `fastapi`, `flask-sqlalchemy` |
-| T-ING-31 | TS 70 KB, Python 20 KB, C# 10 KB · C# 60 KB, TS 40 KB | `TYPESCRIPT`, `HIGH` · `LOW` + warning |
-| T-ING-32 | Chỉ `.sol` 90 KB + `README.md` · `README.md` + `.gitmodules` · `README.md` + `package.json` | `ERR_UNSUPPORTED_LANGUAGE`, `details.language` = mã Solidity · `ERR_NO_SOURCE_FILES_FOUND {hint:"submodule"}` · `ERR_NO_SOURCE_FILES_FOUND {hint:"only_manifests"}` |
+| T-ING-31 | Registry thử có C# `STRUCTURAL`: TS 70 KB, Python 20 KB, C# 10 KB · C# 60 KB, TS 40 KB | `TYPESCRIPT`, `HIGH` · `LOW` + warning |
+| T-ING-32 | Chỉ `.sol` 90 KB + `README.md` · `README.md` + `.gitmodules` · `README.md` + `package.json` · `.go` 80 KB + `.js` 20 KB · `.ts` 80 KB + `.go` 20 KB | `ERR_UNSUPPORTED_LANGUAGE`, `details.language` = mã Solidity · `ERR_NO_SOURCE_FILES_FOUND {hint:"submodule"}` · `ERR_NO_SOURCE_FILES_FOUND {hint:"only_manifests"}` · `ERR_UNSUPPORTED_LANGUAGE`, mã Go · phân tích TS + warning |
 | T-ING-33 | Comment EOCD 40 hex · comment rỗng · ref là SHA 40 hex | `COMMIT_SHA` = comment · `ARCHIVE_HASH` cả buffer + warning · `COMMIT_SHA` = ref |
 | T-ING-34 | `subdir_override "web/"`, `web/` không có code | `ERR_NO_SOURCE_FILES_FOUND {subdir:"web/", hint:"empty_subdir"}` |
 

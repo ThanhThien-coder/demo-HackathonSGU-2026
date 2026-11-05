@@ -33,7 +33,7 @@ flowchart TD
     Gemini["Google Gemini API<br/>(CONFIG.LLM_MODEL)"]
     Supabase["Supabase Cloud<br/>(Postgres + Auth, AWS Singapore)"]
 
-    User <-- "Giao diện Web 3 cột / REST API JSON<br/>(HTTPS / Bearer Token)" --> System
+    User <-- "Giao diện Web / REST API JSON<br/>(HTTPS / Bearer Token)" --> System
     System -- "HEAD probe & Tải zip vào RAM<br/>(HTTPS, 0 token)" --> GH
     System <-- "4 lời gọi AI có responseSchema<br/>(HTTPS / SDK @google/genai)" --> Gemini
     System <-- "Đọc/Ghi dữ liệu học tập & Auth<br/>(HTTPS / PostgREST & Supavisor)" --> Supabase
@@ -191,7 +191,7 @@ sequenceDiagram
     end
     BE-->>FE: AnalyzeNodeResponse (NodeAnalysisView, không chứa code)
 
-    U->>FE: Chuyển Tab 2 "Thử thách Feynman"
+    U->>FE: Mở phần Feynman "Thử thách Feynman"
     FE->>BE: POST /api/enrich-node (session_id, node_id, mode)
     BE->>DB: Đọc skill_states
     BE->>AI: Sinh câu hỏi (không cache, D-37)
@@ -308,6 +308,9 @@ Số trong ví dụ chỉ minh họa định dạng, không phải số đo. Dò
 3. **Thông tin định danh & Token:** Không ghi header `Authorization`, bearer token, refresh token.
 4. **Dữ liệu bài làm của người học:** Không ghi nội dung câu trả lời `student_answer`.
 5. Dòng `guard_blocked` chỉ có các trường của `GuardLogEntry`; `node_id` giữ như Mục 9.1; không ghi thêm tên hàm, văn bản AI hoặc tên trong `GuardIssue`.
+
+- **Lỗi lạ:** ghi thêm `error_name` và `error_message` đã che secret; không ghi biến môi trường, body request.
+- **Khởi động:** kiểm biến môi trường bắt buộc 1 lần ở `instrumentation.ts`, thiếu ⇒ log `error`.
 
 ---
 
@@ -461,7 +464,7 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
     ├── lib/{bkt-engine,plan,derive,similarity}.ts   # 22 — hàm thuần dùng chung server + client
     ├── lib/{api,offline,messages}.ts            # Client gọi API có kiểu · bản Offline cùng chữ ký · bảng thông điệp lỗi (30)
     ├── store/workbench.ts                       # Zustand (30)
-    └── components/{landing,header,canvas,code,cockpit}/*.tsx  # 30
+    └── components/{auth,canvas,code,home,how-it-works,layout,roadmap,roadmap-detail,ui}/*.tsx  # 30
 ```
 
 ---
