@@ -1,226 +1,101 @@
+// 22 Mục 5–8 — kế hoạch câu hỏi (D-34: luôn ≥ 1 câu) và màu node từ kết quả câu. Hàm thuần.
 import { CONFIG } from "@/contracts/config";
 import type {
-  NodeAnalysis,
-  QuestionPlanItem,
-  NodeRunView,
-  QuestionState,
-  SWESkill,
-  LearnerTier,
-  QuestionFocus,
-  LearnerCognitiveProfile,
+  LearnerCognitiveProfile, LearnerTier, NodeAnalysis, NodeRunView, QuestionFocus,
+  QuestionPlanItem, QuestionState, SWESkill,
 } from "@/contracts";
 import { getDecayedMastery, tierOf } from "./bkt-engine";
 
 type SkillMap = LearnerCognitiveProfile["skills"];
 
-export type RunLike = Pick<NodeRunView, "mode" | "started_at" | "finished_at"> & {
-  questions: Array<
-    Pick<
-      QuestionState,
-      "question_index" | "skill" | "focus" | "outcome" | "ended_by" | "disputed"
-    >
-  >;
+type RunLike = Pick<NodeRunView, "mode" | "started_at" | "finished_at"> & {
+  questions: Array<Pick<QuestionState, "question_index" | "skill" | "focus" | "outcome" | "ended_by" | "disputed">>;
 };
 
 const CYCLE: QuestionFocus[] = ["FLOW", "ARCHITECTURE", "CHANGE"];
-
-const START_BY_TIER: Record<LearnerTier, QuestionFocus> = {
-  NOVICE: "FLOW",
-  PRACTITIONER: "ARCHITECTURE",
-  ARCHITECT: "CHANGE",
+const START: Record<LearnerTier, QuestionFocus> = { NOVICE: "FLOW", PRACTITIONER: "ARCHITECTURE", ARCHITECT: "CHANGE" };
+const from = (f: QuestionFocus): QuestionFocus[] => {
+  const i = CYCLE.indexOf(f);
+  return [...CYCLE.slice(i), ...CYCLE.slice(0, i)];
 };
 
-function getCycleFrom(start: QuestionFocus): QuestionFocus[] {
-  const idx = CYCLE.indexOf(start);
-  if (idx === -1) {
-    return [...CYCLE];
+interface PlanItem { skill: SWESkill; tier: LearnerTier; focus: QuestionFocus }
+
+/** BKT-48: bước gửi AI — lọc 1..stepCount, bỏ trùng, tăng dần, không rỗng. */
+function stepsFor(it: PlanItem, analysis: NodeAnalysis, stepCount: number): number[] {
+  const ev = analysis.skills.find((s) => s.skill === it.skill)?.step;
+  const set = new Set<number>();
+  const add = (n: number | undefined) => {
+    if (n !== undefined && Number.isInteger(n) && n >= 1 && n <= stepCount) set.add(n);
+  };
+  switch (it.focus) {
+    case "WEAKNESS":
+      add(ev);
+      add(analysis.weak_points.find((w) => w.skill === it.skill)?.step);
+      break;
+    case "ARCHITECTURE":
+      add(1);
+      add(ev);
+      analysis.strengths.forEach((s) => add(s.step));
+      break;
+    default:
+      for (let i = 1; i <= stepCount; i++) add(i);
   }
-  return [...CYCLE.slice(idx), ...CYCLE.slice(0, idx)];
+  if (set.size === 0) set.add(Math.max(1, Math.min(stepCount, 1)));
+  return [...set].sort((a, b) => a - b);
 }
 
-function getStepIndices(
-  focus: QuestionFocus,
-  skill: SWESkill,
-  analysis: NodeAnalysis,
-  stepCount: number
-): number[] {
-  const maxStep = Math.max(1, stepCount);
-  const inRange = (s: number) => Number.isInteger(s) && s >= 1 && s <= maxStep;
-
-  if (focus === "FLOW" || focus === "CHANGE") {
-    return Array.from({ length: maxStep }, (_, i) => i + 1);
-  }
-
-  const stepSet = new Set<number>();
-  const evStep = analysis.skills.find((s) => s.skill === skill)?.step;
-
-  if (focus === "WEAKNESS") {
-    if (evStep !== undefined && inRange(evStep)) {
-      stepSet.add(evStep);
-    }
-    for (const wp of analysis.weak_points) {
-      if (wp.skill === skill && inRange(wp.step)) {
-        stepSet.add(wp.step);
-      }
-    }
-  } else if (focus === "ARCHITECTURE") {
-    stepSet.add(1);
-    if (evStep !== undefined && inRange(evStep)) {
-      stepSet.add(evStep);
-    }
-    if (analysis.strengths) {
-      for (const st of analysis.strengths) {
-        if (inRange(st.step)) {
-          stepSet.add(st.step);
-        }
-      }
-    }
-  }
-
-  const sorted = Array.from(stepSet)
-    .filter(inRange)
-    .sort((a, b) => a - b);
-
-  if (sorted.length === 0) {
-    return [1];
-  }
-  return sorted;
-}
-
-/**
- * Lập kế hoạch câu hỏi cho một node học (BKT-41..49, BKT-31, D-34).
- * Luôn trả về ít nhất 1 câu hỏi khi analysis.skills không rỗng.
- */
+/** Mục 6: lập kế hoạch câu hỏi. Không bao giờ trả []. */
 export function planNodeQuestions(
   analysis: NodeAnalysis,
   skills: SkillMap,
   now: number,
-  stepCount: number
+  stepCount: number,
 ): QuestionPlanItem[] {
   const order = analysis.skills.map((s) => s.skill);
-  if (order.length === 0) {
-    return [];
-  }
+  const p = (k: SWESkill) => getDecayedMastery(skills[k], now);
+  const pc = (k: SWESkill) => skills[k]?.practice_count ?? 0;
+  const weak = (k: SWESkill) => analysis.weak_points.some((w) => w.skill === k);
+  const archOk = analysis.strengths.length > 0 || analysis.architecture.patterns.some((x) => x !== "OTHER");
+  const valid = (f: QuestionFocus) => f !== "ARCHITECTURE" || archOk;
+  const byWeakest = (a: SWESkill, b: SWESkill) =>
+    p(a) - p(b) || pc(a) - pc(b) || order.indexOf(a) - order.indexOf(b);
+  const byPlan = (a: SWESkill, b: SWESkill) => Number(!weak(a)) - Number(!weak(b)) || byWeakest(a, b); // BKT-42
 
-  const getDecayed = (k: SWESkill) =>
-    getDecayedMastery(skills ? skills[k] : undefined, now);
-  const getPracticeCount = (k: SWESkill) => skills?.[k]?.practice_count ?? 0;
-  const hasWeak = (k: SWESkill) =>
-    analysis.weak_points.some((w) => w.skill === k);
-
-  const archOk = Boolean(
-    (analysis.strengths && analysis.strengths.length > 0) ||
-      (analysis.architecture?.patterns &&
-        analysis.architecture.patterns.some((p) => p !== "OTHER"))
-  );
-
-  const isValidFocus = (f: QuestionFocus) => f !== "ARCHITECTURE" || archOk;
-
-  const byWeakest = (a: SWESkill, b: SWESkill) => {
-    const diffP = getDecayed(a) - getDecayed(b);
-    if (Math.abs(diffP) > 1e-9) {
-      return diffP;
-    }
-    const diffPc = getPracticeCount(a) - getPracticeCount(b);
-    if (diffPc !== 0) {
-      return diffPc;
-    }
-    return order.indexOf(a) - order.indexOf(b);
-  };
-
-  const byPlan = (a: SWESkill, b: SWESkill) => {
-    const aWeak = hasWeak(a) ? 1 : 0;
-    const bWeak = hasWeak(b) ? 1 : 0;
-    if (aWeak !== bWeak) {
-      return bWeak - aWeak;
-    }
-    return byWeakest(a, b);
-  };
+  if (order.length === 0) return [];
 
   let picks: Array<{ skill: SWESkill; tier: LearnerTier }>;
-  const open = order.filter((k) => getDecayed(k) < CONFIG.MASTERED_MIN);
-  if (open.length > 0) {
-    const sortedOpen = [...open].sort(byPlan);
-    picks = sortedOpen.map((k) => ({
-      skill: k,
-      tier: tierOf(getDecayed(k)),
-    }));
-  } else {
-    const weakest = [...order].sort(byWeakest)[0];
-    picks = [{ skill: weakest, tier: "ARCHITECT" as LearnerTier }];
-  }
+  const open = order.filter((k) => p(k) < CONFIG.MASTERED_MIN); // BKT-41
+  if (open.length > 0) picks = [...open].sort(byPlan).map((k) => ({ skill: k, tier: tierOf(p(k)) }));
+  else picks = [{ skill: [...order].sort(byWeakest)[0], tier: "ARCHITECT" }]; // BKT-31, D-34
 
-  const items: Array<{
-    skill: SWESkill;
-    tier: LearnerTier;
-    focus: QuestionFocus;
-  }> = [];
+  const items: PlanItem[] = [];
   const usedNonWeak = new Set<QuestionFocus>();
-
-  const pickFocus = (skill: SWESkill, tier: LearnerTier): QuestionFocus => {
-    if (hasWeak(skill)) {
-      return "WEAKNESS";
-    }
-    const cycle = getCycleFrom(START_BY_TIER[tier]).filter(isValidFocus);
-    const available = cycle.find((f) => !usedNonWeak.has(f));
-    const chosen = available ?? cycle[0];
-    usedNonWeak.add(chosen);
-    return chosen;
+  const take = (skill: SWESkill, tier: LearnerTier, focus: QuestionFocus) => {
+    items.push({ skill, tier, focus });
+    if (focus !== "WEAKNESS") usedNonWeak.add(focus);
   };
+  const firstFree = (c: QuestionFocus[]) => c.find((f) => !usedNonWeak.has(f)) ?? c[0];
 
-  for (const pick of picks) {
-    const focus = pickFocus(pick.skill, pick.tier);
-    items.push({ skill: pick.skill, tier: pick.tier, focus });
+  for (const { skill, tier } of picks) {
+    if (weak(skill)) take(skill, tier, "WEAKNESS"); // BKT-46
+    else take(skill, tier, firstFree(from(START[tier]).filter(valid)));
   }
-
   if (CONFIG.NOVICE_SECOND_QUESTION) {
-    const noviceFirstItems = items.filter((it) => it.tier === "NOVICE");
-    for (const first of noviceFirstItems) {
-      let startFocus: QuestionFocus;
-      if (first.focus === "WEAKNESS") {
-        startFocus = START_BY_TIER.NOVICE;
-      } else {
-        const cycleFromFirst = getCycleFrom(first.focus);
-        startFocus = cycleFromFirst[1];
-      }
-      const candidates = getCycleFrom(startFocus)
-        .filter(isValidFocus)
-        .filter((f) => f !== first.focus);
-
-      const available = candidates.find((f) => !usedNonWeak.has(f));
-      const chosen = available ?? candidates[0];
-      usedNonWeak.add(chosen);
-      items.push({ skill: first.skill, tier: "NOVICE", focus: chosen });
+    // BKT-49
+    for (const first of items.filter((i) => i.tier === "NOVICE")) {
+      const start = first.focus === "WEAKNESS" ? START.NOVICE : from(first.focus)[1];
+      take(first.skill, "NOVICE", firstFree(from(start).filter(valid).filter((f) => f !== first.focus)));
     }
   }
-
-  return items.map((it, idx) => ({
-    question_index: idx + 1,
-    skill: it.skill,
-    tier: it.tier,
-    focus: it.focus,
-    step_indices: getStepIndices(it.focus, it.skill, analysis, stepCount),
-  }));
+  return items.map((it, i) => ({ question_index: i + 1, ...it, step_indices: stepsFor(it, analysis, stepCount) }));
 }
 
-/**
- * Xác định trạng thái của node dựa trên kết quả các run LEARN (BKT-70..72).
- */
-export function nodeStatusFromRuns(
-  runs: RunLike[]
-): "COMPLETED" | "FAILED" | null {
-  const completedRuns = runs.filter(
-    (r) =>
-      r.mode === "LEARN" &&
-      r.finished_at !== null &&
-      r.finished_at !== undefined
-  );
-  if (completedRuns.length === 0) {
-    return null;
-  }
-  const lastRun = completedRuns[completedRuns.length - 1];
-  const hasFailed = lastRun.questions.some(
-    (q) => q.outcome === "FAILED" && !q.disputed
-  );
-  return hasFailed ? "FAILED" : "COMPLETED";
+/** BKT-70..72: màu node từ run LEARN đã xong. */
+export function nodeStatusFromRuns(runs: RunLike[]): "COMPLETED" | "FAILED" | null {
+  const done = runs.filter((r) => r.mode === "LEARN" && r.finished_at !== null);
+  if (done.length === 0) return null;
+  const last = [...done].sort((a, b) => b.started_at - a.started_at)[0];
+  const failed = last.questions.some((q) => q.outcome === "FAILED" && !q.disputed);
+  return failed ? "FAILED" : "COMPLETED";
 }

@@ -1,155 +1,69 @@
-import type {
-  GraphSkeletonNode,
-  NodeStateView,
-  NodeStatus,
-} from "@/contracts";
+// 03 Mục 5.1 — suy ra trạng thái node. Hàm thuần, dùng chung server và client.
+import type { GraphSkeletonNode, NodeStateView, NodeStatus } from "@/contracts";
 
-export interface ProgressRowLike {
+export interface ProgressRow {
   node_id: string;
-  status: Exclude<NodeStatus, "LOCKED"> | null;
+  status: "AVAILABLE" | "COMPLETED" | "FAILED" | null;
   analysis_failed: boolean;
 }
 
-export type DerivedNodeState = Pick<
-  NodeStateView,
-  "node_id" | "status" | "has_warning" | "analysis_failed"
->;
+export type DerivedNodeState = Pick<NodeStateView, "node_id" | "status" | "has_warning" | "analysis_failed">;
 
-/**
- * Suy ra trạng thái của các node trong đồ thị học tập (03 Mục 5.1).
- * Duyệt node theo thứ tự tô-pô theo prerequisites (hòa ⇒ node_id tăng dần).
- */
+/** Thứ tự tô-pô (Kahn); hòa ⇒ node_id tăng dần. Node nằm trong vòng (không nên có) được nối cuối. */
+export function topoOrder(skeleton: GraphSkeletonNode[]): string[] {
+  const ids = new Set(skeleton.map((n) => n.node_id));
+  const indeg = new Map<string, number>();
+  const children = new Map<string, string[]>();
+  for (const n of skeleton) {
+    const parents = n.prerequisites.filter((p) => ids.has(p));
+    indeg.set(n.node_id, parents.length);
+    for (const p of parents) {
+      const list = children.get(p) ?? [];
+      list.push(n.node_id);
+      children.set(p, list);
+    }
+  }
+  const ready = [...indeg.entries()].filter(([, d]) => d === 0).map(([id]) => id).sort();
+  const out: string[] = [];
+  while (ready.length > 0) {
+    const id = ready.shift()!;
+    out.push(id);
+    for (const c of (children.get(id) ?? []).sort()) {
+      const d = (indeg.get(c) ?? 0) - 1;
+      indeg.set(c, d);
+      if (d === 0) {
+        ready.push(c);
+        ready.sort();
+      }
+    }
+  }
+  const rest = [...ids].filter((id) => !out.includes(id)).sort();
+  return [...out, ...rest];
+}
+
 export function deriveNodeStates(
   skeleton: GraphSkeletonNode[],
-  progressRows: ProgressRowLike[]
+  progressRows: ProgressRow[],
 ): Record<string, DerivedNodeState> {
+  const byId = new Map(skeleton.map((n) => [n.node_id, n]));
+  const rows = new Map(progressRows.map((r) => [r.node_id, r]));
   const result: Record<string, DerivedNodeState> = {};
-  if (!skeleton || skeleton.length === 0) {
-    return result;
-  }
+  // "đã thông": COMPLETED / FAILED, hoặc AVAILABLE kèm analysis_failed (D-03)
+  const passedViaAnalysis = (s: DerivedNodeState) => s.status === "AVAILABLE" && s.analysis_failed;
+  const cleared = (s: DerivedNodeState | undefined) =>
+    !!s && (s.status === "COMPLETED" || s.status === "FAILED" || passedViaAnalysis(s));
 
-  const progressMap = new Map<string, ProgressRowLike>();
-  for (const row of progressRows) {
-    progressMap.set(row.node_id, row);
-  }
-
-  const nodeMap = new Map<string, GraphSkeletonNode>();
-  for (const node of skeleton) {
-    nodeMap.set(node.node_id, node);
-  }
-
-  // Xây dựng đồ thị phụ thuộc và bậc vào (in-degree)
-  const inDegree = new Map<string, number>();
-  const dependents = new Map<string, string[]>(); // parent -> list of children
-
-  for (const node of skeleton) {
-    inDegree.set(node.node_id, 0);
-    dependents.set(node.node_id, []);
-  }
-
-  for (const node of skeleton) {
-    const validPrereqs = (node.prerequisites ?? []).filter((pId) =>
-      nodeMap.has(pId)
-    );
-    inDegree.set(node.node_id, validPrereqs.length);
-
-    for (const pId of validPrereqs) {
-      dependents.get(pId)?.push(node.node_id);
-    }
-  }
-
-  // Các node có inDegree === 0 sẵn sàng duyệt
-  const ready: string[] = [];
-  for (const [nodeId, deg] of inDegree.entries()) {
-    if (deg === 0) {
-      ready.push(nodeId);
-    }
-  }
-  ready.sort((a, b) => a.localeCompare(b));
-
-  const visited = new Set<string>();
-
-  const processNode = (nodeId: string) => {
-    const node = nodeMap.get(nodeId);
-    if (!node) {
-      return;
-    }
-    visited.add(nodeId);
-
-    const row = progressMap.get(nodeId);
-    const analysisFailed = Boolean(row?.analysis_failed);
-
-    const prereqs = node.prerequisites ?? [];
-    let allParentsCleared = true;
-    let hasWarningFromParent = false;
-
-    for (const pId of prereqs) {
-      const pState = result[pId];
-      if (!pState) {
-        allParentsCleared = false;
-        continue;
-      }
-
-      const isCleared =
-        pState.status === "COMPLETED" ||
-        pState.status === "FAILED" ||
-        (pState.status === "AVAILABLE" && pState.analysis_failed);
-
-      if (!isCleared) {
-        allParentsCleared = false;
-      }
-
-      const isWarning =
-        pState.status === "FAILED" ||
-        (pState.status === "AVAILABLE" && pState.analysis_failed);
-
-      if (isWarning) {
-        hasWarningFromParent = true;
-      }
-    }
-
+  for (const id of topoOrder(skeleton)) {
+    const node = byId.get(id)!;
+    const row = rows.get(id);
+    const parents = node.prerequisites.filter((p) => byId.has(p)).map((p) => result[p]);
+    const analysisFailed = row?.analysis_failed ?? false;
     let status: NodeStatus;
-    if (row && row.status !== null && row.status !== undefined) {
-      status = row.status;
-    } else {
-      status = allParentsCleared ? "AVAILABLE" : "LOCKED";
-    }
-
-    const hasWarning = status !== "LOCKED" && hasWarningFromParent;
-
-    result[nodeId] = {
-      node_id: nodeId,
-      status,
-      has_warning: hasWarning,
-      analysis_failed: analysisFailed,
-    };
-  };
-
-  while (ready.length > 0) {
-    const currentId = ready.shift()!;
-    processNode(currentId);
-
-    const children = dependents.get(currentId) ?? [];
-    for (const childId of children) {
-      const currentDeg = (inDegree.get(childId) ?? 1) - 1;
-      inDegree.set(childId, currentDeg);
-      if (currentDeg === 0) {
-        ready.push(childId);
-      }
-    }
-    ready.sort((a, b) => a.localeCompare(b));
+    if (row?.status) status = row.status;
+    else status = parents.every((p) => cleared(p)) ? "AVAILABLE" : "LOCKED";
+    const hasWarning =
+      status !== "LOCKED" && parents.some((p) => p && (p.status === "FAILED" || passedViaAnalysis(p)));
+    result[id] = { node_id: id, status, has_warning: hasWarning, analysis_failed: analysisFailed };
   }
-
-  // Phòng hờ chu trình hoặc node cô lập
-  if (visited.size < skeleton.length) {
-    const remaining = skeleton
-      .filter((n) => !visited.has(n.node_id))
-      .sort((a, b) => a.node_id.localeCompare(b.node_id));
-
-    for (const rem of remaining) {
-      processNode(rem.node_id);
-    }
-  }
-
   return result;
 }
