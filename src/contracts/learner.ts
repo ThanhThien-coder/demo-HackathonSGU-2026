@@ -1,37 +1,39 @@
-import type { LearnerTier, NodeStatus, SWESkill } from "./base";
-import type { QuestionFocus, RunMode } from "./ai";
+// 02_CONTRACTS Mục 6–7 — người học, BKT, tiến độ, lưu trữ
+import type { AnswerIntent, GeneratedQuestionRaw, QuestionFocus, QuestionPlanItem, RunMode } from "./ai";
+import type { ArchitecturalLayer, LearnerTier, NodeStatus, SWESkill } from "./base";
+import type { RepoSnapshotKey } from "./engine";
 
 export type NodeOutcome = "PASS_FIRST" | "PASS_AFTER_HINT" | "FAILED";
 
-export interface CognitiveSkillState {   // = 1 dòng skill_states
+export interface CognitiveSkillState {
   skill: SWESkill;
-  p_mastery: number;                    // Điểm GỐC sau lần cập nhật gần nhất ∈ [BKT_P_MIN, BKT_P_MAX]; decay không ghi đè
+  p_mastery: number;
   last_practiced_at: number;
   practice_count: number;
   correct_count: number;
 }
 
-export interface LearnerCognitiveProfile {   // Đi theo NGƯỜI HỌC, dùng chung mọi repo
-  user_id: string;                      // = auth.users.id
+export interface LearnerCognitiveProfile {
+  user_id: string;
   display_name: string | null;
-  skills: Partial<Record<SWESkill, CognitiveSkillState>>; // Thiếu kỹ năng ⇒ đọc là P = BKT_P_L0
-  overall_tier: LearnerTier;            // Chỉ hiển thị (D-20)
+  skills: Partial<Record<SWESkill, CognitiveSkillState>>;
+  overall_tier: LearnerTier;
 }
 
 export interface QuestionReveal { reference_answer: string; must_have_points: string[]; fix: string }
 
 export interface QuestionState {
   question_index: number;
-  feynman_question: string;             // Server đọc từ node_runs.questions (D-36)
+  feynman_question: string;
   skill: SWESkill;
   tier: LearnerTier;
   focus: QuestionFocus;
-  attempts_used: number;                // 0..MAX_ATTEMPTS_PER_QUESTION
+  attempts_used: number;
   finished: boolean;
   outcome: NodeOutcome | null;
-  ended_by: "ANSWER" | "SKIP" | "DROPPED" | null;   // DROPPED = AI không đặt được câu (D-03), không cập nhật BKT
-  disputed: boolean;                    // Người học bấm "Báo sai" (D-22)
-  reveal: QuestionReveal | null;        // Có khi finished
+  ended_by: "ANSWER" | "SKIP" | "DROPPED" | null;
+  disputed: boolean;
+  reveal: QuestionReveal | null;
 }
 
 export interface NodeRunView {
@@ -43,26 +45,90 @@ export interface NodeRunView {
   questions: QuestionState[];
 }
 
-export interface NodeStateView {         // 1 node trong 1 phiên
+export interface NodeStateView {
   node_id: string;
   status: NodeStatus;
-  has_warning: boolean;                 // Có node cha FAILED hoặc phân tích lỗi (soft-bypass)
-  analysis_failed: boolean;             // D-03
+  has_warning: boolean;
+  analysis_failed: boolean;
   last_run: NodeRunView | null;
 }
 
 export interface SessionProgress {
   session_id: string;
   nodes: Record<string, NodeStateView>;
-  tokens_used: number;                  // So với CONFIG.SESSION_TOKEN_QUOTA
+  tokens_used: number;
 }
 
 export interface SkillChange { skill: SWESkill; p_before: number; p_after: number; outcome: NodeOutcome }
 
 export type PersonaMode = "NEWBIE" | "MID_LEVEL" | "SENIOR_RUSTY";
-// Dữ liệu mẫu demo (fixture), không phải tham số — không đưa vào CONFIG
 export const PERSONAS: Record<PersonaMode, { initial_p_mastery: number; days_idle: number; label: string }> = {
-  NEWBIE:        { initial_p_mastery: 0.25, days_idle: 0,  label: "Sinh viên năm 2" },
-  MID_LEVEL:     { initial_p_mastery: 0.65, days_idle: 0,  label: "Mid-level dev" },
-  SENIOR_RUSTY:  { initial_p_mastery: 0.95, days_idle: 30, label: "Senior nghỉ 30 ngày (demo mài mòn, D-35)" },
+  NEWBIE: { initial_p_mastery: 0.25, days_idle: 0, label: "Sinh viên năm 2" },
+  MID_LEVEL: { initial_p_mastery: 0.65, days_idle: 0, label: "Mid-level dev" },
+  SENIOR_RUSTY: { initial_p_mastery: 0.95, days_idle: 30, label: "Senior nghỉ 30 ngày (demo mài mòn, D-35)" },
 };
+
+// ---------- Mục 7 ----------
+export interface GraphSkeletonNode {
+  node_id: string;
+  title: string;
+  prerequisites: string[];
+  is_capstone: boolean;
+}
+
+export interface LearningSessionSummary {
+  session_id: string;
+  snapshot: RepoSnapshotKey;
+  repo_name: string;
+  engine_version: string;
+  created_at: number;
+  last_active_at: number;
+  completed_count: number;
+  failed_count: number;
+  total_nodes: number;
+  can_resume: boolean;
+  resume_blocker: "ENGINE_UPDATED" | null;
+}
+
+export interface RunStepRef {
+  step_index: number;
+  layer: ArchitecturalLayer;
+  file_path: string;
+  function_name: string;
+}
+
+export interface AttemptHistoryItem {
+  node_id: string;
+  node_title: string;
+  mode: RunMode;
+  question_index: number;
+  skill: SWESkill;
+  attempt_number: number;
+  core_accuracy: number;
+  is_passed: boolean;
+  intent: AnswerIntent;
+  student_answer: string;
+  created_at: number;
+}
+
+export interface RunQuestion extends QuestionPlanItem, Omit<GeneratedQuestionRaw, "skill"> {
+  attempts_used: number;
+  finished: boolean;
+  outcome: NodeOutcome | null;
+  ended_by: "ANSWER" | "SKIP" | "DROPPED" | null;
+  disputed: boolean;
+  p_before: number | null;
+  p_after: number | null;
+  last_answer: string | null;
+}
+
+export type GradeContext = RunQuestion & { steps: RunStepRef[]; forbidden_external_keywords: string[] };
+
+export interface SessionRow {
+  id: string;
+  user_id: string;
+  engine_version: string;
+  tokens_used: number;
+}
+
+export type DbTx = unknown;

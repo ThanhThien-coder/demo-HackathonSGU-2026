@@ -1,71 +1,73 @@
+// 02_CONTRACTS Mục 1 — bảng hằng số duy nhất (INV-12). Đổi con số ở đây, không sửa ở nơi dùng.
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
-  ENGINE_VERSION: "1.6.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
-  PROMPT_VERSION: "1.0.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI
+  ENGINE_VERSION: "1.6.0",
+  PROMPT_VERSION: "1.1.0",
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------
-  MAX_STREAM_BYTES: 15 * 1024 * 1024, // Byte nén tải từ GitHub
-  MAX_UPLOAD_BYTES: 4.5 * 1024 * 1024,// File zip upload — trần upload chung, D-27, D-64
-  MAX_INFLATED_BYTES: 8 * 1024 * 1024,// Tổng byte sau giải nén của file được giữ
-  MAX_COMPRESSION_RATIO: 100,         // uncompressed / compressed của 1 entry
-  MAX_CLEAN_FILES: 100,               // Số file code tối đa giữ lại (D-41)
+  MAX_STREAM_BYTES: 15 * 1024 * 1024,
+  MAX_UPLOAD_BYTES: 4.5 * 1024 * 1024,
+  MAX_INFLATED_BYTES: 8 * 1024 * 1024,
+  MAX_COMPRESSION_RATIO: 100,
+  MAX_CLEAN_FILES: 100,
   MAX_SINGLE_FILE_BYTES: 1024 * 1024,
   MAX_NOTEBOOK_BYTES: 5 * 1024 * 1024,
   MAX_MANIFEST_BYTES: 256 * 1024,
-  MAX_MANIFEST_DEPTH: 3,              // Độ sâu thư mục tối đa khi tìm manifest
-  MAX_LINE_LENGTH: 1000,              // Có dòng dài hơn ⇒ coi là minified
+  MAX_MANIFEST_DEPTH: 3,
+  MAX_LINE_LENGTH: 1000,
   MAX_AVG_LINE_LENGTH: 200,
-  BINARY_SNIFF_BYTES: 512,            // Số byte đầu dùng dò null byte
-  STREAM_TIMEOUT_MS: 5000,            // Phủ toàn bộ kết nối + tải + giải nén
-  STREAM_RETRY_DELAY_MS: 500,         // Thử lại stream 1 lần
-  SELECTIVE_TIMEOUT_MS: 15000,        // Hạn `10` Mục 4A; đo lại ở H+1 (D-63)
+  BINARY_SNIFF_BYTES: 512,
+  STREAM_TIMEOUT_MS: 5000,
+  STREAM_RETRY_DELAY_MS: 500,
+  SELECTIVE_TIMEOUT_MS: 15000,
   SELECTIVE_FETCH_CONCURRENCY: 16,
-  AUTO_SCOPE_CHILD_RATIO: 0.5,        // `10` ING-47
-  PREFLIGHT_TIMEOUT_MS: 300,
-  PREFLIGHT_RETRY_DELAY_MS: 1000,     // Thử lại probe 1 lần
+  AUTO_SCOPE_CHILD_RATIO: 0.5,
+  PREFLIGHT_TIMEOUT_MS: 1500,
+  PREFLIGHT_PAGE_TIMEOUT_MS: 12000,
+  PREFLIGHT_RETRY_DELAY_MS: 1000,
   DEFAULT_BRANCH_FALLBACKS: ["main", "master", "dev"],
-  MAX_CONCURRENT_INGESTIONS: 4,       // Semaphore trong 1 instance, hàng đợi FIFO (D-31)
-  INGEST_QUEUE_TIMEOUT_MS: 10000,     // Chờ hàng đợi quá lâu ⇒ ERR_SERVER_BUSY
+  MAX_CONCURRENT_INGESTIONS: 4,
+  INGEST_QUEUE_TIMEOUT_MS: 10000,
   INGESTION_CACHE_TTL_MS: 10 * 60 * 1000,
-  INGESTION_CACHE_MAX_ENTRIES: 20,    // LRU StaticEngineResult trong RAM — chỉ để nhanh, không được dựa vào (D-27)
+  INGESTION_CACHE_MAX_ENTRIES: 20,
   SECRET_MIN_VALUE_LENGTH: 6,
-  UNSUPPORTED_LANGUAGE_RATIO: 0.5,    // > 50% byte code thuộc tier UNSUPPORTED và 0 file code ⇒ ERR_UNSUPPORTED_LANGUAGE
+  UNSUPPORTED_LANGUAGE_RATIO: 0.5,
   MONOREPO_DOMINANT_RATIO: 0.7,
-  GRAPH_CONFIDENCE_HIGH_RATIO: 0.8,   // ≥ 80% byte thuộc RESOLVED ⇒ HIGH
-  GRAPH_CONFIDENCE_LOW_RATIO: 0.5,    // ≥ 50% byte thuộc STRUCTURAL ⇒ LOW
-  FPS_IN_SCOPE: 3,                    // Trọng số FilePriorityScore
+  GRAPH_CONFIDENCE_HIGH_RATIO: 0.8,
+  GRAPH_CONFIDENCE_LOW_RATIO: 0.5,
+  FPS_IN_SCOPE: 3,
   FPS_ROLE_NAME: 2,
   FPS_TEST_PENALTY: -2,
   FPS_TINY_PENALTY: -1,
   FPS_TINY_BYTES: 200,
 
   // ---------- Tầng 1–2: đồ thị & lát cắt (11_ENGINE_DO_THI) ----------
-  ENGINE_BUDGET_MS: 600,              // CHỈ cảnh báo trong ingestion_report, KHÔNG cắt file (D-10)
-  PARSE_ERROR_RATIO_MAX: 0.30,        // Tỉ lệ byte nằm trong node ERROR > ngưỡng ⇒ bỏ file
+  ENGINE_BUDGET_MS: 600,
+  PARSE_ERROR_RATIO_MAX: 0.3,
   BARREL_MAX_DEPTH: 5,
-  GIANT_SCC_RATIO: 0.40,
+  GIANT_SCC_RATIO: 0.4,
   GIANT_SCC_MAX_WEAK_EDGE_REMOVALS: 3,
-  PROCEDURAL_MAX_FILES: 2,            // Không có entry REGISTERED/GENERIC và n ≤ 2 file ⇒ PROCEDURAL (D-54)
+  PROCEDURAL_MAX_FILES: 2,
   FUNCTION_GRAPH_MIN_NODES: 3,
   LONG_FUNCTION_LINES: 300,
   PAGERANK_DAMPING: 0.85,
   PAGERANK_MAX_ITER: 20,
   PAGERANK_TOLERANCE: 1e-6,
   INGRESS_BONUS: 0.5,
-  VIP_COMPLEXITY_MIN: 15,             // Độ phức tạp > ngưỡng ⇒ VIP
+  VIP_COMPLEXITY_MIN: 15,
   VIP_FALLBACK_TOP_K: 6,
   VIP_FALLBACK_MIN_SCORE: 5,
-  SLICE_MAX_HOPS: 4,                  // Số bước nhảy hàm tối đa từ entry (D-06)
+  SLICE_MAX_HOPS: 4,
   STEP_MAX_LINES: 30,
   NODE_MAX_LINES: 100,
   NODE_MAX_CODE_TOKENS: 1500,
   CHARS_PER_TOKEN: 4,
-  CLAMP_WINDOW_LINES: 30,             // Cửa sổ Hard Clamp quanh criterion (≤ STEP_MAX_LINES)
-  UNCLE_BOB_BALANCED_MAX_D: 0.30,
-  UNCLE_BOB_ZONE_MIN_D: 0.50,
+  CLAMP_WINDOW_LINES: 30,
+  UNCLE_BOB_BALANCED_MAX_D: 0.3,
+  UNCLE_BOB_ZONE_MIN_D: 0.5,
   DISPLAY_MIN_NODES: 6,
-  DISPLAY_MAX_NODES: 20,              // D-53
-  CRITICAL_PATH_MAX_NODES: 6,         // D-53
+  DISPLAY_MAX_NODES: 20,
+  CRITICAL_PATH_MAX_NODES: 6,
   DAGRE_RANKDIR: "TB",
   DAGRE_RANKSEP: 100,
   DAGRE_NODESEP: 80,
@@ -73,7 +75,7 @@ export const CONFIG = {
   NODE_BOX_HEIGHT: 90,
   TITLE_MAX_CHARS: 32,
   TITLE_MAX_TOKENS: 4,
-  TITLE_MIN_TOKEN_CHARS: 3,           // Bỏ token ≤ 2 ký tự trừ ACRONYMS
+  TITLE_MIN_TOKEN_CHARS: 3,
   ROUTE_SEGMENT_MAX_CHARS: 30,
   HIGH_ENTROPY_MIN_CHARS: 16,
   HIGH_ENTROPY_MIN_BITS: 3.5,
@@ -81,33 +83,36 @@ export const CONFIG = {
   DOMAIN_TERM_MIN_TF: 2,
 
   // ---------- AI (20_AI_GOI_VA_PROMPT, 21_AI_KIEM_VA_DUYET) ----------
-  LLM_MODEL: "gemini-3.5-flash-lite", // D-50
+  LLM_MODEL: "gemini-3.5-flash-lite",
   LLM_TEMPERATURE: 0,
   LLM_THINKING_BUDGET: 0,
-  LLM_TIMEOUT_MS: 30000,              // Đo lại ở H+1
-  LLM_MAX_RETRIES: 1,                 // Lỗi mạng / 429 / 503 / JSON hỏng / bị cổng gác chặn ⇒ gọi lại 1 lần; bị chặn thì kèm lý do (AI-37)
-  LLM_RETRY_DELAY_MS: 500,            // Chờ trước khi gọi lại sau 429 / 503
-  LLM_RETRY_JITTER_MS: 100,           // Cộng ngẫu nhiên [0, JITTER)
-  GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
-  GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
+  LLM_TIMEOUT_MS: 30000,
+  LLM_MAX_RETRIES: 1,
+  LLM_RETRY_DELAY_MS: 500,
+  LLM_RETRY_DELAY_MAX_MS: 20000,
+  LLM_RETRY_JITTER_MS: 100,
+  GUARD_FEEDBACK_MAX_CHARS: 400,
+  GRADING_QUOTE_MIN_CHARS: 3,
   LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 600, QUESTIONS: 900, GRADE: 500 },
-  LLM_PRICE_INPUT_USD_PER_M: 0.30,    // USD / 1 triệu token vào (D-69)
-  LLM_PRICE_OUTPUT_USD_PER_M: 2.50,   // USD / 1 triệu token ra, gồm token suy nghĩ (D-69)
-  ANALYZE_CONCURRENCY: 3,             // Số lời gọi analyze-node chạy cùng lúc / phiên
-  SESSION_TOKEN_QUOTA: 200000,        // Tổng token vào + ra / phiên học, đếm ở server
+  LLM_PRICE_INPUT_USD_PER_M: 0.3,
+  LLM_PRICE_OUTPUT_USD_PER_M: 2.5,
+  ANALYZE_CONCURRENCY: 3,
+  SESSION_TOKEN_QUOTA: 200000,
   ANALYSIS_MIN_SKILLS: 1,
   ANALYSIS_MAX_SKILLS: 3,
   ANALYSIS_MAX_PATTERNS: 2,
   WEAK_POINTS_PER_SKILL_MAX: 1,
   MUST_HAVE_POINTS_MIN: 2,
   MUST_HAVE_POINTS_MAX: 3,
-  FLOW_ANSWER_MIN_STEPS: 2,           // Đáp án câu FLOW phải nhắc tên ở ≥ 2 bước
+  HISTORY_MISSED_POINTS_MAX: 3,
+  GRADE_REFERENCED_MAX: 3,
+  FLOW_ANSWER_MIN_STEPS: 2,
   FEEDBACK_MAX_SENTENCES: 2,
 
   // ---------- Nộp bài ----------
-  ANSWER_MIN_CHARS: 15,               // Sau khi bỏ khoảng trắng
+  ANSWER_MIN_CHARS: 15,
   ANSWER_MAX_CHARS: 2000,
-  ANSWER_DUPLICATE_SIMILARITY: 0.8,   // 1 - Levenshtein / max(len): ≥ ngưỡng so với lần nộp trước của CÙNG câu ⇒ chặn
+  ANSWER_DUPLICATE_SIMILARITY: 0.8,
   SUBMIT_DEBOUNCE_MS: 3000,
   PASS_CORE_ACCURACY: 70,
   MAX_ATTEMPTS_PER_QUESTION: 3,
@@ -117,28 +122,27 @@ export const CONFIG = {
   BKT_P_T_CORRECT: 0.08,
   BKT_P_T_INCORRECT: 0.03,
   BKT_P_G: 0.25,
-  BKT_P_G_HINT: 0.50,
+  BKT_P_G_HINT: 0.5,
   BKT_P_S: 0.12,
   BKT_P_MIN: 0.01,
   BKT_P_MAX: 0.99,
-  BKT_REVERT_EPSILON: 1e-9,          // Sai số so p_mastery với p_after khi Báo sai (D-22)
+  BKT_REVERT_EPSILON: 1e-9,
   DECAY_HALF_LIFE_DAYS: 14,
-  DECAY_FLOOR: 0.25,                  // = BKT_P_L0
+  DECAY_FLOOR: 0.25,
   TIER_PRACTITIONER_MIN: 0.45,
   TIER_ARCHITECT_MIN: 0.75,
-  MASTERED_MIN: 0.92,                 // Ngưỡng "đã thạo" khi lập kế hoạch câu hỏi (22, D-34, D-60)
-  NOVICE_SECOND_QUESTION: false,      // bật sau khi đo token
-  GAP_TARGETING: false,
+  MASTERED_MIN: 0.92,
+  NOVICE_SECOND_QUESTION: false as boolean,
+  GAP_TARGETING: false as boolean,
 
   // ---------- Lưu trữ (03_API_VA_LUU_TRU) ----------
-  DB_RETRY_DELAYS_MS: [100, 300],     // Thử lại tối đa 2 lần
-  DEMO_MODE_ENV: "DEMO_MODE",         // Biến môi trường bật /api/demo/persona
+  DB_RETRY_DELAYS_MS: [100, 300],
+  DEMO_MODE_ENV: "DEMO_MODE",
 
-  REPORT_NOTE_MAX_CHARS: 500,         // = check char_length(note) của dispute_reports
+  REPORT_NOTE_MAX_CHARS: 500,
 
   // ---------- Giao diện (30_UI) ----------
-  UI_PANE_WIDTHS_PCT: [25, 45, 30],
-  UI_PRESENTATION_FOCUS_PCT: 60,      // Cột đang chọn ở chế độ trình chiếu; 2 cột còn lại chia phần còn lại
+  UI_PRESENTATION_FOCUS_PCT: 60,
   UI_PRESENTATION_FONT_SCALE: 1.25,
 
   // ---------- Đơn vị ----------

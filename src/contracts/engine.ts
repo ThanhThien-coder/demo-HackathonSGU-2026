@@ -1,11 +1,7 @@
+// 02_CONTRACTS Mục 3–4 — đầu ra Engine và kiểu nội bộ Engine
 import type {
-  ArchitecturalLayer,
-  DegradedMode,
-  GraphConfidence,
-  LanguageId,
-  LanguageSupportTier,
-  NodeType,
-  ProjectArchetype,
+  ArchitecturalLayer, DegradedMode, GraphConfidence, LanguageId, LanguageSupportTier,
+  NodeType, ProjectArchetype,
 } from "./base";
 
 export interface LanguageSupportInfo {
@@ -16,64 +12,63 @@ export interface LanguageSupportInfo {
 
 export interface ProjectFingerprint {
   archetype: ProjectArchetype;
-  primary_language: LanguageId;                 // Nhiều byte code nhất
-  language_breakdown: LanguageSupportInfo[];    // Giảm dần theo code_bytes
-  graph_confidence: GraphConfidence;            // Ngưỡng: CONFIG.GRAPH_CONFIDENCE_*
-  detected_framework: string | null;            // Từ manifest (VD "Express", "NestJS", "FastAPI"); không đoán được ⇒ null
-  tech_stack: string[];                         // Tên gói chuẩn hóa chữ thường từ mọi manifest (VD "express", "typeorm", "pg")
+  primary_language: LanguageId;
+  language_breakdown: LanguageSupportInfo[];
+  graph_confidence: GraphConfidence;
+  detected_framework: string | null;
+  tech_stack: string[];
   is_monorepo: boolean;
-  root_dir_offset: string;                      // "" hoặc "server/"
+  root_dir_offset: string;
 }
 
 export type NodeTitleSource = "ROUTE" | "ENTRY_SYMBOL" | "DOMAIN_TERMS" | "DIRECTORY" | "FILE_BASENAME" | "VIRTUAL";
-// Nhóm suy ra (UI thêm tiền tố "~"): DOMAIN_TERMS, DIRECTORY, FILE_BASENAME
 
 export interface ExecutionTraceStep {
-  step_number: number;          // 1..n theo thứ tự gọi
+  step_number: number;
   layer: ArchitecturalLayer;
-  file_path: string;            // POSIX, tương đối gốc repo
-  function_name: string;        // "OrderService.checkout" hoặc "checkout"
-  line_start: number;           // Dòng gốc của hàm trong file
+  file_path: string;
+  function_name: string;
+  line_start: number;
   line_end: number;
-  snippet: string;              // ≤ CONFIG.STEP_MAX_LINES dòng, đã che secret, dòng bị lược = 1 marker comment
-  snippet_line_map: number[];   // snippet_line_map[i] = số dòng gốc của dòng i trong snippet (marker ⇒ 0)
-  origin_note?: string;         // File ảo từ .ipynb/.vue/.svelte: "cell 4" / "<script>" (SourceMapStore)
+  snippet: string;
+  snippet_line_map: number[];
+  origin_note?: string;
 }
 
 export interface UncleBobMetrics {
-  instability: number;          // I = Ce / (Ca + Ce)
-  abstractness: number;         // A = Na / (Na + Nc)
-  distance: number;             // D = |A + I − 1|
+  instability: number;
+  abstractness: number;
+  distance: number;
   diagnosis: "BALANCED" | "ZONE_OF_PAIN" | "ZONE_OF_USELESSNESS";
-  is_exempt: boolean;           // Miễn trừ ⇒ D = 0, BALANCED
+  is_exempt: boolean;
 }
 
 export interface HybridArchitecturalNode {
-  id: string;                   // Tất định (D-08)
-  title: string;                // Thuật toán đặt tên tất định, 0 token, AI không đổi
+  id: string;
+  title: string;
   title_source: NodeTitleSource;
-  title_evidence: string;       // VD "POST /orders/checkout"
+  title_evidence: string;
   node_type: NodeType;
-  entry_symbol: string | null;  // Khóa SymbolTable của hàm entry; null với node ảo
-  prerequisites: string[];      // id node cha (= cạnh đi vào)
+  entry_symbol: string | null;
+  prerequisites: string[];
   position: { x: number; y: number };
-  files: string[];              // files[0] = file của step 1
+  files: string[];
   languages: LanguageId[];
-  support_tier: LanguageSupportTier;   // Tier thấp nhất trong các file
-  cognitive_complexity: number;        // max độ phức tạp các hàm trong lát cắt (D-12)
-  rank_score: number;                  // PageRank + ingress bonus của file entry
+  support_tier: LanguageSupportTier;
+  cognitive_complexity: number;
+  rank_score: number;
   is_vip_algorithm: boolean;
-  is_capstone: boolean;                // Đúng 1 node / đồ thị (D-12)
+  is_capstone: boolean;
   uncle_bob: UncleBobMetrics;
-  trace_steps: ExecutionTraceStep[];   // Tổng dòng snippet ≤ CONFIG.NODE_MAX_LINES
-  dto_snippet: string;                 // Khai báo kiểu dữ liệu mà các step dùng (≤ CONFIG.STEP_MAX_LINES dòng), "" nếu không có
+  trace_steps: ExecutionTraceStep[];
+  dto_snippet: string;
 }
 
 export interface GraphEdge {
-  id: string;                          // `${source}->${target}`
+  id: string;
   source: string;
   target: string;
-  confidence: "RESOLVED" | "INFERRED"; // INFERRED nếu chuỗi lời gọi tạo ra cạnh có ≥ 1 cạnh hàm suy luận
+  confidence: "RESOLVED" | "INFERRED";
 }
 
 export type IngestionErrorCode =
@@ -84,44 +79,107 @@ export type IngestionErrorCode =
 
 export interface IngestionReport {
   truncated: boolean;
-  selective_fetch: boolean;                   // `10` Mục 4A thành công (D-63)
+  selective_fetch: boolean;
   code_file_count: number;
   manifest_count: number;
-  omitted_node_count: number;                 // Node bị bỏ vì vượt DISPLAY_MAX_NODES (D-53)
+  omitted_node_count: number;
   skipped: { garbage: number; binary: number; oversized: number; unsupported_lang: number; quota: number; parse_error: number };
-  warnings: string[];                         // Tiếng Việt, hiển thị cho người học
+  warnings: string[];
   degraded_mode: DegradedMode | null;
   redacted_secret_count: number;
-  engine_ms: number;                          // Thời gian Tầng 1–2 đo được (hiện ở đồng hồ đo)
-  ingest_ms: number;                          // Thời gian Tầng 0
-  suspicious_instruction_files: string[];     // CHỈ SERVER — bị lọc khỏi bản client
+  engine_ms: number;
+  ingest_ms: number;
+  suspicious_instruction_files: string[];
 }
 
 export interface RepoSnapshotKey {
   source: "GITHUB" | "ZIP";
-  repo_key: string;                    // "owner/repo" hoặc tên file zip
-  snapshot_id: string;                 // Commit SHA 40 hex hoặc SHA-256 của TOÀN BỘ buffer zip; phiên gắn cố định (D-39)
+  repo_key: string;
+  snapshot_id: string;
   snapshot_id_kind: "COMMIT_SHA" | "ARCHIVE_HASH";
-  subdir: string;                      // "" khi phân tích cả repo
-  ref_label: string | null;            // Nhánh mặc định đã phân giải — chỉ hiển thị
+  subdir: string;
+  ref_label: string | null;
 }
 
-// Bản đầy đủ — CHỈ SERVER: cache RAM + session_snapshots (D-59), không có file nguồn
+// Bản đầy đủ — CHỈ SERVER
 export interface StaticEngineResult {
-  engine_version: string;              // = CONFIG.ENGINE_VERSION
+  engine_version: string;
   repo_name: string;
   snapshot: RepoSnapshotKey;
   fingerprint: ProjectFingerprint;
   total_files: number;
-  nodes: HybridArchitecturalNode[];    // DISPLAY_MIN_NODES..DISPLAY_MAX_NODES khi repo đủ lớn
+  nodes: HybridArchitecturalNode[];
   edges: GraphEdge[];
-  symbol_whitelist: string[];          // Phạm vi repo, đã sort (D-19)
-  file_index: string[];                // Mọi file code đã nạp, đã sort
+  symbol_whitelist: string[];
+  file_index: string[];
   ingestion_report: IngestionReport;
 }
 
-// Bản gửi trình duyệt — server dựng bằng toClientResult() theo danh sách trường cho phép
+// Bản gửi trình duyệt
 export type ClientStaticEngineResult =
   Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report"> & {
     ingestion_report: Omit<IngestionReport, "suspicious_instruction_files">;
   };
+
+// ---------- Mục 4: kiểu nội bộ Engine ----------
+export interface LanguageAdapter {
+  id: LanguageId;
+  extensions: string[];
+  wasm_grammar: string;
+  query_file: string;
+  manifest_files: string[];
+  import_resolver?: "TS_JS" | "PYTHON" | "JAVA" | "GO" | "DART";
+  ingress_patterns?: string[];
+  abstraction_kinds?: string[];
+  comment_prefix: string;
+}
+
+export interface GithubRepoInfo {
+  owner: string;
+  repo: string;
+  path_trimmed: boolean;
+  clean_url: string;
+}
+
+export type ProbeResult = "OK" | "NOT_FOUND_OR_PRIVATE" | "UNAVAILABLE_451" | "RATE_LIMITED" | "TIMEOUT" | "EMPTY";
+
+export interface SymbolDefinition {
+  key: string;
+  kind: "FUNCTION" | "METHOD" | "CLASS" | "INTERFACE" | "TYPE" | "VARIABLE";
+  name: string;
+  file_path: string;
+  line_start: number;
+  line_end: number;
+  is_exported: boolean;
+}
+
+export interface FunctionCallEdge {
+  caller: string;
+  callee: string;
+  confidence: "RESOLVED" | "INFERRED";
+  ambiguous: boolean;
+  call_count: number;
+}
+
+export type IngestSource =
+  | { kind: "GITHUB_URL"; repo_url: string; subdir_override: string | null }
+  | { kind: "GITHUB_COMMIT"; owner: string; repo: string; sha: string; subdir: string }
+  | { kind: "ZIP_UPLOAD"; file_name: string; bytes: Uint8Array; subdir_override: string | null };
+
+export interface VirtualFileOrigin {
+  kind: "NOTEBOOK" | "SFC";
+  original_path: string;
+  line_origin: string[];
+}
+
+export interface IngestOutput {
+  repo_name: string;
+  snapshot: RepoSnapshotKey;
+  fingerprint: ProjectFingerprint;
+  report: IngestionReport;
+  code: Map<string, string>;
+  file_language: Map<string, LanguageId>;
+  manifests: Map<string, string>;
+  source_map: Map<string, VirtualFileOrigin>;
+  module_info: { go_module_path: string | null; dart_package_name: string | null; package_entry_files: string[] };
+}
