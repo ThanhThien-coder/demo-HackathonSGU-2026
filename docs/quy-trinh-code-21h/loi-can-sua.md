@@ -8,11 +8,13 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 4 | 8 | 13 | 25 |
+| B — Engine | 3 | 15 | 15 | 33 |
 | D — Giao diện | 2 | 6 | 6 | 14 |
 | C — AI | 0 | 4 | 0 | 4 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **6** | **21** | **21** | **48** |
+| **Tổng** | **5** | **28** | **23** | **56** |
+
+Vai B có 33 mã, gộp thành 23 nhóm sửa, xem mục **Vai B theo phiếu**.
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -20,13 +22,52 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 ## Thứ tự nên sửa
 
-1. **B-01, B-02, B-03, B-07, B-22:** nội dung bài, ngôn ngữ và che secret đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
+1. **B-01, B-02, B-03, B-06, B-07, B-27:** nội dung bài và ngôn ngữ đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
 2. **D-05, D-07:** cửa sổ tràn màn hình và không bấm được node.
 3. **D-12, C-03, C-04:** câu hỏi đúng và không lộ đáp án.
 4. **D-01, B-04, B-05:** bản đồ đọc được và học theo cây.
-5. **B-14, B-17, B-18, B-20, D-09, D-11, D-14, D-15, A-01:** các lỗi Vừa còn lại.
+5. **B-14, B-17, B-20, B-22, B-26, D-09, D-11, D-14, D-15, A-01:** các lỗi Vừa còn lại.
 
 AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 400, Phat107 đã sửa ở commit `e94055b`.
+
+---
+
+## Vai B theo phiếu
+
+33 mã lỗi Vai B gộp được thành 23 nhóm, vì nhiều mã có chung nguyên nhân hoặc sửa chung một chỗ. Sửa theo nhóm, chi tiết từng mã nằm ở phần Vai B bên dưới.
+
+Cột **Thử sửa** là kết quả sửa thử trên bản sao tạm rồi chạy repo thật. Bản sửa đó chưa nằm trong repo. Thử 9 nhóm cùng lúc: 160/161 test xanh, test đỏ ghi ở dòng B-03 + B-34.
+
+- **Nguồn:** Code là sửa code. Spec là sửa spec trước, rồi sửa code và test.
+- **Demo:** có nghĩa là ảnh hưởng buổi demo BrewLite.
+
+| Phiếu | Mã | Lỗi | Nguồn | Sửa ở đâu | Demo | Thử sửa |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| B01 | B-07 | Thiếu ngôn ngữ, báo sai repo Java, Go, Dart | Phạm vi | Nhóm chốt, rồi `graph/registry.ts` | Không | Chưa thử |
+| B01 | B-12 | Lỗi nạp query bị bỏ qua | Code | `graph/parser.ts` | Không | Chưa thử |
+| B01 | B-13 | Grammar chưa nạp lúc khởi động | Code | Chỗ khởi động server, cùng A-04 | Có, request đầu chậm | Chưa thử |
+| B02 | B-14 | Thăm dò GitHub dễ hết giờ | Spec | `PREFLIGHT_TIMEOUT_MS`, báo Vai A | Cần đo Vercel | Chưa thử |
+| B02 | B-15 + B-21 | Sai hoa thường ở link và thư mục | Spec | `ingest/url.ts`, `ingest/fingerprint.ts` | Không | Chưa thử |
+| B02 | B-16 | Hiện SHA thay tên nhánh | Spec | ING-32, `ingest/refs.ts`, cùng D-14 | Có | Chưa thử |
+| B03 | B-17 | Monorepo chọn nhầm gói nhỏ | Spec | ING-80, `ingest/fingerprint.ts` | Không | Chưa thử |
+| B03 | B-18 + B-19 | Zip độc chưa dừng, zip macOS sai gốc | Code, Spec | `ingest/unzip.ts`, `ingest/prune.ts` | Không | Chưa thử |
+| B04 | B-22 | Che secret bỏ sót | Spec | ING-110, `ingest/secrets.ts` | Không | Một phần: `SECRET_KEY` của repo Django đã được che, chưa thêm token Stripe, Slack, URL `https` |
+| B04 | B-09 + B-23 + B-24 | Vân tay đọc sai gói, sai ngôn ngữ | Spec, Code | ING-121, `ingest/fingerprint.ts` | Có với B-09 | B-23 đã vá, chưa đo riêng; còn lại chưa thử |
+| B05 | B-01 | NestJS hiện code method khác | Code | `graph/symbols.ts`, có ở `b/fix-nest-buoc-dau` | Có | Hết: BrewLite 9 → 17/17 bài có dòng đầu riêng |
+| B05 | B-03 + B-34 | Nhận nhầm route: `config.get`, `msw` | Code | `graph/callgraph.ts` (TASK_20) | Có với B-03 | Hết: route giả BrewLite 2 → 0, `bulletproof-react` 13 → 0. Luật handler phải vẫn nhận `const h = makeHandler(cfg)`, bản thử chặn nhầm nên 1 test đỏ |
+| B05 | B-25 + B-26 | Đọc tsconfig sai, mất alias `@/` | Code | `graph/resolvers/ts_js.ts`, `ingest/fingerprint.ts` | Có khi chọn `frontend/` | Một phần: BrewLite 147 → 0, `taxonomy` 274 → 43, `full-stack-fastapi-template` 248 → 201. Phần còn lại chưa rõ nguyên nhân |
+| B06 | B-06 | Prisma không tới tầng dữ liệu | Code | `graph/slicing.ts` | Có | Hết: BrewLite 0/19 → 14/17 |
+| B06 | B-33 | Engine chậm khi nhiều route | Code | `graph/slicing.ts` | Không | Một phần: `django/django` 121 → 32 giây, còn chỗ chậm khác |
+| B07 | B-02 + B-20 | File test thành bài học | Spec | ING-87, `graph/nodes.ts`, `ingest/priority.ts` (TASK_20) | Có | Hết: file test BrewLite 1 → 0, `nestjs/nest` 12 → 0 |
+| B07 | B-04 + B-05 | Bài rời rạc, mở sẵn quá nhiều | Spec | D-07, D-55, `graph/nodes.ts` (TASK_21) | Có | Chưa thử |
+| B07 | B-27 | Lấy `<module>` làm bài thuật toán | Code | `graph/index.ts` | Có | Hết: 0 bài `<module>` trên các repo đo, Capstone BrewLite thành `Create Order` |
+| B07 | B-11 + B-28 | Bước thuật toán rỗng, sai số dòng | Code | `graph/nodes.ts` | Có với B-11 | Chưa thử riêng, B-27 đã bỏ bài `Order` gây B-11 |
+| B07 | B-29 + B-30 | Tên bước, tên bài khó hiểu | Spec, Code | Spec 11 Mục 13, `graph/naming.ts`, `graph/callgraph.ts` | Có | Chưa thử. Đổi tên là đổi id |
+| B07 | B-10 | Cảnh báo thời gian với người học | Cấu hình | `ENGINE_BUDGET_MS` hoặc Vai D | Có | Chưa thử |
+| B08 | B-31 | Test không theo repo demo | Spec | Q-03, `__tests__/repo-demo.test.ts` | Có | Cần chốt Q-03 |
+| B09 | B-32 | Tải manifest từng file nên hết hạn | Code | `ingest/selective.ts` | Không | Chưa thử |
+
+B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm ở nhận route của B05.
 
 ---
 
@@ -74,11 +115,13 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 
 ### B-06 · Vừa · Không có luồng tới tầng dữ liệu
 
-- **Hiện tượng:** BrewLite và `nestjs/nest` có `toi_data = 0`, dù bài có gọi Prisma.
-- **Nguyên nhân:** nghi engine chưa nhận `this.prisma.x.findMany()` là thao tác dữ liệu. Chưa xác minh.
-- **Cần sửa:** xác minh trước, rồi sửa nhận diện `DATA_SINK` nếu đúng.
-- **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`.
-- **Trạng thái:** chưa xác minh.
+- **Hiện tượng:** BrewLite có 0/20 bài chứa bước `DATA_ACCESS`, dù có 51 lời gọi `this.prisma...`. Repo dùng TypeORM hay Mongoose vẫn có: `nestjs-realworld` 19/20, `node-express-boilerplate` 12/17.
+- **Nguyên nhân:** `isDataSinkCall` trong `slicing.ts` xét phần cuối của receiver, với `this.prisma.order.create` là `order`, không khớp mẫu. Nhánh `prisma.` dùng `startsWith` nên `this.prisma...` không khớp. `tx.order.create` trong transaction cũng bị sót.
+- **Hậu quả:** không chỉ thiếu nhãn. ENG-81 và criterion đều dựa vào `DATA_SINK`, nên lát cắt có thể bỏ sót bước và chọn sai dòng trọng tâm.
+- **Cần sửa:** bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Ghi rõ luật `prisma.` trong spec 11 Mục 8. Đổi `ENGINE_VERSION`.
+- **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`, các bài BrewLite có gọi Prisma đều tới tầng dữ liệu.
+- **Ảnh hưởng demo:** có.
+- **Trạng thái:** đã chạy thật trên BrewLite, chưa làm.
 
 ### B-07 · Nặng · Repo Java, Go, Dart bị báo sai hoặc phân tích sai
 
@@ -88,12 +131,6 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Kiểm tra:** 4 repo trên báo đúng ngôn ngữ, không còn `no_code`, không gọi repo Go là `JAVASCRIPT`.
 - **Trạng thái:** đã chạy thật trên engine, chưa làm.
 
-### B-08 · Nhẹ · Node 0 bước
-
-- **Hiện tượng:** E06-11 ghi `slice-list-permissions-505d25` có 0 bước, trên commit cũ.
-- **Cần sửa:** chạy lại repo demo. Có thể đã hết sau TASK_16.
-- **Trạng thái:** cần chạy lại.
-
 ### B-09 · Nhẹ · Danh sách thư viện lẫn đồ dev
 
 - **Hiện tượng:** Tổng quan có `@types/jest`, `ts-node`, lẫn thư viện frontend.
@@ -102,7 +139,7 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 
 ### B-10 · Nhẹ · Cảnh báo thời gian với người học
 
-- **Hiện tượng:** hiện "Thời gian phân tích đồ thị (3070ms) vượt mức khuyến nghị (600ms)".
+- **Hiện tượng:** hiện "Thời gian phân tích đồ thị (3070ms) vượt mức khuyến nghị (600ms)". Ở máy local, 6 repo đo được 605–2827ms nên cảnh báo gần như luôn hiện.
 - **Cần sửa:** xem lại `ENGINE_BUDGET_MS` trên Vercel, hoặc Vai D không hiện cảnh báo này cho người học.
 - **Trạng thái:** đã xác nhận trên site, chưa làm.
 
@@ -155,7 +192,7 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Kiểm tra:** `create-t3-turbo` ra được bản đồ, BrewLite vẫn chọn `backend/`.
 - **Trạng thái:** đã chạy thật, chưa làm.
 
-### B-18 · Vừa · Chống zip bomb chưa dừng giải nén thật
+### B-18 · Nhẹ · Chống zip bomb chưa dừng giải nén thật
 
 - **Hiện tượng:** zip 0,5 MB khai `size` 10 KB nhưng bung ra 512 MB làm `inflateSelected` chạy 2,8 giây, `listEntriesStreaming` chạy 2,4 giây. File vẫn bị loại đúng, nhưng server bị chiếm suốt thời gian đó. Nếu tăng theo tỉ lệ, upload 4,5 MB có thể chiếm khoảng 25 giây (ước tính).
 - **Nguyên nhân:** `extractFromLocalOffset` chỉ bật cờ `exceeded`, dữ liệu vẫn đẩy vào `Inflate` trong một lần gọi đồng bộ nên không dừng được. Timer `STREAM_TIMEOUT_MS` cũng không chạy được giữa chừng. `listEntriesStreaming` bỏ qua `signal`. Manifest còn không qua kiểm tỉ lệ nén của ING-88.
@@ -185,7 +222,7 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Cần sửa:** so không phân biệt hoa thường rồi dùng đúng tên thư mục thật.
 - **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
 
-### B-22 · Nặng · Che secret bỏ sót nhiều mẫu phổ biến
+### B-22 · Vừa · Che secret bỏ sót nhiều mẫu phổ biến
 
 - **Hiện tượng:** chạy 14 mẫu secret thì 10 mẫu không được che. Lọt: `SECRET_KEY` của Django, `app.secret_key` của Flask, `JWT_SECRET_KEY`, `{"password": "..."}`, `{'apiKey': '...'}`, `DB_PASSWORD_PROD`, Stripe `sk_live_`, Slack `xoxb-`, `https://user:pass@host`, private key viết trong một chuỗi. Repo thật `gothinkster/django-realworld-example-app` giữ nguyên `SECRET_KEY` 65 ký tự trong `conduit/settings.py`.
 - **Nguyên nhân:** mẫu ING-110 yêu cầu từ khóa đứng ngay trước `=` hoặc `:`, nên `SECRET_KEY` và khóa có dấu nháy không khớp. Danh sách token cũng thiếu Stripe, Slack và URL `https`. Lỗ hổng nằm ở cả spec, không riêng code.
@@ -214,7 +251,85 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Hiện tượng:** `nestjs/nest` có 30 cảnh báo, gần hết là "Tệp cấu hình .../tsconfig.json bị hỏng định dạng". Các file đó vẫn dùng được.
 - **Nguyên nhân:** `cleanJson` xóa comment bằng regex mà không phân biệt chuỗi, nên `"https://..."`, `"@/*"` và `"src/**/*"` bị coi là comment. tsconfig được phép có dấu phẩy thừa, nên hàm này chạy và làm hỏng file.
 - **Cần sửa:** bỏ comment có xét chuỗi, hoặc dùng parser JSONC. `tsconfig.json` chỉ dùng cho alias, không nên hiện cảnh báo cho người học.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần kiểm thêm ảnh hưởng tới alias khi xem B05.
+- **Trạng thái:** đã chạy thật, chưa làm. Lỗi cùng kiểu ở trình đọc alias ghi tại B-26.
+
+### B-26 · Vừa · Không đọc được alias `@/` nên mất cạnh gọi hàm
+
+- **Hiện tượng:** mọi import `@/...` bị coi là thư viện ngoài: BrewLite 147/147, `shadcn-ui/taxonomy` 274/274, `fastapi/full-stack-fastapi-template` 248/248. Khi chọn `frontend/` của BrewLite, 7/8 bài không có cạnh gọi nào. `taxonomy` có 222 hàm nhưng chỉ 15 cạnh, 14/20 bài không có cạnh.
+- **Nguyên nhân:** có 2 chỗ trong `parseTsConfig` ở `resolvers/ts_js.ts`. (1) Chỉ đọc `tsconfig.json` ở gốc repo, nên `frontend/tsconfig.json` bị bỏ qua. (2) Xóa comment không phân biệt chuỗi: `"@/*"` và `"**/*.ts"` bị coi là comment, nên tsconfig mặc định của Next.js parse lỗi. `catch` nuốt lỗi nên không có cảnh báo.
+- **Cần sửa:** tìm tsconfig gần file đang xét nhất và tính `paths` theo thư mục đó. Dùng chung parser JSONC với B-25.
+- **Kiểm tra:** 3 repo trên không còn `@/...` trong external, `frontend/` của BrewLite có cạnh gọi.
+- **Ảnh hưởng demo:** không ảnh hưởng `backend/` của BrewLite. Có ảnh hưởng khi đổi sang `frontend/`.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-27 · Vừa · Bài học lấy cả `<module>` làm thuật toán
+
+- **Hiện tượng:** BrewLite có bài `Order` với 3 bước đều là `<module>` của file test. `node-express-realworld` có bài `:slug / Article` với `<module>` của `article.controller.ts`, đoạn bỏ qua tới 214 dòng. Cả 2 repo này và `node-express-boilerplate` đều có Capstone là node `<module>`. `pallets/click` có nhiều bài `<module>` tương tự.
+- **Nguyên nhân:** code cấp cao nhất được coi là hàm `<module>`, gồm cả các handler ẩn danh, nên độ phức tạp cộng dồn rất cao. `pickVipFunctions` không loại nó nên thành bài `ALGORITHMIC_CORE`.
+- **Cần sửa:** loại `<module>` khỏi chọn VIP và ENG-90, trừ chế độ `PROCEDURAL`. Liên quan B-02 và B-11: TASK_20 chỉ bỏ được file test, không bỏ được trường hợp này.
+- **Kiểm tra:** không còn node `ALGORITHMIC_CORE` có `function_name` là `<module>`.
+- **Ảnh hưởng demo:** có.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-28 · Nhẹ · Dòng "bỏ qua" của bài thuật toán có số dòng thật
+
+- **Hiện tượng:** dòng `// … (24 dòng)` có `snippet_line_map` khác 0, đo được 8 dòng trên 6 repo. Spec yêu cầu marker có map bằng 0.
+- **Nguyên nhân:** phần cắt bước trong `nodes.ts` (quanh dòng 288) chèn marker rồi chỉ cắt mảng map, không dựng lại. Các dòng sau marker cũng có thể lệch số.
+- **Cần sửa:** dựng lại `snippet_line_map` khi chèn marker.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-29 · Nhẹ · Route dạng `.route()` hiện tên nhiều dòng
+
+- **Hiện tượng:** với `router.route('/:userId').get(...).delete(...)`, tên bước là cả chuỗi lệnh nhiều dòng, kết thúc bằng `.delete('')` và mất path. Tên bài cũng sai theo: `GET /` của router users thành `Get User`, kèm `Get User #2`.
+- **Nguyên nhân:** `callgraph.ts` lấy nguyên text receiver làm `display_name`.
+- **Cần sửa:** dựng tên gọn như `router.delete('/:userId')`.
+- **Kiểm tra:** chạy `hagopj13/node-express-boilerplate`, tên bước nằm trên 1 dòng và có path.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-30 · Vừa · Tên bài tự sinh khó hiểu hoặc sai nghĩa
+
+- **Hiện tượng:** BrewLite có `List Healths` (`GET /health`), `Create Order Cancel` (`POST /orders/:id/cancel`). `nestjs-realworld` có `Article Comments` cho `DELETE .../comments/:id`, mất động từ. `microblog` có `List Logins`, `List Searchs`, `List Reset_password_requests`. `node-express-boilerplate` có `Create Forgot-password`.
+- **Nguyên nhân:** spec 11 Mục 13 ghép tên máy móc: `GET` một đoạn luôn là `List Xs`, `POST` luôn là `Create`, hai đoạn cuối thì bỏ động từ. Đoạn path chưa được tách `-`, `_` và số nhiều chỉ thêm `s`.
+- **Cần sửa:** sửa luật Bậc 1 và `naming.ts`: đoạn cuối là hành động (`cancel`, `login`, `search`, `health`) thì dùng thẳng, ví dụ `Cancel Order`. Giữ động từ cho `DELETE`, tách `-`, `_`.
+- **Lưu ý:** id node có `slug(base_title)`, đổi tên là đổi id. Phải đổi `ENGINE_VERSION`, và tiến độ của phiên cũ không dùng lại được.
+- **Kiểm tra:** cập nhật bảng T-ENG-22, tên 6 repo trên đọc được thành câu.
+- **Ảnh hưởng demo:** có.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-31 · Vừa · Test và bản offline không theo repo demo thật
+
+- **Hiện tượng:** 161 test engine đều xanh trong khi BrewLite có B-01, B-02, B-06. `repo-demo.test.ts` và `public/demo/mock_bundle.json` đều dùng `shop-api` tự viết (Express, TypeORM), không có test nào dùng Prisma. Công cụ `engine-that.mjs` đã đo được `toi_data = 0` ở BrewLite và `nestjs/nest`, nhưng phiếu B08 chỉ yêu cầu đếm, không đặt ngưỡng.
+- **Nguyên nhân:** Q-03 trong `00_QUYET_DINH.md` chưa chốt repo demo, nên tiêu chí vẫn bám `shop-api`.
+- **Cần sửa:** chốt Q-03. Nếu là BrewLite thì thêm repo mẫu NestJS và Prisma trong `repo-demo.test.ts`, thêm ngưỡng `cnpm_brewlite:toi_data` vào lệnh kiểm, và thu lại bản offline nếu demo cần.
+- **Ảnh hưởng demo:** có, vì lỗi của repo demo không được test chặn.
+- **Trạng thái:** đã kiểm, cần nhóm chốt Q-03.
+
+### B-32 · Vừa · Monorepo lớn hết hạn tải chọn lọc vì tải manifest từng file
+
+- **Hiện tượng:** `vercel/next.js` và `calcom/cal.com` hết hạn 15 giây rồi lùi về zip bị cắt. `next.js` mất 22 giây, chỉ tải được 37 file nhỏ, cuối cùng phân tích `bench/` và `apps/bundle-analyzer/`. Cảnh báo còn mâu thuẫn: báo đang phân tích `packages/next/`, trong khi kết quả thực tế là toàn repo.
+- **Nguyên nhân:** `selective.ts` tải manifest bằng vòng `for` có `await`, mỗi file khoảng 0,4 giây, chỉ phần code mới chạy song song. Repo nhiều manifest dùng hết hạn trước khi tới code. Khi lùi, cảnh báo ING-47 không được xóa.
+- **Cần sửa:** tải manifest song song theo `SELECTIVE_FETCH_CONCURRENCY`, chỉ tải manifest trong scope và ở gốc. Xóa cảnh báo phạm vi khi lùi.
+- **Kiểm tra:** `vercel/next.js` có `selective_fetch = true`.
+- **Ảnh hưởng demo:** không, BrewLite không cần tải chọn lọc.
+- **Trạng thái:** đã chạy thật ở chế độ ẩn danh, chưa làm.
+
+### B-33 · Vừa · Engine rất chậm khi có nhiều route
+
+- **Hiện tượng:** `django/django` có hơn 300 luồng, `buildGraph` mất khoảng 2 phút, trong đó `buildSlice` chiếm khoảng 93 giây. BrewLite chỉ mất 0,6–2,8 giây.
+- **Nguyên nhân:** `buildSlice` duyệt lại toàn bộ dữ liệu cho từng entry. Nghi chỗ nặng nhất là `Array.from(ctx.idx.functions.values()).some(...)` ở dòng 677, nằm trong vòng xử lý từng dòng. Chưa đo riêng dòng này. Toàn bộ chạy đồng bộ, không ngắt giữa chừng được.
+- **Cần sửa:** lập chỉ mục hàm theo file và cạnh theo caller một lần, rồi dùng lại cho mọi entry.
+- **Kiểm tra:** `django/django` dưới 10 giây, kết quả đồ thị không đổi.
+- **Ảnh hưởng demo:** không, chỉ gặp với repo rất lớn.
+- **Trạng thái:** đã đo bằng CPU profile, chưa làm.
+
+### B-34 · Vừa · Mock API bị nhận là route Express
+
+- **Hiện tượng:** `alan2207/bulletproof-react` là app React nhưng bị báo `WEB_BACKEND`, framework Express. Cả 20 bài lấy từ mock `http.get(...)` của thư viện `msw`, tên bài là `<anon@l111>`, không có bài nào từ giao diện thật.
+- **Nguyên nhân:** spec 12 Mục 1 yêu cầu `R` phải đến từ `express()`, `Router()` hoặc `fastify()`, nhưng `callgraph.ts` chỉ xét tên method. Luật handler của TASK_20 không chặn được ca này vì đối số cuối đúng là hàm. Framework Express đến từ `express` trong `devDependencies` (liên quan B-09). URL dạng template làm path rỗng, nên tên bài rơi về `<anon@l111>`.
+- **Cần sửa:** kiểm nguồn gốc của `R`, làm cùng TASK_20. Bỏ file mock theo ING-87 (`mocks`, `__mocks__`), và không cho tên bài chứa `<`, `>`.
+- **Kiểm tra:** repo trên không còn route từ `msw`.
+- **Ảnh hưởng demo:** không có với BrewLite.
+- **Trạng thái:** đã chạy thật, chưa làm.
 
 ---
 
@@ -395,12 +510,15 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 
 ## Không cần sửa
 
+- **B-08 Node 0 bước:** chạy lại 9 repo thật, `khong_buoc = 0` ở cả 9 repo. Chưa rõ repo gốc của E06-11, gặp lại thì mở lại.
 - Không có nút zoom: báo nhầm, nút đã có ở `CanvasToolbar.tsx`.
 - Bài `Chưa đạt` không học lại được: đúng spec, xem Q-A.
 - Nút "Bắt đầu trả lời (1 câu)": đúng, vì đã xong 1 trong 2 câu.
 
 ## Chưa kiểm được
 
+- Vercel có `GITHUB_TOKEN` chưa. Thiếu token thì repo lớn lùi về zip bị cắt: `fastapi/fastapi` chỉ còn 3 file docs, có token thì ra 100 file trong `fastapi/`. Thử bằng cách dán `fastapi/fastapi`, nếu thấy "Không lấy được danh sách file" là thiếu.
+- `/api/ingest` chưa khai báo `maxDuration`. Repo lớn mất 10–25 giây, cần xem giới hạn thời gian của Vercel.
 - Biến môi trường và log của Vercel.
 - `Auth Login` sau bài `Auth Me` chưa đạt có mở kèm ⚠ không.
 - Nút "Báo sai kết quả chấm" có đổi màu node ngay không.
