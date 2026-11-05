@@ -11,8 +11,8 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 | B — Engine | 2 | 5 | 4 | 11 |
 | D — Giao diện | 2 | 4 | 6 | 12 |
 | C — AI | 0 | 4 | 0 | 4 |
-| A — Tích hợp, deploy | 0 | 3 | 3 | 6 |
-| **Tổng** | **4** | **16** | **13** | **33** |
+| A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
+| **Tổng** | **4** | **16** | **12** | **32** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -255,12 +255,6 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Hiện tượng:** `src/app/api/ingest/route.ts` còn `analyses: {}`.
 - **Cần sửa:** trả phân tích có sẵn khi mở lại phiên theo `03` Mục 6.6.
 - **Trạng thái:** chưa làm.
-
-### A-06 · Nhẹ · PR #124 chưa merge
-
-- **Hiện tượng:** báo cáo tiến độ, phiếu Vai B và tài liệu này chưa có trên `main`.
-- **Cần sửa:** merge PR #124 cùng lúc hoặc sau khi spec có D-73.
-- **Trạng thái:** chờ merge.
 
 ---
 
