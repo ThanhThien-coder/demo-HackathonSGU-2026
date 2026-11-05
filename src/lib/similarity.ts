@@ -1,78 +1,31 @@
-/**
- * Đo độ dài câu trả lời và độ tương đồng Levenshtein (GUARD-16)
- * Nguồn: .kb/spec/21_AI_KIEM_VA_DUYET.md Mục 8
- *
- * Dùng chung giữa client và server. Mọi lỗi ở đây không tính lượt nộp.
- */
-
+// 21 GUARD-16 — kiểm câu trả lời trước khi chấm; dùng chung client và server.
 import { CONFIG } from "@/contracts/config";
 
-/**
- * Kiểm tra độ dài câu trả lời của người học theo ngưỡng trong CONFIG.
- * - Sau khi bỏ toàn bộ khoảng trắng, nếu số code point < CONFIG.ANSWER_MIN_CHARS: ERR_ANSWER_TOO_SHORT
- * - Tổng số code point > CONFIG.ANSWER_MAX_CHARS: ERR_ANSWER_TOO_LONG (không cắt bớt)
- * - Hợp lệ: trả về null
- */
 export function validateAnswerLength(a: string): "ERR_ANSWER_TOO_SHORT" | "ERR_ANSWER_TOO_LONG" | null {
-  if ([...a.replace(/\s/gu, "")].length < CONFIG.ANSWER_MIN_CHARS) {
-    return "ERR_ANSWER_TOO_SHORT";
-  }
-  if ([...a].length > CONFIG.ANSWER_MAX_CHARS) {
-    return "ERR_ANSWER_TOO_LONG";
-  }
+  if ([...a.replace(/\s/gu, "")].length < CONFIG.ANSWER_MIN_CHARS) return "ERR_ANSWER_TOO_SHORT";
+  if ([...a].length > CONFIG.ANSWER_MAX_CHARS) return "ERR_ANSWER_TOO_LONG";
   return null;
 }
 
-/**
- * Chuẩn hóa chuỗi về mảng code point:
- * Chuẩn hóa NFC -> chữ thường -> gộp các khoảng trắng liên tiếp thành 1 dấu cách -> trim 2 đầu.
- */
-const collapse =(s: string): string[] => [
-  ...s.normalize("NFC").toLowerCase().replace(/\s+/gu, " ").trim(),
-];
+const collapse = (s: string) => [...s.normalize("NFC").toLowerCase().replace(/\s+/gu, " ").trim()];
 
-/**
- * Khoảng cách Levenshtein chuẩn (chèn / xóa / thay thế = 1) trên mảng code point.
- */
-export function levenshtein(a: string[], b: string[]): number {
-  const m = a.length;
-  const n = b.length;
-
-  if (m === 0) return n;
-  if (n === 0) return m;
-
-  let prev = Array.from({ length: n + 1 }, (_, i) => i);
-  let curr = new Array<number>(n + 1);
-
-  for (let i = 1; i <= m; i++) {
-    curr[0] = i;
-    const aChar = a[i - 1];
-    for (let j = 1; j <= n; j++) {
-      const bChar = b[j - 1];
-      const cost = aChar === bChar ? 0 : 1;
-      curr[j] = Math.min(
-        prev[j] + 1,       // xóa
-        curr[j - 1] + 1,   // chèn
-        prev[j - 1] + cost // thay thế
-      );
+function levenshtein(A: string[], B: string[]): number {
+  if (A.length === 0) return B.length;
+  if (B.length === 0) return A.length;
+  let prev = Array.from({ length: B.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= A.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= B.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (A[i - 1] === B[j - 1] ? 0 : 1));
     }
-    const temp = prev;
-    prev = curr;
-    curr = temp;
+    prev = cur;
   }
-
-  return prev[n];
+  return prev[B.length];
 }
 
-/**
- * Độ tương đồng Levenshtein: 1 - Levenshtein / max(len)
- * Nếu cả hai chuỗi sau khi collapse đều rỗng, trả về 1.
- */
+/** 1 − Levenshtein / max(len) trên mảng code point đã chuẩn hóa. */
 export function similarity(a: string, b: string): number {
   const A = collapse(a);
   const B = collapse(b);
-  if (A.length === 0 && B.length === 0) {
-    return 1;
-  }
-  return 1 - levenshtein(A, B) / Math.max(A.length, B.length);
+  return A.length === 0 && B.length === 0 ? 1 : 1 - levenshtein(A, B) / Math.max(A.length, B.length);
 }
