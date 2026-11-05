@@ -1,261 +1,55 @@
-import {
-  CONFIG,
-  type CognitiveSkillState,
-  type EnrichNodeResponse,
-  type ExecutionTraceStep,
-  type NodeAnalysis,
-  type NodeStateView,
-  type QuestionReveal,
-  type QuestionView,
-  type RunMode,
-  type RunQuestion,
-  type RunStepRef,
-  type SessionProgress,
-  type SWESkill,
-} from "@/contracts";
+// 03 Mục 6.1 — enrich-node: tạo run, lưu câu hỏi + đáp án (D-36). Idempotent khi đã có run chưa xong.
+import type { EnrichNodeRequest, EnrichNodeResponse, RunStepRef, StaticEngineResult } from "@/contracts";
+import { generateQuestions } from "./ai/questions";
+import { forbiddenKeywords, nodeCodeText } from "./ai/guard/text";
+import { analysisKey } from "./cache";
+import { fail } from "./errors";
+import { loadNodeState, toQuestionViews } from "./progress";
+import { getSessionStaticResult } from "./session";
+import { planNodeQuestions } from "@/lib/plan";
+import type { NodeAnalysis } from "@/contracts";
 import { sql } from "./db";
-import { ApiHttpError } from "./errors";
-import { getSessionProgress } from "./progress";
-import type { RunRecord, SessionRecord } from "./session";
+import { RunRow, SessionFull, createRun, dbRead, findOpenRun, getCache, getOwnedSession, loadProfile, touchSession } from "./store";
 
-/**
- * Tìm run đang mở (chưa hoàn thành) của node trong phiên (03_API_VA_LUU_TRU.md Mục 6.1, ca D16).
- * Trả về RunRecord nếu có, hoặc null nếu không có run nào đang mở.
- */
-export async function findOpenRun(
-  sessionId: string,
-  nodeId: string,
-): Promise<RunRecord | null> {
-  const rows = await sql<RunRecord[]>`
-    SELECT
-      id,
-      session_id,
-      node_id,
-      mode,
-      questions,
-      steps,
-      forbidden_external_keywords,
-      started_at,
-      finished_at
-    FROM node_runs
-    WHERE session_id = ${sessionId}
-      AND node_id = ${nodeId}
-      AND finished_at IS NULL
-    LIMIT 1
-  `;
-
-  if (rows.length === 0) {
-    return null;
-  }
-
-  const row = rows[0];
-  const questions: RunQuestion[] =
-    typeof row.questions === "string" ? JSON.parse(row.questions) : row.questions;
-  const steps: RunStepRef[] =
-    typeof row.steps === "string" ? JSON.parse(row.steps) : row.steps;
-
-  return {
-    ...row,
-    questions,
-    steps,
-  };
+async function buildEnrichResponse(session: SessionFull, run: RunRow): Promise<EnrichNodeResponse> {
+  const [state, tok] = await dbRead(() => Promise.all([
+    loadNodeState(sql, session, run.node_id),
+    sql<{ tokens_used: number }[]>`select tokens_used from learning_sessions where id = ${session.id}`,
+  ]));
+  if (!state) return fail("ERR_NODE_NOT_AVAILABLE");
+  return { node_id: run.node_id, run_id: run.id, mode: run.mode, questions: toQuestionViews(run), node_state: state, tokens_used: tok[0]?.tokens_used ?? 0 };
 }
 
-/**
- * Chuyển RunQuestion sang QuestionView cho client (INV-07, API-03).
- * Không lộ reference_answer / must_have_points / fix của câu chưa hoàn thành.
- */
-export function toQuestionView(q: RunQuestion): QuestionView {
-  const isFinished = Boolean(q.finished);
-  const reveal: QuestionReveal | null = isFinished
-    ? {
-        reference_answer: q.reference_answer,
-        must_have_points: q.must_have_points,
-        fix: q.fix,
-      }
-    : null;
+export const toStepRefs = (graph: StaticEngineResult, nodeId: string): RunStepRef[] => {
+  const n = graph.nodes.find((x) => x.id === nodeId)!;
+  return n.trace_steps.map((s) => ({ step_index: s.step_number, layer: s.layer, file_path: s.file_path, function_name: s.function_name }));
+};
 
-  return {
-    question_index: q.question_index,
-    skill: q.skill,
-    tier: q.tier,
-    focus: q.focus,
-    feynman_question: q.feynman_question,
-    state: {
-      question_index: q.question_index,
-      feynman_question: q.feynman_question,
-      skill: q.skill,
-      tier: q.tier,
-      focus: q.focus,
-      attempts_used: q.attempts_used ?? 0,
-      finished: isFinished,
-      outcome: q.outcome ?? null,
-      ended_by: q.ended_by ?? null,
-      disputed: Boolean(q.disputed),
-      reveal,
-    },
-  };
-}
+export async function enrichNode(req: EnrichNodeRequest, userId: string): Promise<EnrichNodeResponse> {
+  const now = Date.now();
+  const session = await getOwnedSession(req.session_id, userId);
+  const open = await dbRead(() => findOpenRun(sql, session.id, req.node_id));
+  if (open) return buildEnrichResponse(session, open); // idempotent (tải lại trang, tab khác)
 
-/**
- * Dựng EnrichNodeResponse từ một dòng node_runs và SessionProgress (02 Mục 8, 03 Mục 6.1).
- */
-export function buildEnrichResponse(
-  run: RunRecord,
-  progress: SessionProgress,
-): EnrichNodeResponse {
-  const nodeState: NodeStateView = progress.nodes[run.node_id] ?? {
-    node_id: run.node_id,
-    status: "AVAILABLE",
-    has_warning: false,
-    analysis_failed: false,
-    last_run: null,
-  };
+  const state = await dbRead(() => loadNodeState(sql, session, req.node_id));
+  if (!state || state.status !== "AVAILABLE") return fail("ERR_NODE_NOT_AVAILABLE");
+  const graph = await getSessionStaticResult(session);
+  const node = graph.nodes.find((n) => n.id === req.node_id);
+  if (!node) return fail("ERR_NODE_NOT_AVAILABLE");
+  const analysis = await getCache<NodeAnalysis>(analysisKey(session.snapshot, session.engine_version, node.id));
+  if (!analysis) return fail("ERR_ANALYSIS_NOT_READY");
 
-  return {
-    node_id: run.node_id,
-    run_id: run.id,
-    mode: run.mode,
-    questions: (run.questions ?? []).map(toQuestionView),
-    node_state: nodeState,
-    tokens_used: progress.tokens_used,
-  };
-}
+  const profile = await dbRead(() => loadProfile(sql, userId, now));
+  const plan = planNodeQuestions(analysis, profile.skills, now, node.trace_steps.length); // luôn ≥ 1 câu (D-34)
+  if (plan.length === 0) return fail("ERR_ANALYSIS_NOT_READY");
+  const questions = await generateQuestions(session, graph, node, analysis, plan);
+  if (questions.every((q) => q.ended_by === "DROPPED")) return fail("ERR_AI_REJECTED"); // không tạo run
 
-/**
- * Kiểm tra điều kiện node phải ở trạng thái AVAILABLE (03 Mục 6.1).
- * Nếu không trả ERR_NODE_NOT_AVAILABLE.
- */
-export async function checkNodeAvailable(
-  sessionId: string,
-  userId: string,
-  nodeId: string,
-): Promise<NodeStateView> {
-  const progress = await getSessionProgress(sessionId, userId);
-  const nodeState = progress.nodes[nodeId];
-
-  if (!nodeState || nodeState.status !== "AVAILABLE") {
-    throw new ApiHttpError("ERR_NODE_NOT_AVAILABLE");
-  }
-
-  return nodeState;
-}
-
-/**
- * Đọc kết quả phân tích node từ ai_cache theo khóa na|... (03 Mục 3.3, 6.1).
- * Chưa có ⇒ ném ERR_ANALYSIS_NOT_READY.
- */
-export async function loadNodeAnalysis(
-  session: SessionRecord,
-  nodeId: string,
-): Promise<NodeAnalysis> {
-  const cacheKey = `na|${session.source}|${session.snapshot_id}|${session.subdir}|${session.engine_version}|${nodeId}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
-
-  const rows = await sql<Array<{ payload: NodeAnalysis | string }>>`
-    SELECT payload
-    FROM ai_cache
-    WHERE cache_key = ${cacheKey}
-    LIMIT 1
-  `;
-
-  if (rows.length === 0) {
-    throw new ApiHttpError("ERR_ANALYSIS_NOT_READY");
-  }
-
-  const raw = rows[0].payload;
-  const analysis: NodeAnalysis =
-    typeof raw === "string" ? JSON.parse(raw) : raw;
-
-  return analysis;
-}
-
-/**
- * Đọc điểm kỹ năng skill_states của người học dựng Partial<Record<SWESkill, CognitiveSkillState>>.
- */
-export async function loadUserSkills(
-  userId: string,
-): Promise<Partial<Record<SWESkill, CognitiveSkillState>>> {
-  const rows = await sql<
-    Array<{
-      skill: SWESkill;
-      p_mastery: number;
-      last_practiced_at: string | Date;
-      practice_count: number;
-      correct_count: number;
-    }>
-  >`
-    SELECT skill, p_mastery, last_practiced_at, practice_count, correct_count
-    FROM skill_states
-    WHERE user_id = ${userId}
-  `;
-
-  const skills: Partial<Record<SWESkill, CognitiveSkillState>> = {};
-  for (const row of rows) {
-    skills[row.skill] = {
-      skill: row.skill,
-      p_mastery: Number(row.p_mastery),
-      last_practiced_at: new Date(row.last_practiced_at).getTime(),
-      practice_count: Number(row.practice_count),
-      correct_count: Number(row.correct_count),
-    };
-  }
-
-  return skills;
-}
-
-/**
- * Tạo mảng RunStepRef[] từ ExecutionTraceStep[] của node (D-36).
- * Chỉ lưu step_index, layer, file_path, function_name; KHÔNG có snippet/code.
- */
-export function createStepRefs(traceSteps: ExecutionTraceStep[]): RunStepRef[] {
-  return traceSteps.map((s) => ({
-    step_index: s.step_number,
-    layer: s.layer,
-    file_path: s.file_path,
-    function_name: s.function_name,
-  }));
-}
-
-/**
- * Lưu run mới vào bảng node_runs trong Postgres (03 Mục 3, 6.1).
- */
-export async function createRun(
-  sessionId: string,
-  nodeId: string,
-  mode: RunMode,
-  questions: RunQuestion[],
-  steps: RunStepRef[],
-  forbiddenExternalKeywords: string[],
-): Promise<RunRecord> {
-  const questionsJson = JSON.stringify(questions);
-  const stepsJson = JSON.stringify(steps);
-
-  const rows = await sql<RunRecord[]>`
-    INSERT INTO node_runs (
-      session_id, node_id, mode, questions, steps, forbidden_external_keywords
-    )
-    VALUES (
-      ${sessionId},
-      ${nodeId},
-      ${mode},
-      ${questionsJson}::text::jsonb,
-      ${stepsJson}::text::jsonb,
-      ${forbiddenExternalKeywords}
-    )
-    RETURNING
-      id, session_id, node_id, mode, questions, steps,
-      forbidden_external_keywords, started_at, finished_at
-  `;
-
-  const row = rows[0];
-  const parsedQuestions: RunQuestion[] =
-    typeof row.questions === "string" ? JSON.parse(row.questions) : row.questions;
-  const parsedSteps: RunStepRef[] =
-    typeof row.steps === "string" ? JSON.parse(row.steps) : row.steps;
-
-  return {
-    ...row,
-    questions: parsedQuestions,
-    steps: parsedSteps,
-  };
+  const forbidden = forbiddenKeywords(graph.fingerprint, nodeCodeText(node));
+  const created = await dbRead(() => createRun(sql, session.id, node.id, req.mode, questions, toStepRefs(graph, node.id), forbidden));
+  const run = created === "CONFLICT"
+    ? (await dbRead(() => findOpenRun(sql, session.id, node.id))) ?? fail("ERR_PERSISTENCE_UNAVAILABLE")
+    : created;
+  await dbRead(() => touchSession(sql, session.id));
+  return buildEnrichResponse(session, run);
 }
