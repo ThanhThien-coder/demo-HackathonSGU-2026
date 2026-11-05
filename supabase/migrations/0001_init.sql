@@ -1,16 +1,12 @@
--- 0001_init.sql: Khoi tao luoc do CSDL SimpliFey (03_API_VA_LUU_TRU Muc 3, 3.2)
-
--- 1. Enums
+-- 03_API_VA_LUU_TRU Mục 3 — lược đồ Postgres. Server ghi duy nhất (DATABASE_URL); client chỉ select qua RLS.
 create type swe_skill as enum (
   'HTTP_ROUTING','DTO_VALIDATION','AUTH_SECURITY','DEPENDENCY_INJECTION',
   'LAYERED_SEPARATION','DB_OPTIMIZATION','ASYNC_CONCURRENCY','TRANSACTION_INTEGRITY',
   'ERROR_HANDLING','STATE_MANAGEMENT','ALGORITHMIC_COMPLEXITY','MEMORY_MANAGEMENT',
   'API_CONTRACT_DESIGN','CACHING_STRATEGY','RATE_LIMIT_RESILIENCE','DATA_SERIALIZATION'
 );
-
 create type run_mode as enum ('LEARN');
 
--- 2. Tables
 create table profiles (
   user_id      uuid primary key references auth.users on delete cascade,
   display_name text,
@@ -61,15 +57,15 @@ create table node_progress (
 );
 
 create table node_runs (
-  id                          uuid primary key default gen_random_uuid(),
-  session_id                  uuid not null references learning_sessions on delete cascade,
-  node_id                     text not null,
-  mode                        run_mode not null,
-  questions                   jsonb not null,
-  steps                       jsonb not null,
+  id          uuid primary key default gen_random_uuid(),
+  session_id  uuid not null references learning_sessions on delete cascade,
+  node_id     text not null,
+  mode        run_mode not null,
+  questions   jsonb not null,
+  steps       jsonb not null,
   forbidden_external_keywords text[] not null,
-  started_at                  timestamptz not null default now(),
-  finished_at                 timestamptz
+  started_at  timestamptz not null default now(),
+  finished_at timestamptz
 );
 create unique index node_runs_one_open on node_runs (session_id, node_id) where finished_at is null;
 create index on node_runs (session_id, node_id);
@@ -123,41 +119,23 @@ create table dispute_reports (
 create index on dispute_reports (run_id);
 create index on dispute_reports (user_id);
 
--- 3. Row Level Security (RLS) - 03 Muc 3.2
-alter table profiles enable row level security;
-alter table skill_states enable row level security;
+-- 3.2 RLS: bật trên mọi bảng; client chỉ select phần của mình; không có chính sách ghi nào.
+alter table profiles          enable row level security;
+alter table skill_states      enable row level security;
 alter table learning_sessions enable row level security;
 alter table session_snapshots enable row level security;
-alter table node_progress enable row level security;
-alter table node_runs enable row level security;
+alter table node_progress     enable row level security;
+alter table node_runs         enable row level security;
 alter table question_attempts enable row level security;
-alter table ai_cache enable row level security;
-alter table ai_usage enable row level security;
-alter table dispute_reports enable row level security;
+alter table ai_cache          enable row level security;
+alter table ai_usage          enable row level security;
+alter table dispute_reports   enable row level security;
 
--- Client SELECT policies
-create policy "profiles_select_own" on profiles
-  for select to authenticated
-  using (auth.uid() = user_id);
-
-create policy "skill_states_select_own" on skill_states
-  for select to authenticated
-  using (auth.uid() = user_id);
-
-create policy "learning_sessions_select_own" on learning_sessions
-  for select to authenticated
-  using (auth.uid() = user_id);
-
-create policy "node_progress_select_own" on node_progress
-  for select to authenticated
-  using (
-    exists (
-      select 1 from learning_sessions
-      where learning_sessions.id = node_progress.session_id
-        and learning_sessions.user_id = auth.uid()
-    )
-  );
-
-create policy "dispute_reports_select_own" on dispute_reports
-  for select to authenticated
-  using (auth.uid() = user_id);
+create policy profiles_select on profiles for select using (auth.uid() = user_id);
+create policy skill_states_select on skill_states for select using (auth.uid() = user_id);
+create policy learning_sessions_select on learning_sessions for select using (auth.uid() = user_id);
+create policy dispute_reports_select on dispute_reports for select using (auth.uid() = user_id);
+create policy node_progress_select on node_progress for select
+  using (exists (select 1 from learning_sessions s where s.id = node_progress.session_id and s.user_id = auth.uid()));
+-- ai_cache, ai_usage, node_runs, question_attempts, session_snapshots: không có chính sách nào cho client
+-- (chứa đáp án — INV-07; chứa symbol_whitelist — API-03). Đọc qua endpoint.
