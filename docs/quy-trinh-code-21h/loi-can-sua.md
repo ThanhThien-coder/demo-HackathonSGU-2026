@@ -8,11 +8,11 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 3 | 8 | 10 | 21 |
+| B — Engine | 4 | 8 | 13 | 25 |
 | D — Giao diện | 2 | 6 | 6 | 14 |
 | C — AI | 0 | 4 | 0 | 4 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **5** | **21** | **18** | **44** |
+| **Tổng** | **6** | **21** | **21** | **48** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -20,7 +20,7 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 ## Thứ tự nên sửa
 
-1. **B-01, B-02, B-03, B-07:** nội dung bài và ngôn ngữ đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
+1. **B-01, B-02, B-03, B-07, B-22:** nội dung bài, ngôn ngữ và che secret đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
 2. **D-05, D-07:** cửa sổ tràn màn hình và không bấm được node.
 3. **D-12, C-03, C-04:** câu hỏi đúng và không lộ đáp án.
 4. **D-01, B-04, B-05:** bản đồ đọc được và học theo cây.
@@ -124,13 +124,13 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Cần sửa:** gọi ở bước khởi động, làm cùng A-04.
 - **Trạng thái:** chưa làm.
 
-### B-14 · Vừa · Thăm dò GitHub dễ hết giờ ở lần đầu
+### B-14 · Vừa · Thăm dò GitHub dễ hết giờ với repo mới
 
-- **Hiện tượng:** với `expressjs/express`, lần gọi đầu mất khoảng 1,4 giây vì phải thử lại, các lần sau khoảng 110ms. Với `facebook/react` và `calcom/cal.com`, lần gọi đầu hỏng hẳn với `ERR_NETWORK_TIMEOUT` dù repo bình thường, các lần sau vẫn mất khoảng 210ms, sát trần 300ms.
-- **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần kết nối đầu tốn thêm thời gian DNS và TLS. Server vừa khởi động lạnh càng dễ gặp.
+- **Hiện tượng:** trong 7 repo đo lần lượt, cả 7 đều hết giờ ở lần gọi đầu rồi mới thử lại, nên mỗi repo mất thêm khoảng 1,3 giây. `gothinkster/vue-realworld-example-app` hỏng cả 2 lần và báo `ERR_NETWORK_TIMEOUT`, ở lượt đo trước `facebook/react` và `calcom/cal.com` cũng vậy, dù repo bình thường. Gọi lại cùng repo thì chỉ còn 110–210ms.
+- **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần gọi đầu tới mỗi repo thường lâu hơn. Việc này xảy ra với từng repo mới trong cùng một tiến trình, nên không chỉ do server khởi động lạnh. Chưa rõ phần chậm nằm ở đâu phía GitHub.
 - **Cần sửa:** đo trên Vercel rồi tăng trần, ví dụ 1000–1500ms. Đây là `src/contracts/config.ts`, cần báo Vai A và sửa spec.
-- **Kiểm tra:** gọi lần đầu sau khi server khởi động, không phải chờ thử lại.
-- **Trạng thái:** đã đo ở máy local, chưa đo trên Vercel.
+- **Kiểm tra:** dán repo chưa dùng lần nào, không phải chờ thử lại và không báo `ERR_NETWORK_TIMEOUT`.
+- **Trạng thái:** đã đo ở máy local, chưa đo trên Vercel. Vercel cũng bị thì nâng lên Nặng.
 
 ### B-15 · Nhẹ · Link viết hoa bị từ chối
 
@@ -184,6 +184,37 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Nguyên nhân:** `detectScope` so `startsWith` phân biệt hoa thường, trong khi phần tự dò thì không.
 - **Cần sửa:** so không phân biệt hoa thường rồi dùng đúng tên thư mục thật.
 - **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+
+### B-22 · Nặng · Che secret bỏ sót nhiều mẫu phổ biến
+
+- **Hiện tượng:** chạy 15 mẫu thì 10 mẫu không được che. Lọt: `SECRET_KEY` của Django, `app.secret_key` của Flask, `JWT_SECRET_KEY`, `{"password": "..."}`, `{'apiKey': '...'}`, `DB_PASSWORD_PROD`, Stripe `sk_live_`, Slack `xoxb-`, `https://user:pass@host`, private key viết trong một chuỗi. Repo thật `gothinkster/django-realworld-example-app` giữ nguyên `SECRET_KEY` 65 ký tự trong `conduit/settings.py`.
+- **Nguyên nhân:** mẫu ING-110 yêu cầu từ khóa đứng ngay trước `=` hoặc `:`, nên `SECRET_KEY` và khóa có dấu nháy không khớp. Danh sách token cũng thiếu Stripe, Slack và URL `https`. Lỗ hổng nằm ở cả spec, không riêng code.
+- **Hậu quả:** phần code này được hiện trên giao diện và có thể gửi cho Gemini, nguy hiểm nhất với zip upload của repo riêng tư.
+- **Cần sửa:** mở rộng ING-110 và `secrets.ts`: tên khóa có hậu tố (`SECRET_KEY`, `*_PASSWORD_*`), khóa có nháy, thêm các dạng token trên. Đổi `ENGINE_VERSION` vì code đã lưu trong cache vẫn chưa được che.
+- **Cần sửa thêm:** `RESET_PASSWORD: 'resetPassword'` đang bị che dù chỉ là hằng, chuỗi hex `'0...'` bị coi là số điện thoại. "Khóa bí mật đã che" ở `CockpitHeader.tsx` đếm cả email: `miguelgrinberg/microblog` báo 9 nhưng cả 9 đều là email.
+- **Kiểm tra:** thêm 15 mẫu trên vào test, repo Django trên không còn `SECRET_KEY` thật.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-23 · Nhẹ · Đọc thiếu gói trong Pipfile, Cargo.toml, pubspec.yaml
+
+- **Hiện tượng:** Pipfile chỉ có `[packages]` cho danh sách rỗng. Pipfile có `pytz` trước `fastapi` cũng rỗng, nên không nhận ra framework. `Cargo.toml` và `pubspec.yaml` có mục gói nằm cuối file cũng rỗng.
+- **Nguyên nhân:** `fingerprint.ts` dùng `\z` trong regex. JavaScript không có `\z`, ký hiệu này khớp chữ `z` thường, nên regex không nhận ra cuối file và dừng ở chữ `z` đầu tiên.
+- **Cần sửa:** đổi `\z` thành `$(?![\s\S])` như nhánh poetry, thêm test.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-24 · Nhẹ · Repo Vue JavaScript bị báo TypeScript
+
+- **Hiện tượng:** `gothinkster/vue-realworld-example-app` có 19 file `.vue` đều là JavaScript, nhưng `primary_language` là `TYPESCRIPT`.
+- **Nguyên nhân:** `buildFingerprint` cộng mọi `.vue`, `.svelte` vào `TYPESCRIPT`, không dùng ngôn ngữ ING-101 đã tìm được.
+- **Cần sửa:** tính phần `.vue`, `.svelte` theo `file_language` sau khi trích xuất. File không được giữ thì mới dùng giá trị mặc định.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-25 · Nhẹ · Báo nhầm tsconfig hợp lệ là hỏng
+
+- **Hiện tượng:** `nestjs/nest` có 30 cảnh báo, gần hết là "Tệp cấu hình .../tsconfig.json bị hỏng định dạng". Các file đó vẫn dùng được.
+- **Nguyên nhân:** `cleanJson` xóa comment bằng regex mà không phân biệt chuỗi, nên `"https://..."`, `"@/*"` và `"src/**/*"` bị coi là comment. tsconfig được phép có dấu phẩy thừa, nên hàm này chạy và làm hỏng file.
+- **Cần sửa:** bỏ comment có xét chuỗi, hoặc dùng parser JSONC. `tsconfig.json` chỉ dùng cho alias, không nên hiện cảnh báo cho người học.
+- **Trạng thái:** đã chạy thật, chưa làm. Cần kiểm thêm ảnh hưởng tới alias khi xem B05.
 
 ---
 
