@@ -1,28 +1,18 @@
-import { authenticateRequest } from "@/server/auth";
-import { ApiHttpError, toErrorResponse } from "@/server/errors";
-import { evaluateFeynman, toEvaluateRequest } from "@/server/evaluate";
+import type { EvaluateFeynmanResponse } from "@/contracts";
+import { requireUser } from "@/server/auth";
+import { evaluateFeynman } from "@/server/evaluate";
+import { handle } from "@/server/errors";
+import { int, readJson, str } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-// 03_API_VA_LUU_TRU Muc 2 dong 9, Muc 6.2: POST /api/evaluate-feynman -> EvaluateFeynmanResponse
-export async function POST(request: Request): Promise<Response> {
-  try {
-    const user = await authenticateRequest(request);
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-    }
-
-    const resBody = await evaluateFeynman(toEvaluateRequest(body), user.id);
-    return new Response(JSON.stringify(resBody), {
-      status: 200,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  } catch (error: unknown) {
-    return toErrorResponse(error);
-  }
-}
+export const POST = (req: Request) => handle<EvaluateFeynmanResponse>(async () => {
+  const u = await requireUser(req);
+  const b = await readJson(req);
+  return evaluateFeynman({
+    session_id: str(b.session_id), run_id: str(b.run_id), question_index: int(b.question_index),
+    student_answer: str(b.student_answer), attempt_number: int(b.attempt_number),
+  }, u.userId);
+});

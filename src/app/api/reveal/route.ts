@@ -1,28 +1,14 @@
-import { authenticateRequest } from "@/server/auth";
-import { ApiHttpError, toErrorResponse } from "@/server/errors";
-import { revealQuestion, toRevealRequest } from "@/server/reveal";
+import type { RevealResponse } from "@/contracts";
+import { requireUser } from "@/server/auth";
+import { handle } from "@/server/errors";
+import { int, readJson, str } from "@/server/http";
+import { revealQuestion } from "@/server/reveal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 03_API_VA_LUU_TRU Muc 2 dong 10, Muc 6.3: POST /api/reveal -> RevealResponse ("Bo qua cau nay", 0 token)
-export async function POST(request: Request): Promise<Response> {
-  try {
-    const user = await authenticateRequest(request);
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-    }
-
-    const resBody = await revealQuestion(toRevealRequest(body), user.id);
-    return new Response(JSON.stringify(resBody), {
-      status: 200,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  } catch (error: unknown) {
-    return toErrorResponse(error);
-  }
-}
+export const POST = (req: Request) => handle<RevealResponse>(async () => {
+  const u = await requireUser(req);
+  const b = await readJson(req);
+  return revealQuestion({ session_id: str(b.session_id), run_id: str(b.run_id), question_index: int(b.question_index) }, u.userId);
+});
