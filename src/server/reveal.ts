@@ -1,73 +1,71 @@
-/**
- * src/server/reveal.ts
- *
- * POST /api/reveal — nut "Bo qua cau nay" (03 Muc 6.3, D-03).
- * 0 token. Cau chua xong ⇒ FAILED, ended_by SKIP, BKT FAILED, finalizeRunIfDone, tra reveal.
- * DB loi ⇒ ERR_PERSISTENCE_UNAVAILABLE, khong doi gi (D-40).
- */
-
-import type { RevealRequest, RevealResponse } from "@/contracts";
-import { db } from "./db";
-import { ApiHttpError } from "./errors";
-import { findQuestion, readRunQuestion } from "./evaluate";
+// 03 Mục 6.3, 6.4, 6.7 — reveal (bỏ qua câu), report-wrong (D-22), persona.
+import { CONFIG } from "@/contracts/config";
+import { PERSONAS } from "@/contracts/learner";
+import type {
+  MeResponse, PersonaMode, ReportWrongRequest, ReportWrongResponse, RevealRequest, RevealResponse, SkillChange,
+} from "@/contracts";
+import { revertSkillChange } from "@/lib/bkt-engine";
+import { maskSensitive } from "@/lib/moderation";
+import { sql } from "./db";
+import { redactSecrets } from "./engine/ingest/secrets";
+import { fail } from "./errors";
+import { applyBkt, finalizeRunIfDone, loadNodeStates, recomputeNodeColor, toQuestionState } from "./progress";
 import {
-  applyBkt,
-  finalizeRunIfDone,
-  loadNodeState,
-  lockRun,
-  saveRunQuestions,
-  toQuestionState,
-  withDbRetry,
-} from "./progress";
+  asQ, dbRead, getOwnedSession, getRunOwned, insertDispute, loadProfile, lockSkill, saveRunQuestions, saveSkill, upsertPersona, withDbRetry,
+} from "./store";
 
-/** Body JSON tho => RevealRequest; truong sai kieu thanh gia tri rong de buoc doc bat loi. */
-export function toRevealRequest(body: unknown): RevealRequest {
-  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  return {
-    session_id: typeof b.session_id === "string" ? b.session_id.trim() : "",
-    run_id: typeof b.run_id === "string" ? b.run_id.trim() : "",
-    question_index: typeof b.question_index === "number" ? b.question_index : Number.NaN,
-  };
+export async function revealQuestion(req: RevealRequest, userId: string): Promise<RevealResponse> {
+  const now = Date.now();
+  const session = await getOwnedSession(req.session_id, userId);
+  const pre = await dbRead(() => getRunOwned(sql, req.run_id, session.id));
+  if (!pre.questions[req.question_index - 1]) return fail("ERR_SESSION_NOT_FOUND");
+  return withDbRetry(() => sql.begin(async (tx) => {
+    const db = asQ(tx);
+    const run = await getRunOwned(db, req.run_id, session.id, true);
+    const q = run.questions[req.question_index - 1];
+    if (!q) return fail("ERR_SESSION_NOT_FOUND");
+    if (q.finished || run.finished_at) return fail("ERR_QUESTION_FINISHED");
+    q.finished = true; q.outcome = "FAILED"; q.ended_by = "SKIP";
+    const change = await applyBkt(db, userId, q.skill, "FAILED", now);
+    q.p_before = change.p_before; q.p_after = change.p_after;
+    await saveRunQuestions(db, run.id, run.questions);
+    const unlocked = await finalizeRunIfDone(db, session, { ...run });
+    const states = await loadNodeStates(db, session);
+    return { question: toQuestionState(q), skill_change: change, node_state: states[run.node_id], unlocked_node_ids: unlocked };
+  }));
 }
 
-export async function revealQuestion(
-  req: RevealRequest,
-  userId: string,
-  now: number = Date.now()
-): Promise<RevealResponse> {
-  // 1. Doc run theo run_id, question_index nhu 03 Muc 6.2 buoc 2
-  const { run, question } = await readRunQuestion(req, userId);
-  if (run.finished_at || question.finished) throw new ApiHttpError("ERR_QUESTION_FINISHED");
+export async function reportWrong(req: ReportWrongRequest, userId: string): Promise<ReportWrongResponse> {
+  const session = await getOwnedSession(req.session_id, userId);
+  const pre = await dbRead(() => getRunOwned(sql, req.run_id, session.id));
+  if (!pre.questions[req.question_index - 1]) return fail("ERR_SESSION_NOT_FOUND");
+  const note = maskSensitive(redactSecrets(String(req.note ?? "")).code).slice(0, CONFIG.REPORT_NOTE_MAX_CHARS);
+  return withDbRetry(() => sql.begin(async (tx) => {
+    const db = asQ(tx);
+    const run = await getRunOwned(db, req.run_id, session.id, true);
+    const q = run.questions[req.question_index - 1];
+    if (!q || q.outcome !== "FAILED" || q.ended_by !== "ANSWER" || q.disputed) return fail("ERR_REPORT_NOT_ALLOWED");
+    q.disputed = true;
+    let skillChange: SkillChange | null = null;
+    if (q.p_before !== null && q.p_after !== null && q.outcome) {
+      const state = await lockSkill(db, userId, q.skill, Date.now());
+      const rev = revertSkillChange(state, { skill: q.skill, p_before: q.p_before, p_after: q.p_after, outcome: q.outcome });
+      if (rev) { await saveSkill(db, userId, rev.next); skillChange = rev.change; }
+    }
+    await saveRunQuestions(db, run.id, run.questions);
+    await insertDispute(db, userId, run.id, req.question_index, note);
+    if (run.finished_at) await recomputeNodeColor(db, session, run);
+    const states = await loadNodeStates(db, session);
+    return { question: toQuestionState(q), skill_change: skillChange, node_state: states[run.node_id] };
+  }));
+}
 
-  return withDbRetry(() =>
-    db.tx(async (tx) => {
-      // 2. Khoa run; cau phai chua xong
-      const run2 = await lockRun(tx, run.id);
-      const q2 = findQuestion(run2, req.question_index);
-      if (!q2) throw new ApiHttpError("ERR_SESSION_NOT_FOUND");
-      if (run2.finished_at || q2.finished) throw new ApiHttpError("ERR_QUESTION_FINISHED");
-
-      // 3. finished, FAILED, SKIP
-      q2.finished = true;
-      q2.outcome = "FAILED";
-      q2.ended_by = "SKIP";
-
-      // 4. BKT FAILED (22 Muc 7)
-      const skillChange = await applyBkt(tx, userId, q2.skill, "FAILED", now);
-      q2.p_before = skillChange.p_before;
-      q2.p_after = skillChange.p_after;
-
-      await saveRunQuestions(tx, run2);
-
-      // 5. finalizeRunIfDone, roi tra RevealResponse kem reveal (map tuong minh, API-03)
-      const unlocked = await finalizeRunIfDone(tx, run2, now);
-      const nodeState = await loadNodeState(tx, run2);
-      return {
-        question: toQuestionState(q2),
-        skill_change: skillChange,
-        node_state: nodeState,
-        unlocked_node_ids: unlocked,
-      };
-    })
-  );
+export async function setPersona(mode: PersonaMode, userId: string): Promise<MeResponse> {
+  if (process.env[CONFIG.DEMO_MODE_ENV] !== "true") return fail("ERR_DEMO_MODE_DISABLED");
+  const p = PERSONAS[mode];
+  if (!p) return fail("ERR_DEMO_MODE_DISABLED");
+  const now = Date.now();
+  await withDbRetry(() => upsertPersona(userId, p.initial_p_mastery, now - p.days_idle * CONFIG.MS_PER_DAY));
+  const profile = await dbRead(() => loadProfile(sql, userId, now));
+  return { profile, server_now: now };
 }
