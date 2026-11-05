@@ -8,11 +8,11 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 3 | 5 | 8 | 16 |
+| B — Engine | 3 | 8 | 10 | 21 |
 | D — Giao diện | 2 | 6 | 6 | 14 |
 | C — AI | 0 | 4 | 0 | 4 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **5** | **18** | **16** | **39** |
+| **Tổng** | **5** | **21** | **18** | **44** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -24,7 +24,7 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 2. **D-05, D-07:** cửa sổ tràn màn hình và không bấm được node.
 3. **D-12, C-03, C-04:** câu hỏi đúng và không lộ đáp án.
 4. **D-01, B-04, B-05:** bản đồ đọc được và học theo cây.
-5. **D-09, D-11, D-14, D-15, A-01:** các lỗi Vừa còn lại.
+5. **B-14, B-17, B-18, B-20, D-09, D-11, D-14, D-15, A-01:** các lỗi Vừa còn lại.
 
 AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 400, Phat107 đã sửa ở commit `e94055b`.
 
@@ -126,7 +126,7 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 
 ### B-14 · Vừa · Thăm dò GitHub dễ hết giờ ở lần đầu
 
-- **Hiện tượng:** chạy thật, lần gọi đầu mất khoảng 1,4 giây, các lần sau chỉ khoảng 110ms. Lần đầu vượt trần 300ms, nghỉ 1 giây rồi thử lại mới thành công. Nếu lần thử lại cũng chậm, người dùng nhận `ERR_NETWORK_TIMEOUT` dù repo vẫn bình thường.
+- **Hiện tượng:** với `expressjs/express`, lần gọi đầu mất khoảng 1,4 giây vì phải thử lại, các lần sau khoảng 110ms. Với `facebook/react` và `calcom/cal.com`, lần gọi đầu hỏng hẳn với `ERR_NETWORK_TIMEOUT` dù repo bình thường, các lần sau vẫn mất khoảng 210ms, sát trần 300ms.
 - **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần kết nối đầu tốn thêm thời gian DNS và TLS. Server vừa khởi động lạnh càng dễ gặp.
 - **Cần sửa:** đo trên Vercel rồi tăng trần, ví dụ 1000–1500ms. Đây là `src/contracts/config.ts`, cần báo Vai A và sửa spec.
 - **Kiểm tra:** gọi lần đầu sau khi server khởi động, không phải chờ thử lại.
@@ -146,6 +146,44 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Cần sửa:** trong `resolveRef`, `ref` là SHA 40 ký tự thì đặt `ref_label = null`, giữ nguyên `ref`. Sửa ING-32 theo. Muốn hiện tên nhánh thật thì phải lấy thêm từ nguồn khác.
 - **Kiểm tra:** nạp BrewLite, thanh trên chỉ còn `@ 5da6ad1`.
 - **Trạng thái:** đã thấy trên site, chưa làm. Làm cùng D-14.
+
+### B-17 · Vừa · Monorepo chọn nhầm gói nhỏ rồi báo lỗi
+
+- **Hiện tượng:** `t3-oss/create-t3-turbo` báo `ERR_NO_ARCHITECTURAL_SLICE`. Repo có 76 file code nhưng engine chỉ phân tích `packages/api/` với 6 file. Chọn tay `apps/nextjs/` thì ra 7 node. Zip thử có `web/` lớn gấp 50 lần `api/` vẫn chọn `api/`.
+- **Nguyên nhân:** ING-80 trường hợp (a) có client và server thì luôn chọn server, không xét server lớn bao nhiêu và không có đường lùi khi scope không dựng được bài.
+- **Cần sửa:** khi scope tự chọn gây `ERR_NO_ARCHITECTURAL_SLICE`, thử ứng viên kế tiếp rồi tới toàn repo. Cần thêm client vào ứng viên và sửa spec.
+- **Kiểm tra:** `create-t3-turbo` ra được bản đồ, BrewLite vẫn chọn `backend/`.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-18 · Vừa · Chống zip bomb chưa dừng giải nén thật
+
+- **Hiện tượng:** zip 0,5 MB khai `size` 10 KB nhưng bung ra 512 MB làm `inflateSelected` chạy 2,8 giây, `listEntriesStreaming` chạy 2,4 giây. File vẫn bị loại đúng, nhưng server bị chiếm suốt thời gian đó. Nếu tăng theo tỉ lệ, upload 4,5 MB có thể chiếm khoảng 25 giây (ước tính).
+- **Nguyên nhân:** `extractFromLocalOffset` chỉ bật cờ `exceeded`, dữ liệu vẫn đẩy vào `Inflate` trong một lần gọi đồng bộ nên không dừng được. Timer `STREAM_TIMEOUT_MS` cũng không chạy được giữa chừng. `listEntriesStreaming` bỏ qua `signal`. Manifest còn không qua kiểm tỉ lệ nén của ING-88.
+- **Cần sửa:** đẩy dữ liệu nén theo từng phần nhỏ, vượt trần thì dừng ngay. Streaming đặt trần tổng và kiểm `signal`. Manifest qua cùng lớp kiểm.
+- **Kiểm tra:** test đo thời gian: zip trên dừng dưới 100ms.
+- **Trạng thái:** đã chạy thật với 512 MB, chưa làm.
+
+### B-19 · Nhẹ · Zip nén trên macOS không cắt được thư mục gốc
+
+- **Hiện tượng:** zip có `proj/...` và `__MACOSX/...` giữ nguyên tiền tố `proj/`, nên `backend/`, `frontend/` không được nhận và không phát hiện monorepo.
+- **Nguyên nhân:** `findCommonPrefix` xét cả `__MACOSX/`. ING-71 cũng không có thư mục này.
+- **Cần sửa:** bỏ `__MACOSX/` và file `._*` trước khi tìm tiền tố chung, sửa ING-60 và ING-71.
+- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+
+### B-20 · Vừa · Thư mục `integration/` không bị coi là test
+
+- **Hiện tượng:** `nestjs/nest` có 12/20 node lấy từ `integration/`, là code kiểm thử của repo. Trong 100 file giữ lại, `packages/common` chỉ còn 7 file.
+- **Nguyên nhân:** danh sách ING-87 không có `integration`, `sample`, `samples`. Các file bằng điểm được xếp theo tên nên `integration/` lấy chỗ trước `packages/`.
+- **Cần sửa:** thêm các segment này vào ING-87 và `priority.ts`, làm cùng TASK_20 vì task đó dùng chung cờ test.
+- **Kiểm tra:** `nestjs/nest` không còn node từ `integration/`.
+- **Trạng thái:** đã chạy thật, chưa làm.
+
+### B-21 · Nhẹ · Nhập thư mục sai hoa thường bị báo không có code
+
+- **Hiện tượng:** repo có `Backend/`, nhập `backend` ở "Đổi thư mục" nhận `ERR_NO_SOURCE_FILES_FOUND`.
+- **Nguyên nhân:** `detectScope` so `startsWith` phân biệt hoa thường, trong khi phần tự dò thì không.
+- **Cần sửa:** so không phân biệt hoa thường rồi dùng đúng tên thư mục thật.
+- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
 
 ---
 
