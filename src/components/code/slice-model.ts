@@ -1,107 +1,40 @@
+// 30 Mục 5 — dựng model Monaco cho 1 node: tiêu đề từng bước + snippet, số dòng gốc (UI-31).
 import type { HybridArchitecturalNode } from "@/contracts";
-
-export interface StepRange {
-  step: number;
-  startLine: number; // 1-based line number trong toàn bộ văn bản text
-  endLine: number;   // 1-based line number kết thúc bước
-}
 
 export interface SliceModel {
   text: string;
-  lineMap: number[]; // lineMap[i] = số dòng gốc của dòng 0-based i trong text (0 nếu tiêu đề/trống/marker)
-  stepRanges: Record<number, StepRange>;
+  lineMap: number[];                                   // lineMap[i] = số dòng gốc của dòng editor i+1 (0 ⇒ không số)
+  stepRanges: Array<{ step: number; start: number; end: number; header: number }>; // dòng editor 1-based
 }
 
-/**
- * Xây dựng mô hình lát cắt (Slice Model) cho Monaco Editor và Code Viewer
- * Tuân thủ quy chuẩn spec/30_UI.md Mục 5 & Test UI-31 / T22:
- * - Mỗi bước bắt đầu bằng tiêu đề chuẩn: `// ── Bước {k} · {layer} · {file_path} · {function_name}`
- * - Số dòng gốc (lineNumbers): tiêu đề bước, dòng trống, marker (0) và DTO không hiện số dòng (lineMap = 0).
- * - Đầu snippet bước 2 của node N3 shop-api có số dòng là 14.
- */
-export function buildSliceModel(node: HybridArchitecturalNode | null | undefined): SliceModel {
-  if (!node || !node.trace_steps || node.trace_steps.length === 0) {
-    return {
-      text: "",
-      lineMap: [],
-      stepRanges: {},
-    };
-  }
+const MONACO_LANG: Record<string, string> = {
+  TYPESCRIPT: "typescript", TSX: "typescript", JAVASCRIPT: "javascript", JSX: "javascript", PYTHON: "python", DART: "dart",
+  KOTLIN: "kotlin", SWIFT: "swift", JAVA: "java", GO: "go", RUST: "rust", CSHARP: "csharp", PHP: "php", RUBY: "ruby", C: "c", CPP: "cpp",
+};
+export const monacoLanguage = (node: HybridArchitecturalNode | null): string => (node ? MONACO_LANG[node.languages[0]] ?? "plaintext" : "plaintext");
 
-  const isPython = node.languages?.includes("PYTHON") || node.files?.[0]?.endsWith(".py");
-  const commentPrefix = isPython ? "#" : "//";
-
-  const allLines: string[] = [];
+export function buildSliceModel(node: HybridArchitecturalNode): SliceModel {
+  const cp = node.languages[0] === "PYTHON" ? "#" : "//";
+  const lines: string[] = [];
   const lineMap: number[] = [];
-  const stepRanges: Record<number, StepRange> = {};
-
-  node.trace_steps.forEach((step, idx) => {
-    // 1-based start line của bước
-    const stepStartLine = allLines.length + 1;
-
-    // 1. Tiêu đề bước (không có số dòng -> lineMap = 0)
-    const originPart = step.origin_note ? ` · ${step.origin_note}` : "";
-    const headerLine = `${commentPrefix} ── Bước ${step.step_number} · ${step.layer} · ${step.file_path} · ${step.function_name}${originPart}`;
-    allLines.push(headerLine);
+  const stepRanges: SliceModel["stepRanges"] = [];
+  node.trace_steps.forEach((s, i) => {
+    if (i > 0) { lines.push(""); lineMap.push(0); }
+    const header = lines.length + 1;
+    lines.push(`${cp} ── Bước ${s.step_number} · ${s.layer} · ${s.file_path} · ${s.function_name}${s.origin_note ? ` · ${s.origin_note}` : ""}`);
     lineMap.push(0);
-
-    // 2. Từng dòng trong snippet
-    const snippetLines = (step.snippet || "").split("\n");
-    snippetLines.forEach((codeLine, lineIdx) => {
-      allLines.push(codeLine);
-
-      // Lấy số dòng gốc từ snippet_line_map
-      const origLine = step.snippet_line_map?.[lineIdx] ?? 0;
-      // Dòng marker hoặc dòng rỗng được gán 0
-      const isMarker = codeLine.trim().startsWith("// ...") || codeLine.trim().startsWith("# ...");
-      lineMap.push(isMarker ? 0 : origLine);
-    });
-
-    const stepEndLine = allLines.length;
-    stepRanges[step.step_number] = {
-      step: step.step_number,
-      startLine: stepStartLine,
-      endLine: stepEndLine,
-    };
-
-    // Dòng trống phân cách giữa các bước (lineMap = 0)
-    if (idx < node.trace_steps.length - 1) {
-      allLines.push("");
-      lineMap.push(0);
-    }
+    const snip = s.snippet.split("\n");
+    snip.forEach((l, k) => { lines.push(l); lineMap.push(s.snippet_line_map[k] ?? 0); });
+    stepRanges.push({ step: s.step_number, start: header, end: lines.length, header });
   });
-
-  // 3. Khối kiểu dữ liệu liên quan (dto_snippet) nếu có
-  if (node.dto_snippet && node.dto_snippet.trim().length > 0) {
-    allLines.push("");
-    lineMap.push(0);
-
-    allLines.push(`${commentPrefix} ── Kiểu dữ liệu liên quan (DTO / Interface)`);
-    lineMap.push(0);
-
-    const dtoLines = node.dto_snippet.split("\n");
-    dtoLines.forEach((dtoLine) => {
-      allLines.push(dtoLine);
-      lineMap.push(0); // DTO không mang số dòng gốc của file
-    });
+  if (node.dto_snippet.trim()) {
+    lines.push(""); lineMap.push(0);
+    lines.push(`${cp} ── Kiểu dữ liệu`); lineMap.push(0);
+    for (const l of node.dto_snippet.split("\n")) { lines.push(l); lineMap.push(0); }
   }
-
-  return {
-    text: allLines.join("\n"),
-    lineMap,
-    stepRanges,
-  };
+  return { text: lines.join("\n"), lineMap, stepRanges };
 }
 
-/**
- * Tìm số thứ tự bước (step) chứa dòng line (1-based), trả về null nếu nằm ngoài các bước.
- */
-export function stepAtLine(model: SliceModel, line: number): number | null {
-  if (!model?.stepRanges) return null;
-  for (const range of Object.values(model.stepRanges)) {
-    if (line >= range.startLine && line <= range.endLine) {
-      return range.step;
-    }
-  }
-  return null;
-}
+/** UI-33: dòng editor ⇒ bước chứa dòng đó (null nếu ngoài mọi bước). */
+export const stepAtLine = (m: SliceModel, line: number): number | null =>
+  m.stepRanges.find((r) => line >= r.start && line <= r.end)?.step ?? null;
