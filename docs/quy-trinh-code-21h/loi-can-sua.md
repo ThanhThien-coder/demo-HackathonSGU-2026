@@ -8,11 +8,11 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 3 | 5 | 7 | 15 |
-| D — Giao diện | 2 | 4 | 6 | 12 |
+| B — Engine | 3 | 5 | 8 | 16 |
+| D — Giao diện | 2 | 6 | 6 | 14 |
 | C — AI | 0 | 4 | 0 | 4 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **5** | **16** | **15** | **36** |
+| **Tổng** | **5** | **18** | **16** | **39** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -24,7 +24,7 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 2. **D-05, D-07:** cửa sổ tràn màn hình và không bấm được node.
 3. **D-12, C-03, C-04:** câu hỏi đúng và không lộ đáp án.
 4. **D-01, B-04, B-05:** bản đồ đọc được và học theo cây.
-5. **D-09, D-11, A-01:** các lỗi Vừa còn lại.
+5. **D-09, D-11, D-14, D-15, A-01:** các lỗi Vừa còn lại.
 
 AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 400, Phat107 đã sửa ở commit `e94055b`.
 
@@ -139,6 +139,14 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Cần sửa:** chuẩn hóa phần scheme và host về chữ thường, giữ nguyên owner và repo.
 - **Trạng thái:** đã chạy thật, chưa làm.
 
+### B-16 · Nhẹ · `ref_label` chứa SHA thay vì tên nhánh
+
+- **Hiện tượng:** thanh trên trang học hiện `5da6ad13f8be8e571a9fc2eb4d9b421adfa53a78 @ 5da6ad1`, tức cùng một mã hai lần. Spec muốn `main @ 5be1c2a`.
+- **Nguyên nhân:** ING-32 giả định link chuyển hướng của `archive/HEAD.zip` chứa tên nhánh, nhưng GitHub hiện trả commit SHA. `refs.ts` gán `ref_label = ref` nên SHA đi vào chỗ của tên nhánh.
+- **Cần sửa:** trong `resolveRef`, `ref` là SHA 40 ký tự thì đặt `ref_label = null`, giữ nguyên `ref`. Sửa ING-32 theo. Muốn hiện tên nhánh thật thì phải lấy thêm từ nguồn khác.
+- **Kiểm tra:** nạp BrewLite, thanh trên chỉ còn `@ 5da6ad1`.
+- **Trạng thái:** đã thấy trên site, chưa làm. Làm cùng D-14.
+
 ---
 
 ## Vai D — Giao diện
@@ -222,6 +230,23 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Hiện tượng:** ảnh test có 2 câu trả lời dài 84 và 129 ký tự đều báo 100%.
 - **Cần sửa:** nộp sai một lần, sửa hẳn câu trả lời, xem % có giảm không. Code tính có vẻ đúng.
 - **Trạng thái:** cần xác minh.
+
+### D-14 · Vừa · Thanh trên trang học lộn xộn
+
+- **Hiện tượng:** mã SHA dài chiếm chỗ, đường dẫn file bị cắt còn `/ frontend / s`, lộ thanh cuộn trắng giữa nền cam, các nút rớt xuống hàng 2 và dạt sang trái.
+- **Nguyên nhân:** `CockpitHeader.tsx` xếp tên repo, nút, đường dẫn, huy hiệu và chỉ số vào một hàng `flex-wrap`. Nhóm bên phải và huy hiệu đều `shrink-0`, nên đường dẫn bị ép. Lớp `no-scrollbar` chưa được định nghĩa trong CSS nên thanh cuộn vẫn hiện. Mã SHA dài là do B-16.
+- **Cần sửa:** chia cố định 2 hàng: hàng 1 là nút quay lại, tên repo, mã 7 ký tự và đường dẫn rút gọn (xem đủ khi rê chuột); hàng 2 là huy hiệu và nút. Bỏ thanh cuộn, dùng chung một kiểu nút.
+- **Kiểm tra:** ở màn 1366px và 1920px, không thấy thanh cuộn, tên file đọc được, nút không dạt lệch.
+- **Trạng thái:** đã xác nhận khi test, chưa làm.
+
+### D-15 · Vừa · Bấm "Gửi báo sai" không có phản hồi
+
+- **Hiện tượng:** nhập lý do rồi bấm "Gửi báo sai" mà không thấy gì thay đổi.
+- **Nguyên nhân:** `handleReportWrongSubmit` trong `src/app/learn/page.tsx` lấy `store.runs[nodeId]`, thiếu thì `return` im lặng. Node đã xong mở lại sau khi tải trang chỉ có `progress.nodes[id].last_run`, vì `loadRun` không nạp run đã xong. Nút vẫn hiện do câu hỏi lấy từ `last_run`, nên bấm xong không gửi request, không báo lỗi, cửa sổ không đóng.
+- **Cần sửa:** lấy `run_id` từ `runs[nodeId]`, thiếu thì lấy `last_run.run_id`. Sau khi gửi xong, `applyQuestionState` và `evalKey` cũng phải chạy được với `last_run`, để hiện 🚩 và điểm hoàn lại. Không tìm được run thì báo lỗi, không im lặng.
+- **Cần sửa thêm:** cửa sổ hứa "hoàn lại ngay lập tức", nhưng theo BKT-63 chỉ hoàn khi điểm kỹ năng chưa bị câu khác cập nhật. Đổi lời, và báo rõ khi `skill_change = null`. Bỏ "(D-22)" và "BKT" khỏi chữ người học đọc, xóa ô lý do sau khi gửi.
+- **Kiểm tra:** tải lại trang, mở node `FAILED`, gửi báo sai: tab Network có `POST /api/report-wrong`, thấy toast, cửa sổ đóng, câu có 🚩. Báo sai hết câu `FAILED` thì node thành `COMPLETED`.
+- **Trạng thái:** đã xác nhận hiện tượng khi test, nguyên nhân đọc từ code, chưa chạy lại để chứng minh.
 
 ---
 
