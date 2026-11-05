@@ -8,6 +8,8 @@
 | Mở đường cho | B04, C05, A10 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E03`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,10 +25,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 2, Test bắt buộc
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
-- `.kb/spec/00_QUYET_DINH.md` D-65
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 2, Test bắt buộc
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
+- `docs/spec/00_QUYET_DINH.md` D-65
 - `package.json`
 - `src/`
 
@@ -38,15 +40,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết `src/server/ai/guard/forbidden.ts`: bảng công nghệ cấm, hàm `forbiddenKeywords`, regex `wordRe`, hàm `findForbidden` luôn cộng `BAD_WORDS` theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 2 (GUARD-06, GUARD-07).
-3. Viết `src/lib/moderation.ts`: hàm `maskSensitive` (che email, SĐT VN, CCCD 12 số thành `***`, bảo toàn số lượng dòng `\n`), danh sách hằng `BAD_WORDS` (NFC chữ thường, chỉ từ có dấu rõ nghĩa, không từ kỹ thuật), hàm `hasInappropriateWords` dùng `wordRe` theo `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5 và `.kb/spec/00_QUYET_DINH.md` D-65. (Ghi chú: 2 file này nhận từ C; C dùng `findForbidden`, B dùng `maskSensitive`, A dùng `hasInappropriateWords`).
-4. Viết test `src/server/ai/guard/__tests__/forbidden.test.ts` cho GUARD-06, GUARD-07 theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Test bắt buộc.
-5. Viết test `src/lib/__tests__/moderation.test.ts` mức hàm cho các ca `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4: D22 (kill/attack/hack không bị chặn), D25 (`const ts = 10912345678;` không bị che), D26, D27 (NFD vẫn chặn, từ xấu trong từ dài hơn không chặn).
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. Viết `src/server/ai/guard/forbidden.ts`: bảng công nghệ cấm, hàm `forbiddenKeywords`, regex `wordRe`, hàm `findForbidden` luôn cộng `BAD_WORDS` theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 2 (GUARD-06, GUARD-07).
+3. Viết `src/lib/moderation.ts`: hàm `maskSensitive` (che email, SĐT VN, CCCD 12 số thành `***`, bảo toàn số lượng dòng `\n`), danh sách hằng `BAD_WORDS` (NFC chữ thường, chỉ từ có dấu rõ nghĩa, không từ kỹ thuật), hàm `hasInappropriateWords` dùng `wordRe` theo `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 13 ý 5 và `docs/spec/00_QUYET_DINH.md` D-65. (Ghi chú: 2 file này nhận từ C; C dùng `findForbidden`, B dùng `maskSensitive`, A dùng `hasInappropriateWords`).
+4. Viết test `src/server/ai/guard/__tests__/forbidden.test.ts` cho GUARD-06, GUARD-07 theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Test bắt buộc.
+5. Viết test `src/lib/__tests__/moderation.test.ts` mức hàm cho các ca `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4: D22 (kill/attack/hack không bị chặn), D25 (`const ts = 10912345678;` không bị che), D26, D27 (NFD vẫn chặn, từ xấu trong từ dài hơn không chặn).
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/guard/__tests__/forbidden.test.ts src/lib/__tests__/moderation.test.ts`
-- Có test (mock AI hoặc mock DB) cho ca D28 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 (chữ AI chứa từ trong `BAD_WORDS` bị bắt như từ cấm), tên test ghi mã ca.
+- Có test (mock AI hoặc mock DB) cho ca D28 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 (chữ AI chứa từ trong `BAD_WORDS` bị bắt như từ cấm), tên test ghi mã ca.
 - Test GUARD-06, GUARD-07 chạy xanh.
 - Test mức hàm cho ca D22 (kill/attack/hack không bị chặn), D25 (`const ts = 10912345678;` không bị che), D26, D27 (NFD vẫn chặn, từ xấu trong từ dài hơn không chặn) chạy xanh.
 
@@ -73,11 +75,11 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/ai/guard/__tests__/forbidden.test.ts src/lib/__tests__/moderation.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ test GUARD-06, GUARD-07 cho bảng công nghệ cấm và quét từ cấm.
-- [ ] Có test mức hàm cho các ca D22, D25, D26, D27 theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4.
+- [ ] Có test mức hàm cho các ca D22, D25, D26, D27 theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4.
 - [ ] `maskSensitive` bảo toàn số lượng dòng `\n`.
 - [ ] `BAD_WORDS` chỉ chứa từ ngữ có dấu và cụm từ rõ nghĩa, không chứa các từ kỹ thuật (`kill`, `attack`, `hack`).
 
-- [ ] Có test cho ca D28 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Có test cho ca D28 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 ```text
 Task "E03 — Từ cấm, bộ lọc an toàn" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

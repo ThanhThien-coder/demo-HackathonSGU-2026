@@ -8,10 +8,12 @@
 | Mở đường cho | C04 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C01`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 Trước khi tạo task và gọi agy, bạn tự làm các việc sau:
-1. Gửi một prompt thật (prompt phân tích `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 4 với code N3 ở `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 1.2) bằng Google AI Studio hoặc Vertex AI, 3 lần, ghi độ trễ thật. Nếu cần chỉnh `CONFIG.LLM_TIMEOUT_MS` thì báo Vai A (D-50).
+1. Gửi một prompt thật (prompt phân tích `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 4 với code N3 ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 1.2) bằng Google AI Studio hoặc Vertex AI, 3 lần, ghi độ trễ thật. Nếu cần chỉnh `CONFIG.LLM_TIMEOUT_MS` thì báo Vai A (D-50).
 2. Xem xét và review PR contracts Mục 5–6 của Vai A.
 3. Chạy lệnh:
 
@@ -28,11 +30,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 8
-- `.kb/spec/05_HA_TANG_CLOUD.md` Mục 6
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-11, X-12
-- `.kb/spec/00_QUYET_DINH.md` D-50, D-66
-- `.kb/spec/02_CONTRACTS.md` Mục 9 (mã lỗi)
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 8
+- `docs/spec/05_HA_TANG_CLOUD.md` Mục 6
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-11, X-12
+- `docs/spec/00_QUYET_DINH.md` D-50, D-66
+- `docs/spec/02_CONTRACTS.md` Mục 9 (mã lỗi)
 - `package.json`
 - `src/`
 
@@ -42,16 +44,21 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1 khung `gemini.ts`: khởi tạo SDK `@google/genai`, chọn kênh theo biến môi trường `GEMINI_BACKEND` (`"vertex"` hoặc `"studio"`) theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 6 và D-66.
+2. B1 khung `gemini.ts`: khởi tạo SDK `@google/genai`, chọn kênh theo biến môi trường `GEMINI_BACKEND` (`"vertex"` hoặc `"studio"`) theo `docs/spec/05_HA_TANG_CLOUD.md` Mục 6 và D-66.
 3. Kiểm tra điều kiện khởi động: viết thành một hàm kiểm biến môi trường được export riêng, để test gọi thẳng. `GEMINI_BACKEND="studio"` mà thiếu `GEMINI_API_KEY` thì hàm ném lỗi (server không được khởi động); `GEMINI_BACKEND="vertex"` thì xác thực qua service account, không đòi `GEMINI_API_KEY`. Không tự tạo file khởi động server; ghi trong báo cáo tên hàm để Vai A gắn vào lúc khởi động.
-4. Cơ chế ngắt AI khẩn cấp: nếu `AI_DISABLED="true"` thì trả ngay mã lỗi `ERR_AI_UNAVAILABLE` mà không gọi tới Gemini (.kb/spec/03_API_VA_LUU_TRU.md Mục 8, .kb/spec/05_HA_TANG_CLOUD.md Mục 6, D-66). Mã lỗi: nếu `src/contracts/` (A02) đã có trên nhánh thì lấy kiểu mã lỗi từ `@/contracts`; nếu chưa có thì tạm dùng chuỗi `"ERR_AI_UNAVAILABLE"` đúng chính tả ở `.kb/spec/02_CONTRACTS.md` Mục 9, và ghi trong báo cáo là C04 sẽ đổi sang kiểu từ `@/contracts`.
+4. Cơ chế ngắt AI khẩn cấp: nếu `AI_DISABLED="true"` thì trả ngay mã lỗi `ERR_AI_UNAVAILABLE` mà không gọi tới Gemini (docs/spec/03_API_VA_LUU_TRU.md Mục 8, docs/spec/05_HA_TANG_CLOUD.md Mục 6, D-66). Mã lỗi: nếu `src/contracts/` (A02) đã có trên nhánh thì lấy kiểu mã lỗi từ `@/contracts`; nếu chưa có thì tạm dùng chuỗi `"ERR_AI_UNAVAILABLE"` đúng chính tả ở `docs/spec/02_CONTRACTS.md` Mục 9, và ghi trong báo cáo là C04 sẽ đổi sang kiểu từ `@/contracts`.
 5. Viết test trong `src/server/ai/__tests__/gemini.test.ts` cho các trường hợp X-11 và X-12. Test mock SDK, không gọi Gemini thật.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Log lỗi (lỗi C-01, `20` AI-12):** `catch` của `callLLMOnce` ghi mã lỗi Gemini, không ghi khóa hay nội dung nhạy cảm. Lỗi `thinkingBudget` từng khó tìm vì mọi lỗi đều hiện "Chưa phân tích được".
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/__tests__/gemini.test.ts`
 - Test X-11: `AI_DISABLED="true"` trả `ERR_AI_UNAVAILABLE`, không gọi model.
 - Test X-12: `GEMINI_BACKEND="studio"` thiếu `GEMINI_API_KEY` thì hàm kiểm biến môi trường ném lỗi; `GEMINI_BACKEND="vertex"` không có key thì không ném lỗi.
+- Test lỗi 400 có log mã lỗi, không có key trong log.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.

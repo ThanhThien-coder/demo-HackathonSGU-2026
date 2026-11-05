@@ -8,6 +8,8 @@
 | Mở đường cho | A05, D06 |
 | Cách làm | agy viết file · Claude kiểm · bạn chạy SQL trên Supabase và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A04`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,11 +25,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 3, 3.2, 8
-- `.kb/spec/02_CONTRACTS.md` Mục 9
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9, 13
-- `.kb/spec/05_HA_TANG_CLOUD.md` Mục 1, 5
-- `.kb/spec/00_QUYET_DINH.md` D-44, D-59, D-64, D-65
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2, 3, 3.2, 8
+- `docs/spec/02_CONTRACTS.md` Mục 9
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9, 13
+- `docs/spec/05_HA_TANG_CLOUD.md` Mục 1, 5
+- `docs/spec/00_QUYET_DINH.md` D-44, D-59, D-64, D-65
 - `package.json`
 - `src/`
 
@@ -43,15 +45,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết file migration `supabase/migrations/0001_init.sql` chứa toàn bộ bảng, enum, index, RLS của `.kb/spec/03_API_VA_LUU_TRU.md` Mục 3, 3.2, bao gồm cả bảng `session_snapshots` (D-59).
-3. B2: Viết `src/server/db.ts` (kết nối driver `postgres` 3.x, `prepare: false`, số kết nối `max` theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 1, `db.tx` dùng `sql.begin`), `src/server/log.ts` (dùng `pino` theo `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9), `src/server/errors.ts` (`ApiError`, bảng mã HTTP theo `.kb/spec/02_CONTRACTS.md` Mục 9) và viết test trong `src/server/__tests__/errors.test.ts`.
+2. B1: Viết file migration `supabase/migrations/0001_init.sql` chứa toàn bộ bảng, enum, index, RLS của `docs/spec/03_API_VA_LUU_TRU.md` Mục 3, 3.2, bao gồm cả bảng `session_snapshots` (D-59).
+3. B2: Viết `src/server/db.ts` (kết nối driver `postgres` 3.x, `prepare: false`, số kết nối `max` theo `docs/spec/05_HA_TANG_CLOUD.md` Mục 1, `db.tx` dùng `sql.begin`), `src/server/log.ts` (dùng `pino` theo `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9), `src/server/errors.ts` (`ApiError`, bảng mã HTTP theo `docs/spec/02_CONTRACTS.md` Mục 9) và viết test trong `src/server/__tests__/errors.test.ts`.
 4. B3: Viết `src/server/auth.ts` xác thực Bearer token (API-04), `src/app/auth/callback/route.ts` (D-44), `src/app/api/me/route.ts` (`GET` tạo `profiles` nếu chưa có, `DELETE` trả 204).
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server`
 - Có test kiểm tra bảng mã HTTP chạy xanh.
-- `src/server/log.ts` không ghi `DATABASE_URL`, token hay secret ra log (`.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9.2).
+- `src/server/log.ts` không ghi `DATABASE_URL`, token hay secret ra log (`docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9.2).
 - Thử nghiệm gọi `/api/me` không có token trả 401 `ERR_UNAUTHENTICATED`, có token trả 200.
 
 ## Cấm
@@ -101,7 +103,7 @@ git push -u origin a/A04-db-auth
 gh pr create --base main --title "A04 — Database, auth, /api/me" --body "Closes #<số Issue>"
 ```
 
-Chạy file migration trên Supabase dev/staging (chưa chạy trên production theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 5); thử đăng nhập GitHub trên máy local (`.kb/doc-de-hieu/01_deploy.md` Mục 4.4). Vai A merge khi CI xanh.
+Chạy file migration trên Supabase dev/staging (chưa chạy trên production theo `docs/spec/05_HA_TANG_CLOUD.md` Mục 5); thử đăng nhập GitHub trên máy local (`docs/doc-de-hieu/01_deploy.md` Mục 4.4). Vai A merge khi CI xanh.
 
 ## Tiếp theo
 

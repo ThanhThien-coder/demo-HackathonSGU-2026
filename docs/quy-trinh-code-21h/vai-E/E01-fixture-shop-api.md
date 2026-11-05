@@ -8,6 +8,8 @@
 | Mở đường cho | D03, A06 (mock), B08 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E01`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 Lúc 12:00–12:30, bạn tự làm trên web GitHub: tạo GitHub Issues cho mọi task của 5 vai (ghi rõ tên việc và người nhận), gán nhãn `vai-A` … `vai-E`, `bug`, `engine`, `ai`, `api`, `ui`.
@@ -27,8 +29,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 1.1, 1.2
-- `.kb/doc-de-hieu/01_deploy.md` Mục 5
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 1.1, 1.2
+- `docs/doc-de-hieu/01_deploy.md` Mục 5
 - `package.json`
 - `src/`
 
@@ -37,8 +39,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết file `src/server/engine/__fixtures__/shop-api.json` dạng `StaticEngineResult` theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 1.1 và 1.2: bản đồ N1–N7 viết tay, code các bước cho các node, đầy đủ 7 node N1–N7.
-3. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. Viết file `src/server/engine/__fixtures__/shop-api.json` dạng `StaticEngineResult` theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 1.1 và 1.2: bản đồ N1–N7 viết tay, code các bước cho các node, đầy đủ 7 node N1–N7.
+3. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Phiên bản (lỗi B-31):** `engine_version` trong `shop-api.json` phải trùng `CONFIG.ENGINE_VERSION`, nếu không `src/__tests__/fixtures.test.ts` đỏ. Vai B đổi phiên bản thì đổi file này cùng PR.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `node -e "JSON.parse(require('fs').readFileSync('src/server/engine/__fixtures__/shop-api.json','utf8'))"`

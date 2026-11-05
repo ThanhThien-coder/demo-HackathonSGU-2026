@@ -8,6 +8,8 @@
 | Mở đường cho | E10 |
 | Cách làm | Bạn tự làm · bạn commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E09`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -26,10 +28,11 @@ Không có, bạn tự làm theo Bước 3.
 
 - [ ] Bạn tự chạy lệnh `npx vitest run` và toàn bộ các test của hệ thống đều xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi (`review/loi_da_gap.md`).
-- [ ] Bạn đã chạy toàn bộ danh sách kiểm tra Definition of Done ở `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 5, ghi đầy đủ kết quả ✅ / ❌ từng dòng vào `review/loi_da_gap.md`.
+- [ ] Bạn đã chạy toàn bộ danh sách kiểm tra Definition of Done ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5, ghi đầy đủ kết quả ✅ / ❌ từng dòng vào `review/loi_da_gap.md`.
 - [ ] Kiểm tra ca X-06 chế độ offline cùng Vai D bằng phím tắt `Ctrl+Shift+D`: chạy hết kịch bản demo khi không có mạng, nhãn offline luôn hiển thị.
-- [ ] Mỗi câu trả lời trong kịch bản demo (mở ở repo tài liệu: `pitch/KICH_BAN_DEMO.md`) được chạy thử 3 lần trên hệ thống, chỉ giữ lại các câu ổn định 3/3 theo `.kb/doc-de-hieu/07_ke_hoach_21h.md` Mục 6.
+- [ ] Mỗi câu trả lời trong kịch bản demo (mở ở repo tài liệu: `pitch/KICH_BAN_DEMO.md`) được chạy thử 3 lần trên hệ thống, chỉ giữ lại các câu ổn định 3/3 theo `docs/doc-de-hieu/07_ke_hoach_21h.md` Mục 6.
 - [ ] Đã quay xong video dự phòng (cả chế độ kết nối thật và chế độ offline `Ctrl+Shift+D`).
+- [ ] Các dòng DoD mới ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 5 đã chạy: repo demo có bài tới `DATA_ACCESS`, Capstone không từ file test, không có bài `<module>`, đọc nội dung 3 bài của repo NestJS.
 
 ## Bước 4 — Commit và PR (bạn tự gõ)
 

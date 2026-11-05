@@ -6,6 +6,8 @@ Bạn chịu trách nhiệm thiết lập kênh gọi mô hình Gemini, đóng g
 
 ## Một phiếu làm thế nào
 
+**Cách nhanh:** nhắn AI `Làm phiếu <mã>`, xem [`lam-phieu.md`](../lam-phieu.md). AI làm tới bước commit, bạn chỉ kiểm và dán lệnh commit. Các bước dưới là cách làm tay.
+
 Mỗi phiếu đọc từ trên xuống, làm đúng thứ tự:
 1. Bước 0: tự gõ lệnh cập nhật `main`, cài thư viện, tạo nhánh.
 2. Bước 1: copy prompt, dán cho Claude trên máy bạn. Claude kiểm các phiếu cần có trước đã có trên nhánh. **Thiếu thì Claude dừng**, báo thiếu gì và đó là việc của vai nào: bạn nhắn vai đó, không bảo Claude làm thay. Đủ thì Claude tạo task trong `.kb/tasks/`. Đọc task, thấy khớp phiếu thì đi tiếp.

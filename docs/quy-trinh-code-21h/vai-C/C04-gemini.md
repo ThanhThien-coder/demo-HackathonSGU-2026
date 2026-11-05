@@ -8,6 +8,8 @@
 | Mở đường cho | C05, C06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C04`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,10 +25,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/20_AI_GOI_VA_PROMPT.md` Mục 1, 2, 3, Mục 4 phần Schema (AI-17), Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 9 (mã lỗi)
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5
-- `.kb/spec/00_QUYET_DINH.md` D-23, D-50, D-51
+- `docs/spec/20_AI_GOI_VA_PROMPT.md` Mục 1, 2, 3, Mục 4 phần Schema (AI-17), Test bắt buộc
+- `docs/spec/02_CONTRACTS.md` Mục 9 (mã lỗi)
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5
+- `docs/spec/00_QUYET_DINH.md` D-23, D-50, D-51
 - `package.json`
 - `src/`
 
@@ -39,12 +41,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1 request, phân loại lỗi và gọi lại (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 2, AI-11, AI-12): hiện thực `callLLMOnce`, phân loại kết quả thành TRANSIENT, INVALID_JSON, FATAL; gọi lại tối đa 1 + CONFIG.LLM_MAX_RETRIES lượt với retryDelay; cộng dồn token usageMetadata.
-3. B2 đóng gói dữ liệu, khối cố định, gọi lại kèm lý do (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 3, AI-13, AI-14, AI-37): hàm wrapData, renderSteps, các khối cố định MODE_A, MODE_B, LOW_CONFIDENCE, WARNING; hàm renderGuardFeedback và withGuardFeedback để nối lỗi cổng gác vào request kế tiếp; `<guard_feedback>` chỉ chứa mã lỗi, số bước và tên khớp `IDENT_RE`, dài ≤ `CONFIG.GUARD_FEEDBACK_MAX_CHARS`, không bao giờ chép lại câu chữ của output AI.
-4. Định nghĩa các helper và khung schema cơ bản trong `src/server/ai/schemas.ts` (.kb/spec/20_AI_GOI_VA_PROMPT.md Mục 4 AI-17).
+2. B1 request, phân loại lỗi và gọi lại (docs/spec/20_AI_GOI_VA_PROMPT.md Mục 2, AI-11, AI-12): hiện thực `callLLMOnce`, phân loại kết quả thành TRANSIENT, INVALID_JSON, FATAL; gọi lại tối đa 1 + CONFIG.LLM_MAX_RETRIES lượt với retryDelay; cộng dồn token usageMetadata.
+3. B2 đóng gói dữ liệu, khối cố định, gọi lại kèm lý do (docs/spec/20_AI_GOI_VA_PROMPT.md Mục 3, AI-13, AI-14, AI-37): hàm wrapData, renderSteps, các khối cố định MODE_A, MODE_B, LOW_CONFIDENCE, WARNING; hàm renderGuardFeedback và withGuardFeedback để nối lỗi cổng gác vào request kế tiếp; `<guard_feedback>` chỉ chứa mã lỗi, số bước và tên khớp `IDENT_RE`, dài ≤ `CONFIG.GUARD_FEEDBACK_MAX_CHARS`, không bao giờ chép lại câu chữ của output AI.
+4. Định nghĩa các helper và khung schema cơ bản trong `src/server/ai/schemas.ts` (docs/spec/20_AI_GOI_VA_PROMPT.md Mục 4 AI-17).
 5. Nếu C01 đang dùng chuỗi `"ERR_AI_UNAVAILABLE"` tạm thì đổi sang kiểu mã lỗi lấy từ `@/contracts`.
 6. Viết test trong `src/server/ai/__tests__/gemini.test.ts` và `common.test.ts` cho các trường hợp AI-12, AI-13 và AI-37 (dòng 1: nội dung `<guard_feedback>`; dòng 2: 503/JSON hỏng; dòng 4: câu tấn công không lọt vào request 2, `name` có khoảng trắng bị bỏ). Test mock SDK, không gọi Gemini thật.
-7. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 8. Gọi lại theo `retryDelay` của server, không gửi `thinkingConfig` khi budget 0, ghi log lỗi theo `20` AI-12 (quyết định D-74).
 
 ## Tiêu chí xong

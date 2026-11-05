@@ -10,6 +10,8 @@ Làm xong phiếu này, website có thêm màn hình lịch sử học tập, b�
 | Mở đường cho | D10 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D09`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 Làm Bước 0–2 trước khi đi ngủ (khoảng 00:00–00:30):
@@ -30,7 +32,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `docs/spec/30_UI.md` Mục 2.1, 2.2, 2.3, 6.2, 9, 11, Test bắt buộc T29, T12
 - `docs/spec/02_CONTRACTS.md` Mục 1, 8, 10
 - `docs/spec/00_QUYET_DINH.md` D-22
-- `.kb/doc-de-hieu/07_ke_hoach_21h.md` Mục 3
+- `docs/doc-de-hieu/07_ke_hoach_21h.md` Mục 3
 - `package.json`
 - `src/`
 
@@ -58,6 +60,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
    - Ưu tiên 4: Hiện thực hỗ trợ responsive di động, hiệu ứng chuyển động giảm thiểu `prefers-reduced-motion` trong `src/app/globals.css`, và chế độ trình chiếu phóng to khung đang xem theo `CONFIG.UI_PRESENTATION_FOCUS_PCT` và `CONFIG.UI_PRESENTATION_FONT_SCALE` (`docs/spec/30_UI.md` Mục 2.2, 11).
    - Ưu tiên 5 (cắt được khi thiếu giờ): Trang trí trang chủ `src/components/home/`, trang giới thiệu cách hoạt động `src/app/how-it-works/`, `src/components/how-it-works/`, và hình ảnh trong `public/assets/`.
 3. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Báo sai (lỗi D-15):** `handleReportWrongSubmit` lấy `run_id` từ `runs[nodeId]`, thiếu thì lấy `progress.nodes[id].last_run.run_id`. Bản cũ `return` im lặng với node đã xong mở lại sau khi tải trang. `applyQuestionState` và `evalKey` cũng phải chạy với `last_run`. Không tìm được run thì báo lỗi.
+- Cửa sổ Báo sai: bỏ chữ "(D-22)", "BKT", đổi "hoàn lại ngay lập tức" thành hoàn lại nếu điểm chưa bị câu khác đổi (BKT-63), xóa ô lý do sau khi gửi. `skill_change = null` thì báo rõ.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
@@ -95,6 +102,7 @@ Làm Bước 3 khi bạn thức dậy lúc 03:00:
 - [ ] Thử nghiệm T29: điều hướng bằng bàn phím (Tab/Enter) chuyển focus chính xác và viền focus luôn nhìn thấy rõ.
 - [ ] Bật `prefers-reduced-motion` trong cài đặt hệ thống hoặc trình duyệt: các hiệu ứng chuyển động tắt hoàn toàn.
 - [ ] Thử T12 của `docs/spec/30_UI.md`: báo sai một câu thấy cờ 🚩, có request `progress`, màu node cập nhật.
+- [ ] Tải lại trang, mở node `FAILED`, gửi báo sai: có `POST /api/report-wrong`, có toast, cửa sổ đóng, câu có 🚩. Báo sai hết câu `FAILED` thì node thành `COMPLETED`.
 
 ```text
 Task "D09 — Trang phụ, menu, trình chiếu" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

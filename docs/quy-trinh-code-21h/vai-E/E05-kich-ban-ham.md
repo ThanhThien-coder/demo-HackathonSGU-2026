@@ -8,6 +8,8 @@
 | Mở đường cho | E07, E08 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E05`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,10 +25,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.1, 3.2, 3.3, 3.5, 3.6
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
-- `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1, 3, 4
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.1, 3.2, 3.3, 3.5, 3.6
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
+- `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1, 3, 4
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15
 - `package.json`
 - `src/`
 
@@ -38,15 +40,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết `src/__tests__/kich-ban-ham.test.ts`: test chuỗi BKT của kịch bản A (A5, A6), B (B4, B5), C (C4, C6), E (E1, E3a, E3b, E3c) và persona `SENIOR_RUSTY` theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.6, gọi hàm của `bkt-engine`, `plan` với đồng hồ cố định. Số kỳ vọng lấy đúng từ `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3 (ví dụ A5 `DB_OPTIMIZATION` lấy đúng 0.4202); sai số < 5·10⁻⁵ theo `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.
-3. Viết `review/cau_tra_loi_mau.md`: bộ khoảng 20 câu trả lời mẫu theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 (mỗi câu trong kịch bản có 3 câu: đủ ý, thiếu 1 ý, sai; thêm câu bẫy: dài mà sai, đúng mà rất ngắn, viết không dấu, có cụm nếu bỏ qua bước này).
-4. Viết `review/ket_qua_duyet.md`: khung bảng đúng cột của `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 "Ghi kết quả" (`Node | Mục | AI nói | Lần 1/2/3 giống? | Kết luận | Người duyệt / người xem lại | Vì sao`).
+2. Viết `src/__tests__/kich-ban-ham.test.ts`: test chuỗi BKT của kịch bản A (A5, A6), B (B4, B5), C (C4, C6), E (E1, E3a, E3b, E3c) và persona `SENIOR_RUSTY` theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.6, gọi hàm của `bkt-engine`, `plan` với đồng hồ cố định. Số kỳ vọng lấy đúng từ `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3 (ví dụ A5 `DB_OPTIMIZATION` lấy đúng 0.4202); sai số < 5·10⁻⁵ theo `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.
+3. Viết `review/cau_tra_loi_mau.md`: bộ khoảng 20 câu trả lời mẫu theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 (mỗi câu trong kịch bản có 3 câu: đủ ý, thiếu 1 ý, sai; thêm câu bẫy: dài mà sai, đúng mà rất ngắn, viết không dấu, có cụm nếu bỏ qua bước này).
+4. Viết `review/ket_qua_duyet.md`: khung bảng đúng cột của `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 "Ghi kết quả" (`Node | Mục | AI nói | Lần 1/2/3 giống? | Kết luận | Người duyệt / người xem lại | Vì sao`).
 5. Viết `review/loi_da_gap.md`: khung bảng lỗi.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/__tests__/kich-ban-ham.test.ts`
-- Test kịch bản A, B, C, E mức hàm chạy xanh; số kỳ vọng khớp .kb/spec/50_TEST_VA_FIXTURE.md (A5 DB_OPTIMIZATION lấy đúng 0.4202); sai số < 5·10⁻⁵.
+- Test kịch bản A, B, C, E mức hàm chạy xanh; số kỳ vọng khớp docs/spec/50_TEST_VA_FIXTURE.md (A5 DB_OPTIMIZATION lấy đúng 0.4202); sai số < 5·10⁻⁵.
 - Có đủ 3 file tài liệu trong thư mục review/.
 
 ## Cấm
@@ -55,7 +57,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
-- Không chép code repo người dùng vào `review/` (`.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15 dòng `review/`).
+- Không chép code repo người dùng vào `review/` (`docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15 dòng `review/`).
 ```
 
 Đọc task Claude tạo, thấy khớp với phiếu này thì sang Bước 2.
@@ -73,9 +75,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/__tests__/kich-ban-ham.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Test chuỗi BKT kịch bản A, B, C, E và persona SENIOR_RUSTY chạy xanh với sai số < 5·10⁻⁵.
-- [ ] Số kỳ vọng BKT khớp đúng từng mốc trong `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.
-- [ ] `review/cau_tra_loi_mau.md` có khoảng 20 câu trả lời mẫu theo đúng `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10.
-- [ ] `review/ket_qua_duyet.md` có khung bảng đúng các cột của `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 "Ghi kết quả".
+- [ ] Số kỳ vọng BKT khớp đúng từng mốc trong `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.
+- [ ] `review/cau_tra_loi_mau.md` có khoảng 20 câu trả lời mẫu theo đúng `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10.
+- [ ] `review/ket_qua_duyet.md` có khung bảng đúng các cột của `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 "Ghi kết quả".
 - [ ] Không có mã nguồn repo người dùng trong thư mục `review/`.
 
 ```text

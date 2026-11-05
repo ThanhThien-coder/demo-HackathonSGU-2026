@@ -8,6 +8,8 @@
 | Mở đường cho | E08, C10 |
 | Cách làm | agy viết script · bạn chạy kịch bản A/B ở Bước 3 · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E07`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,9 +25,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.1, 3.2, 4
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.1, 3.2, 4
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15
 - `package.json`
 - `src/`
 
@@ -35,9 +37,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết `scripts/review-run.ts` theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 (GUARD-18 bước 1): gọi API thật trên repo demo, phân tích mọi node + tổng quan 3 lần, xóa cache trước mỗi lần chạy như spec ghi (`delete from ai_cache where cache_key like '%|{snapshot_id}|%'`), ghi kết quả thô ra thư mục `review/`.
+2. Viết `scripts/review-run.ts` theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 (GUARD-18 bước 1): gọi API thật trên repo demo, phân tích mọi node + tổng quan 3 lần, xóa cache trước mỗi lần chạy như spec ghi (`delete from ai_cache where cache_key like '%|{snapshot_id}|%'`), ghi kết quả thô ra thư mục `review/`.
 3. Cập nhật khung ghi nhận kết quả kịch bản A/B trong `review/loi_da_gap.md`.
-4. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+4. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit`
@@ -50,7 +52,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
-- Script không ghi code repo người dùng vào `review/` (`.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15 dòng `review/`).
+- Script không ghi code repo người dùng vào `review/` (`docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 15 dòng `review/`).
 ```
 
 Đọc task Claude tạo, thấy khớp với phiếu này thì sang Bước 2.
@@ -67,8 +69,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Sau 00:00 (khi Lát dọc 2 merge), bạn tự chạy kịch bản A theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.1 trên giao diện, mỗi dòng có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
-- [ ] Bạn tự chạy kịch bản B theo `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.2 trên giao diện, mỗi dòng có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
+- [ ] Sau 00:00 (khi Lát dọc 2 merge), bạn tự chạy kịch bản A theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.1 trên giao diện, mỗi dòng có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
+- [ ] Bạn tự chạy kịch bản B theo `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.2 trên giao diện, mỗi dòng có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
 - [ ] Mở DevTools kiểm tra ca X-02: response không chứa các trường cấm (`misconception`, `quote`, `symbol_whitelist`, `suspicious_instruction_files`, `reference_answer` của câu chưa xong).
 - [ ] Script `scripts/review-run.ts` không ghi mã nguồn repo người dùng vào `review/`.
 

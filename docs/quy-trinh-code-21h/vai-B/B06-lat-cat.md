@@ -8,6 +8,8 @@
 | Mở đường cho | B07 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B06`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -44,12 +46,20 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 4. Viết test trong `src/server/engine/graph/__tests__/lat-cat.test.ts` bao phủ các ca T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11 (T-ENG-08, T-ENG-09 chuyển từ B05 sang vì kỳ vọng là bước lát cắt và marker). Hai lỗi agy hay mắc ở `slicing.ts` (đã gặp lúc tập): (a) giữ câu `return` trong `if` mà bỏ mất dòng `if (...) {` và `}` bao quanh ⇒ phải đi theo cây AST, mỗi dòng giữ thì giữ header + dòng đóng của mọi câu ghép bao nó (`if`/`else`/vòng lặp/`try`/`catch`/`finally`/`switch`/`case`, Python `elif`/`except`/`with`/`match`), rồi mới def-use tiếp; (b) hạt giống "câu lệnh chứa call site tới callee giữ" so theo **tên được gọi** (`findById(`), không theo tên lớp (call site viết `categoryRepo.findById`); (c) def-use coi gán phức hợp `v.x -= …`, `v += …` là định nghĩa; (d) SCC 1 file không bao giờ là "cụm vòng lớn" (repo nhỏ: 0.4 × 2 = 0.8 < 1); (e) `function_name` phải là `Class.method` (lấy từ khóa ENG-20 `file#Class.method`), không chỉ tên method. Test dựng input bằng `parseAll` ⇒ `collectSymbols` ⇒ `resolveImports` ⇒ `buildCallGraph` ⇒ `findEntries` của B05 (không tự dựng cây giả). Tên test đầy đủ bắt đầu bằng mã T-ENG hoặc ENG. Số kỳ vọng (12, 5, 0.1844…, 30 dòng…) lấy đúng bảng spec, số thực so bằng `toBeCloseTo`. Test Hard Clamp và trần node (T-ENG-10, T-ENG-11): mọi dòng thân hàm phải **được giữ** (chuỗi phụ thuộc `s1 = data; s2 = s1 + 1; …; return sN`), không dùng `const xN = N` bỏ đi, vì def-use sẽ lược hết và clamp không chạy. T-ENG-11: các file phải `import` lẫn nhau và dùng giá trị trả về (`const c = step2(s1)`), không thì không có cạnh hoặc ENG-81 loại bước; cỡ bước 30/30/30/25/25 (mỗi bước ≤ `STEP_MAX_LINES` để không bị Hard Clamp trước) mới ra đúng "còn bước 1–3". Không sửa code clamp cho khớp test sai. Nếu T-ENG-08 lộ lỗi đồ thị gọi hàm của B05 thì sửa ở `callgraph.ts`/`symbols.ts` (mở thêm vào Được ghi) và thêm test `ENG-31` vào `tang1.test.ts`.
 5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Prisma (lỗi B-06, Mục 8 ý 4):** bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`, không chỉ phần cuối. Không nới regex receiver chung, vì `client` đã khớp cả `httpClient.get`. Đo thật: bản cũ cho BrewLite 0 bài tới `DATA_ACCESS` dù có 51 lời gọi `this.prisma...`.
+- **ENG-81:** xét `DATA_SINK` trên cả cây con của callee, không chỉ con trực tiếp.
+- **Tốc độ (lỗi B-33):** lập chỉ mục 1 lần cho hàm theo file, cạnh theo caller, `ExternalCall` theo caller. Không dùng `Array.from(ctx.idx.functions.values()).some(...)` trong vòng lặp từng dòng, không tạo `new RegExp` trong vòng lặp. Đo thật: `django/django` mất 2 phút, bỏ vòng lặp đó còn 32 giây, vẫn còn chỗ chậm khác.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/graph/__tests__/lat-cat.test.ts`
 - Có đủ các test T-ENG-01, T-ENG-02, T-ENG-05, T-ENG-06, T-ENG-08, T-ENG-09, T-ENG-10, T-ENG-11 và tất cả chạy xanh.
 - Điểm Cognitive Complexity tính chính xác: cấu trúc `else if` không cộng thêm mức lồng (T-ENG-02).
 - `npx vitest run src/server/engine` vẫn xanh (B01–B05 không hỏng) và `npx eslint src/server/engine` 0 error, 0 warning.
 - Mỗi bước chỉ lấy dòng thuộc đúng hàm của bước đó. Entry không có thân hàm thì lấy dòng câu lệnh đăng ký route, không rơi về `<module>`.
+- Test `this.prisma.order.create`, `tx.order.create` là `DATA_SINK`; `httpClient.get` không phải.
+- Kết quả đồ thị không đổi trước và sau khi lập chỉ mục.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -80,6 +90,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Lát cắt tuân thủ đúng giới hạn dòng và token theo `CONFIG.NODE_MAX_LINES` và `CONFIG.NODE_MAX_CODE_TOKENS`.
 - [ ] Hai handler đứng liền nhau: snippet của hàm này không lẫn dòng của hàm kia.
 - [ ] Đọc nội dung `snippet` của từng bước trên repo thật, không chỉ đếm số bước. Lần tập, số bước đúng nhưng 11/17 route BrewLite hiện code của method khác.
+- [ ] BrewLite có từ 14 bài tới `DATA_ACCESS`.
+- [ ] `django/django` không quá 30 giây ở `buildGraph` (mục tiêu, cần đo).
 
 ```text
 Task "B06 — Xếp hạng, độ phức tạp, lát cắt" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

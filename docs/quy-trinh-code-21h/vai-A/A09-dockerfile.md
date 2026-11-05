@@ -8,6 +8,8 @@
 | Mở đường cho | A12 |
 | Cách làm | agy viết file · bạn build và deploy revision tag trên Cloud Run và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A09`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -25,9 +27,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 16
-- `.kb/spec/00_QUYET_DINH.md` D-61, D-64, D-70
+- `docs/spec/05_HA_TANG_CLOUD.md` Mục 3
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 16
+- `docs/spec/00_QUYET_DINH.md` D-61, D-64, D-70
 - `package.json`
 - `next.config.ts`
 
@@ -37,13 +39,13 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `next.config.ts`
 
 ## Việc cần làm
-1. B1: Viết `Dockerfile` multi-stage dùng image `node:22-slim` (D-68) gồm 3 stage `deps`, `builder`, `runner`, tạo người dùng không có quyền root `USER nextjs:nodejs` UID/GID 1001, sao chép thư mục `public/` (chứa grammar `.wasm` của Tree-sitter) và thư mục `queries/` (truy vấn `.scm`, D-70), viết `.dockerignore` đúng theo danh sách quy định tại `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3. Cấu hình `next.config.ts` chỉ trên nhánh này với tùy chọn `output: "standalone"`.
+1. B1: Viết `Dockerfile` multi-stage dùng image `node:22-slim` (D-68) gồm 3 stage `deps`, `builder`, `runner`, tạo người dùng không có quyền root `USER nextjs:nodejs` UID/GID 1001, sao chép thư mục `public/` (chứa grammar `.wasm` của Tree-sitter) và thư mục `queries/` (truy vấn `.scm`, D-70), viết `.dockerignore` đúng theo danh sách quy định tại `docs/spec/05_HA_TANG_CLOUD.md` Mục 3. Cấu hình `next.config.ts` chỉ trên nhánh này với tùy chọn `output: "standalone"`.
 2. Không chạy build hay deploy (việc đó bạn tự làm ở Bước 3).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `git diff --stat`
 - `Dockerfile` dùng `node:22-slim`, có đủ 3 stage `deps`, `builder`, `runner`, chạy bằng `USER nextjs:nodejs` (UID/GID 1001), chép thư mục `public/` và `queries/`.
-- `.dockerignore` có đủ danh sách ở `.kb/spec/05_HA_TANG_CLOUD.md` Mục 3, không loại `queries/`.
+- `.dockerignore` có đủ danh sách ở `docs/spec/05_HA_TANG_CLOUD.md` Mục 3, không loại `queries/`.
 - `next.config.ts` có `output: "standalone"`, giữ nguyên các phần cũ (headers, `outputFileTracingIncludes` có đủ `.wasm` và `./queries/*.scm`).
 
 ## Cấm
@@ -69,7 +71,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `git diff --stat` thấy đúng 3 file.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Bạn tự build bằng Cloud Build (hoặc `docker build -t simplifey-test .` nếu máy có Docker) và deploy staging thành revision `--no-traffic --tag` **trước 00:30** (`.kb/spec/05_HA_TANG_CLOUD.md` Mục 3, 5).
+- [ ] Bạn tự build bằng Cloud Build (hoặc `docker build -t simplifey-test .` nếu máy có Docker) và deploy staging thành revision `--no-traffic --tag` **trước 00:30** (`docs/spec/05_HA_TANG_CLOUD.md` Mục 3, 5).
 - [ ] URL tag gọi `GET /api/health` trả HTTP 200 `ok`.
 - [ ] URL tag gọi `POST /api/ingest` repo demo trả HTTP 200 thành công.
 - [ ] File `Dockerfile` cấu hình chạy dưới quyền `USER nextjs:nodejs`.

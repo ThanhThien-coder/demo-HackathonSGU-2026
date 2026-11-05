@@ -10,6 +10,8 @@ Làm xong phiếu này, người dùng sẽ thấy bộ khung giao diện websit
 | Mở đường cho | D02 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D01`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -51,12 +53,17 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 6. Xây dựng thanh điều hướng `src/components/layout/Navbar.tsx`, export qua `src/components/layout/index.ts`, và dựng khung tĩnh trang chủ ban đầu trong `src/app/page.tsx`.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Cửa sổ (lỗi D-05, `30` Mục 11):** `Dialog` cao tối đa màn hình trừ lề, tiêu đề và nút luôn thấy, thân cuộn. Bản cũ ẩn phần dư nên cửa sổ dài bị cắt, không cuộn được.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npm run build && npx vitest run src/lib/utils.test.ts`
 - Thêm đúng 5 gói chỉ định bằng `--save-exact`, không thừa thiếu gói nào khác.
 - Bộ màu brand, surface, text, border, status có đủ trong khối `@theme` của `globals.css`. Font tải qua `next/font/google`.
 - Có đầy đủ 4 component UI cơ bản: Button, Card, Dialog, Drawer.
 - Navbar hiển thị đúng vị trí trên nền giao diện chung.
+- Test `Dialog` có giới hạn chiều cao và thân `overflow-y-auto`.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -84,6 +91,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Chạy tay `npm run dev`, mở trình duyệt thấy thanh điều hướng và khung trang chủ hiển thị đúng bộ màu mới.
 - [ ] Khối `@theme` trong `src/app/globals.css` có đủ nhóm màu brand, surface, text, border, status.
 - [ ] `package.json` chỉ thêm đúng 5 gói chỉ định bằng phiên bản chính xác (`--save-exact`).
+- [ ] Ở 1366×768, cửa sổ nội dung dài thấy đủ tiêu đề và nút (T36).
 
 ```text
 Task "D01 — Khung website, bộ UI dùng chung" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

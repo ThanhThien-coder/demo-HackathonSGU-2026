@@ -10,6 +10,8 @@ Làm xong phiếu này, người học có thể mở ngăn kéo bản đồ l�
 | Mở đường cho | D05 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D03`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -45,9 +47,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 2. Viết `src/components/canvas/DagCanvas.tsx` sử dụng ReactFlow hiển thị các node theo tọa độ `node.position` (INV-10), tắt kéo thả `nodesDraggable = false`, tắt nối cạnh `nodesConnectable = false`, bọc tải chậm bằng `next/dynamic` với tùy chọn `ssr: false` theo `docs/spec/30_UI.md` Mục 4.
 3. Viết `src/components/canvas/GraphNodeCard.tsx`: 4 màu theo `status` kèm biểu tượng và chữ (INV-11), ⚠ khi có cảnh báo, biểu tượng ★ Capstone, tiền tố `~` cho tên suy ra cắt ngắn theo `CONFIG.TITLE_MAX_CHARS` (T20), node `LOCKED` không cho bấm (T1).
 4. Viết `src/components/canvas/CanvasToolbar.tsx` nhận props `{ fingerprint: ProjectFingerprint; report: ClientStaticEngineResult["ingestion_report"] }` theo `docs/spec/30_UI.md` Mục 3 và 4: hiển thị độ tin cậy `graph_confidence` (xanh/vàng/đỏ), chip ngôn ngữ `language_breakdown`, số lượng node, `degraded_mode` ("Repo tuần tự"), số bí mật đã che `redacted_secret_count`, cảnh báo khi bị cắt bớt (`truncated`, `omitted_node_count > 0`); có bảng chú giải 4 màu trạng thái, cảnh báo ⚠, cạnh nét đứt suy luận; và các nút điều khiển thu phóng, căn giữa đồ thị.
-5. Viết ngăn kéo bản đồ `src/app/learn/components/LessonGraphDrawer.tsx` chứa `DagCanvas`, nút mở bản đồ bên cạnh `src/app/learn/components/GraphSidebarButton.tsx`, tự động gọi `fitView` mỗi khi ngăn kéo được mở ra (T32).
+5. Viết ngăn kéo bản đồ `src/app/learn/components/LessonGraphDrawer.tsx` chứa `DagCanvas`, nút mở bản đồ bên cạnh `src/app/learn/components/GraphSidebarButton.tsx`, mở ở cỡ đọc được quanh bài đang học, người dùng kéo để xem hết (T32).
 6. Dựng trang nháp `src/app/dev/page.tsx` nạp dữ liệu từ fixture `src/server/engine/__fixtures__/shop-api.json` của Vai E để kiểm tra hiển thị bản đồ.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Bấm node (lỗi D-07, T35):** có `onNodeClick`, hoặc `pointer-events-auto` cho card. Tắt kéo, chọn mà không có `onNodeClick` thì ReactFlow đặt `pointerEvents: none`, nên không bấm được node. Chọn bài xong phải đóng ngăn kéo. Nút "Thử lại phân tích" trong node vẫn bấm được.
+- **Không dùng `fitView` lúc mở (lỗi D-01):** bản cũ mở ở zoom 0,20–0,32, chữ gần như không đọc được. Nút xem toàn cảnh vẫn giữ.
+- **Cảnh báo thời gian (lỗi B-10):** `CanvasToolbar` không hiện cảnh báo `engine_ms` cho người học.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
@@ -55,7 +63,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `CanvasToolbar` nhận props `fingerprint` và `report`; có đủ chú giải 4 màu, cảnh báo ⚠, cạnh nét đứt theo `docs/spec/30_UI.md` Mục 3 và 4.
 - Tên node suy ra quá dài được cắt gọn bằng `…` kèm tiền tố `~` theo `CONFIG.TITLE_MAX_CHARS` (T20).
 - Màu sắc node luôn đi kèm biểu tượng và nhãn chữ (INV-11). Node `LOCKED` không phản hồi khi nhấp chuột (T1).
-- Tự động gọi `fitView` khi mở ngăn kéo (T32).
+- Mở ngăn kéo đọc được tên bài, kéo xem đủ 20 node, không chồng nhau (T32).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -83,7 +91,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Mở trình duyệt tại `/dev` thấy 7 node N1–N7 của `shop-api` hiển thị đầy đủ trên canvas ReactFlow trong ngăn kéo.
 - [ ] `CanvasToolbar` có đủ thông tin thanh canvas và bảng chú giải 4 màu, cảnh báo ⚠, cạnh nét đứt (`docs/spec/30_UI.md` Mục 3, 4).
 - [ ] Bấm hoặc nhấn Enter trên node `LOCKED` không có phản hồi và không gửi request (`docs/spec/30_UI.md` T1).
-- [ ] Mở ngăn kéo thấy đồ thị tự động căn giữa khung nhìn qua `fitView` (T32).
+- [ ] Mở ngăn kéo thấy đồ thị ở cỡ đọc được quanh bài đang học, kéo xem được hết (T32).
+- [ ] Bấm node mở vào được bài, ngăn kéo đóng; node `LOCKED` không vào được; "Thử lại phân tích" chạy (T35).
 
 ```text
 Task "D03 — Bản đồ bài học từ fixture" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

@@ -10,6 +10,8 @@ Làm xong phiếu này, người học có thể thực hành trả lời các c
 | Mở đường cho | D08 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu D07`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -47,6 +49,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 6. Xử lý các ca kiểm thử: T16 (hai tab cùng câu: tab sau báo toast "Câu này vừa được nộp ở tab khác", cập nhật lượt, giữ nội dung ô), T25 (khi `progress.tokens_used ≥ CONFIG.SESSION_TOKEN_QUOTA` thì ô và nút Nộp bị khóa, nút "Bỏ qua câu này" vẫn bấm được).
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Lộ đáp án (lỗi D-12, `30` Mục 6.2):** đang trả lời thì thu gọn giải thích từng bước ở X-Ray, vẫn hiện code; nộp xong mở lại.
+- **Cửa sổ kết quả (lỗi D-05):** tách nút thành chân cửa sổ, thân cuộn.
+- **Giống 100% (lỗi D-13):** sửa hẳn câu trả lời rồi nộp lại, % phải giảm.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
 - Không có `reference_answer` trong store hay Network trước khi hoàn thành câu hỏi (T10).
@@ -81,6 +89,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Thử nghiệm T8: click nút Nộp 2 lần nhanh chỉ sinh ra đúng 1 request `evaluate-feynman`.
 - [ ] Thử nghiệm T9: trượt lượt 2 (gợi ý `CODE_POINTER`) thì Monaco cuộn tới đúng bước, có vạch tím.
 - [ ] Thử T16 (mở 2 tab cùng câu, nộp lần lượt) và T25 (hết hạn mức token) của `docs/spec/30_UI.md`.
+- [ ] Đang trả lời không chép được Luồng thực thi; nộp xong xem lại được.
+- [ ] Ở 1366×768, cửa sổ kết quả thấy đủ tiêu đề và nút (T36).
 
 ```text
 Task "D07 — Trả lời Feynman" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

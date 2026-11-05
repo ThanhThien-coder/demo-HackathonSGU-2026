@@ -8,6 +8,8 @@
 | Mở đường cho | C06 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C05`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,10 +25,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 2, 3, 6, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 2.1
-- `.kb/spec/00_QUYET_DINH.md` D-15, D-19, D-51
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 2, 3, 6, Test bắt buộc
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần AI), Mục 5
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.1
+- `docs/spec/00_QUYET_DINH.md` D-15, D-19, D-51
 - `package.json`
 - `src/`
 
@@ -40,10 +42,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1 `text.ts`, `names.ts`, `lines.ts` (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 2: GUARD-02, GUARD-04, GUARD-05, GUARD-08, GUARD-09): chuẩn hóa chuỗi norm, normText, bóc tách backticks; kiểm tra tên isValidName, checkNames; cơ chế Relaxed mode (GUARD-05); kiểm tra số dòng invalidLineRefs (GUARD-08); kiểm tra bằng chứng nằm đúng bước symbolInStep (GUARD-09).
-3. B2 `checkAnalysis` và ghi mã lỗi (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 3 GUARD-10, Mục 6 GUARD-22): hàm checkAnalysis kiểm tra kỹ năng (A1), mẫu (A2), điểm dở (A3), điểm hay (A4), số bước (A5), từ cấm/tên/dòng (A6), hạ cấp thành skeleton_only (A7); hàm logGuardBlock trong log.ts ghi nhận sự kiện guard_blocked.
-4. Viết test trong `src/server/ai/guard/__tests__/loi.test.ts` cho các trường hợp GUARD-04, GUARD-05, GUARD-10, GUARD-22 dùng file fixture có sẵn `src/server/ai/__fixtures__/analysis-n3.json` (fixture 2.1 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Từ cấm lấy bằng hàm của `src/server/ai/guard/forbidden.ts` (E03), không viết lại.
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. B1 `text.ts`, `names.ts`, `lines.ts` (docs/spec/21_AI_KIEM_VA_DUYET.md Mục 2: GUARD-02, GUARD-04, GUARD-05, GUARD-08, GUARD-09): chuẩn hóa chuỗi norm, normText, bóc tách backticks; kiểm tra tên isValidName, checkNames; cơ chế Relaxed mode (GUARD-05); kiểm tra số dòng invalidLineRefs (GUARD-08); kiểm tra bằng chứng nằm đúng bước symbolInStep (GUARD-09).
+3. B2 `checkAnalysis` và ghi mã lỗi (docs/spec/21_AI_KIEM_VA_DUYET.md Mục 3 GUARD-10, Mục 6 GUARD-22): hàm checkAnalysis kiểm tra kỹ năng (A1), mẫu (A2), điểm dở (A3), điểm hay (A4), số bước (A5), từ cấm/tên/dòng (A6), hạ cấp thành skeleton_only (A7); hàm logGuardBlock trong log.ts ghi nhận sự kiện guard_blocked.
+4. Viết test trong `src/server/ai/guard/__tests__/loi.test.ts` cho các trường hợp GUARD-04, GUARD-05, GUARD-10, GUARD-22 dùng file fixture có sẵn `src/server/ai/__fixtures__/analysis-n3.json` (fixture 2.1 của docs/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Từ cấm lấy bằng hàm của `src/server/ai/guard/forbidden.ts` (E03), không viết lại.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/guard`

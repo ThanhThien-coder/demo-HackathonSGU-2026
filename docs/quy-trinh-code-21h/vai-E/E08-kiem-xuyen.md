@@ -8,6 +8,8 @@
 | Mở đường cho | C10 |
 | Cách làm | agy viết test · bạn chạy tay kịch bản D, X-tests, duyệt lần 1 · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E08`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,9 +25,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, 4
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
-- `.kb/spec/00_QUYET_DINH.md` D-64, D-66
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, 4
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
+- `docs/spec/00_QUYET_DINH.md` D-64, D-66
 - `package.json`
 - `src/`
 
@@ -36,14 +38,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết `src/__tests__/xuyen-module.test.ts` kiểm tự động các ca xuyên module: X-10 (gọi `GET /api/health` không gửi token Authorization vẫn trả HTTP 200 body "ok" theo `.kb/spec/00_QUYET_DINH.md` D-64), X-13 (mỗi lời gọi AI thành công ghi đúng 1 dòng `ai_usage`, trúng `ai_cache` thì không ghi theo `.kb/spec/00_QUYET_DINH.md` D-66). (Ghi chú: ca X-11 do Vai A làm ở A12).
+2. Viết `src/__tests__/xuyen-module.test.ts` kiểm tự động các ca xuyên module: X-10 (gọi `GET /api/health` không gửi token Authorization vẫn trả HTTP 200 body "ok" theo `docs/spec/00_QUYET_DINH.md` D-64), X-13 (mỗi lời gọi AI thành công ghi đúng 1 dòng `ai_usage`, trúng `ai_cache` thì không ghi theo `docs/spec/00_QUYET_DINH.md` D-66). (Ghi chú: ca X-11 do Vai A làm ở A12).
 3. Cập nhật `review/loi_da_gap.md` chuẩn bị bảng ghi nhận kết quả kiểm thử kịch bản D và kiểm thử xuyên module.
 4. Cập nhật `review/ket_qua_duyet.md` chuẩn bị cấu trúc cho việc ghi nhận kết quả duyệt tay lần 1.
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/__tests__/xuyen-module.test.ts`
 - Test X-10 và X-13 chạy xanh.
+- X-07 có kiểm cạnh cây D-73 không tạo chu trình.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -67,9 +70,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/__tests__/xuyen-module.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Bạn đã chạy tay các ca trục trặc của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4: D1, D9, D10, D12, D13, D16, D17, D19, D20, D21, D22, D26, D27; mỗi ca có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
+- [ ] Bạn đã chạy tay các ca trục trặc của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4: D1, D9, D10, D12, D13, D16, D17, D19, D20, D21, D22, D26, D27; mỗi ca có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
 - [ ] Bạn đã chạy tay các ca kiểm thử xuyên module: X-03, X-04, X-05; mỗi ca có kết quả ✅ / ❌ trong `review/loi_da_gap.md`.
-- [ ] Bạn đã chạy script `scripts/review-run.ts` 3 lần, **tự giải trước rồi mới đọc output AI**, điền `review/ket_qua_duyet.md` bản nháp theo bảng kiểm `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 (GUARD-18 bước 1–3).
+- [ ] Bạn đã chạy script `scripts/review-run.ts` 3 lần, **tự giải trước rồi mới đọc output AI**, điền `review/ket_qua_duyet.md` bản nháp theo bảng kiểm `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10 (GUARD-18 bước 1–3).
 - [ ] Bạn đã soạn slide nháp từ kịch bản `pitch/` (mở ở repo tài liệu: `pitch/KICH_BAN_DEMO.md`).
 
 - [ ] Các ca D còn lại đã có test của vai sở hữu, bạn chỉ xem chúng có trong kết quả `npx vitest run` và xanh: D2, D3 (C06), D4, D5 (C07), D6, D15 (A10), D7 (A07, A10), D8 (C08), D11 (A08), D28 (E03).

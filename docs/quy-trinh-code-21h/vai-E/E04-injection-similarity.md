@@ -8,6 +8,8 @@
 | Mở đường cho | A10, D07 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E04`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,8 +25,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7, 8, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (`CONFIG.ANSWER_*`), 8
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 7, 8, Test bắt buộc
+- `docs/spec/02_CONTRACTS.md` Mục 1 (`CONFIG.ANSWER_*`), 8
 - `package.json`
 - `src/`
 
@@ -36,16 +38,16 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết `src/server/ai/guard/injection.ts`: hằng `INJECTION_REGEX`, hàm `isInjection` theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7 (GUARD-15).
-3. Viết `src/lib/similarity.ts`: hàm `validateAnswerLength` (kiểm tra `CONFIG.ANSWER_MIN_CHARS`, `CONFIG.ANSWER_MAX_CHARS`), hàm `similarity` Levenshtein trên mảng code point theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 8 (GUARD-16).
-4. Viết test trong `src/server/ai/guard/__tests__/injection.test.ts`: test GUARD-15 gồm mọi dòng của bảng "Phải khớp / Không được khớp" ở `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7.
-5. Viết test trong `src/lib/__tests__/similarity.test.ts`: test GUARD-16 theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Test bắt buộc.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. Viết `src/server/ai/guard/injection.ts`: hằng `INJECTION_REGEX`, hàm `isInjection` theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 7 (GUARD-15).
+3. Viết `src/lib/similarity.ts`: hàm `validateAnswerLength` (kiểm tra `CONFIG.ANSWER_MIN_CHARS`, `CONFIG.ANSWER_MAX_CHARS`), hàm `similarity` Levenshtein trên mảng code point theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 8 (GUARD-16).
+4. Viết test trong `src/server/ai/guard/__tests__/injection.test.ts`: test GUARD-15 gồm mọi dòng của bảng "Phải khớp / Không được khớp" ở `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 7.
+5. Viết test trong `src/lib/__tests__/similarity.test.ts`: test GUARD-16 theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Test bắt buộc.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/guard/__tests__/injection.test.ts src/lib/__tests__/similarity.test.ts`
-- Test GUARD-15 gồm mọi dòng của bảng "Phải khớp / Không được khớp" ở `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7 chạy xanh.
-- Test GUARD-16 theo `.kb/spec/21_AI_KIEM_VA_DUYET.md` Test bắt buộc chạy xanh.
+- Test GUARD-15 gồm mọi dòng của bảng "Phải khớp / Không được khớp" ở `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 7 chạy xanh.
+- Test GUARD-16 theo `docs/spec/21_AI_KIEM_VA_DUYET.md` Test bắt buộc chạy xanh.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -69,7 +71,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/ai/guard/__tests__/injection.test.ts src/lib/__tests__/similarity.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Test GUARD-15 bao phủ mọi dòng của bảng "Phải khớp / Không được khớp" tại `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 7.
+- [ ] Test GUARD-15 bao phủ mọi dòng của bảng "Phải khớp / Không được khớp" tại `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 7.
 - [ ] Test GUARD-16 kiểm đủ các trường hợp độ dài ngắn/dài/vừa và tính khoảng cách Levenshtein theo Test bắt buộc.
 
 ```text

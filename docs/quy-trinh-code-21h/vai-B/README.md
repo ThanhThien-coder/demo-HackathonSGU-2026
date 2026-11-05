@@ -6,6 +6,8 @@ Bạn chịu trách nhiệm toàn bộ tầng lõi phân tích mã nguồn (Engi
 
 ## Một phiếu làm thế nào
 
+**Cách nhanh:** nhắn AI `Làm phiếu <mã>`, xem [`lam-phieu.md`](../lam-phieu.md). AI làm tới bước commit, bạn chỉ kiểm và dán lệnh commit. Các bước dưới là cách làm tay.
+
 Mỗi phiếu đọc từ trên xuống, làm đúng thứ tự:
 1. Bước 0: tự gõ lệnh cập nhật `main`, cài thư viện, tạo nhánh.
 2. Bước 1: copy prompt, dán cho Claude trên máy bạn. Claude kiểm các phiếu cần có trước đã có trên nhánh. **Thiếu thì Claude dừng**, báo thiếu gì và đó là việc của vai nào: bạn nhắn vai đó, không bảo Claude làm thay. Đủ thì Claude tạo task trong `.kb/tasks/`. Đọc task, thấy khớp phiếu thì đi tiếp.
@@ -98,7 +100,7 @@ Các chỗ spec tự mâu thuẫn, chưa nói, hoặc code phải làm khác câ
 | 7 | `11` ENG-12 "byte node ERROR / byte file" | `web-tree-sitter` (JS) trả index **UTF-16**, không phải byte | Tính ρ bằng đơn vị UTF-16 (`source.length`) | Sửa câu chữ ENG-12 |
 | 8 | Chữ ký spec không nhận `report` (`readCentralDirectory`, `classifyEntry`, `detectScope`, `computeSnapshot`…) nhưng luật bắt đếm `skipped.*`/warning | — | Thêm `report?` ở cuối chữ ký | Ghi luật này vào spec `10` Mục 0 |
 | 9 | Câu chữ warning spec chỉ ghi "+ warning" | Không có câu | Câu tạm, có comment `// Câu tạm…`: (a) GitHub rơi vào `ARCHIVE_HASH` (T-ING-33); (b) file lệch dòng sau khi che ⇒ bỏ (`10` Mục 11 ý 2); (c) manifest > `MAX_MANIFEST_BYTES` (`10` Mục 9 ý 2) | Chốt 3 câu, ghi vào spec |
-| 10 | Phạm vi ngôn ngữ | `11` Mục 1 có Java/Go/Dart (`RESOLVED`), 9 ngôn ngữ `STRUCTURAL`, màn hình Flutter/Android/iOS (D-57) | Chưa phiếu nào làm; B01 chỉ có 4 grammar (TS, TSX, JS, Python); ca test các ngôn ngữ này là `it.todo` ở B10 | Chọn: thêm phiếu B11 hay ghi vào `07` Mục 3 là cắt |
+| 10 | Phạm vi ngôn ngữ | Đã chốt D-76 | Bản thi chỉ có TS, TSX, JS, Python | Đuôi còn lại nằm trong `KNOWN_NO_GRAMMAR`, xem B01, B04 |
 
 **Thêm sau khi kiểm B09, B10**
 
@@ -116,12 +118,12 @@ Bài học: 600 ca test xanh trên `shop-api` vẫn sót lỗi lớn, vì test v
 | :-: | :-- | :-- | :-- |
 | 14 | `50` Mục 1.1 vẽ N5→N6, N5→N7, trái D-07 và D-12 | Giữ engine theo D-07, D-12: N6→N5, N7→N5 | Sửa `50`, `shop-api.json`, `KICH_BAN_DEMO.md`, `30_UI.md`, `doc-de-hieu` (cần Vai D, E đồng ý) |
 | 15 | `50` Mục 1.1 nhắc `src/repos/product.repo.ts` nhưng danh sách file `shop-api` không có | Test dựng thêm file này | Thêm vào danh sách file ở `50` |
-| 16 | ING-87 chỉ giảm ưu tiên file test | Đã chốt: còn từ `DISPLAY_MIN_NODES` candidate thật thì bỏ candidate mang cờ test | Xem B07 |
+| 16 | ING-87 chỉ giảm ưu tiên file test | Đã vào spec: `11` ENG-110, `10` ING-87 | Xem B03, B07 |
 | 17 | Repo có file cực lớn: `microsoft/TypeScript` mất 64 giây ở `engine_ms` | Chưa chốt | Chọn trần thời gian hoặc trần kích thước file cho engine, nếu không request có thể quá hạn |
-| 18 | ENG-20 `line_start` từ decorator đầu tiên | Hiểu sai thành decorator đầu của cả class, 11/17 route BrewLite hiện sai code | Đã chốt: chỉ decorator của chính method, xem B05 |
-| 19 | ENG-40 nhận route theo tên `get` và số đối số | `config.get('X', mặc_định)` thành route giả | Đã chốt: đối số cuối phải là handler, xem B05 |
-| 20 | D-07 chỉ nối bài gọi chung hàm | Nhiều bài không có cha, mở sẵn từ đầu, bản đồ kéo dài | Đã chốt D-73: nối bài thành cây theo module, cạnh `INFERRED` có khóa bài, xem B07 |
-| 21 | T32 yêu cầu `fitView` vừa khung | 20 node trong ngăn kéo 1020px chỉ còn chữ 2,6–4,2px | Đã chốt: mở ở cỡ đọc được quanh bài đang học, kéo để xem hết; Vai D sửa `DagCanvas` |
+| 18 | ENG-20 `line_start` từ decorator đầu tiên | Đã vào spec: chỉ decorator của chính method | Xem B05 |
+| 19 | ENG-40 nhận route theo tên `get` và số đối số | Đã vào spec: `12` Mục 1, kiểm cả receiver và đối số cuối | Xem B05 |
+| 20 | D-07 chỉ nối bài gọi chung hàm | Đã vào spec: D-73, `11` ENG-115. Chỉ áp cho lát cắt, cạnh khác module chỉ thêm khi bài cha dễ hơn | Xem B07 |
+| 21 | T32 yêu cầu `fitView` vừa khung | Đã vào spec: mở ở cỡ đọc được, kéo để xem hết | Xem D03 |
 
 **Việc vai khác cần làm (không phải chốt spec, đã báo)**
 

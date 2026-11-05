@@ -8,6 +8,8 @@
 | Mở đường cho | gần như mọi phiếu |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A02`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,7 +25,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/02_CONTRACTS.md` toàn bộ
+- `docs/spec/02_CONTRACTS.md` toàn bộ
 - `package.json`
 - `src/`
 
@@ -31,12 +33,12 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/contracts/`
 
 ## Việc cần làm
-1. Dùng skill doc-spec đọc `.kb/spec/02_CONTRACTS.md` toàn bộ.
+1. Dùng skill doc-spec đọc `docs/spec/02_CONTRACTS.md` toàn bộ.
 2. Viết `src/contracts/config.ts` từ Mục 1 (bảng `CONFIG`; không gõ Mục 1.1).
 3. Viết `src/contracts/base.ts` (Mục 2), `src/contracts/engine.ts` (Mục 3), `src/contracts/engine-internal.ts` (Mục 4).
 4. Viết `src/contracts/ai.ts` (Mục 5), `src/contracts/learner.ts` (Mục 6), `src/contracts/storage.ts` (Mục 7).
 5. Viết `src/contracts/api.ts` (Mục 8), `src/contracts/errors.ts` (Mục 9), `src/contracts/client.ts` (Mục 10), và `src/contracts/index.ts` re-export toàn bộ kiểu dữ liệu.
-6. Đối chiếu mọi tên `export` trong khối code của `.kb/spec/02_CONTRACTS.md` với `src/contracts/`, ghi danh sách tên thiếu vào báo cáo (khi kiem-task, Claude đối chiếu lại một lần nữa).
+6. Đối chiếu mọi tên `export` trong khối code của `docs/spec/02_CONTRACTS.md` với `src/contracts/`, ghi danh sách tên thiếu vào báo cáo (khi kiem-task, Claude đối chiếu lại một lần nữa).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit`
@@ -49,7 +51,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Không tự đặt con số: hằng số lấy từ `CONFIG`, số kỳ vọng trong test lấy đúng từ spec.
 - Không chép nguyên khối code dài từ spec.
 - Không chạy `git add`, `git commit`, `git push`, `ak xong`. Không tự ghi trạng thái `xong`.
-- Không đổi tên, trường, số so với `.kb/spec/02_CONTRACTS.md`; thấy `.kb/spec/02_CONTRACTS.md` sai thì ghi báo cáo.
+- Không đổi tên, trường, số so với `docs/spec/02_CONTRACTS.md`; thấy `docs/spec/02_CONTRACTS.md` sai thì ghi báo cáo.
 ```
 
 Đọc task Claude tạo, thấy khớp với phiếu này thì sang Bước 2.
@@ -68,7 +70,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Báo cáo của agy và kiểm tra của Claude đều ghi danh sách tên thiếu = rỗng.
 - [ ] Mở terminal gõ `grep -rn "any" src/contracts`, không có bất kỳ `: any` nào.
-- [ ] Không đổi tên biến, tên trường hay số so với `.kb/spec/02_CONTRACTS.md`.
+- [ ] Không đổi tên biến, tên trường hay số so với `docs/spec/02_CONTRACTS.md`.
 
 ```text
 Task "A02 — Gõ contracts" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

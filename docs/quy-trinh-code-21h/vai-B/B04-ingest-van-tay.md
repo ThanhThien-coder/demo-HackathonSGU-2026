@@ -8,6 +8,8 @@
 | Mở đường cho | A06, B05 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu B04`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -57,12 +59,26 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 5. Viết test trong `src/server/engine/ingest/__tests__/van-tay.test.ts` bao phủ các ca T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của `docs/spec/50_TEST_VA_FIXTURE.md`, thêm ca `runIngest` thử lại 1 lần khi zip hỏng. Tên test bắt đầu bằng mã T-ING hoặc ING. Khóa và token giả trong test T-ING-26, T-ING-27 dựng bằng ghép chuỗi (luật README) để hook quét khóa không chặn commit. Test D25: kiểm **dòng comment** không còn email và SĐT; không kiểm cả đoạn `not.toContain("0912345678")` vì `10912345678` (phải giữ) chứa chuỗi đó. Zip mẫu dựng trong RAM bằng `fflate`, mạng giả bằng mock `fetch`.
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
+
+**Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
+- **Che secret (lỗi B-22, ING-110):** dùng đúng mẫu mới. Bản cũ lọt 10/14 mẫu: `SECRET_KEY`, `app.secret_key`, `JWT_SECRET_KEY`, `{"password": "..."}`, `{'apiKey': '...'}`, `DB_PASSWORD_PROD`, Stripe, Slack, `https://user:pass@host`, private key trong 1 dòng.
+- Khóa trong nháy phải có cặp nháy quanh cả tên khóa. Nếu chỉ cho 1 dấu nháy tùy chọn sau tên khóa thì sẽ che nhầm `isLogin ? 'current-password' : 'new-password'`.
+- **Regex JavaScript không có `\z` (lỗi B-23):** dùng `$(?![\s\S])` cho cuối file ở Pipfile, `Cargo.toml`, `pubspec.yaml`. `\z` chỉ khớp chữ `z`, làm Pipfile có `pytz` mất hết gói.
+- **Ngôn ngữ `.vue`, `.svelte` (lỗi B-24):** tính `language_breakdown` theo ngôn ngữ ING-101 đã tìm trong `file_language`, không cộng cứng vào `TYPESCRIPT`. File không được giữ mới dùng giá trị mặc định.
+- **`cleanJson` (lỗi B-25):** bỏ comment có xét chuỗi, nếu không `"src/**/*"`, `"https://..."`, `"@/*"` bị coi là comment. Export 1 hàm dùng chung cho `resolvers/ts_js.ts`. `tsconfig.json`, `jsconfig.json` lỗi thì không hiện warning cho người học.
+- **ING-131 mới (lỗi B-07):** kiểm `unsupported_ratio` kể cả khi còn file code. Lớn hơn `CONFIG.UNSUPPORTED_LANGUAGE_RATIO` ⇒ `ERR_UNSUPPORTED_LANGUAGE`; lớn hơn 0 ⇒ warning.
+- **`tech_stack` (lỗi B-09):** giữ đủ gói, kể cả `devDependencies`, vì cổng gác dùng danh sách này. Việc lọc là của Vai D lúc hiển thị.
+
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest`
 - Có đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và test D25 của spec 50 (số dòng `\n` không đổi), tất cả chạy xanh.
 - Toàn bộ secret và PII được che đúng định dạng `<REDACTED_SECRET>` và `***`.
 - `npx vitest run src/server/engine` vẫn xanh (không làm hỏng B01–B03) và `npx eslint src/server/engine` 0 error, 0 warning.
 - `pyproject.toml`: đọc `[project].dependencies` bằng hàm quét có đếm ngoặc và bỏ qua ký tự trong chuỗi, không dùng regex, vì tên gói có thể có extras như `fastapi[standard]`. Regex JavaScript không có `\z`, cuối chuỗi viết `$(?![\s\S])`.
+- T-ING-27, T-ING-32 theo bản mới của spec, gồm các ca không được che nhầm.
+- Test Pipfile có `pytz` đứng trước `fastapi` đọc đủ gói; Pipfile chỉ có `[packages]` đọc đủ gói.
+- Test repo `.vue` JavaScript có `primary_language = JAVASCRIPT`.
+- Test tsconfig có dấu phẩy thừa và `"src/**/*"` không bị báo hỏng.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -93,6 +109,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có đầy đủ các test T-ING-22, T-ING-23, T-ING-24, T-ING-25, T-ING-26, T-ING-27, T-ING-28, T-ING-29, T-ING-30, T-ING-31, T-ING-32, T-ING-34 và ca D25 của spec 50.
 - [ ] Số dòng `\n` của file mã nguồn được bảo toàn trước và sau khi che secret (D25).
 - [ ] Repo có `"fastapi[standard]>=0.1"` trong `pyproject.toml` ra đúng `WEB_BACKEND`, `FastAPI`.
+- [ ] Chạy thật `gothinkster/django-realworld-example-app`: không còn `SECRET_KEY` thật trong code. Chạy `gin-gonic/examples`: báo chưa hỗ trợ Go, không gọi là `JAVASCRIPT`.
+- [ ] `nestjs/nest` không có warning tsconfig hỏng.
 
 ```text
 Task "B04 — Ingest 3: định dạng đặc biệt, che secret, vân tay, runIngest" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

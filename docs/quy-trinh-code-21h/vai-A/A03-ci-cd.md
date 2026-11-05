@@ -8,6 +8,8 @@
 | Mở đường cho | E01, mọi PR |
 | Cách làm | Claude tự viết file workflow · bạn bật mục an ninh trên GitHub và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A03`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -25,10 +27,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 12, 17
-- `.kb/spec/05_HA_TANG_CLOUD.md` Mục 1, 5
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-09
-- `.kb/spec/00_QUYET_DINH.md` D-30, D-64, D-65
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 12, 17
+- `docs/spec/05_HA_TANG_CLOUD.md` Mục 1, 5
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-09
+- `docs/spec/00_QUYET_DINH.md` D-30, D-64, D-65
 - `package.json`
 
 ## Được ghi
@@ -39,8 +41,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. B1: Viết `.github/workflows/ci.yml` (kích hoạt trên mọi PR và push vào `main`: dùng `actions/setup-node` với `node-version-file: .nvmrc` (D-68), chạy `npm ci`, typecheck `tsc --noEmit`, lint `eslint`, unit test `vitest run`).
-2. B2: Viết `.github/workflows/security.yml` (chạy `npm audit --omit=dev --audit-level=critical` trên PR và lịch cron `0 0 * * 1`) và viết `.github/dependabot.yml` cấu hình quét định kỳ hằng tuần cho npm theo `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 17.
-3. B3: Viết `.github/workflows/deploy.yml` theo `.kb/spec/05_HA_TANG_CLOUD.md` Mục 5 và `.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 12: xác thực GCP qua Workload Identity Federation (dự phòng secret key JSON `GCP_SA_KEY`), deploy `gcloud run deploy --source` lên staging S2 với cấu hình của `.kb/spec/05_HA_TANG_CLOUD.md` Mục 1, chạy smoke test X-09 (`/api/health` và ingest repo demo với token bot), job deploy production gắn GitHub Environment `production` (cổng duyệt thủ công của Vai A).
+2. B2: Viết `.github/workflows/security.yml` (chạy `npm audit --omit=dev --audit-level=critical` trên PR và lịch cron `0 0 * * 1`) và viết `.github/dependabot.yml` cấu hình quét định kỳ hằng tuần cho npm theo `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 17.
+3. B3: Viết `.github/workflows/deploy.yml` theo `docs/spec/05_HA_TANG_CLOUD.md` Mục 5 và `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 12: xác thực GCP qua Workload Identity Federation (dự phòng secret key JSON `GCP_SA_KEY`), deploy `gcloud run deploy --source` lên staging S2 với cấu hình của `docs/spec/05_HA_TANG_CLOUD.md` Mục 1, chạy smoke test X-09 (`/api/health` và ingest repo demo với token bot), job deploy production gắn GitHub Environment `production` (cổng duyệt thủ công của Vai A).
 4. Đối chiếu từng workflow với đúng mục spec đã ghi (task này không có code dùng contracts nên không cần kiem-contract).
 
 ## Tiêu chí xong
@@ -81,6 +83,7 @@ Claude chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, làm tiếp t�
 - [ ] Mở `ci.yml`, `security.yml`, `deploy.yml` đọc lướt: đúng các ý ở Tiêu chí xong.
 - [ ] Bước smoke test ingest vẫn còn trong `deploy.yml` (không bị tắt).
 - [ ] Không có chuỗi bí mật tĩnh nào được ghi vào file workflow.
+- [ ] Workflow `deploy` không còn đỏ liên tục: đủ secret GCP, hoặc tắt nếu nhóm chốt host Vercel (lỗi A-01, Q-C).
 
 ```text
 Task "A03 — CI/CD, an ninh GitHub" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -104,7 +107,7 @@ gh pr create --base main --title "A03 — CI/CD, an ninh GitHub" --body "Closes 
 
 Sau đó bạn tự làm trên GitHub, theo thứ tự:
 1. Merge PR này (bạn là Vai A).
-2. Settings ⇒ Code security: bật Dependabot alerts và security updates, Secret scanning kèm Push protection, CodeQL default setup (`.kb/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 17).
+2. Settings ⇒ Code security: bật Dependabot alerts và security updates, Secret scanning kèm Push protection, CodeQL default setup (`docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 17).
 3. Settings ⇒ Branches: branch protection cho `main`: bắt buộc qua PR và check `ci` xanh, **không** bắt buộc người duyệt (để bạn tự merge được PR của mình).
 4. Xem tab Actions: `deploy.yml` chạy lên staging, bước `/api/health` đạt (bước smoke ingest đỏ trước 20:00 là bình thường). WIF lỗi thì chuyển ngay sang secret dự phòng `GCP_SA_KEY`.
 5. Nhắn Vai E mở PR thử (E01), xem `ci` và `security` chạy xanh rồi merge.

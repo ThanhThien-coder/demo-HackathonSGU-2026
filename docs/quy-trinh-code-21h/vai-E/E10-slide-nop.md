@@ -8,6 +8,8 @@
 | Mở đường cho | nộp bài |
 | Cách làm | Claude điền số đo từ bảng duyệt · bạn làm slide và nộp |
 
+**Cách nhanh:** nhắn AI `Làm phiếu E10`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,7 +25,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
+- `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10
 - `package.json`
 - `review/ket_qua_duyet.md`
 
@@ -32,7 +34,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Đọc bảng kết quả duyệt tay trong `review/ket_qua_duyet.md`, tính toán và điền phần "Số đo báo cáo" ở cuối file theo đúng mẫu của `.kb/spec/21_AI_KIEM_VA_DUYET.md` Mục 10: số lượng mục phân tích AI nêu, số mục đúng, số mục bỏ sót, số mục cổng gác tự gạch, tỷ lệ ổn định qua 3 lần chạy, số câu chấm khớp người chấm trên tổng số câu mẫu. Nói đúng phạm vi đo trên repo demo, không làm tròn số đẹp.
+2. Đọc bảng kết quả duyệt tay trong `review/ket_qua_duyet.md`, tính toán và điền phần "Số đo báo cáo" ở cuối file theo đúng mẫu của `docs/spec/21_AI_KIEM_VA_DUYET.md` Mục 10: số lượng mục phân tích AI nêu, số mục đúng, số mục bỏ sót, số mục cổng gác tự gạch, tỷ lệ ổn định qua 3 lần chạy, số câu chấm khớp người chấm trên tổng số câu mẫu. Nói đúng phạm vi đo trên repo demo, không làm tròn số đẹp.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `git diff -- review/ket_qua_duyet.md`

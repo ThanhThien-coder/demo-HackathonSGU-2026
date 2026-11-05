@@ -8,6 +8,8 @@
 | Mở đường cho | C03, A10, D08, E05 |
 | Cách làm | agy viết file · Claude kiểm · bạn kiểm và commit |
 
+**Cách nhanh:** nhắn AI `Làm phiếu C02`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -23,8 +25,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1, 3, 4, 7, 10, Test bắt buộc
-- `.kb/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần BKT), Mục 6
+- `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1, 3, 4, 7, 10, Test bắt buộc
+- `docs/spec/02_CONTRACTS.md` Mục 1 (CONFIG phần BKT), Mục 6
 - `package.json`
 - `src/`
 
@@ -34,10 +36,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết các hàm cập nhật BKT: `updateSkill`, `computeSkillChange`, `revertSkillChange` theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 3, 7. Chữ ký theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 10.
-3. Viết `getDecayedMastery` (decay), `tierOf`, `overallTier` (tier), `isDecaying`, `outcomeOf` theo .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 4, 7. Chữ ký theo Mục 10. Không viết `applyBkt` (thuộc `src/server/progress.ts`, việc của Vai A).
-4. Viết test cho nhóm T-BKT, T-CHAIN, T-UPD, T-REV, T-DEC, T-TIER, T-MM, T-OUT của .kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Test bắt buộc. Số kỳ vọng chép đúng spec.
-5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+2. Viết các hàm cập nhật BKT: `updateSkill`, `computeSkillChange`, `revertSkillChange` theo docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 3, 7. Chữ ký theo docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 10.
+3. Viết `getDecayedMastery` (decay), `tierOf`, `overallTier` (tier), `isDecaying`, `outcomeOf` theo docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 4, 7. Chữ ký theo Mục 10. Không viết `applyBkt` (thuộc `src/server/progress.ts`, việc của Vai A).
+4. Viết test cho nhóm T-BKT, T-CHAIN, T-UPD, T-REV, T-DEC, T-TIER, T-MM, T-OUT của docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Test bắt buộc. Số kỳ vọng chép đúng spec.
+5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/lib/__tests__/bkt-engine.test.ts`
@@ -67,7 +69,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npx vitest run src/lib/__tests__/bkt-engine.test.ts` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Danh sách test có đủ 8 nhóm T-BKT, T-CHAIN, T-UPD, T-REV, T-DEC, T-TIER, T-MM, T-OUT.
-- [ ] Mở 2 test bất kỳ, số kỳ vọng trùng với `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Test bắt buộc.
+- [ ] Mở 2 test bất kỳ, số kỳ vọng trùng với `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Test bắt buộc.
 - [ ] Không có `Math.round` hay `toFixed` trong phần tính toán.
 
 ```text

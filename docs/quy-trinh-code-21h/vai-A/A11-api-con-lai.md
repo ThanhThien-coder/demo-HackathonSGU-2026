@@ -8,6 +8,8 @@
 | Mở đường cho | A12 |
 | Cách làm | agy viết file · làm Bước 0–2 trước khi ngủ (00:00–00:30), kiểm Bước 3–4 khi dậy (03:00) |
 
+**Cách nhanh:** nhắn AI `Làm phiếu A11`, xem [`lam-phieu.md`](../lam-phieu.md). Các bước dưới là cách làm tay.
+
 ## Bước 0 — Chuẩn bị (bạn tự gõ)
 
 ```powershell
@@ -25,11 +27,11 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `.kb/spec/03_API_VA_LUU_TRU.md` Mục 2, 6.4, 6.7
-- `.kb/spec/02_CONTRACTS.md` Mục 6, 8
-- `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 7, 9
-- `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
-- `.kb/spec/00_QUYET_DINH.md` D-22, D-65
+- `docs/spec/03_API_VA_LUU_TRU.md` Mục 2, 6.4, 6.7
+- `docs/spec/02_CONTRACTS.md` Mục 6, 8
+- `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 7, 9
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
+- `docs/spec/00_QUYET_DINH.md` D-22, D-65
 - `package.json`
 - `src/`
 
@@ -43,15 +45,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. B1: Viết `src/server/report.ts` và route `src/app/api/report-wrong/route.ts` theo `.kb/spec/03_API_VA_LUU_TRU.md` Mục 6.4 (D-22): kiểm tra điều kiện câu đã hoàn thành bị trượt, hoàn trả điểm kỹ năng nếu chưa luyện thêm, che ghi chú theo `maskSensitive(redactSecrets(·).code)` trước khi lưu, ghi bảng `dispute_reports`, tính lại màu node.
-3. B2: Viết `src/server/persona.ts` và route `src/app/api/demo/persona/route.ts` theo `.kb/spec/03_API_VA_LUU_TRU.md` Mục 6.7 và `.kb/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 9: kiểm tra cờ `DEMO_MODE` tắt trả `ERR_DEMO_MODE_DISABLED`, ghi đè 16 dòng `skill_states` của tài khoản hiện tại, không gọi ingest.
+2. B1: Viết `src/server/report.ts` và route `src/app/api/report-wrong/route.ts` theo `docs/spec/03_API_VA_LUU_TRU.md` Mục 6.4 (D-22): kiểm tra điều kiện câu đã hoàn thành bị trượt, hoàn trả điểm kỹ năng nếu chưa luyện thêm, che ghi chú theo `maskSensitive(redactSecrets(·).code)` trước khi lưu, ghi bảng `dispute_reports`, tính lại màu node.
+3. B2: Viết `src/server/persona.ts` và route `src/app/api/demo/persona/route.ts` theo `docs/spec/03_API_VA_LUU_TRU.md` Mục 6.7 và `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 9: kiểm tra cờ `DEMO_MODE` tắt trả `ERR_DEMO_MODE_DISABLED`, ghi đè 16 dòng `skill_states` của tài khoản hiện tại, không gọi ingest.
 4. B3: Viết route `src/app/api/sessions/[id]/history/route.ts` trả về `HistoryResponse`.
 5. Viết test trong `src/app/api/__tests__/con-lai.test.ts`.
-6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/app/api/__tests__/con-lai.test.ts`
-- Test các ca `.kb/spec/50_TEST_VA_FIXTURE.md` D18, D24, `ERR_REPORT_NOT_ALLOWED`, `ERR_DEMO_MODE_DISABLED` đều xanh.
+- Test các ca `docs/spec/50_TEST_VA_FIXTURE.md` D18, D24, `ERR_REPORT_NOT_ALLOWED`, `ERR_DEMO_MODE_DISABLED` đều xanh.
 - Cờ `DEMO_MODE` tắt trả về HTTP 403 `ERR_DEMO_MODE_DISABLED`.
 - Ghi chú `report-wrong` được che dữ liệu nhạy cảm đúng quy định.
 
