@@ -32,7 +32,7 @@
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
   ENGINE_VERSION: "1.6.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
-  PROMPT_VERSION: "1.0.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI
+  PROMPT_VERSION: "1.1.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI (D-74)
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------
   MAX_STREAM_BYTES: 15 * 1024 * 1024, // Byte nén tải từ GitHub
@@ -118,6 +118,7 @@ export const CONFIG = {
   LLM_TIMEOUT_MS: 30000,              // Đo lại ở H+1
   LLM_MAX_RETRIES: 1,                 // Lỗi mạng / 429 / 503 / JSON hỏng / bị cổng gác chặn ⇒ gọi lại 1 lần; bị chặn thì kèm lý do (AI-37)
   LLM_RETRY_DELAY_MS: 500,            // Chờ trước khi gọi lại sau 429 / 503
+  LLM_RETRY_DELAY_MAX_MS: 20000,      // Trần retryDelay từ server, vượt ⇒ không gọi lại (D-74 R1)
   LLM_RETRY_JITTER_MS: 100,           // Cộng ngẫu nhiên [0, JITTER)
   GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
   GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
@@ -132,6 +133,8 @@ export const CONFIG = {
   WEAK_POINTS_PER_SKILL_MAX: 1,
   MUST_HAVE_POINTS_MIN: 2,
   MUST_HAVE_POINTS_MAX: 3,
+  HISTORY_MISSED_POINTS_MAX: 3,       // Số ý bắt buộc đã hụt tối đa nạp vào prompt đặt câu hỏi (D-74 A5b)
+  GRADE_REFERENCED_MAX: 3,            // Số tên hàm node khác tối đa tra khi chấm (D-74 M1)
   FLOW_ANSWER_MIN_STEPS: 2,           // Đáp án câu FLOW phải nhắc tên ở ≥ 2 bước
   FEEDBACK_MAX_SENTENCES: 2,
 
