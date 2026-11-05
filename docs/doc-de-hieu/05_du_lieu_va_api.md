@@ -298,7 +298,7 @@ Trong mô hình BKT, khi một kỹ năng đã lâu không được thực hành
 
 Cần hiểu rất rõ rằng: **Hiện tượng mài mòn hoàn toàn là một lớp hiển thị trên giao diện người dùng, không làm thay đổi trạng thái của node trong cơ sở dữ liệu**.
 - Trình duyệt tự tính toán độ mài mòn bằng hàm `getDecayedMastery` dựa trên mốc thời gian thực hành cuối cùng `last_practiced_at` và độ lệch đồng hồ máy chủ `server_clock_offset_ms`.
-- Khi điểm kỹ năng sau mài mòn bị tụt xuống bậc thấp hơn, giao diện Tab X-Ray sẽ hiển thị thanh kỹ năng nhạt màu kèm dòng chữ *"đang mài mòn"*.
+- Khi điểm kỹ năng sau mài mòn bị tụt xuống bậc thấp hơn, giao diện phần X-Ray sẽ hiển thị thanh kỹ năng nhạt màu kèm dòng chữ *"đang mài mòn"*.
 - Mài mòn không làm đổi màu node trên bản đồ (node đã xanh vẫn giữ màu xanh, node đã đỏ vẫn giữ màu đỏ), không khóa lại bất kỳ node nào, và hệ thống không có nút bắt buộc ôn tập.
 
 ### 4.4. Kế hoạch câu hỏi không bao giờ rỗng
@@ -333,7 +333,7 @@ Hệ thống cung cấp đúng 14 endpoint API (gồm 13 endpoint nghiệp vụ 
 | 5 | `POST /api/ingest` | Trình duyệt, khi dán link repo hoặc mở lại phiên | Phân tích Tầng 0–2 dựng bản đồ, mở hoặc tạo phiên | Ghi mới hoặc mở lại `learning_sessions` | Không | Mã lỗi nạp repo, `ERR_SESSION_ENGINE_OUTDATED` |
 | 6 | `POST /api/analyze-node` | Trình duyệt, cho node đang mở và 1–2 node kế tiếp | Phân tích lát cắt code, tìm kỹ năng, điểm hay và dở | Ghi `ai_cache`, `tokens_used`, `analysis_failed` | Có | `ERR_TOKEN_QUOTA_EXCEEDED` |
 | 7 | `POST /api/analyze-overview` | Trình duyệt tự gọi, khi mọi node đã có bản phân tích hoặc `analysis_failed` | Tổng hợp kiến trúc, luồng chính của toàn bộ dự án | Ghi `ai_cache`, cộng `tokens_used` | Có | `ERR_OVERVIEW_NOT_READY`, `ERR_TOKEN_QUOTA_EXCEEDED` |
-| 8 | `POST /api/enrich-node` | Trình duyệt, khi bấm "Bắt đầu trả lời" ở cuối Tab 1 | Lập kế hoạch và gọi AI đặt câu hỏi Feynman | Ghi `node_runs`, cộng `tokens_used`, `last_active_at` | Có | `ERR_NODE_NOT_AVAILABLE`, `ERR_ANALYSIS_NOT_READY`, `ERR_AI_REJECTED`, `ERR_AI_UNAVAILABLE`, `ERR_TOKEN_QUOTA_EXCEEDED` |
+| 8 | `POST /api/enrich-node` | Trình duyệt, khi bấm "Bắt đầu trả lời" ở cuối phần X-Ray | Lập kế hoạch và gọi AI đặt câu hỏi Feynman | Ghi `node_runs`, cộng `tokens_used`, `last_active_at` | Có | `ERR_NODE_NOT_AVAILABLE`, `ERR_ANALYSIS_NOT_READY`, `ERR_AI_REJECTED`, `ERR_AI_UNAVAILABLE`, `ERR_TOKEN_QUOTA_EXCEEDED` |
 | 9 | `POST /api/evaluate-feynman` | Trình duyệt, khi người học gõ câu trả lời và nộp | Chấm điểm câu trả lời, gợi ý nấc kế, cập nhật BKT | Ghi `question_attempts`, `node_runs`, `skill_states`, `node_progress` | Có | `ERR_ANSWER_TOO_SHORT`, `ERR_ANSWER_TOO_LONG`, `ERR_ANSWER_DUPLICATE`, `ERR_QUESTION_FINISHED`, `ERR_ATTEMPT_OUT_OF_SYNC`, `ERR_AI_UNAVAILABLE`, `ERR_TOKEN_QUOTA_EXCEEDED` |
 | 10 | `POST /api/reveal` | Trình duyệt, khi bấm nút "Bỏ qua câu này" | Đánh dấu câu bị trượt, mở đáp án mẫu, cập nhật BKT theo `FAILED` | Ghi `node_runs`, `skill_states`, cập nhật `node_progress` nếu xong run | Không | `ERR_QUESTION_FINISHED` |
 | 11 | `POST /api/report-wrong` | Trình duyệt, khi bấm nút "Báo sai" cho câu trượt | Cắm cờ, hoàn lại điểm nếu còn khớp, tính lại màu node | Ghi `dispute_reports`, `node_runs`, hoàn `skill_states`, đổi `node_progress` | Không | `ERR_REPORT_NOT_ALLOWED` |
@@ -397,7 +397,7 @@ Hệ thống cung cấp đúng 14 endpoint API (gồm 13 endpoint nghiệp vụ 
 - **Lỗi có thể gặp:** `ERR_OVERVIEW_NOT_READY`, `ERR_TOKEN_QUOTA_EXCEEDED`.
 
 #### 8. `POST /api/enrich-node`
-- **Ai gọi & Khi nào:** Trình duyệt gọi khi người học bấm nút "Bắt đầu trả lời" ở cuối Tab 1 (X-Ray) để sang Tab 2 (Feynman).
+- **Ai gọi & Khi nào:** Trình duyệt gọi khi người học bấm nút "Bắt đầu trả lời" ở cuối phần X-Ray để sang phần Feynman.
 - **Làm gì:**
   - *Gọi lại vẫn ra cùng kết quả (idempotent):* Máy chủ kiểm tra xem node này đã có một lần học nào đang mở hay chưa (`finished_at IS NULL` trong bảng `node_runs`). Nếu có (ví dụ do người học tải lại trang hoặc mở từ tab khác), máy chủ trả về ngay đối tượng lần học đó mà không cần gọi lại AI. Nếu hai tab cùng tạo run, chỉ mục `node_runs_one_open` chặn tab sau, và tab đó đọc lại run đang mở.
   - *Kiểm tra điều kiện tiên quyết:* Node phải đang ở trạng thái sẵn sàng `AVAILABLE` và đã có sẵn bản phân tích kiến trúc trong `ai_cache`. Nếu không, hệ thống trả về lỗi tương ứng.
@@ -542,9 +542,9 @@ sequenceDiagram
   API->>AI: Gửi 3 bước code phân tích kiến trúc
   AI-->>API: Trả về kỹ năng, điểm mạnh và điểm dở N+1 query
   API->>DB: Lưu vào ai_cache, cộng tokens_used vào learning_sessions
-  API-->>FE: Trả về NodeAnalysisView (Tab 1 X-Ray hiển thị)
+  API-->>FE: Trả về NodeAnalysisView (phần X-Ray hiển thị)
 
-  Student->>FE: Bấm "Bắt đầu trả lời" ở cuối Tab 1
+  Student->>FE: Bấm "Bắt đầu trả lời" ở cuối phần X-Ray
   FE->>API: POST /api/enrich-node { session_id, node_id: "N3", mode: "LEARN" }
   API->>DB: Đọc skill_states, lập kế hoạch 2 câu
   API->>AI: Gửi code các bước của 2 câu, yêu cầu đặt câu hỏi Feynman
@@ -576,7 +576,7 @@ sequenceDiagram
   API-->>FE: Báo Đạt, đổi N3 sang xanh, unlocked_node_ids rỗng vì N5 còn chờ N4
 ```
 
-#### Bước 1: Khám phá kiến trúc ở Tab 1 (X-Ray)
+#### Bước 1: Khám phá kiến trúc ở phần X-Ray
 1. Người học nhấp chuột vào node N3 (Danh sách sản phẩm) trên bản đồ ReactFlow.
 2. Trình duyệt gửi yêu cầu:
    ```json
@@ -587,12 +587,12 @@ sequenceDiagram
 4. Máy chủ đọc đoạn code 3 bước của N3 từ kết quả phân tích trong RAM và gửi prompt tới Gemini AI.
 5. AI phân tích và phát hiện ra cấu trúc 3 tầng rõ rệt: Controller tiếp nhận yêu cầu, Service xử lý nghiệp vụ, Repository truy vấn database. Đặc biệt, AI phát hiện ra điểm dở kiến trúc (`weak_points`): Vòng lặp `for` ở Bước 2 liên tục gọi `categoryRepo.findById` dẫn đến vấn đề truy vấn lặp (N+1 query).
 6. Kết quả chạy qua cổng gác kiểm định. Máy chủ lưu đối tượng phân tích vào bảng `ai_cache`, đồng thời cộng số token tiêu thụ vào cột `tokens_used` của phiên trong bảng `learning_sessions`.
-7. Máy chủ trả về dữ liệu `NodeAnalysisView` cho trình duyệt. Giao diện Tab 1 hiển thị luồng xử lý và làm nổi bật cảnh báo điểm chưa tối ưu ở Bước 2.
+7. Máy chủ trả về dữ liệu `NodeAnalysisView` cho trình duyệt. Giao diện phần X-Ray hiển thị luồng xử lý và làm nổi bật cảnh báo điểm chưa tối ưu ở Bước 2.
 
-#### Bước 2: Tạo lần học và sinh câu hỏi cho Tab 2 (Feynman)
+#### Bước 2: Tạo lần học và sinh câu hỏi cho phần Feynman
 Kịch bản dưới đây bám theo Kịch bản A trong `spec/50`: người học mới tên Lan học node N3.
 
-1. Ở cuối Tab 1, Lan bấm nút "Bắt đầu trả lời". Trình duyệt gửi:
+1. Ở cuối phần X-Ray, Lan bấm nút "Bắt đầu trả lời". Trình duyệt gửi:
    ```json
    POST /api/enrich-node
    { "session_id": "8f3b...e12a", "node_id": "N3", "mode": "LEARN" }

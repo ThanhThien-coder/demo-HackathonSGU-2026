@@ -81,9 +81,9 @@ Sau khi đã có tên chủ sở hữu (`owner`) và tên kho chứa (`repo`) ch
 
 Nếu lập tức tải ngay file zip nặng hàng chục megabyte, khi gặp lỗi chúng ta sẽ tốn rất nhiều thời gian chờ đợi vô ích. Do đó, hệ thống thực hiện một bước thăm dò siêu nhanh (preflight probe).
 
-Thay vì gửi một yêu cầu tải toàn bộ nội dung (`GET`), hệ thống chỉ gửi một yêu cầu lấy thông tin tiêu đề (`HEAD`) tới địa chỉ `https://github.com/my-shop/shop-api` với thời gian chờ tối đa chỉ vỏn vẹn 300 mili-giây. Yêu cầu này không tải về bất kỳ dòng code nào, chỉ hỏi xem máy chủ GitHub phản hồi ra sao:
-- **Mã 200 (Thành công):** Kho chứa tồn tại và công khai. Nếu GitHub có chuyển hướng sang một địa chỉ mới (ví dụ dự án vừa đổi tên), hệ thống sẽ ghi nhận lại tên mới đó để các bước sau dùng đúng.
-- **Mã 404 (Không tìm thấy):** Kho chứa này không tồn tại, hoặc đây là một kho chứa riêng tư (private) mà người ngoài không thể xem được. Hệ thống sẽ báo rõ ràng cho người dùng biết.
+Thay vì gửi một yêu cầu tải toàn bộ nội dung (`GET`), hệ thống gửi một yêu cầu lấy thông tin tiêu đề (`HEAD`) tới `https://github.com/my-shop/shop-api/archive/HEAD.zip`. Địa chỉ này trả lời nhanh, còn gọi thẳng trang repo có thể mất nhiều giây. Yêu cầu không tải về dòng code nào, chỉ hỏi xem GitHub phản hồi ra sao:
+- **Có chuyển hướng tới file zip (Thành công):** Kho chứa tồn tại và công khai, đồng thời hệ thống biết luôn địa chỉ tải. Nếu GitHub báo dự án vừa đổi tên, hệ thống ghi nhận tên mới rồi hỏi lại 1 lần.
+- **Mã 404 (Không tìm thấy):** Lúc này hệ thống mới gọi trang repo để phân biệt. Trang repo cũng 404 nghĩa là kho chứa không tồn tại hoặc là kho riêng tư, hệ thống báo rõ cho người dùng. Trang repo vẫn có nghĩa là kho chứa rỗng hoặc nhánh mặc định bất thường, hệ thống chuyển sang thử các nhánh quen thuộc.
 - **Mã 451 (Bị chặn pháp lý):** Kho chứa bị GitHub gỡ bỏ do vi phạm bản quyền hoặc các lý do pháp lý tương tự.
 - **Mã 429 hoặc 403 (Bị hạn chế tần suất):** Địa chỉ IP của máy chủ đã gửi quá nhiều yêu cầu lên GitHub trong một khoảng thời gian ngắn và bị tạm khóa.
 - **Hết thời gian chờ hoặc lỗi mạng (Timeout/5xx):** Khi mạng chập chờn, hệ thống không vội vàng kết luận kho chứa bị lỗi. Nó sẽ kiên nhẫn chờ 1000 mili-giây rồi thử lại đúng 1 lần nữa. Nếu sau lần thử lại vẫn không nhận được tín hiệu, hệ thống sẽ báo lỗi mạng quá hạn.
@@ -223,12 +223,12 @@ Nếu đưa tất cả mớ hỗn độn đó vào bộ phân tích cú pháp, h
 | **Rác và nhị phân** | Thư mục thư viện cài đặt (`node_modules`, `vendor`, `venv`), thư mục biên dịch (`dist`, `build`, `.next`, `target`), thư mục cấu hình của IDE (`.vscode`, `.idea`), file ảnh (`.png`, `.jpg`), file nhạc, video, file nén, hoặc file thư viện đã bị nén nhỏ (`.min.js`, `.min.css`, `.lock`). | Loại bỏ hoàn toàn, không cấp một byte bộ nhớ nào. |
 | **Cấu hình dự án (Manifest)** | Các file khai báo gói phụ thuộc như `package.json`, `tsconfig.json`, `requirements.txt`, `pyproject.toml`, `pom.xml`, `go.mod`, `pubspec.yaml`, `Cargo.toml`. Yêu cầu file nằm ở độ sâu không quá 3 cấp thư mục. | Giữ nguyên để phục vụ bước nhận diện công nghệ, nhưng không tính vào trần 100 file mã nguồn. |
 | **Định dạng đặc biệt** | File sổ tay lập trình Jupyter Notebook (`.ipynb`), file giao diện Vue (`.vue`) hoặc Svelte (`.svelte`). | Đưa vào danh sách chờ bóc tách riêng ở bước sau. |
-| **Mã nguồn chuẩn** | Các file có đuôi nằm trong danh sách hỗ trợ của hệ thống như `.ts`, `.js`, `.py`, `.java`, `.go`, `.cs`, `.dart`, `.rs`, `.php`, `.cpp`... | Đưa vào danh sách ứng viên để chấm điểm ưu tiên. |
+| **Mã nguồn chuẩn** | Các file có đuôi nằm trong danh sách hỗ trợ của bản thi: `.ts`, `.tsx`, `.js`, `.jsx`, `.py`... | Đưa vào danh sách ứng viên để chấm điểm ưu tiên. |
 | **Chưa hỗ trợ ngữ pháp** | Các ngôn ngữ lập trình chưa có bộ phân tích cú pháp Tree-sitter được tích hợp sẵn (ví dụ hợp đồng thông minh Solidity `.sol`). | Ghi nhận lại để tính toán mức độ tin cậy của dự án. |
 | **File phụ khác** | File tài liệu (`README.md`), file cấu hình môi trường không chứa code (`Dockerfile`, `.yml`). | Tạm thời bỏ qua. |
 
 *Một lưu ý đặc biệt về file kiểm thử (Test):*
-Nhiều người nghĩ rằng mã kiểm thử (`order.test.ts`, `user.spec.ts`) cũng là rác và nên vứt bỏ ngay. Hệ thống không làm như vậy. Mã kiểm thử vẫn là mã nguồn hợp lệ do lập trình viên viết ra, phản ánh cách các hàm được gọi. Thay vì vứt bỏ, hệ thống giữ lại chúng nhưng sẽ trừ điểm ưu tiên ở bước sau. Nếu dự án còn trống quota thì các file test vẫn được phân tích để làm giàu thêm đồ thị.
+Nhiều người nghĩ rằng mã kiểm thử (`order.test.ts`, `user.spec.ts`) cũng là rác và nên vứt bỏ ngay. Hệ thống không làm như vậy. Mã kiểm thử vẫn là mã nguồn hợp lệ do lập trình viên viết ra, phản ánh cách các hàm được gọi. Thay vì vứt bỏ, hệ thống giữ lại chúng nhưng sẽ trừ điểm ưu tiên ở bước sau. Nếu dự án còn trống quota thì các file test vẫn được phân tích để làm giàu thêm đồ thị. Sang bước ghép bài học, file test bị bỏ khỏi bản đồ nếu repo còn đủ bài thật, để bài học không bắt đầu từ code kiểm thử.
 
 Tra chi tiết: spec/10_ENGINE_INGEST.md Mục 7.
 
@@ -246,7 +246,7 @@ Nếu trộn lẫn cả hai phía vào một bản đồ duy nhất, các node g
 
 Hệ thống tự động dò tìm cấu trúc Monorepo bằng các quy tắc sau:
 1. **Tìm kiếm ứng viên:** Hệ thống quét qua các thư mục cấp cao nhất để tìm các thư mục máy chủ quen thuộc (như `server/`, `backend/`, `api/`) và các thư mục giao diện (như `client/`, `frontend/`, `web/`, `ui/`).
-2. **Quyết định trọng tâm:** Nếu một dự án có cả thư mục máy chủ lẫn giao diện, hoặc có nhiều thư mục máy chủ khác nhau, hệ thống xác nhận đây là một Monorepo. Trọng tâm phân tích mặc định sẽ được đặt vào thư mục máy chủ có tổng dung lượng code lớn nhất (ví dụ thư mục `server/`). Nếu chỉ có đúng 1 thư mục máy chủ và không có thư mục giao diện, thư mục đó chỉ thành trọng tâm khi chiếm hơn 70% dung lượng code của repo, và repo không bị tính là Monorepo. Các trường hợp còn lại thì hệ thống phân tích cả repo.
+2. **Quyết định trọng tâm:** Nếu một dự án có cả thư mục máy chủ lẫn giao diện, hoặc có nhiều thư mục máy chủ khác nhau, hệ thống xác nhận đây là một Monorepo. Trọng tâm phân tích mặc định sẽ được đặt vào thư mục máy chủ có tổng dung lượng code lớn nhất (ví dụ thư mục `server/`). Nếu chỉ có đúng 1 thư mục máy chủ và không có thư mục giao diện, thư mục đó chỉ thành trọng tâm khi chiếm hơn 70% dung lượng code của repo, và repo không bị tính là Monorepo. Các trường hợp còn lại thì hệ thống phân tích cả repo. Nếu thư mục tự chọn không dựng được bài nào, hệ thống thử thư mục ứng viên kế tiếp, cuối cùng là toàn repo.
 3. **Cảnh báo khi có nhiều dịch vụ:** Nếu dự án viết theo dạng Microservices gồm nhiều dịch vụ như `services/order/` và `services/user/`, hệ thống sẽ chọn dịch vụ lớn nhất để phân tích trước, đồng thời hiển thị một cảnh báo rõ ràng để người dùng biết họ có thể nhập tùy chọn thư mục để chuyển sang xem dịch vụ khác.
 
 ### Giai đoạn 2: Thuật toán chấm điểm ưu tiên file (File Priority Score - FPS)
@@ -405,7 +405,7 @@ Mọi giá trị nhạy cảm đều được thay thế đồng nhất bằng m
 
 1. **Khối khóa riêng tư (Private Key):** Các khối khóa mã hóa RSA, OpenSSH, DSA bắt đầu bằng `-----BEGIN ... PRIVATE KEY-----` và kết thúc bằng `-----END ... PRIVATE KEY-----`. Từng dòng trong khối này (kể cả dòng mở đầu và kết thúc) đều được chuyển thành chuỗi mặt nạ.
 2. **Khóa API có định dạng chuẩn:** Nhận diện các mẫu khóa của những nhà cung cấp dịch vụ lớn như AWS (bắt đầu bằng `AKIA`), GitHub (mã token cá nhân bắt đầu bằng `ghp_`, `gho_`), Google Cloud / Firebase (bắt đầu bằng `AIza`). Toàn bộ chuỗi khóa sẽ bị thay thế ngay lập tức.
-3. **Các biến gán mật khẩu và khóa bí mật:** Các dòng khai báo biến có tên nhạy cảm như `password`, `secret`, `token`, `api_key`, `JWT_SECRET` theo sau bởi dấu hai chấm hoặc dấu gằng và một chuỗi đặt trong dấu nháy.
+3. **Các biến gán mật khẩu và khóa bí mật:** Các dòng khai báo biến có tên nhạy cảm như `password`, `secret`, `token`, `api_key`, `JWT_SECRET`, `SECRET_KEY`, kể cả khóa trong dấu nháy như `"password"`, theo sau bởi dấu hai chấm hoặc dấu gằng và một chuỗi đặt trong dấu nháy. Hệ thống cũng che token Stripe, Slack và mật khẩu trong địa chỉ dạng `https://user:pass@host`.
    - *Quy tắc độ dài tối thiểu:* Giá trị trong nháy phải dài từ 6 ký tự trở lên mới bị che. Ví dụ: `password = "12345"` (5 ký tự) được coi là dữ liệu giả lập để kiểm thử và không bị che; nhưng chuỗi bí mật thật dài từ 6 ký tự trở lên sẽ bị thay thế ruột bên trong bằng `<REDACTED_SECRET>`, giữ nguyên tên biến và cặp dấu nháy bên ngoài.
 4. **Chuỗi kết nối cơ sở dữ liệu:** Các chuỗi kết nối đến PostgreSQL, MySQL, MongoDB, Redis, RabbitMQ có dạng `giao_thức://tên_đăng_nhập:mật_khau@dia_chi`. Hệ thống nhận diện chuẩn xác vị trí mật khẩu nằm giữa dấu hai chấm và dấu `@` để che lại, giữ nguyên địa chỉ máy chủ và tên cơ sở dữ liệu để phục vụ việc nhận diện kiến trúc.
 
@@ -465,7 +465,7 @@ flowchart TD
 3. **Framework chủ đạo:** Xác định công nghệ làm khung xương chính cho dự án (với `shop-api` là `Express`).
 4. **Ngôn ngữ chính và tỷ lệ phân bố:** Đo đạc chính xác tổng số byte code của từng ngôn ngữ trong thư mục phân tích. Ngôn ngữ chiếm tỷ trọng byte lớn nhất sẽ được chọn làm ngôn ngữ đại diện (với `shop-api` là `TypeScript`).
 5. **Độ tin cậy của đồ thị (Graph Confidence):**
-   - Các ngôn ngữ lập trình lớn (như TypeScript, JavaScript, Python, Java, Go) có bộ phân tích ngữ nghĩa sâu, cho phép hệ thống tìm ra chính xác mối quan hệ gọi hàm giữa các file. Nếu các ngôn ngữ này chiếm từ 80% tổng dung lượng code trở lên, độ tin cậy được đánh giá ở mức **Cao (HIGH)**.
+   - Các ngôn ngữ lập trình lớn (TypeScript, JavaScript, Python) có bộ phân tích ngữ nghĩa sâu, cho phép hệ thống tìm ra chính xác mối quan hệ gọi hàm giữa các file. Nếu các ngôn ngữ này chiếm từ 80% tổng dung lượng code trở lên, độ tin cậy được đánh giá ở mức **Cao (HIGH)**.
    - Ngược lại, đối với các ngôn ngữ chỉ hỗ trợ phân tích cấu trúc bề mặt (nếu chiếm từ 50% trở lên), độ tin cậy sẽ ở mức **Thấp (LOW)** kèm theo một thông báo cảnh báo rõ ràng trên màn hình: *"Đồ thị được suy luận bằng bộ phân giải phổ quát; các đường liên kết nét đứt có thể chưa hoàn toàn chính xác."*
    - Sự minh bạch này giúp người học biết được mức độ chuẩn xác của bản đồ mà họ đang theo dõi.
 
@@ -593,8 +593,8 @@ flowchart LR
 ```
 
 ### Hai nhóm ngôn ngữ trong hệ thống
-1. **Nhóm phân giải chuyên sâu (RESOLVED):** Gồm TypeScript, JavaScript, Python, Java, Go, Dart. Đây là những ngôn ngữ có bộ phân tích đường dẫn thư viện chi tiết, cho phép hệ thống biết đích danh hàm được gọi nằm ở file nào, dòng thứ bao nhiêu. (Trong đó TypeScript, JavaScript và Python là ba ngôn ngữ cốt lõi đã được kiểm chứng toàn diện bằng kịch bản thực tế).
-2. **Nhóm phân giải cấu trúc bề mặt (STRUCTURAL / Universal):** Gồm C#, PHP, Kotlin, Rust, C/C++, Ruby, Swift, Scala. Hệ thống sử dụng một bộ phân giải phổ quát để nhận diện cấu trúc file và các lời gọi hàm cơ bản dựa trên tên gọi. Nếu đồ thị phụ thuộc vào nhóm này, các đường liên kết sẽ được đánh dấu là liên kết suy luận nét đứt để người dùng lưu ý.
+1. **Nhóm phân giải chuyên sâu (RESOLVED):** Bản thi gồm TypeScript, JavaScript, Python (D-76). Java, Go, Dart là thiết kế sau thi. Đây là những ngôn ngữ có bộ phân tích đường dẫn thư viện chi tiết, cho phép hệ thống biết đích danh hàm được gọi nằm ở file nào, dòng thứ bao nhiêu. (Trong đó TypeScript, JavaScript và Python là ba ngôn ngữ cốt lõi đã được kiểm chứng toàn diện bằng kịch bản thực tế).
+2. **Nhóm phân giải cấu trúc bề mặt (STRUCTURAL / Universal):** Là thiết kế sau thi, bản thi chưa có (D-76). Dự kiến gồm C#, PHP, Kotlin, Rust, C/C++, Ruby, Swift, Scala. Hệ thống sử dụng một bộ phân giải phổ quát để nhận diện cấu trúc file và các lời gọi hàm cơ bản dựa trên tên gọi. Nếu đồ thị phụ thuộc vào nhóm này, các đường liên kết sẽ được đánh dấu là liên kết suy luận nét đứt để người dùng lưu ý.
 
 ### Xử lý file bị lỗi cú pháp
 Sinh viên khi viết code đôi khi vô tình để sót một dấu ngoặc nhọn hoặc viết sai cú pháp khiến file không thể biên dịch. Khi Tree-sitter gặp đoạn code lỗi, nó sẽ đánh dấu đoạn đó bằng một nút đặc biệt tên là `ERROR`.
@@ -627,7 +627,7 @@ Hệ thống xây dựng 4 bảng ánh xạ thông minh:
 4. **Bộ phân giải đường dẫn Import chuyên sâu (Resolver):**
    - Với TypeScript/JavaScript: Thử lần lượt các đuôi mở rộng `.ts`, `.tsx`, `.js`, tự động nhận diện file thư mục ngầm định `/index.ts`. Đặc biệt, hệ thống đọc cấu hình đường dẫn tắt từ file `tsconfig.json` (ví dụ `@/services/...` tương ứng với `src/services/...`), và tự động lần theo các file chuyển tiếp (barrel re-export) lên đến 5 cấp độ để tìm đúng file gốc ban đầu.
    - Với Python: Chuyển đổi các dấu chấm trong câu lệnh `from a.b.c import d` thành cấu trúc thư mục tương ứng `a/b/c.py` hoặc `a/b/c/__init__.py`.
-   - Với Java và Go: Tự động đối chiếu theo cấu trúc gói (package) và đường dẫn module khai báo trong `go.mod`.
+   - Sau thi, với Java và Go: Tự động đối chiếu theo cấu trúc gói (package) và đường dẫn module khai báo trong `go.mod`.
 
 Nhờ cuốn danh bạ chi tiết này, hệ thống đã sẵn sàng kết nối các điểm rời rạc thành một mạng lưới liên hoàn.
 
@@ -696,16 +696,16 @@ Nhận diện các chú thích kiến trúc:
 - Flask: Nhận diện các decorator `@app.route('/...')` và `@login_required`.
 - FastAPI: Nhận diện `@app.post('/checkout')` và tự động bóc tách các hàm phụ thuộc được tiêm qua `Depends(get_current_user)` thành các bước tiền xử lý.
 
-### 4. Ứng dụng di động phổ biến (React Native, Flutter, Android, iOS — D-57)
+### 4. Ứng dụng di động phổ biến (React Native, Expo — D-57, D-76)
 Nhận diện các màn hình (SCREEN) làm điểm đầu vào kiến trúc:
 - **React Native & Expo:** Màn hình trong Stack, Tab, Drawer của React Navigation (`<X.Screen component={...}>`); Expo Router tự nhận diện các file trang trong thư mục `app/` (trừ file layout `_layout`).
-- **Flutter:** `GoRoute`, danh sách `routes` hoặc màn hình `home` của `MaterialApp`/`CupertinoApp`, các trang con của `TabBarView`/`IndexedStack`.
-- **Android (Java/Kotlin):** Lớp con của `Activity` (bắt đầu từ `onCreate`), `Fragment` (`onCreateView`), hoặc khai báo `composable(...)` trong `NavHost`.
-- **iOS (Swift):** Lớp con của `UIViewController` (`viewDidLoad`), hoặc view SwiftUI là đích điều hướng `NavigationLink`, tab trong `TabView` hay `WindowGroup`.
+- **Flutter (sau thi):** `GoRoute`, danh sách `routes` hoặc màn hình `home` của `MaterialApp`/`CupertinoApp`, các trang con của `TabBarView`/`IndexedStack`.
+- **Android (sau thi):** Lớp con của `Activity` (bắt đầu từ `onCreate`), `Fragment` (`onCreateView`), hoặc khai báo `composable(...)` trong `NavHost`.
+- **iOS (sau thi):** Lớp con của `UIViewController` (`viewDidLoad`), hoặc view SwiftUI là đích điều hướng `NavigationLink`, tab trong `TabView` hay `WindowGroup`.
 
 ### 5. Các điểm đầu vào chương trình, entry chung và quy ước export (D-58)
 Đối với các ứng dụng dòng lệnh, chương trình không framework hoặc cấu trúc phi web:
-- **Hàm `main` của mọi ngôn ngữ có ngữ pháp (Tree-sitter):** Nhận diện hàm `main()` (hoặc C# `Main()`) có thân ở mọi ngôn ngữ được hỗ trợ: C, C++, Rust (`src/bin/*.rs`), C#, Java, Go (`package main`), Kotlin, Swift (`@main`/`main.swift`), Scala (`extends App`), Ruby (`if __FILE__ == $0`), PHP (`index.php` ở gốc scope). Nhờ đó, các chương trình C/C++/Rust/C# có `main` sẽ có lát cắt hoàn chỉnh xuất phát từ `main`, không còn bị xếp vào nhóm chỉ có thuật toán rời.
+- **Hàm `main` (bản thi chỉ có TS/JS, Python; ngôn ngữ khác là thiết kế sau thi, D-76):** Nhận diện hàm `main()` (hoặc C# `Main()`) có thân ở mọi ngôn ngữ được hỗ trợ: C, C++, Rust (`src/bin/*.rs`), C#, Java, Go (`package main`), Kotlin, Swift (`@main`/`main.swift`), Scala (`extends App`), Ruby (`if __FILE__ == $0`), PHP (`index.php` ở gốc scope). Nhờ đó, các chương trình C/C++/Rust/C# có `main` sẽ có lát cắt hoàn chỉnh xuất phát từ `main`, không còn bị xếp vào nhóm chỉ có thuật toán rời.
 - **Entry chung theo tên thư mục và file (`GENERIC`):** Tự động nhận diện các file nằm trong thư mục hoặc có tên chứa: `controllers/`, `routes/`, `handlers/`, `screens/`, `pages/`, `views/`, `activities/`, `fragments/`, `commands/`… áp dụng cả khi repo dùng framework tự tạo chưa có mẫu đăng ký riêng.
 - **Quy ước hàm "export" ở các ngôn ngữ không có từ khóa `export`:** Engine hiểu quy ước công khai tự nhiên của từng ngôn ngữ: Python và Dart là tên không bắt đầu bằng dấu gạch dưới `_`; Go là tên bắt đầu bằng chữ hoa; Rust dùng từ khóa `pub`; C/C++ là hàm cấp file không có `static` và method `public`; Java, C#, Kotlin, Swift, PHP là hàm/method không khai báo `private`/`protected`/`internal`.
 - **Công cụ dòng lệnh:** Nhận diện các lệnh đăng ký của thư viện CLI như Commander (`.command('build').action(...)`), Click hay Typer.
@@ -1006,6 +1006,17 @@ Hãy nhìn vào bản đồ mẫu của `shop-api`. Bản đồ này viết tay 
 - **N3 (Danh sách sản phẩm) trỏ sang N5 (Thanh toán):** Vì cả hai đều dùng chung hàm kiểm tra hàng trong `src/repos/product.repo.ts`.
 - **N5 (Thanh toán) trỏ sang N6 (Gửi email) và N7 (Báo cáo):** Vì sau khi thanh toán xong, hệ thống gọi hàm kích hoạt gửi email và cập nhật doanh thu.
 
+### Nối thêm thành cây bài học (D-73)
+
+Chỉ nối theo hàm dùng chung thì nhiều bài không có bài cha và mở sẵn ngay từ đầu. Vì vậy, sau khi chọn xong tối đa 20 bài, engine nối thêm cho các lát cắt chưa có cha:
+
+1. Mỗi thư mục chứa file đầu tiên của bài là một module.
+2. Trong module, bài dễ nhất chưa có cha là bài đầu nhánh. Các bài chưa có cha còn lại thành con của nó.
+3. Module này dùng module kia thì nối 2 bài đầu nhánh, nhưng chỉ khi bài cha dễ hơn.
+4. Bài thuật toán giữ nguyên, không nối thêm.
+
+Ví dụ `shop-api`: N3 và N7 cùng thư mục `src/controllers/`, N3 dễ hơn nên N7 mở sau N3. Cạnh thêm được vẽ nét đứt, vẫn khóa bài như cạnh thường.
+
 ### Hướng của mũi tên và tính không chu trình
 Khi hai Node A và B có hàm dùng chung, mũi tên sẽ đi từ đâu sang đâu?
 Hệ thống quy định: Mũi tên luôn đi từ Node có độ phức tạp nhận thức nhỏ hơn sang Node có độ phức tạp lớn hơn (từ bài dễ đến bài khó). Nhờ quy tắc sắp thứ tự toàn phần này, mũi tên giữa các node không tạo thành vòng. Nếu hai node bằng độ phức tạp thì so `rank_score`, rồi so `id`.
@@ -1123,6 +1134,8 @@ flowchart TD
    - `GET /orders/:id` tạo thành tên: **"Get Order"**.
    - `GET /orders` tạo thành tên: **"List Orders"**.
    - `DELETE /orders/:id` tạo thành tên: **"Delete Order"**.
+   - `POST /orders/:id/cancel` tạo thành tên: **"Cancel Order"**, vì `cancel` là từ chỉ hành động.
+   - `DELETE /articles/:slug/comments/:id` tạo thành tên: **"Delete Article Comment"**.
 2. **Bậc 2: Dựa vào tên hàm điểm vào (ENTRY_SYMBOL):**
    Nếu không có Route, hệ thống lấy tên của hàm khởi đầu, tách các từ theo kiểu camelCase, loại bỏ các từ kỹ thuật chung chung (`controller`, `service`, `handler`, `get`, `post`). Ví dụ hàm `syncUserProfile` sẽ được đổi thành **"Sync User Profile"**.
 3. **Bậc 3: Dựa vào tần suất thuật ngữ nghiệp vụ (DOMAIN_TERMS):**

@@ -22,7 +22,7 @@ flowchart LR
   DEC --> TIER["Xếp bậc trình độ (Novice / Practitioner / Architect)"]
   DEC --> MM["Kiểm tra nhãn mài mòn"]
   TIER --> PLAN["Lập kế hoạch câu hỏi (luôn có ít nhất 1 câu)"]
-  PLAN --> ANS["Người học trả lời trong tab Feynman"]
+  PLAN --> ANS["Người học trả lời trong phần Feynman"]
   ANS --> UPD["Cập nhật điểm xác suất BKT"]
   UPD --> STAT["Cập nhật màu sắc ô trên bản đồ"]
 ```
@@ -208,7 +208,7 @@ Tra chi tiết: spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 2.
 ## 3. Thuật toán BKT và cách cập nhật điểm kiến thức
 
 ### Vấn đề thực tế khi đánh giá kết quả một câu trả lời
-Khi chấm bài giải thích của sinh viên trong tab Feynman, hệ thống gặp phải một bài toán xác suất kinh điển:
+Khi chấm bài giải thích của sinh viên trong phần Feynman, hệ thống gặp phải một bài toán xác suất kinh điển:
 - Nếu bạn trả lời đúng ngay lần đầu, liệu có chắc chắn bạn đã thực sự thấu hiểu kiến thức, hay bạn chỉ tình cờ nhớ mang máng một vài từ khóa hoặc phỏng đoán vu vơ?
 - Nếu bạn trả lời sai, liệu có phải bạn hoàn toàn không biết gì, hay bạn đã hiểu đúng bản chất nhưng chỉ sơ suất gõ nhầm một định danh hàm?
 - Nếu bạn cần mở một gợi ý hỗ trợ mới trả lời đúng, mức độ thuần thục của bạn có tương đương với người tự làm được ngay từ đầu không?
@@ -359,7 +359,7 @@ Một kỹ năng bị coi là "đang mài mòn" khi và chỉ khi thỏa mãn đ
    $$\text{tierOf}(\tilde{p}) < \text{tierOf}(p)$$
 
 **Hiển thị trên giao diện người dùng:**
-- Tại Tab 1 của ô đang mở, mỗi chip kỹ năng có một thanh dài theo điểm đã suy giảm $\tilde{p}$.
+- Tại phần X-Ray của ô đang mở, mỗi chip kỹ năng có một thanh dài theo điểm đã suy giảm $\tilde{p}$.
 - Thanh nhạt dần liên tục theo tỉ lệ $\tilde{p} / p$, kèm tooltip nêu điểm gốc và điểm còn lại.
 - Nếu kỹ năng bị rớt bậc, giao diện hiện thêm nhãn **"đang mài mòn"**.
 - Nếu điểm có giảm nhưng chưa rớt bậc, thanh chỉ nhạt đi, không có nhãn.
@@ -607,7 +607,7 @@ Tra chi tiết: spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 6.
 ## 7. Kết quả câu hỏi, giao dịch cơ sở dữ liệu và cơ chế Báo sai
 
 ### Vấn đề thực tế khi ghi nhận kết quả và điểm số
-Khi sinh viên bấm nút nộp bài giải thích trong tab Feynman, hệ thống đối mặt với những vấn đề thực tế của một ứng dụng web:
+Khi sinh viên bấm nút nộp bài giải thích trong phần Feynman, hệ thống đối mặt với những vấn đề thực tế của một ứng dụng web:
 1. **Xác định kết quả:** Làm sao chuyển đổi trạng thái đạt/chưa đạt và số lượt thử của người học thành kết quả BKT một cách chuẩn xác?
 2. **Xung đột ghi đồng thời (Race Condition):** Nếu người học bấm nộp hai lần liên tiếp hoặc mở hai tab, hai yêu cầu có thể tới máy chủ gần như cùng lúc. Làm sao để một lượt không bị tính hai lần và điểm không bị ghi đè?
 3. **Khi AI chấm nhầm thì sao?** AI có thể chấm sót một ý bắt buộc của sinh viên. Nếu cho phép người học Báo sai, làm thế nào để hoàn lại điểm mà không phá các lần cập nhật sau đó?
@@ -779,7 +779,7 @@ Nếu trả lời đúng ngay lần đầu, `NEWBIE` lên 0.5767, `MID_LEVEL` l�
 Đây là đoạn nhóm dùng để cho ban giám khảo thấy điểm giảm theo thời gian mà không phải chờ thật:
 1. **Bước 1: Chọn persona `SENIOR_RUSTY`:** Hệ thống ghi nhận điểm gốc của người dùng là $0.9500$ (mức độ của một chuyên gia kiến trúc), nhưng mốc thời gian luyện tập gần nhất được thiết lập lùi về 30 ngày trước.
 2. **Bước 2: Quan sát giao diện bài học:**
-   - Tại Tab 1 của ô đang mở, mọi thanh kỹ năng đều nhạt đi theo tỉ lệ suy giảm: $0.4085 / 0.9500 \approx 43\%$.
+   - Tại phần X-Ray của ô đang mở, mọi thanh kỹ năng đều nhạt đi theo tỉ lệ suy giảm: $0.4085 / 0.9500 \approx 43\%$.
    - Bên cạnh mỗi kỹ năng có nhãn **"đang mài mòn"**, vì bậc hiện tại (`NOVICE`) thấp hơn bậc gốc (`ARCHITECT`).
    - Không có nút ôn tập, và các ô đã hoàn thành vẫn giữ màu Xanh.
 3. **Bước 3: Mở một ô bài học mới:**

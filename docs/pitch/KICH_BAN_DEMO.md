@@ -14,13 +14,13 @@
 | **Bản đồ của `shop-api`** | N1 Đăng ký → N2 Xem hồ sơ → N4 Giỏ hàng → N5 Thanh toán ★ → N6 Gửi email, N7 Báo cáo doanh thu. N3 Danh sách sản phẩm → N5. ★ là Capstone. Node gốc là N1 và N3. Khi chạy engine thật, đồ thị engine sinh ra là chuẩn. |
 | **Tài khoản** | Dùng 1 tài khoản GitHub demo đăng nhập sẵn, reset bằng "Xóa tài khoản". Server demo bật `DEMO_MODE=true`. Không dùng tài khoản thật của thành viên (`03` Mục 6.7). |
 | **Mạng** | Dùng mạng di động riêng của nhóm (thể lệ khuyến khích). Wi-Fi hội trường chỉ để dự phòng. |
-| **Tên nút** | Theo [`../spec/30_UI.md`](../spec/30_UI.md): "Quét repo", "đang phân tích…", "Bắt đầu trả lời (n câu) →", "Bỏ qua câu này", "Tiếp tục học", tab X-Ray / Feynman / Tổng quan; `Ctrl+Enter` để nộp. |
+| **Tên nút** | Theo [`../spec/30_UI.md`](../spec/30_UI.md): "Quét repo", "đang phân tích…", "Bắt đầu trả lời (n câu) →", "Bỏ qua câu này", "Tiếp tục học", phần X-Ray / Feynman / Tổng quan; `Ctrl+Enter` để nộp. |
 
 **Phân vai**
 
 | Người | Vai trên sân khấu |
 | :-- | :-- |
-| **Vai A (Lead)** | Người nói chính: mở đầu, bản đồ, Tab 1, Tổng quan, phần kết. Bấm giờ bằng đồng hồ đeo tay. |
+| **Vai A (Lead)** | Người nói chính: mở đầu, bản đồ, phần X-Ray, Tổng quan, phần kết. Bấm giờ bằng đồng hồ đeo tay. |
 | **Vai B (Engine)** | Cầm máy: làm **mọi** thao tác và gõ câu trả lời. Giữ sẵn phím `Ctrl+Shift+D` và tab video dự phòng. Không nói, trừ khi phải đọc to số trên đồng hồ đo. Phần phản biện thì trả lời nhóm câu B. |
 | **Vai C (AI/BKT)** | Nói phần câu hỏi, chấm, BKT và persona. Là người trả lời chính các câu phản biện về AI. |
 
@@ -49,9 +49,9 @@
 
 **Thao tác (Vai B):** bấm vào ô link → `Ctrl+V` link repo demo (đã copy sẵn) → bấm "Quét repo".
 **Màn hình phải thấy:**
-- Lớp phủ đang quét có đồng hồ chạy thật; quét xong thì cột trái hiện 7 node. N1 và N3 màu vàng, các node còn lại xám, viền đứt. N5 có dấu ★.
+- Lớp phủ đang quét có đồng hồ chạy thật; quét xong thì cửa sổ Tổng quan tự mở, phần do code biết hiện ngay. Chưa nói tới cửa sổ này; quay lại ở phút 4:20. Đóng cửa sổ, bấm **Đồ thị bài học** ở cạnh trái để mở bản đồ: bài mở đầu màu vàng, các bài còn lại xám, viền đứt, bài Capstone có dấu ★.
 - Header hiện "Bản đồ … ms · 0 token" (số đo ở máy chủ, `ingest_ms + engine_ms`).
-- Cột phải tự mở tab Tổng quan, phần do code biết hiện ngay. Chưa nói tới tab này; quay lại ở phút 4:20.
+- Bản đồ nằm trong ngăn kéo, kéo để xem hết.
 
 > "Bước này máy đọc code bằng thuật toán, không gọi AI, nên không tốn token. Đồng hồ trên đầu trang đang hiện **[Vai B đọc số thật, đổi ra giây]**. Mục tiêu của nhóm là dưới 1,5 giây với repo cỡ đồ án.
 > Mỗi ô là một **luồng nghiệp vụ đi xuyên nhiều file**. Ví dụ 'Danh sách sản phẩm' đi từ route, qua service, xuống repository; một ô không phải là một file. Mũi tên là thứ tự học: ô vàng học được ngay, ô xám phải chờ các ô đứng trước."
@@ -64,9 +64,9 @@
 
 > "Có bản đồ rồi, nhưng AI chưa chạy. Mở ô nào thì AI mới phân tích ô đó và tải trước 1–2 ô kế tiếp: ô dùng kỹ năng nào, điểm hay, điểm dở. Mỗi repo chỉ cần phân tích một lần, sau đó mọi người học dùng chung. Riêng repo demo này, nhóm đã cho AI phân tích trước và đọc duyệt toàn bộ, nên mở ô là có ngay."
 
-### ⏱ 1:20 – 2:05 · Tab 1 X-Ray — Vai A
+### ⏱ 1:20 – 2:05 · phần X-Ray — Vai A
 
-**Thao tác:** bấm node **Danh sách sản phẩm** (N3) → Tab X-Ray mở → trong "Luồng chạy" bấm **Bước 2** → cột giữa nhảy sang `product.service.ts`, tô dòng 14–20 → trỏ chuột vào khối ⚠️.
+**Thao tác:** bấm node **Danh sách sản phẩm** (N3) → ngăn kéo đóng, code và X-Ray hiện ở cột trái → trong "Luồng thực thi" bấm **Bước 2** → khung code nhảy sang `product.service.ts`, tô dòng 14–20 → trỏ chuột vào khối ⚠️.
 **Màn hình phải thấy:**
 - Kỹ năng: `DB_OPTIMIZATION` · `LAYERED_SEPARATION`.
 - Kiến trúc: Tách tầng + Repository.
@@ -74,15 +74,15 @@
 - ✅ Điểm hay.
 - ⚠️ Điểm dở, gắn nhãn **"Nhận định của AI"**.
 
-> "Bấm vào một ô, Tab 1 giải thích luồng chạy từng bước. Bấm bước nào thì khung giữa mở đúng file, đúng dòng code thật.
-> Tab này nêu cả **điểm hay**: route không tự truy vấn database. Và nêu cả **điểm dở**: vòng `for` gọi database cho từng sản phẩm. Điểm dở gắn nhãn 'Nhận định của AI', vì AI có thể nhận định sai. Còn tên hàm và vị trí thì code kiểm lại, AI không bịa được.
-> Tab 1 chỉ nêu điểm dở và vị trí, chưa có con số hay cách sửa. Hai thứ đó chỉ mở khi em trả lời xong."
+> "Bấm vào một ô, phần X-Ray giải thích luồng chạy từng bước. Bấm bước nào thì khung code mở đúng file, đúng dòng code thật.
+> Phần này nêu cả **điểm hay**: route không tự truy vấn database. Và nêu cả **điểm dở**: vòng `for` gọi database cho từng sản phẩm. Điểm dở gắn nhãn 'Nhận định của AI', vì AI có thể nhận định sai. Còn tên hàm và vị trí thì code kiểm lại, AI không bịa được.
+> phần X-Ray chỉ nêu điểm dở và vị trí, chưa có con số hay cách sửa. Hai thứ đó chỉ mở khi em trả lời xong."
 
-### ⏱ 2:05 – 3:20 · Tab 2 Feynman: sai → gợi ý → đúng → BKT → xanh — Vai C nói, Vai B gõ
+### ⏱ 2:05 – 3:20 · phần Feynman: sai → gợi ý → đúng → BKT → xanh — Vai C nói, Vai B gõ
 
 *Lưu ý khi demo: Mỗi lần AI chấm có thể mất vài giây tới hơn 10 giây; người nói cần có câu dẫn trong lúc chờ, không để khoảng lặng trên sân khấu.*
 
-**Thao tác 1:** cuối Tab 1 bấm **"Bắt đầu trả lời (2 câu) →"** → tab Feynman hiện "Câu 1/2 · DB_OPTIMIZATION · NOVICE". Vai B gõ câu **A** (Mục 3) → bấm "Nộp" (hoặc `Ctrl+Enter`).
+**Thao tác 1:** cuối phần X-Ray bấm **"Bắt đầu trả lời (2 câu) →"** → cột phải hiện "Câu 1/2 · DB_OPTIMIZATION · NOVICE". Vai B gõ câu **A** (Mục 3) → bấm "Nộp" (hoặc `Ctrl+Enter`).
 **Màn hình:**
 - Kết quả: chưa đạt.
 - Gợi ý nấc 1 (`CONCEPT`), hỏi lại về chỗ hiểu sai và chưa chỉ vị trí.
@@ -126,19 +126,19 @@
 
 ### ⏱ 3:50 – 4:20 · Persona `SENIOR_RUSTY` → kỹ năng "đang mài mòn" — Vai C
 
-**Thao tác:** quay lại trình duyệt → menu Persona → "Senior nghỉ 30 ngày" → bấm node Danh sách sản phẩm → Tab X-Ray, phần Kỹ năng.
+**Thao tác:** quay lại trình duyệt → menu Persona → "Senior nghỉ 30 ngày" → bấm node Danh sách sản phẩm → phần X-Ray, phần Kỹ năng.
 **Màn hình:** thanh kỹ năng nhạt đi, có nhãn **"đang mài mòn"**. Màu ô trên bản đồ không đổi; không có nút ôn.
 
 > "Hồ sơ **giả lập** này từng vững 0,95 nhưng đã nghỉ 30 ngày; ở đây hệ thống mô phỏng thời gian trôi. Điểm phai dần theo chu kỳ bán rã 14 ngày, nên sau 30 ngày còn khoảng 0,41. Giống Duolingo, thanh kỹ năng nhạt dần và hiện 'đang mài mòn'. Hệ thống không bắt ôn; lần tới gặp kỹ năng này ở ô khác, câu hỏi sẽ ở mức dễ hơn vì điểm đã giảm."
 
-### ⏱ 4:20 – 4:35 · Tab Tổng quan — Vai A
+### ⏱ 4:20 – 4:35 · Cửa sổ Tổng quan — Vai A
 
-**Thao tác:** bấm tab **Tổng quan**.
+**Thao tác:** bấm **Tổng quan kiến trúc** ở thanh trên.
 **Màn hình:**
 - Loại dự án và công nghệ (do code đọc ra).
 - Kiến trúc chung, luồng chính, nhận xét chung (do AI viết, có nhãn).
 
-> "Tab Tổng quan cho cái nhìn cả repo. Loại dự án và công nghệ do code đọc từ file cấu hình. Phần tóm tắt do AI viết dựa trên các bản phân tích, không gửi lại code. Nhận xét nào không có căn cứ trong bản phân tích thì bị gạch trước khi hiện."
+> "Cửa sổ Tổng quan cho cái nhìn cả repo. Loại dự án và công nghệ do code đọc từ file cấu hình. Phần tóm tắt do AI viết dựa trên các bản phân tích, không gửi lại code. Nhận xét nào không có căn cứ trong bản phân tích thì bị gạch trước khi hiện."
 
 ### ⏱ 4:35 – 5:00 · Kết — Vai A (slide cuối)
 
@@ -154,7 +154,7 @@
 
 ## 3. Câu trả lời đã chuẩn bị
 
-Câu hỏi online do AI sinh mới mỗi lần mở Tab 2 (không cache câu hỏi, D-37), nên câu trả lời soạn sẵn **lấy theo câu hỏi trong Offline bundle đã duyệt** (`mock_bundle.json`, ghi từ API thật ở Mục 5; nội dung bên dưới theo fixture `50` Mục 2.3–2.4), không theo một lần sinh câu hỏi trực tiếp. **Ở H+17, sinh câu hỏi online 3 lần;** câu hỏi lệch ý với bundle ⇒ đoạn đó chạy Offline. Mỗi ô "Lần thử" chỉ đánh ☑ khi kết quả đúng như cột "Kỳ vọng".
+Câu hỏi online do AI sinh mới mỗi lần mở phần Feynman (không cache câu hỏi, D-37), nên câu trả lời soạn sẵn **lấy theo câu hỏi trong Offline bundle đã duyệt** (`mock_bundle.json`, ghi từ API thật ở Mục 5; nội dung bên dưới theo fixture `50` Mục 2.3–2.4), không theo một lần sinh câu hỏi trực tiếp. **Ở H+17, sinh câu hỏi online 3 lần;** câu hỏi lệch ý với bundle ⇒ đoạn đó chạy Offline. Mỗi ô "Lần thử" chỉ đánh ☑ khi kết quả đúng như cột "Kỳ vọng".
 
 | # | Node · câu · lượt | Câu gõ | Kỳ vọng | Lần thử 1 · 2 · 3 |
 | :-: | :-- | :-- | :-- | :-: |
@@ -194,7 +194,7 @@ Câu hỏi online do AI sinh mới mỗi lần mở Tab 2 (không cache câu h�
 
 **BGK muốn thử repo của họ:** tắt Offline (nếu đang bật) rồi dán link. Nói trước:
 - "Repo của thầy chưa qua bước duyệt tay như repo demo, nên AI có thể nhận định sai. Vì vậy mới có nhãn 'Nhận định của AI' và nút 'Báo sai'."
-- "Hai ngôn ngữ nhóm đã kiểm chứng là TS/JS và Python. Ngôn ngữ khác có grammar thì cạnh vẽ nét đứt, là cạnh suy luận."
+- "Bản thi hỗ trợ TS/JS và Python. Repo chủ yếu viết bằng ngôn ngữ khác sẽ được báo là chưa hỗ trợ."
 - "Chỉ nhận link gốc repo; link tới nhánh hay thư mục con sẽ tự cắt về gốc, chạy nhánh mặc định."
 - "Giới hạn: repo nén quá 15 MB thì hệ thống tự chọn thư mục chính, file `.zip` upload tối đa 4,5 MB, giữ tối đa 100 file code." (Đọc lại `CONFIG` ở `02` trước khi lên.)
 
@@ -238,7 +238,7 @@ Lúc đó ô vừa mở và 1–2 ô kế tiếp sẽ hiện "đang phân tích�
 
 | Thời lượng | Giữ | Bỏ hoặc rút |
 | :-- | :-- | :-- |
-| **3 phút** | Vấn đề (25 giây) · bản đồ + đồng hồ (30 giây) · Tab 1 (30 giây) · Câu 1: sai → gợi ý → đúng → BKT (50 giây) · Cổng gác chặn tên bịa (20 giây) · kết (25 giây) | Bỏ câu 2, nói "câu 2 tương tự"; N3 chưa xanh, phần mở khóa chỉ nói bằng lời. Mài mòn chỉ nhắc bằng lời. Bỏ tab Tổng quan. |
+| **3 phút** | Vấn đề (25 giây) · bản đồ + đồng hồ (30 giây) · phần X-Ray (30 giây) · Câu 1: sai → gợi ý → đúng → BKT (50 giây) · Cổng gác chặn tên bịa (20 giây) · kết (25 giây) | Bỏ câu 2, nói "câu 2 tương tự"; N3 chưa xanh, phần mở khóa chỉ nói bằng lời. Mài mòn chỉ nhắc bằng lời. Bỏ cửa sổ Tổng quan. |
 | **5 phút** | Như Mục 2 | — |
 | **7 phút** | Như Mục 2, thêm: mở `review/` cho thấy số "AI nêu N mục, đúng X/N" của lần duyệt tay (40 giây); `F5` + danh sách "Tiếp tục học" (20 giây); mở DevTools cho thấy response không có đáp án của câu chưa xong (30 giây) | — |
 | **BGK cho nói thêm** | Như Mục 2, rồi dùng bản 2 phút ở Mục 7 theo đúng điểm BGK quan tâm | Không tự nói hết cả 3 điểm khi BGK không hỏi |
@@ -309,7 +309,7 @@ Mã câu liên quan ở `PHAN_BIEN_BGK.md`: C1, C9, Mục 4.
 - **Bản 30 giây:** "Dạ, hệ thống bảo vệ an toàn bằng code thuần 0 token. Cửa nhận repo che secret thành `<REDACTED_SECRET>`, che email, số điện thoại VN, CCCD và từ xấu bằng `***`, giữ nguyên số dòng. Cửa câu trả lời chặn ngay từ xấu rõ nghĩa, trả lỗi không mất lượt và không gọi AI; câu trả lời hợp lệ được che secret và PII trước khi gửi AI và lưu DB; chữ AI cũng được kiểm từ xấu qua cổng gác. Từ kỹ thuật như kill, attack, hack không bị chặn nhầm."
 - **Bản 2 phút:**
   - Hàm thuần `maskSensitive` (`src/lib/moderation.ts`), 0 token, chạy trước mọi thao tác lưu trữ hay gửi AI.
-  - Cửa repo: che email, số điện thoại VN, CCCD 12 số, token API (`sk-`, `github_pat_`, JWT `eyJ`, chuỗi trong \` \`) và từ xấu; giữ nguyên số dòng code để marker dòng Monaco không bị lệch.
+  - Cửa repo: che email, số điện thoại VN, CCCD 12 số, token API (`sk-`, `sk_live_`, `xoxb-`, `github_pat_`, JWT `eyJ`), khóa gán trong code như `SECRET_KEY` và từ xấu; giữ nguyên số dòng code để marker dòng Monaco không bị lệch.
   - Cửa câu trả lời: kiểm từ xấu ngay sau bước độ dài; có từ xấu trả `ERR_ANSWER_INAPPROPRIATE` (400), không tính lượt, không gọi AI.
   - Che các mẫu PII và secret phổ biến trước khi gửi prompt cho AI chấm và trước khi ghi vào `question_attempts`. Ghi chú "Báo sai" cũng được che.
   - Từ xấu chỉ gồm từ có dấu và cụm rõ nghĩa; không bắt từ không dấu mơ hồ, không chặn từ kỹ thuật (`kill`, `attack`, `hack`).

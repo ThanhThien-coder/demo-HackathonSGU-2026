@@ -24,7 +24,8 @@
 | Nhóm | Nội dung |
 | :-- | :-- |
 | **Có trong spec phải chạy** (D-04) | Bản đồ tất định 0 token; 4 lời gọi AI; cổng gác; câu hỏi theo kỹ năng + 3 nấc gợi ý; BKT ở server; node đã thạo vẫn hỏi 1 câu (D-34); mài mòn kiểu Duolingo, chỉ hiển thị (D-35); đăng nhập GitHub bắt buộc (D-44); mở lại phiên theo commit SHA (D-39); persona; chế độ Offline; Language Registry; chạy trên Cloud Run + Supabase (Vercel dự phòng demo, D-64) |
-| **Có thể bị cắt nếu trễ** (`doc-de-hieu/07_ke_hoach_21h.md` Mục 3) ⇒ làm đầu tiên sau thi | Resolver Java/Go/Dart và tầng `STRUCTURAL`; "Báo sai"; màn hình lịch sử; phần AI của Tổng quan |
+| **Có thể bị cắt nếu trễ** (`doc-de-hieu/07_ke_hoach_21h.md` Mục 3) ⇒ làm đầu tiên sau thi | "Báo sai"; màn hình lịch sử; phần AI của Tổng quan |
+| **Đã cắt khỏi bản thi (D-76)** ⇒ làm đầu tiên sau thi | Resolver Java/Go/Dart, tầng `STRUCTURAL`, màn hình Flutter, Android, iOS |
 | **Đã đặc tả, tắt bằng cờ** | Câu thứ 2 cho kỹ năng NOVICE (`NOVICE_SECOND_QUESTION`); xoáy vào ý còn hổng (`GAP_TARGETING`) |
 | **Chưa có — là roadmap** | Chạy với LLM local; cờ nghi dán; nhập giọng nói; repo private qua GitHub App; VS Code/JetBrains |
 
