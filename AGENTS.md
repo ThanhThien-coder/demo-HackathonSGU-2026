@@ -22,7 +22,7 @@ Repo **code tập dượt** cho dự án SimpliFey (hackathon SGU 2026), copy t�
 7. Viết tiếng Việt, sơ đồ Mermaid, đường dẫn tương đối. File spec ≤ 40 000 byte (riêng `spec/00` ≤ 45 000, `spec/02` ≤ 48 000, `spec/04` ≤ 42 000, `spec/10` ≤ 44 000, `spec/11` ≤ 46 000, `spec/20` ≤ 56 000, `spec/21` ≤ 45 000, `spec/30` ≤ 45 000).
 
 ## Làm phiếu
-Người dùng nhắn `Làm phiếu <mã>`, `Làm tiếp`, `Kiểm phiếu <mã>` ⇒ làm theo `docs/quy-trinh-code-21h/lam-phieu.md`.
+Người dùng nhắn `làm <mã> đi` (ví dụ `làm B01 đi`), `Làm tiếp`, `kiểm <mã>` ⇒ làm theo `docs/quy-trinh-code-21h/lam-phieu.md`.
 
 ## Cần X ⇒ đọc
 | Cần | Đọc |
