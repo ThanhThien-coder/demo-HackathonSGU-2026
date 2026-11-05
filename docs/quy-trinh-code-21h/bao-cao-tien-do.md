@@ -2,6 +2,26 @@
 
 Ngày kiểm: 04/11/2026 · Mốc kiểm: commit `9a9e151` của `main` · Bộ phiếu: 52 phiếu của 5 vai
 
+## Cập nhật sau báo cáo (04/11/2026)
+
+Số liệu các mục dưới vẫn là của mốc `9a9e151`. Các thay đổi sau chưa được chấm lại toàn bộ:
+
+- **Vai A:** 2 lỗi 503 đã được sửa ở PR #117, #118, kèm test trên Postgres thật. Chưa kiểm lại độc lập.
+- **Vai B:** đã sửa B04–B08, B10 ở PR #113, #114, #115, #120, #121, #122, tất cả đã lên `main`. Nghiệm thu 7 repo đạt 20/20 điều kiện, 635 test xanh.
+- **Vai C:** có script `record-bundle` ở PR #123, chưa ghi lại bundle.
+- **Vai E:** E07, E08 đã có PR #116, #119.
+
+| Repo | Luồng từ 2 bước | Tới `DATA_ACCESS` | Trước khi sửa |
+| :-- | :-: | :-: | :-- |
+| `hagopj13/node-express-boilerplate` | 13/14 | 12 | 0, 0 |
+| `gothinkster/node-express-realworld-example-app` | 19/19 | 11 | 19, 8, có 3 màn hình giả, nay 0 |
+| `lujakob/nestjs-realworld-example-app` | 19/20 | 19 | Không đổi |
+| `fastapi/full-stack-fastapi-template` | 10/20 | 8 | 0, 0, sai kiểu dự án, nay đúng |
+| `pallets/flask` | 6/7 | 6 | Không đổi |
+| `obytes/react-native-template-obytes` | 2/8 | 0 | 1/8 màn hình, nay 8/8 |
+
+**Cần Vai D, E biết:** bản đồ `shop-api` đổi thành N6→N5, N7→N5, vì sơ đồ cũ N5→N6, N5→N7 trái D-07 và D-12. `spec/50`, `shop-api.json`, `KICH_BAN_DEMO.md` và các tài liệu liên quan cần sửa theo.
+
 ## 1. Tóm tắt
 
 **22/52 phiếu đạt, và luồng chính hiện chưa chạy được trên database thật.** Test đều xanh vì test giả lập database. Còn 5 việc lớn:

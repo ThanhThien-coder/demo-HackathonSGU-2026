@@ -48,6 +48,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/server/engine/ingest`
 - Có đủ các test T-ING-10, T-ING-11 và X-08, tất cả chạy xanh.
 - Khi zip bị cắt và có token, hệ thống lấy được danh sách file từ Git Trees API và tải các file được chọn trong hạn `CONFIG.SELECTIVE_TIMEOUT_MS`.
+- Tải chọn lọc chỉ bật khi có biến server `GITHUB_TOKEN`. Thiếu token thì lùi về zip bị cắt kèm cảnh báo (ING-49), đây là hành vi đúng, không phải lỗi. Test mock không chứng minh được đường có token.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -74,6 +75,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Có đầy đủ các test T-ING-10, T-ING-11 và X-08.
 - [ ] Nếu bị chậm tiến độ, xác nhận có thể cắt giảm phiếu này theo [`07`](../../doc-de-hieu/07_ke_hoach_21h.md) Mục 3 bước 1.
+- [ ] Đặt `GITHUB_TOKEN` rồi chạy repo lớn thật như `tiangolo/fastapi`: `selective_fetch = true`, bản đồ dựng từ thư mục chính (DoD spec 50).
 
 ```text
 Task "B09 — Tải chọn lọc repo lớn (D-63)" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

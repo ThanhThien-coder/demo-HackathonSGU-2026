@@ -52,6 +52,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
    - **`buildGraph` là `async`**: spec ghi `buildGraph(input): StaticEngineResult` nhưng phải gọi `parseAll` (B05, `async`) ⇒ chốt `buildGraph(input: IngestOutput): Promise<StaticEngineResult>`; `runEngine(src, signal?)` = `await runIngest` rồi `await buildGraph`.
    - **`hash6(s)`** = 6 ký tự hex đầu của SHA-1 (UTF-8) bằng `node:crypto` (D-08, ENG-111); kiểm bằng id kỳ vọng của T-ENG-18.
    - **Input test**: dựng zip trong RAM bằng `fflate` ⇒ `runIngest({ kind: "ZIP_UPLOAD", … })` ⇒ `buildGraph` (không tự dựng `StaticEngineResult` bằng tay, trừ test hàm thuần như `mainPath`, `toClientResult`). Bẫy khi viết test (đã gặp lúc tập): `edges` sort theo `id` (Mục 15 ý 4, id là mã băm) ⇒ so tập cạnh đã sort, không so thứ tự A→B→C; 2 candidate cùng tập `functions` bị ENG-110 gộp làm một ⇒ ca "chuỗi A→B→C giữ {A,C}" của T-ENG-15 phải dùng > `CONFIG.DISPLAY_MAX_NODES` candidate để Display Budget bỏ B, hoặc test riêng hàm tính cạnh trên tập giữ `K` (Mục 11 ý 6); không dựng `ParsedFile` với `tree: null`; không ép kiểu `as HybridArchitecturalNode` từ `Candidate`. Hàm của B06 tên là `cognitiveComplexity` (không có `computeCognitiveComplexity`). T-ENG-34: chạy 2 lần cùng zip, so `JSON.stringify` của `nodes`, `edges`, `symbol_whitelist` (không so `engine_ms`).
+   - **Node từ file test:** còn từ `CONFIG.DISPLAY_MIN_NODES` candidate không mang cờ ING-87 thì bỏ candidate mang cờ, không cộng vào `omitted_node_count`. Ít hơn thì giữ để repo thư viện vẫn có bản đồ. Capstone không được nằm ở file test khi đã bỏ.
+   - **Cây bài học (D-73):** D-07 đơn thuần để nhiều bài không có cha nên mở sẵn từ đầu (BrewLite 13/20). Sau Display Budget, gọi `addTreeEdges`: trong mỗi module, bài dễ nhất chưa có cạnh vào là bài đầu nhánh; các bài chưa có cạnh vào còn lại là con của nó; module dùng module khác thì bài đầu nhánh là con của bài đầu nhánh module đó. Module = thư mục cha của `files[0]`; cả đồ thị dưới 3 module thì module = `files[0]`. Cạnh thêm là `INFERRED`, vào `edges` và `prerequisites`, có khóa bài thật. Cạnh tạo vòng thì bỏ. Không nối ép giữa các cây.
 6. Viết test trong `src/server/engine/graph/__tests__/node.test.ts` bao phủ các ca T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-25, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-31, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38 (T-ENG-25, T-ENG-31 chạy đủ đường `buildGraph`; B05 mới kiểm phần chọn chế độ và `parseAll`).
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
@@ -61,6 +63,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Mọi điểm bắt đầu nằm cùng hàng trên cùng (D-55, T-ENG-37).
 - Bản đồ giới hạn tối đa `CONFIG.DISPLAY_MAX_NODES` node (ENG-114).
 - `npm run typecheck`, `npm test`, `npm run lint` (0 error; engine 0 warning) đều sạch.
+- `resolveHandlerKey` trả `string | null`, lấy đối số từ trường `arguments`. Lời gọi không có đối số như `cors()` là factory, không tạo binding. Tên middleware dạng factory lấy tên hàm: `validate(s)` là `validate`. Candidate không có bước nào bị bỏ trước ENG-110, không cộng vào `omitted_node_count`.
+- Học xong mới mở bài tiếp theo: không còn bài cùng module mở sẵn ngoài bài đầu nhánh (D-73).
+- Không có node từ file test khi còn đủ candidate thật; Capstone không nằm ở file test.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -91,6 +96,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `runEngine` chỉ gọi `runIngest` 1 lần. Báo Vai A chữ ký thật của `runEngine` (có `signal` hay không).
 - [ ] Bố cục Dagre đặt mọi node có `prerequisites = []` ở cùng tọa độ `position.y` nhỏ nhất (D-55).
 - [ ] Hàm `toClientResult` loại bỏ hoàn toàn `symbol_whitelist` và `suspicious_instruction_files` (T-ENG-33).
+- [ ] `app.options('*', cors())` không sinh node, không có khóa kết thúc bằng `#()`.
+- [ ] Đếm số bài mở lúc đầu trên repo thật: BrewLite không quá 6 bài, không còn bài nào của module có từ 2 bài đứng lẻ.
+- [ ] Capstone là luồng thật của ứng dụng, không phải file `.spec` hay `test_`.
 
 ```text
 Task "B07 — Ghép node, tên, bố cục, xuất runEngine" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

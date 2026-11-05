@@ -49,6 +49,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
    - **Chốt tên hàm spec chưa đặt:** `findEntries(files: ParsedFile[], idx: SymbolIndex, graph: ReturnType<typeof buildCallGraph>, scope: string, report?: IngestionReport): EntryPoint[]` trong `callgraph.ts` (Mục 4: `REGISTERED` từ `graph.bindings`, `GENERIC` theo Mục 4 ý 3 dùng in-degree của `fileGraph(graph.edges)`; chỉ entry trong scope, ENG-05; sort theo `key`); `chooseMode(entries: EntryPoint[], parsedInScope: number): DegradedMode | null` trong `degraded.ts` (Mục 5). Phần dựng node `PROCEDURAL` (Mục 10) để B07.
    - **Chốt phạm vi mẫu entry (`12` Mục 1):** B05 làm 4 nhóm có dấu ✅ (Express/Koa-router/Fastify, NestJS, Flask, FastAPI) và entry chung `GENERIC` (`12` Mục 2 ý 1). Next.js (`pages/api/**`, `app/**/route.ts`, `app/**/page.tsx`), React Router, React Native, Expo Router và entry chương trình `PROGRAM` để B10.
    - **`queries/*.scm`:** đọc từ `path.join(process.cwd(), "queries", <file>)` như grammar ở `parser.ts`, nạp 1 lần cùng `initParsers`. Dùng API `web-tree-sitter` 0.27 (README vai B: `Node`, `new Query(language, source)`). Capture đúng tên ở `11` Mục 1 ý 4 (`@def.function|method|class|interface|type|var`, `@name`, `@call`, `@import`). Chỉ dùng cây Tree-sitter, không regex văn bản thô (ENG-04); duyệt khóa đã sort (ENG-01); entry chỉ lấy trong scope (ENG-05).
+   - **`line_start` của method (ENG-20):** chỉ lấy decorator của chính method, tức các decorator liền trước nó. Không quét mọi decorator trong thân class, nếu không mọi route NestJS sẽ hiện code từ method đầu tiên của class.
+   - **Route `X.<verb>(path, ...)`:** đối số cuối phải là handler: hàm ẩn danh, lời gọi bọc, hoặc tên tham chiếu tới hàm. Chuỗi, số, boolean, `null`, object, mảng, tên hằng thì không phải route. `config.get('JWT_EXPIRES_IN', '7d')` không tạo binding.
 5. Viết test trong `src/server/engine/graph/__tests__/tang1.test.ts`: T-ENG-12; test tên bắt đầu `ENG-12` cho `parseAll` (file 40% byte trong `ERROR` ⇒ bị bỏ, `parse_error` = 1, lấy input từ T-ENG-31); test tên bắt đầu `ENG-40` cho route của **cả 4 nhóm ✅** (Express, NestJS, Flask, FastAPI; code có mà không test thì không biết chạy đúng) (input `router.post('/checkout', …)` của T-ENG-08, kỳ vọng `RouteBinding.display_name` = `"router.post('/checkout')"`, có `middlewares`); test tên bắt đầu `ENG-51` cho chọn chế độ (input của T-ENG-25: 1 file Express 5 route ⇒ NORMAL, `main.py` không route 5 hàm ⇒ `PROCEDURAL`). T-ENG-08, T-ENG-09 làm ở B06; T-ENG-25, T-ENG-31 đầy đủ làm ở B07 (cần lát cắt, node). Test cần parser thì gọi `initParsers()` trong `beforeAll`. Tên test đầy đủ (gồm `describe`) bắt đầu bằng mã luật hoặc mã test. Bắt buộc có thêm test `ENG-31` cho: biến module `const svc = new Svc()` rồi `svc.m()` trong handler ẩn danh ⇒ cạnh `RESOLVED` tới `Svc.m` (ENG-22, ENG-31 (3)); không có cạnh tự trỏ; không có cạnh tới `CLASS` (ENG-30). Lần tập, 3 lỗi này lọt qua B05 và chỉ lộ ra ở T-ENG-08 của B06. Thêm 4 lỗi lộ ra khi chạy thật ở B07: (a) tìm hàm bao quanh call site phải khớp theo dòng kết thúc + tên, vì `line_start` tính từ decorator đầu (ENG-20), khớp ±1 dòng làm mất cạnh khi method có ≥ 2 decorator (NestJS `@Post` + `@UseGuards`, Flask `@route` + `@login_required`); (b) tiền tố mount: `R.use(prefix, R2)` (cả `R2` import từ file khác), `APIRouter(prefix=)`, `Blueprint(url_prefix=)`, `include_router(r, prefix=)`, `register_blueprint(bp, url_prefix=)` ⇒ ghép vào `binding.path` (không đổi `display_name` và khóa handler); (c) Flask `methods=[…]`, mọi decorator khác là middleware (không lọc theo tên), FastAPI `Depends(fn)` là middleware; (d) `display_name` Python lấy đúng receiver (`@router.post`, không cứng `@app.`).
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
@@ -58,6 +60,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Đồ thị gọi hàm và danh sách entry nhận diện chính xác các route handler của Express và NestJS.
 - Kiểu nội bộ Tầng 1–2 chỉ khai báo ở `graph/types.ts`, không file nào khai báo lại.
 - `npx vitest run src/server/engine` vẫn xanh (B01–B04 không hỏng) và `npx eslint src/server/engine` 0 error, 0 warning.
+- Hàm bọc cấp cao nhất `const x = wrap(async () => {...})` (trừ `require`) là hàm có thân `file#x`, lời gọi bên trong gán cho `file#x`, không gán `<module>`.
+- Theo re-export tối đa 5 bước, có chống vòng lặp: `module.exports.X = require(p)`, `exports.X = require(p)`, `module.exports = { X: require(p) }`, `export { X as Y } from p`, `export * from p`.
+- Python absolute import thử theo thứ tự: gốc repo, `rootDirOffset`, `rootDirOffset + src/`, rồi thư mục `D` có `D/<gói>/__init__.py` (đường dẫn ngắn trước). Cần cho repo đặt code ở `backend/`.
+- `new Bar()` với `Bar` là tên import: tra lớp theo file đích và tên gốc. Kiểu biến cục bộ chỉ ghi khóa `file#biến`, không ghi tên trần, tránh tạo cạnh giả giữa các file.
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -87,6 +93,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có test T-ENG-12 và các test `ENG-12`, `ENG-40`, `ENG-51`.
 - [ ] `src/server/engine/graph/types.ts` có các kiểu Mục 0, `ParsedFile`, `SymbolIndex`.
 - [ ] Đồ thị gọi hàm giải quyết chính xác các cuộc gọi qua interface và import tương đối trong TS/JS.
+- [ ] Chạy trên repo Express thật dùng `catchAsync` và `services/index.js`: lát cắt đi qua được service, không dừng ở controller.
+- [ ] Chạy trên repo NestJS thật có controller nhiều method, đọc bước đầu của 3 route cùng controller: mỗi bài chỉ có code method của chính nó.
+- [ ] Repo có `config.get('X', mặc_định)`: không có node nào sinh từ lời gọi đó.
 
 ```text
 Task "B05 — Tầng 1: symbol, đồ thị gọi hàm, entry, chọn chế độ" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

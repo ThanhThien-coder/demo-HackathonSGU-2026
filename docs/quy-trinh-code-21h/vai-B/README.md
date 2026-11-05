@@ -108,6 +108,21 @@ Các chỗ spec tự mâu thuẫn, chưa nói, hoặc code phải làm khác câ
 | 12 | `11` Mục 13 (tên ROUTE) với Next.js `pages/api/**` | Handler nhận mọi method ⇒ `method = "ALL"` ⇒ tên "ALL User" | Method `ALL` ⇒ bỏ động từ, chỉ lấy tài nguyên ("User") |
 | 13 | `11` ENG-81 "cây con G có DATA_SINK" | Mới xét con trực tiếp; bù bằng heuristic "G có gọi tiếp ⇒ giữ" | Xét cả cây con (BFS) rồi bỏ heuristic |
 
+**Thêm sau khi chạy engine trên repo thật (04/11/2026)**
+
+Bài học: 600 ca test xanh trên `shop-api` vẫn sót lỗi lớn, vì test và dữ liệu mẫu cùng một người viết. Xong B08 phải chạy `runEngine` trên repo công khai. Các điều đã chốt nằm ở mục Tiêu chí xong của B04–B08, B10.
+
+| # | Chỗ | Đã chốt | Việc còn lại |
+| :-: | :-- | :-- | :-- |
+| 14 | `50` Mục 1.1 vẽ N5→N6, N5→N7, trái D-07 và D-12 | Giữ engine theo D-07, D-12: N6→N5, N7→N5 | Sửa `50`, `shop-api.json`, `KICH_BAN_DEMO.md`, `30_UI.md`, `doc-de-hieu` (cần Vai D, E đồng ý) |
+| 15 | `50` Mục 1.1 nhắc `src/repos/product.repo.ts` nhưng danh sách file `shop-api` không có | Test dựng thêm file này | Thêm vào danh sách file ở `50` |
+| 16 | ING-87 chỉ giảm ưu tiên file test | Đã chốt: còn từ `DISPLAY_MIN_NODES` candidate thật thì bỏ candidate mang cờ test | Xem B07 |
+| 17 | Repo có file cực lớn: `microsoft/TypeScript` mất 64 giây ở `engine_ms` | Chưa chốt | Chọn trần thời gian hoặc trần kích thước file cho engine, nếu không request có thể quá hạn |
+| 18 | ENG-20 `line_start` từ decorator đầu tiên | Hiểu sai thành decorator đầu của cả class, 11/17 route BrewLite hiện sai code | Đã chốt: chỉ decorator của chính method, xem B05 |
+| 19 | ENG-40 nhận route theo tên `get` và số đối số | `config.get('X', mặc_định)` thành route giả | Đã chốt: đối số cuối phải là handler, xem B05 |
+| 20 | D-07 chỉ nối bài gọi chung hàm | Nhiều bài không có cha, mở sẵn từ đầu, bản đồ kéo dài | Đã chốt D-73: nối bài thành cây theo module, cạnh `INFERRED` có khóa bài, xem B07 |
+| 21 | T32 yêu cầu `fitView` vừa khung | 20 node trong ngăn kéo 1020px chỉ còn chữ 2,6–4,2px | Đã chốt: mở ở cỡ đọc được quanh bài đang học, kéo để xem hết; Vai D sửa `DagCanvas` |
+
 **Việc vai khác cần làm (không phải chốt spec, đã báo)**
 
 | Vai | Việc | Vì sao |
