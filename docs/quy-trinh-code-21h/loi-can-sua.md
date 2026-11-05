@@ -68,6 +68,12 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 | A-05 | Nhẹ | A06: `analyses: {}` chưa làm | Mở lại phiên đã phân tích, xem phân tích có hiện ngay không | `src/app/api/ingest/route.ts` | Chưa làm | |
 | A-06 | Nhẹ | PR #124 chưa merge nên báo cáo tiến độ và phiếu Vai B trên `main` còn cũ | Xem PR #124 | Vai A merge | Chờ merge | |
 
+## Cần nhóm quyết
+
+| Mã | Vấn đề | Hiện tại theo spec | Phương án |
+| :-- | :-- | :-- | :-- |
+| Q-A | Đúng 2/3 câu mà bài vẫn `Chưa đạt`, không học lại được trong phiên | Có câu `FAILED` thì node `FAILED` (03 Mục 6.5, D-16, D-35). Bài sau vẫn mở kèm cảnh báo | Giữ luật và đổi cách hiển thị thành "đạt 2/3", hoặc đổi D-16 và D-35 để đạt theo tỉ lệ hay cho làm lại câu sai |
+
 ## Chưa kiểm được
 
 - AI thật và đăng nhập GitHub trên site, Claude chưa đăng nhập được.
