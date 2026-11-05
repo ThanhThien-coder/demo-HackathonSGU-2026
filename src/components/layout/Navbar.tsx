@@ -1,400 +1,83 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { Menu, X, CheckCircle2, AlertCircle, Info } from "lucide-react";
-import { SettingsDropdown } from "./SettingsDropdown";
-import { Avatar } from "@/components/ui/Avatar";
-import { Badge } from "@/components/ui/Badge";
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { useUserStore } from "@/stores/userStore";
-import { useWorkbenchStore } from "@/store/workbench";
-import {
-  isOfflineMode,
-  setOfflineMode,
-  loadOfflineBundle,
-  getOfflineBundle,
-} from "@/lib/offline";
-import type { OfflineMockBundle } from "@/contracts";
+import { useState } from "react";
+import { Button, Modal, cn } from "@/components/ui/common";
+import { PERSONA_LIST, useWorkbench } from "@/store/workbench";
 
-export interface NavbarProps {
-  user?: {
-    name: string;
-    avatarUrl?: string;
-  } | null;
-  className?: string;
-}
-
-export function Navbar({ user: propUser, className }: NavbarProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isOffline, setIsOffline] = useState(false);
-  const [bundleState, setBundleState] = useState<OfflineMockBundle | null>(null);
-
-  // Lấy state từ User Store (quản lý tập trung hồ sơ BKT và thông báo)
-  const {
-    user: storeUser,
-    profile,
-    isLoading,
-    toast,
-    hideToast,
-    fetchProfile,
-    setUser,
-    showToast,
-  } = useUserStore();
-
-  // Hook Ctrl+Shift+D và query ?offline=1 (UI-60)
-  useEffect(() => {
-    setIsOffline(isOfflineMode());
-    setBundleState(getOfflineBundle());
-
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
-        e.preventDefault();
-        const next = !isOfflineMode();
-        if (next) {
-          setOfflineMode(true);
-          setIsOffline(true);
-          try {
-            const bundle = await loadOfflineBundle();
-            setBundleState(bundle);
-            router.push("/learn?offline=1");
-          } catch {
-            showToast("Không đọc được gói dữ liệu offline", "error");
-          }
-        } else {
-          setOfflineMode(false);
-          setIsOffline(false);
-          setBundleState(null);
-          useWorkbenchStore.getState().resetSession();
-          router.push("/");
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [router, showToast]);
-
-  useEffect(() => {
-    setIsOffline(isOfflineMode());
-    const b = getOfflineBundle();
-    if (b) {
-      setBundleState(b);
-    }
-  }, [pathname]);
-
-  useEffect(() => {
-    // 1. Tự động đồng bộ phiên Supabase Auth và thông tin người dùng
-    try {
-      const supabase = createClient();
-      supabase.auth.getSession().then(({ data }) => {
-        const u = data?.session?.user;
-        if (u) {
-          const name =
-            u.user_metadata?.user_name ||
-            u.user_metadata?.preferred_username ||
-            u.user_metadata?.full_name ||
-            u.user_metadata?.name ||
-            u.email?.split("@")[0] ||
-            "User";
-          const avatarUrl = u.user_metadata?.avatar_url;
-          setUser({ name, avatarUrl, email: u.email });
-        }
-      });
-
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        const u = session?.user;
-        if (u) {
-          const name =
-            u.user_metadata?.user_name ||
-            u.user_metadata?.preferred_username ||
-            u.user_metadata?.full_name ||
-            u.user_metadata?.name ||
-            u.email?.split("@")[0] ||
-            "User";
-          const avatarUrl = u.user_metadata?.avatar_url;
-          setUser({ name, avatarUrl, email: u.email });
-        } else {
-          setUser(null);
-        }
-      });
-
-      // 2. Tự động gọi Bước 1: GET /api/me để nạp hồ sơ BKT & tier
-      fetchProfile();
-
-      return () => {
-        subscription.unsubscribe();
-      };
-    } catch {
-      // Bỏ qua lỗi kết nối trong môi trường SSR/test
-    }
-  }, [fetchProfile, setUser]);
-
-  // Ưu tiên propUser truyền vào tường minh (dành cho storybook, test hoặc report page mockup)
-  const activeUser =
-    propUser !== undefined ? propUser : storeUser;
-
-  const currentBundle = bundleState || getOfflineBundle();
-  const baseTitle = "Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ";
-  const formattedDate = currentBundle?.recorded_from?.recorded_at
-    ? new Date(currentBundle.recorded_from.recorded_at).toLocaleString("vi-VN")
-    : "";
-  const offlineTitle = currentBundle?.recorded_from
-    ? `${baseTitle} — Ghi lại từ ${currentBundle.recorded_from.repo} lúc ${formattedDate}`
-    : baseTitle;
-
-  const navLinks = [
-    { label: "Trang chủ", href: "/" },
-    { label: "Lộ trình học tập", href: "/roadmap" },
-    { label: "Lịch sử nộp bài", href: "/history" },
-    { label: "Cách học cùng SimpliFey", href: "/how-it-works" },
-  ];
+export function Navbar() {
+  const offline = useWorkbench((s) => s.is_offline_mode);
+  const sessionId = useWorkbench((s) => s.session_id);
+  const user = useWorkbench((s) => s.ui.user);
+  const auth = useWorkbench((s) => s.ui.auth);
+  const profile = useWorkbench((s) => s.profile);
+  const persona = useWorkbench((s) => s.ui.offline_persona);
+  const { logout, deleteAccount, changePersona, enterOffline, leaveOffline } = useWorkbench.getState();
+  const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const demo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || offline;
+  const qs = sessionId && !offline ? `?session=${sessionId}` : "";
+  const link = "rounded-md px-3 py-1.5 text-sm text-muted hover:bg-white/5 hover:text-text";
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-40 w-full bg-white border-b-[0.8px] border-[#e5e7eb] px-4 md:px-9 transition-all",
-        className
-      )}
-    >
-      <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-2 sm:px-6">
-        {/* Brand Logo & Desktop Nav Links */}
-        <div className="flex items-center gap-8 lg:gap-12 min-w-0">
-          <Link
-            href="/"
-            className="flex items-center select-none"
-            aria-label="SimpliFey Trang chủ"
-          >
-            <span className="text-[28px] sm:text-[32px] font-black tracking-[-0.8px] text-[#ff9640] text-shadow-brand-logo">
-              SIMPLIFEY
-            </span>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
-            {navLinks.map((link) => {
-              const isExternal = link.href.startsWith("http");
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  target={isExternal ? "_blank" : undefined}
-                  rel={isExternal ? "noopener noreferrer" : undefined}
-                  className={cn(
-                    "text-[14px] font-medium text-[#131b2e] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95",
-                    pathname === link.href &&
-                      "font-semibold text-black underline underline-offset-4 decoration-2 decoration-[#ff9640]"
-                  )}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+    <>
+      {offline && (
+        <div role="status" className="border-b border-amber/40 bg-amber/10 px-4 py-1.5 text-center text-xs font-semibold text-amber">
+          Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ
         </div>
-
-        {/* User Actions & Settings */}
-        <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-          {/* Offline Mode Warning Badge (UI-60) */}
-          {isOffline && (
-            <div
-              className="bg-[#fff7ed] border border-[#ff9640]/50 text-[#944b00] px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0"
-              title={offlineTitle}
-            >
-              <span className="size-2 rounded-full bg-[#ff9640] animate-ping" />
-              <span className="hidden sm:inline">Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ</span>
-              <span className="sm:hidden">Offline Demo</span>
-            </div>
-          )}
-
-          {isLoading && !activeUser ? (
-            /* Loading State: Skeleton Shimmer */
-            <div
-              className="flex items-center gap-2 animate-pulse py-1"
-              aria-label="Đang tải thông tin người dùng"
-            >
-              <div className="size-9 rounded-full bg-[#f3f4f6]" />
-              <div className="h-4 w-24 rounded bg-[#f3f4f6] hidden sm:block" />
-            </div>
-          ) : activeUser ? (
-            /* Success State: User Profile with Tier Badge */
-            <div className="flex items-center gap-3">
-              <Avatar
-                src={activeUser.avatarUrl}
-                alt={activeUser.name}
-                fallback={activeUser.name ? activeUser.name[0] : "U"}
-                size="md"
-              />
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                <span className="hidden sm:inline-block text-[15px] font-bold text-[#131b2e]">
-                  Xin chào {activeUser.name}!
-                </span>
-                {profile?.overall_tier && (
-                  <Badge
-                    variant={
-                      profile.overall_tier === "ARCHITECT"
-                        ? "bkt"
-                        : profile.overall_tier === "PRACTITIONER"
-                        ? "info"
-                        : "brand"
-                    }
-                    size="sm"
-                    className="hidden lg:inline-flex"
-                  >
-                    {profile.overall_tier === "ARCHITECT"
-                      ? "Kiến trúc sư"
-                      : profile.overall_tier === "PRACTITIONER"
-                      ? "Thực hành"
-                      : "Tập sự"}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Empty / Guest State: Login CTA buttons */
-            <>
-              <Link
-                href="/login"
-                className="hidden sm:inline-block px-2.5 py-1 text-[14px] font-medium text-[#131b2e] transition-all duration-200 ease-out origin-center hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-105 active:scale-95"
-              >
-                Đăng nhập
-              </Link>
-              <Link
-                href="/register"
-                className="hidden sm:inline-flex items-center justify-center rounded-[12px] bg-[#ff9640] px-5 py-2 sm:px-6 sm:py-2.5 text-[14px] font-bold text-white shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_-1px_rgba(0,0,0,0.1)] hover:bg-[#f2852e] hover:scale-105 active:scale-95 transition-all duration-200 ease-out origin-center"
-              >
-                Đăng ký
-              </Link>
-            </>
-          )}
-
-          {/* Settings Trigger with Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-              aria-label="Cài đặt hệ thống"
-              aria-expanded={isSettingsOpen}
-              className="group flex items-center justify-center p-2 text-black transition-colors focus:outline-none cursor-pointer bg-transparent"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={cn(
-                  "size-5 text-black transition-all duration-500 ease-in-out origin-center group-hover:rotate-[360deg] group-hover:text-[#ff9640]",
-                  isSettingsOpen && "text-[#ff9640]"
-                )}
-              >
-                <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
+      )}
+      <nav aria-label="Menu chính" className="flex items-center justify-between gap-4 border-b border-line bg-panel-2 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <Link href="/" className="mr-2 text-lg font-extrabold tracking-tight"><span className="text-amber">Simpli</span>Fey</Link>
+          <Link href="/" className={link}>Trang chủ</Link>
+          {sessionId && <Link href={`/learn${qs}`} className={link}>Trang học</Link>}
+          <Link href="/roadmap" className={link}>Lộ trình</Link>
+          {sessionId && !offline && <Link href={`/history${qs}`} className={link}>Lịch sử</Link>}
+          <Link href="/how-it-works" className={link}>Cách học</Link>
+        </div>
+        <div className="relative flex items-center gap-2">
+          {profile && <span className="hidden text-xs text-muted sm:inline">Bậc: {profile.overall_tier}</span>}
+          {(auth === "user" || offline) && (
+            <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+              className="flex items-center gap-2 rounded-lg border border-line px-2 py-1 text-sm hover:bg-white/5">
+              {user?.avatar
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={user.avatar} alt="" className="h-6 w-6 rounded-full" />
+                : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber text-xs font-bold text-bg">{(user?.name ?? "O").slice(0, 1).toUpperCase()}</span>}
+              <span className="max-w-32 truncate">{offline ? "Offline" : user?.name ?? profile?.display_name ?? "Tài khoản"}</span>
             </button>
-
-            <SettingsDropdown
-              isOpen={isSettingsOpen}
-              onClose={() => setIsSettingsOpen(false)}
-            />
-          </div>
-
-          {/* Mobile hamburger menu toggle */}
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Menu điều hướng"
-            className="md:hidden flex items-center justify-center rounded-[8px] p-2 text-[#554337] hover:bg-[#f3f4f6]"
-          >
-            {isMobileMenuOpen ? (
-              <X className="size-6" />
-            ) : (
-              <Menu className="size-6" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Nav Links drawer */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-[#f3f4f6] py-3 px-2 flex flex-col gap-1 bg-white animate-in slide-in-from-top-2 duration-150">
-          {navLinks.map((link) => {
-            const isExternal = link.href.startsWith("http");
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                target={isExternal ? "_blank" : undefined}
-                rel={isExternal ? "noopener noreferrer" : undefined}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={cn(
-                  "px-3 py-2 text-sm font-medium rounded-[8px] text-[#131b2e] transition-all duration-200 ease-out hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-[1.02]",
-                  pathname === link.href && "font-semibold text-black bg-[#f3f4f6]"
-                )}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-          {!activeUser && (
-            <div className="border-t border-[#f3f4f6] mt-2 pt-2 flex flex-col gap-2">
-              <Link
-                href="/login"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 text-sm font-medium text-[#131b2e] hover:font-semibold hover:underline hover:underline-offset-4 hover:decoration-1 hover:decoration-[#131b2e]/60 hover:scale-[1.02] rounded-[8px] transition-all duration-200 ease-out"
-              >
-                Đăng nhập
-              </Link>
+          )}
+          {open && (
+            <div role="menu" className="glass absolute right-0 top-11 z-40 w-72 rounded-xl border border-line p-2 text-sm shadow-xl">
+              {demo && (
+                <div className="mb-2 border-b border-line pb-2">
+                  <p className="px-2 pb-1 text-xs uppercase tracking-wide text-muted">Persona (demo)</p>
+                  {PERSONA_LIST.map(([m, p]) => (
+                    <button key={m} role="menuitemradio" aria-checked={offline && persona === m} type="button"
+                      onClick={() => { void changePersona(m); setOpen(false); }}
+                      className={cn("block w-full rounded-md px-2 py-1.5 text-left hover:bg-white/5", offline && persona === m && "text-amber")}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button role="menuitem" type="button" className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-white/5"
+                onClick={() => { setOpen(false); if (offline) void leaveOffline(); else void enterOffline(); }}>
+                {offline ? "Tắt chế độ Offline" : "Mở demo Offline (Ctrl+Shift+D)"}
+              </button>
+              {!offline && (
+                <>
+                  <button role="menuitem" type="button" className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-white/5" onClick={() => { setOpen(false); void logout(); }}>Đăng xuất</button>
+                  <button role="menuitem" type="button" className="block w-full rounded-md px-2 py-1.5 text-left text-red hover:bg-red/10" onClick={() => { setOpen(false); setConfirmDelete(true); }}>Xóa tài khoản và dữ liệu</button>
+                </>
+              )}
             </div>
           )}
         </div>
-      )}
-
-      {/* Toast Notification Container */}
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={cn(
-            "fixed top-20 right-4 sm:right-9 z-50 flex items-center gap-3 rounded-[12px] px-4 py-3 shadow-lg border transition-all animate-in slide-in-from-top-3 duration-200 max-w-[380px]",
-            toast.type === "success" &&
-              "bg-white border-[#00bc7d]/30 text-[#131b2e] drop-shadow-[0_8px_16px_rgba(0,188,125,0.15)]",
-            toast.type === "error" &&
-              "bg-white border-[#e7000b]/30 text-[#131b2e] drop-shadow-[0_8px_16px_rgba(231,0,11,0.15)]",
-            toast.type === "info" &&
-              "bg-white border-[#004cff]/30 text-[#131b2e] drop-shadow-[0_8px_16px_rgba(0,76,255,0.15)]"
-          )}
-        >
-          {toast.type === "success" ? (
-            <CheckCircle2 className="size-5 text-[#00bc7d] shrink-0" />
-          ) : toast.type === "error" ? (
-            <AlertCircle className="size-5 text-[#e7000b] shrink-0" />
-          ) : (
-            <Info className="size-5 text-[#004cff] shrink-0" />
-          )}
-          <span className="text-[13px] font-semibold flex-1 leading-snug">
-            {toast.message}
-          </span>
-          <button
-            type="button"
-            onClick={hideToast}
-            aria-label="Đóng thông báo"
-            className="text-[#99a1af] hover:text-[#131b2e] p-1 rounded-md transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      )}
-    </header>
+      </nav>
+      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Xóa tài khoản và dữ liệu"
+        footer={<><Button variant="ghost" onClick={() => setConfirmDelete(false)}>Hủy</Button><Button variant="danger" onClick={() => { setConfirmDelete(false); void deleteAccount(); }}>Xóa vĩnh viễn</Button></>}>
+        <p className="text-sm text-muted">Xóa toàn bộ điểm kỹ năng, phiên học, câu trả lời. Không hoàn tác.</p>
+      </Modal>
+    </>
   );
 }
