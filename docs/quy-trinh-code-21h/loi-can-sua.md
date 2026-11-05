@@ -131,7 +131,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** quyết định D-07 chỉ nối bài gọi chung hàm, nên nhiều bài không có bài cha.
 - **Cần sửa:** thêm `addTreeEdges` trong `nodes.ts`, nối bài theo module thành cây, cạnh thêm là `INFERRED` và có khóa bài (đề xuất D-73).
 - **Kiểm tra:** BrewLite mở lúc đầu không quá 6 bài.
-- **Trạng thái:** đã xác nhận trên site, chờ quyết Q-B (TASK_21). Đổi cách khóa bài nên cần thử kỹ trước khi demo.
+- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21). Đổi cách khóa bài nên cần thử kỹ trước khi demo.
 
 ### B-05 · Vừa · Node tách rời, bản đồ quá dài
 
@@ -139,7 +139,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** như B-04, cộng quyết định D-55 đưa mọi bài không có cha lên hàng đầu.
 - **Cần sửa:** làm cùng B-04, rồi đo lại. Bản đồ chỉ đọc được khi đã sửa thêm lỗi D-01.
 - **Kiểm tra:** BrewLite hết node lẻ, còn khoảng 3 cây (theo mô phỏng).
-- **Trạng thái:** đã xác nhận trên site, chờ quyết Q-B (TASK_21).
+- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21).
 
 ### B-06 · Vừa · Không có luồng tới tầng dữ liệu
 
@@ -547,7 +547,7 @@ Làm từ trên xuống. Đang là bản tập dượt, nên mọi luật trong 
 ### 1. Chuẩn bị
 
 1. Đọc toàn bộ file này, kể cả lỗi mới được thêm.
-2. Chạy `git status` và `git pull`. Nhánh `b/fix-nest-buoc-dau` (commit `1066d4d`) có bản sửa B-01: merge vào `main` trước, không làm lại.
+2. Chạy `git status` và `git pull`. Commit `1066d4d` ở nhánh `b/fix-nest-buoc-dau` có bản sửa B-01. PR #129 đã đóng, nên lấy commit này vào nhánh sửa, không làm lại.
 3. Chọn lỗi theo [Thứ tự nên sửa](#thứ-tự-nên-sửa). Lỗi mới chưa có trong danh sách đó thì làm Nặng, rồi Vừa, rồi Nhẹ.
 
 ### 2. Lỗi nào được làm
@@ -570,7 +570,7 @@ Lỗi không xác định được cách sửa thì dừng lỗi đó và hỏi,
 5. **Đổi phiên bản khi cần:**
    - Đổi luật Tầng 0–2 làm đổi đồ thị hoặc `node_id`: đổi `ENGINE_VERSION` (Q-F).
    - Đổi prompt hoặc `responseSchema`: đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`, chạy lại các ca cũ (quyết định D-51).
-6. **Kiểm:** chạy `npm run typecheck`, `npm run lint`, `npm test`. Đổi contract thì chạy thêm `node .kb/tools/kiem-contracts.mjs`. Làm đúng mục **Kiểm tra** của lỗi, trên repo thật nếu lỗi ghi vậy.
+6. **Kiểm:** chạy `npm run typecheck`, `npm run lint`, `npm test`. Đổi contract thì dùng skill `kiem-contract`. Làm đúng mục **Kiểm tra** của lỗi, trên repo thật nếu lỗi ghi vậy.
 7. **Ghi lại:** đổi trạng thái thành `chờ kiểm`, kèm kết quả kiểm. Không chạy được bước nào thì ghi rõ bước đó.
 
 ### 4. Luật bắt buộc
@@ -589,7 +589,7 @@ Báo 4 nhóm: lỗi đã chuyển `chờ kiểm`, lỗi bỏ qua vì chờ quy�
 
 ## Việc sửa spec
 
-Các file ở `docs/spec/`. Trạng thái chung: chưa làm. Mọi việc phải sửa cả ca test của file đó khi có.
+Các file ở `docs/spec/`. Đã làm ngày 05/11/2026 theo [`phan-tich-sua-tai-lieu.md`](phan-tich-sua-tai-lieu.md), gồm cả S-15 … S-26. Còn S-11 chờ Q-C, Q-03 chờ nhóm chốt repo demo. Mọi việc phải sửa cả ca test của file đó khi có.
 
 | Mã | File | Sửa gì | Lỗi | Chờ |
 | :-- | :-- | :-- | :-- | :-- |
@@ -612,7 +612,7 @@ Không cần sửa spec, chỉ sửa code và phiếu: B-11, D-08, D-11, A-05. C
 
 ## Việc sửa phiếu
 
-Các file ở `docs/quy-trinh-code-21h/`. Trạng thái chung: chưa làm. Trước khi thêm ô, xem phiếu đã có ý đó chưa. Không tự sửa `phieu-can-co.md`, vì file này do công cụ sinh ra.
+Các file ở `docs/quy-trinh-code-21h/`. Đã làm ngày 05/11/2026: mỗi phiếu có mục "Bắt buộc theo bản chạy thử", và cách làm nhanh ở [`lam-phieu.md`](lam-phieu.md). Trước khi thêm ô, xem phiếu đã có ý đó chưa. Không tự sửa `phieu-can-co.md`, vì file này do công cụ sinh ra.
 
 | Phiếu | Thêm hoặc sửa | Lỗi |
 | :-- | :-- | :-- |
@@ -644,11 +644,11 @@ Agent không tự trả lời các câu này. Nhóm chốt xong thì đổi cộ
 | Mã | Câu hỏi | Đề xuất | Việc bị chặn | Trạng thái |
 | :-- | :-- | :-- | :-- | :-- |
 | Q-A | Luật đạt bài, xem chi tiết bên dưới | Giữ luật, hiện "Đạt 2/3 câu" | Một phần D-09 | chờ quyết |
-| Q-B | Có thêm quyết định D-73, nối bài thành cây theo module không? | Có, nhưng phải thử kỹ khóa bài | B-04, B-05, S-13 | chờ quyết |
+| Q-B | Có thêm quyết định D-73, nối bài thành cây theo module không? | Có, nhưng phải thử kỹ khóa bài | B-04, B-05, S-13 | cây, Minh chốt 05/11/2026 |
 | Q-C | Host chính của vòng 2 là Cloud Run hay Vercel? | Vercel, tắt workflow Cloud Run, vì GCP còn thiếu secret | A-01, S-11 | chờ quyết |
-| Q-D | Spec 30 theo giao diện thật hay đổi code về 3 cột? | Viết lại spec theo giao diện thật | S-07 | chờ quyết |
+| Q-D | Spec 30 theo giao diện thật hay đổi code về 3 cột? | Viết lại spec theo giao diện thật | S-07 | giao diện mới, Minh chốt 05/11/2026 |
 | Q-E | 6 file spec đã vượt trần byte: nâng trần hay cắt bớt? | Nâng trần cho `02`, `10`, `20`, `21`, `30`, ghi một quyết định, cắt `00` | Việc spec có cột Chờ là Q-E | nâng trần, quyết định D-75 |
-| Q-F | Có nâng `ENGINE_VERSION` lên `1.7.0` và gom các đổi engine vào một lần không? | Có | Bước đổi phiên bản của B-01 … B-07 | chờ quyết |
+| Q-F | Có nâng `ENGINE_VERSION` lên `1.7.0` và gom các đổi engine vào một lần không? | Có | Bước đổi phiên bản của B-01 … B-07 | không cần giữ phiên cũ, đợt 1 lên `1.7.0`, đợt 2 lên `1.8.0`, Minh chốt 05/11/2026 |
 
 ### Q-A · Luật đạt bài
 
