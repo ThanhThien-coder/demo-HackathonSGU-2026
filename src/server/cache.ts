@@ -1,144 +1,53 @@
-import { CONFIG, type StaticEngineResult } from "@/contracts";
+// 03 Mục 3.3, 4 — khóa cache AI, LRU RAM StaticEngineResult, in-flight map. Chỉ để nhanh, không được dựa vào (D-27).
+import { CONFIG } from "@/contracts/config";
+import type { RepoSnapshotKey, StaticEngineResult } from "@/contracts";
 
-interface CacheEntry<T> {
-  value: T;
-  timestamp: number;
-}
+export const analysisKey = (k: RepoSnapshotKey, engineVersion: string, nodeId: string) =>
+  `na|${k.source}|${k.snapshot_id}|${k.subdir}|${engineVersion}|${nodeId}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
 
-/**
- * Bo nho dem trong RAM co co che LRU va thoi han het han TTL (03 Muc 4, API-08).
- * Ap dung cho mot instance Node.js / Cloud Run.
- */
-class LruTtlCache<T> {
-  private readonly maxEntries: number;
-  private readonly ttlMs: number;
-  private readonly map = new Map<string, CacheEntry<T>>();
+export const overviewKey = (k: RepoSnapshotKey, engineVersion: string) =>
+  `ov|${k.source}|${k.snapshot_id}|${k.subdir}|${engineVersion}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
 
-  constructor(maxEntries: number, ttlMs: number) {
-    this.maxEntries = maxEntries;
-    this.ttlMs = ttlMs;
+interface Entry<T> { value: T; at: number }
+
+class Lru<T> {
+  private m = new Map<string, Entry<T>>();
+  constructor(private max: number, private ttl: number) {}
+  get(k: string): T | undefined {
+    const e = this.m.get(k);
+    if (!e) return undefined;
+    if (Date.now() - e.at > this.ttl) { this.m.delete(k); return undefined; }
+    this.m.delete(k); this.m.set(k, e); // làm mới thứ tự LRU
+    return e.value;
   }
-
-  get(key: string): T | null {
-    const entry = this.map.get(key);
-    if (!entry) return null;
-
-    if (Date.now() - entry.timestamp > this.ttlMs) {
-      this.map.delete(key);
-      return null;
-    }
-
-    // Dua len dau / lam moi thu tu su dung (LRU)
-    this.map.delete(key);
-    this.map.set(key, entry);
-    return entry.value;
-  }
-
-  set(key: string, value: T): void {
-    if (this.map.has(key)) {
-      this.map.delete(key);
-    } else if (this.map.size >= this.maxEntries) {
-      // Xoa phan tu cu nhat khi vuot tran
-      const oldestKey = this.map.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.map.delete(oldestKey);
-      }
-    }
-
-    this.map.set(key, { value, timestamp: Date.now() });
-  }
-
-  delete(key: string): void {
-    this.map.delete(key);
-  }
-
-  clear(): void {
-    this.map.clear();
-  }
-
-  size(): number {
-    return this.map.size;
+  set(k: string, v: T): void {
+    this.m.delete(k);
+    this.m.set(k, { value: v, at: Date.now() });
+    while (this.m.size > this.max) this.m.delete(this.m.keys().next().value as string);
   }
 }
 
-// 03_API_VA_LUU_TRU Muc 4: Cache RAM StaticEngineResult 2 tang:
-// Tang 1: alias owner/repo + subdir_override => snapshot_id
-// Tang 2: ket qua snapshot_id|subdir|engine_version => StaticEngineResult
-const engineResultCache = new LruTtlCache<StaticEngineResult>(
-  CONFIG.INGESTION_CACHE_MAX_ENTRIES,
-  CONFIG.INGESTION_CACHE_TTL_MS
-);
-
-const aliasCache = new LruTtlCache<string>(
-  CONFIG.INGESTION_CACHE_MAX_ENTRIES,
-  CONFIG.INGESTION_CACHE_TTL_MS
-);
-
-// In-flight promise map cho cac yeu cau AI / ingest trung khoa cung luc trong 1 instance (03 Muc 3.3, 20 AI-08)
-const inFlightPromises = new Map<string, Promise<unknown>>();
-
-export function makeEngineCacheKey(
-  snapshotId: string,
-  subdir: string,
-  engineVersion: string
-): string {
-  return `${snapshotId}|${subdir}|${engineVersion}`;
+declare global {
+  var _resultCache: Lru<StaticEngineResult> | undefined;
+  var _aliasCache: Lru<string> | undefined;
+  var _inflight: Map<string, Promise<unknown>> | undefined;
 }
 
-export function makeAliasCacheKey(repoKey: string, subdir: string = ""): string {
-  return `${repoKey}|${subdir}`;
-}
+const results = (globalThis._resultCache ??= new Lru<StaticEngineResult>(CONFIG.INGESTION_CACHE_MAX_ENTRIES, CONFIG.INGESTION_CACHE_TTL_MS));
+const aliases = (globalThis._aliasCache ??= new Lru<string>(CONFIG.INGESTION_CACHE_MAX_ENTRIES, CONFIG.INGESTION_CACHE_TTL_MS));
+const inflight = (globalThis._inflight ??= new Map<string, Promise<unknown>>());
 
-export function getEngineResultCache(
-  snapshotId: string,
-  subdir: string,
-  engineVersion: string
-): StaticEngineResult | null {
-  const key = makeEngineCacheKey(snapshotId, subdir, engineVersion);
-  return engineResultCache.get(key);
-}
+const resultKey = (k: RepoSnapshotKey, engineVersion: string) => `${k.snapshot_id}|${k.subdir}|${engineVersion}`;
+export const getResultCached = (k: RepoSnapshotKey, ev: string) => results.get(resultKey(k, ev));
+export const putResultCached = (r: StaticEngineResult) => results.set(resultKey(r.snapshot, r.engine_version), r);
+export const getAlias = (alias: string) => aliases.get(alias);
+export const putAlias = (alias: string, snapshotId: string) => aliases.set(alias, snapshotId);
 
-export function setEngineResultCache(
-  snapshotId: string,
-  subdir: string,
-  engineVersion: string,
-  result: StaticEngineResult
-): void {
-  const key = makeEngineCacheKey(snapshotId, subdir, engineVersion);
-  engineResultCache.set(key, result);
-}
-
-export function getAliasSnapshotId(
-  repoKey: string,
-  subdir: string = ""
-): string | null {
-  const key = makeAliasCacheKey(repoKey, subdir);
-  return aliasCache.get(key);
-}
-
-export function setAliasSnapshotId(
-  repoKey: string,
-  subdir: string,
-  snapshotId: string
-): void {
-  const key = makeAliasCacheKey(repoKey, subdir);
-  aliasCache.set(key, snapshotId);
-}
-
-export function clearEngineCache(): void {
-  engineResultCache.clear();
-  aliasCache.clear();
-  inFlightPromises.clear();
-}
-
-export function getInFlightPromise<T>(key: string): Promise<T> | undefined {
-  return inFlightPromises.get(key) as Promise<T> | undefined;
-}
-
-export function setInFlightPromise<T>(key: string, promise: Promise<T>): void {
-  inFlightPromises.set(key, promise);
-}
-
-export function deleteInFlightPromise(key: string): void {
-  inFlightPromises.delete(key);
+/** Hai yêu cầu trùng khóa cùng lúc trong 1 instance dùng chung 1 promise (AI-08). */
+export function once<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const cur = inflight.get(key) as Promise<T> | undefined;
+  if (cur) return cur;
+  const p = fn().finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
 }
