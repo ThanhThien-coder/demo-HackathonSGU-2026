@@ -1,181 +1,111 @@
-// Luồng phân tích lát cắt analyze-node (AI-15, AI-18).
-import {
-  CONFIG,
-  type GuardIssue,
-  type HybridArchitecturalNode,
-  type NodeAnalysis,
-  type NodeAnalysisView,
-  type SessionRow,
-  type StaticEngineResult,
+// 20 Mục 4–5 — analyze-node (AI-15) và analyze-overview (AI-19); toAnalysisView (AI-18).
+import { CONFIG } from "@/contracts/config";
+import type {
+  GuardIssue, HybridArchitecturalNode, NodeAnalysis, NodeAnalysisRaw, NodeAnalysisView, RepoOverviewRaw, SessionRow,
+  StaticEngineResult,
 } from "@/contracts";
-import { checkTokenQuota } from "@/server/quota";
-import { callLLMOnce, retryDelay } from "./gemini";
-import { checkAnalysis } from "./guard/analysis";
-import { logGuardBlock } from "./guard/log";
-import { norm } from "./guard/text";
-import { analyzeRequest } from "./prompts/analyze";
+import { assertQuota } from "../quota";
+import { callLLMOnce, retryDelay, type LlmRequest } from "./gemini";
+import { checkAnalysis, checkOverview } from "./guard/checks";
+import { logGuardBlock } from "./guard/followup";
+import { IDENT_RE, identWords, norm } from "./guard/text";
+import { analyzeSystem, analyzeUser } from "./prompts/analyze";
+import { overviewSystem, overviewUser } from "./prompts/overview";
 import { withGuardFeedback } from "./prompts/common";
+import { ANALYZE_SCHEMA, OVERVIEW_SCHEMA } from "./schemas";
 
-/**
- * Thống kê token và số lượt request của analyzeNode (nội bộ).
- * Caller truyền vào để cộng dồn ghi DB/log L1 (D-66).
- */
-export interface AnalyzeUsage {
-  tokens_in: number;
-  tokens_out: number;
-  requests: number;
-}
+const isArr = (x: unknown) => Array.isArray(x);
+const parseAnalysis = (j: unknown): NodeAnalysisRaw | null => {
+  const o = j as Partial<NodeAnalysisRaw> | null;
+  if (!o || typeof o !== "object" || !isArr(o.skills) || !o.architecture || !isArr(o.steps) || !isArr(o.strengths) || !isArr(o.weak_points)) return null;
+  return o as NodeAnalysisRaw;
+};
+const parseOverview = (j: unknown): RepoOverviewRaw | null => {
+  const o = j as Partial<RepoOverviewRaw> | null;
+  if (!o || typeof o !== "object" || typeof o.summary !== "string" || !isArr(o.layers) || !isArr(o.notes)) return null;
+  return o as RepoOverviewRaw;
+};
 
-/**
- * So sánh hai bản phân tích: đầy đủ > skeleton_only > null; bằng nhau giữ bản đến trước.
- */
-export function better(
-  a: NodeAnalysis | null,
-  b: NodeAnalysis | null,
-): NodeAnalysis | null {
-  const score = (x: NodeAnalysis | null): number => {
-    if (!x) return 0;
-    return x.skeleton_only ? 1 : 2;
-  };
-  const scoreA = score(a);
-  const scoreB = score(b);
-  if (scoreB > scoreA) return b;
-  return a;
-}
+const better = (a: NodeAnalysis | null, b: NodeAnalysis | null): NodeAnalysis | null => {
+  const rank = (x: NodeAnalysis | null) => (x === null ? 0 : x.skeleton_only ? 1 : 2);
+  return rank(b) > rank(a) ? b : a; // bằng nhau ⇒ giữ bản đến trước
+};
 
-/**
- * Phân tích một lát cắt node qua Gemini (AI-15).
- * Kiểm tra quota trước; tối đa 1 + LLM_MAX_RETRIES request.
- */
-export async function analyzeNode(
-  session: SessionRow,
-  graph: StaticEngineResult,
-  node: HybridArchitecturalNode,
-  usage?: AnalyzeUsage,
-): Promise<NodeAnalysis | null> {
-  checkTokenQuota(session.tokens_used); // AI-06
-
+/** null ⇒ analysis_failed (D-03); skeleton_only ⇒ vẫn cache. */
+export async function analyzeNode(session: SessionRow, graph: StaticEngineResult, node: HybridArchitecturalNode): Promise<NodeAnalysis | null> {
+  await assertQuota(session.id);
   let best: NodeAnalysis | null = null;
   let issues: GuardIssue[] = [];
-
+  let prev: { retry_after_ms?: number } | null = null;
+  const base: LlmRequest<NodeAnalysisRaw> = {
+    kind: "ANALYZE", system: analyzeSystem(node, graph), user: analyzeUser(node, graph), schema: ANALYZE_SCHEMA, sessionId: session.id, parse: parseAnalysis,
+  };
   for (let i = 0; i <= CONFIG.LLM_MAX_RETRIES; i++) {
-    const req = withGuardFeedback(analyzeRequest(session, graph, node), issues);
-    const r = await callLLMOnce(req);
-
-    if (usage) {
-      usage.tokens_in += r.tokens_in;
-      usage.tokens_out += r.tokens_out;
-      usage.requests += 1;
-    }
-
-    issues = []; // reset sau mỗi request
-
+    if (i > 0 && !(await retryDelay(prev))) break;
+    const r = await callLLMOnce(withGuardFeedback(base, issues));
+    issues = []; // lỗi mạng, JSON hỏng ⇒ request sau không có lý do
+    prev = null;
     if (r.ok) {
       const g = checkAnalysis(r.value, node, graph, issues);
-      if (!g || g.skeleton_only) {
-        logGuardBlock("analyze", i + 1, node.id, issues);
-      }
+      if (!g || g.skeleton_only) logGuardBlock("analyze", i + 1, node.id, issues);
       best = better(best, g);
-    }
-
-    if ((best && !best.skeleton_only) || (!r.ok && r.kind === "FATAL")) {
-      break;
-    }
-
-    if (i < CONFIG.LLM_MAX_RETRIES && !r.ok) {
-      await retryDelay(r);
-    }
+    } else prev = r;
+    if ((best && !best.skeleton_only) || (!r.ok && r.kind === "FATAL")) break;
   }
-
   return best;
 }
 
-function findSymbolLine(
-  step: HybridArchitecturalNode["trace_steps"][number],
-  symbol: string,
-): { line_start: number; line_end: number } {
-  const normalizedSymbol = norm(symbol);
-  if (normalizedSymbol && step.snippet && step.snippet_line_map) {
-    const lines = step.snippet.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const origLine = step.snippet_line_map[i];
-      if (origLine && origLine > 0) {
-        if (norm(lines[i]).includes(normalizedSymbol)) {
-          return { line_start: origLine, line_end: origLine };
-        }
-      }
+/** AI-18 */
+export function toAnalysisView(a: NodeAnalysis, node: HybridArchitecturalNode, graph: StaticEngineResult): NodeAnalysisView {
+  const stepOf = (k: number) => node.trace_steps[k - 1];
+  const lineOfSymbol = (stepNo: number, symbol: string): { line_start: number; line_end: number } => {
+    const s = stepOf(stepNo);
+    if (!s) return { line_start: 0, line_end: 0 };
+    const words = (symbol.match(IDENT_RE) ?? []).map(norm);
+    const last = words[words.length - 1];
+    if (last) {
+      const lines = s.snippet.split("\n");
+      for (let i = 0; i < lines.length; i++) if (s.snippet_line_map[i] > 0 && identWords(lines[i]).has(last)) return { line_start: s.snippet_line_map[i], line_end: s.snippet_line_map[i] };
     }
+    return { line_start: s.line_start, line_end: s.line_end };
+  };
+  const shared = new Map<string, string[]>();
+  for (const f of node.files) {
+    const ids = graph.nodes.filter((n) => n.id !== node.id && n.files.includes(f)).map((n) => n.id).sort();
+    if (ids.length) shared.set(f, ids);
   }
-  return { line_start: step.line_start, line_end: step.line_end };
+  return {
+    node_id: a.node_id,
+    skills: a.skills.map((s) => ({ ...s, file_path: stepOf(s.step)?.file_path ?? "", ...lineOfSymbol(s.step, s.symbol) })),
+    architecture: a.architecture,
+    steps: node.trace_steps.map((s) => ({
+      step: s.step_number, layer: s.layer, file_path: s.file_path, line_start: s.line_start, line_end: s.line_end,
+      text: a.skeleton_only ? null : (a.steps.find((x) => x.step === s.step_number)?.text ?? null),
+    })),
+    strengths: a.strengths,
+    weak_points: a.weak_points.map((w) => ({ ...w, file_path: stepOf(w.step)?.file_path ?? "", line_start: stepOf(w.step)?.line_start ?? 0, line_end: stepOf(w.step)?.line_end ?? 0 })),
+    shared_files: [...shared.entries()].map(([file_path, node_ids]) => ({ file_path, node_ids })),
+    skeleton_only: a.skeleton_only,
+  };
 }
 
-/**
- * Chuyển bản phân tích đã qua kiểm thành bản hiển thị gửi trình duyệt (AI-18).
- */
-export function toAnalysisView(
-  analysis: NodeAnalysis,
-  node: HybridArchitecturalNode,
-  graph: StaticEngineResult,
-): NodeAnalysisView {
-  const skills = analysis.skills.map((s) => {
-    const step = node.trace_steps.find((st) => st.step_number === s.step);
-    const file_path = step ? step.file_path : "";
-    const { line_start, line_end } = step
-      ? findSymbolLine(step, s.symbol)
-      : { line_start: 0, line_end: 0 };
-    return {
-      ...s,
-      file_path,
-      line_start,
-      line_end,
-    };
-  });
-
-  const steps = node.trace_steps.map((st) => {
-    let text: string | null = null;
-    if (!analysis.skeleton_only) {
-      const found = analysis.steps.find((item) => item.step === st.step_number);
-      text = found ? found.text : null;
-    }
-    return {
-      step: st.step_number,
-      layer: st.layer,
-      file_path: st.file_path,
-      line_start: st.line_start,
-      line_end: st.line_end,
-      text,
-    };
-  });
-
-  const weak_points = analysis.weak_points.map((w) => {
-    const step = node.trace_steps.find((st) => st.step_number === w.step);
-    return {
-      ...w,
-      file_path: step ? step.file_path : "",
-      line_start: step ? step.line_start : 0,
-      line_end: step ? step.line_end : 0,
-    };
-  });
-
-  const shared_files: Array<{ file_path: string; node_ids: string[] }> = [];
-  for (const f of node.files) {
-    const otherNodeIds = graph.nodes
-      .filter((other) => other.id !== node.id && other.files.includes(f))
-      .map((other) => other.id)
-      .sort();
-    if (otherNodeIds.length > 0) {
-      shared_files.push({ file_path: f, node_ids: otherNodeIds });
-    }
-  }
-
-  return {
-    node_id: analysis.node_id,
-    skills,
-    architecture: analysis.architecture,
-    steps,
-    strengths: analysis.strengths,
-    weak_points,
-    shared_files,
-    skeleton_only: analysis.skeleton_only,
+/** null ⇒ ai = null (vẫn có facts), không cache. */
+export async function analyzeOverview(session: SessionRow, graph: StaticEngineResult, analyses: Record<string, NodeAnalysis>, failedIds: Set<string>): Promise<RepoOverviewRaw | null> {
+  await assertQuota(session.id);
+  let issues: GuardIssue[] = [];
+  let prev: { retry_after_ms?: number } | null = null;
+  const base: LlmRequest<RepoOverviewRaw> = {
+    kind: "OVERVIEW", system: overviewSystem(graph), user: overviewUser(graph, analyses, failedIds), schema: OVERVIEW_SCHEMA, sessionId: session.id, parse: parseOverview,
   };
+  for (let i = 0; i <= CONFIG.LLM_MAX_RETRIES; i++) {
+    if (i > 0 && !(await retryDelay(prev))) break;
+    const r = await callLLMOnce(withGuardFeedback(base, issues));
+    issues = []; prev = null;
+    if (r.ok) {
+      const g = checkOverview(r.value, graph, analyses, issues);
+      if (g) return g;
+      logGuardBlock("overview", i + 1, null, issues);
+    } else { prev = r; if (r.kind === "FATAL") break; }
+  }
+  return null;
 }
