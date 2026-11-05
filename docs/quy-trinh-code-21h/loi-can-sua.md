@@ -1,81 +1,289 @@
-# Danh sách lỗi cần sửa sau khi deploy
+# Lỗi cần sửa sau khi deploy
 
-Cập nhật: 05/11/2026, theo `main` commit `ab6ac69`. Site: https://demo-hackathon-sgu-2026.vercel.app/
+Cập nhật ngày 05/11/2026, theo `main` commit `ab6ac69` trên https://demo-hackathon-sgu-2026.vercel.app/.
 
-Cách dùng: test từng dòng trên site, ghi vào cột **Kết quả test**: `còn lỗi`, `hết lỗi` hoặc `bỏ qua`.
+Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra code. Mỗi vai đọc phần của mình, sửa xong thì đổi **Trạng thái**.
 
-Mức độ: **Nặng** là ban giám khảo thấy ngay khi mở bài. **Vừa** là khó dùng hoặc gây hiểu sai. **Nhẹ** là chưa ảnh hưởng người học.
+## Tóm tắt
 
-## Đã xong
+| Vai | Nặng | Vừa | Nhẹ | Tổng |
+| :-- | --: | --: | --: | --: |
+| B — Engine | 2 | 5 | 4 | 11 |
+| D — Giao diện | 2 | 4 | 6 | 12 |
+| C — AI | 0 | 4 | 0 | 4 |
+| A — Tích hợp, deploy | 0 | 3 | 3 | 6 |
+| **Tổng** | **4** | **16** | **13** | **33** |
 
-| Mã | Lỗi | Nguyên nhân | Người sửa |
-| :-- | :-- | :-- | :-- |
-| X01 | Mọi bài báo "Chưa phân tích được" | App gửi `thinkingBudget: 0`, Google trả lỗi 400 | Phat107, commit `e94055b` |
-| X02 | Báo nhầm: thiếu nút zoom | Nút phóng to, thu nhỏ, xem toàn cảnh đã có ở `CanvasToolbar.tsx` | Không cần sửa |
+- **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
+- **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
+- **Nhẹ:** chưa ảnh hưởng nhiều tới người học.
+
+## Thứ tự nên sửa
+
+1. **B-01, B-02, B-03:** nội dung bài đúng trước. Sửa xong phải đổi `ENGINE_VERSION`.
+2. **D-05, D-07:** cửa sổ tràn màn hình và không bấm được node.
+3. **D-12, C-03, C-04:** câu hỏi đúng và không lộ đáp án.
+4. **D-01, B-04, B-05:** bản đồ đọc được và học theo cây.
+5. **D-09, D-11, A-01:** các lỗi Vừa còn lại.
+
+AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 400, Phat107 đã sửa ở commit `e94055b`.
+
+---
 
 ## Vai B — Engine
 
-| Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
-| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| B-01 | Nặng | Bài NestJS hiện code của method khác. BrewLite 11/17 route, repo demo 14/18 bài | Quét repo NestJS chưa từng quét, mở `Get Order`: bước đầu không được có `create` | `symbols.ts`, `getStartLineWithDecorators` | Có bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, chưa vào `main` | còn lỗi |
-| B-02 | Nặng | Capstone lấy từ file test (E06-12). Với BrewLite, bài này còn hiện làm bài đang học ở đầu đồ thị | Xem bài Capstone: file không được là `.spec` hay `test_` | `nodes.ts`, `selective.ts`, TASK_20 | Chưa làm | còn lỗi |
-| B-03 | Vừa | `config.get()` thành route giả: `List Jwt_expires_ins`, `Charge` | Quét BrewLite, tìm 2 bài này | `callgraph.ts`, TASK_20 | Chưa làm | còn lỗi |
-| B-04 | Vừa | Nhiều bài mở sẵn: BrewLite 13/20, `nestjs/nest` 19/20 | Quét repo, đếm bài chưa khóa lúc đầu | `nodes.ts`, TASK_21, thêm D-73 | Chưa làm, đổi cách khóa bài nên cần cân nhắc | còn lỗi |
-| B-05 | Vừa | Nhiều node lẻ, bản đồ dàn hàng ngang quá dài | Mở bản đồ BrewLite | `nodes.ts`, TASK_21; cần thêm D-01 | Chưa làm | còn lỗi |
-| B-06 | Vừa | BrewLite và `nestjs/nest` có 0 luồng tới tầng dữ liệu. Nghi engine chưa nhận lời gọi Prisma | Xem nhãn tầng của bước gọi Prisma | Chưa xác định | Chưa xác minh | |
-| B-07 | Vừa | Repo Java báo không có code (E06-10) | Quét `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang` | Chưa xác định | Chưa xác minh | |
-| B-08 | Nhẹ | Có node 0 bước (E06-11), có thể đã hết sau TASK_16 | Chạy lại repo demo, mở từng bài | Chưa xác định | Cần chạy lại | |
-| B-09 | Nhẹ | `tech_stack` lẫn thư viện dev và frontend | Xem danh sách thư viện ở Tổng quan | Tầng nhận diện dự án | Chưa làm | còn lỗi |
-| B-10 | Nhẹ | Hiện cảnh báo "Thời gian phân tích đồ thị (3070ms) vượt mức khuyến nghị (600ms)" cho người học. Mốc 600ms chỉ là khuyến nghị, không ảnh hưởng kết quả | Quét BrewLite trên site | Xem lại `ENGINE_BUDGET_MS` trên Vercel, hoặc Vai D không hiện cảnh báo này cho người học | Chưa làm | còn lỗi |
-| B-11 | Nhẹ | Bài thuật toán có bước trỏ vào dòng rỗng cuối file: Bước 3 của `Order` là dòng 65, file chỉ có 64 dòng code. AI vẫn viết mô tả cho bước rỗng này | Mở bài `Order`, xem Bước 3 | `nodes.ts`, ENG-91 chia bước | Chưa làm | còn lỗi |
+### B-01 · Nặng · Bài NestJS hiện code của method khác
 
-Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu không, repo đã phân tích vẫn dùng phiên và phân tích AI cũ. Khi đổi, các phiên cũ phải quét lại repo.
+- **Hiện tượng:** `Get Order` mở đầu bằng `create`. `Auth Me` Bước 1 lẫn code `register`, `login`. BrewLite bị 11/17 route, repo demo 14/18 bài.
+- **Nguyên nhân:** `getStartLineWithDecorators` trong `symbols.ts` quét mọi decorator trong class.
+- **Cần sửa:** method chỉ lấy decorator của chính nó.
+- **Kiểm tra:** quét repo NestJS chưa từng quét, mở `Get Order`, bước đầu chỉ có `findOne`.
+- **Trạng thái:** đã xác nhận trên site. Bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, đã qua test, chưa vào `main`.
 
-## Vai C — AI
+### B-02 · Nặng · Capstone lấy từ file test
 
-| Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
-| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| C-01 | Vừa | Gemini lỗi nhưng server không ghi log, màn hình lại giống hệt mọi loại lỗi | Xem log Vercel khi có bài phân tích hỏng | `callLLMOnce` trong `gemini.ts` | Chưa làm | |
-| C-02 | Vừa | Rủi ro: `ANALYZE` 900 token có thể bị cắt với tiếng Việt | Phân tích hết các bài của repo demo, đếm bài lỗi | `LLM_MAX_OUTPUT_TOKENS` trong `config.ts` | Cần đo trên AI thật | |
-| C-03 | Vừa | Câu hỏi gắn sai dòng code. Bài `Order` hỏi `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 thay vì viết thủ công, nhưng dòng 21–25 chính là các ca viết thủ công; `ALL` chỉ dùng ở dòng 44 và 49. Cổng gác không phát hiện | Đối chiếu dòng trong câu hỏi với code bên trái | Prompt câu hỏi và cổng gác Vai C | Chưa làm | còn lỗi |
-| C-04 | Vừa | Câu hỏi chỉ hỏi lại đúng nội dung phần Luồng thực thi, người học chép lại là trả lời được. Spec ghi code không kiểm lỗi này, chỉ duyệt tay | Mở `Auth Me`, so Câu 1 với mô tả Bước 1–3 | Prompt câu hỏi Vai C, yêu cầu suy luận thay vì nhắc lại; duyệt tay theo spec 21 | Chưa làm | còn lỗi |
+- **Hiện tượng:** BrewLite có Capstone `Order` từ `order-state-machine.spec.ts`. Repo demo có `user.service.spec.ts` (E06-12).
+- **Nguyên nhân:** ING-87 chỉ giảm ưu tiên file test, không loại khỏi node.
+- **Cần sửa:** trong `nodes.ts`, còn từ `DISPLAY_MIN_NODES` candidate không mang cờ test thì bỏ candidate mang cờ. Dùng lại `isTestPath` trong `selective.ts`.
+- **Kiểm tra:** Capstone BrewLite là `Create Order`, không còn node từ `.spec`.
+- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_20).
+
+### B-03 · Vừa · `config.get()` thành route giả
+
+- **Hiện tượng:** BrewLite có bài `List Jwt_expires_ins` và `Charge`.
+- **Nguyên nhân:** `callgraph.ts` nhận route theo tên `get` và số đối số, không xét đối số cuối có phải handler không.
+- **Cần sửa:** đối số cuối phải là hàm, lời gọi bọc, hoặc tên tham chiếu tới hàm. Chuỗi, số, boolean, object, tên hằng thì không tạo route.
+- **Kiểm tra:** BrewLite không còn 2 bài trên và vẫn đủ 17 route thật.
+- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_20).
+
+### B-04 · Vừa · Quá nhiều bài mở sẵn
+
+- **Hiện tượng:** BrewLite mở 13/20 bài, `nestjs/nest` mở 19/20 ngay từ đầu.
+- **Nguyên nhân:** D-07 chỉ nối bài gọi chung hàm, nên nhiều bài không có bài cha.
+- **Cần sửa:** thêm `addTreeEdges` trong `nodes.ts`, nối bài theo module thành cây, cạnh thêm là `INFERRED` và có khóa bài (đề xuất D-73).
+- **Kiểm tra:** BrewLite mở lúc đầu không quá 6 bài.
+- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21). Đổi cách khóa bài nên cần thử kỹ trước khi demo.
+
+### B-05 · Vừa · Node tách rời, bản đồ quá dài
+
+- **Hiện tượng:** BrewLite có 9 node không nối với bài nào, hàng đầu có 13 bài.
+- **Nguyên nhân:** như B-04, cộng luật D-55 đưa mọi bài không có cha lên hàng đầu.
+- **Cần sửa:** làm cùng B-04, rồi đo lại. Bản đồ chỉ đọc được khi có thêm D-01.
+- **Kiểm tra:** BrewLite hết node lẻ, còn khoảng 3 cây (theo mô phỏng).
+- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21).
+
+### B-06 · Vừa · Không có luồng tới tầng dữ liệu
+
+- **Hiện tượng:** BrewLite và `nestjs/nest` có `toi_data = 0`, dù bài có gọi Prisma.
+- **Nguyên nhân:** nghi engine chưa nhận `this.prisma.x.findMany()` là thao tác dữ liệu. Chưa xác minh.
+- **Cần sửa:** xác minh trước, rồi sửa nhận diện `DATA_SINK` nếu đúng.
+- **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`.
+- **Trạng thái:** chưa xác minh.
+
+### B-07 · Vừa · Repo Java báo không có code
+
+- **Hiện tượng:** `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang` báo `ERR_NO_SOURCE_FILES_FOUND` (E06-10).
+- **Cần sửa:** kiểm tra engine có nhận `.java` không. Nếu chưa hỗ trợ thì báo đúng lý do cho người dùng.
+- **Trạng thái:** chưa xác minh.
+
+### B-08 · Nhẹ · Node 0 bước
+
+- **Hiện tượng:** E06-11 ghi `slice-list-permissions-505d25` có 0 bước, trên commit cũ.
+- **Cần sửa:** chạy lại repo demo. Có thể đã hết sau TASK_16.
+- **Trạng thái:** cần chạy lại.
+
+### B-09 · Nhẹ · Danh sách thư viện lẫn đồ dev
+
+- **Hiện tượng:** Tổng quan có `@types/jest`, `ts-node`, lẫn thư viện frontend.
+- **Cần sửa:** lọc `tech_stack`, kiểm tra ảnh hưởng tới cổng gác AI trước khi đổi.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### B-10 · Nhẹ · Cảnh báo thời gian với người học
+
+- **Hiện tượng:** hiện "Thời gian phân tích đồ thị (3070ms) vượt mức khuyến nghị (600ms)".
+- **Cần sửa:** xem lại `ENGINE_BUDGET_MS` trên Vercel, hoặc Vai D không hiện cảnh báo này cho người học.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### B-11 · Nhẹ · Bước trỏ vào dòng rỗng
+
+- **Hiện tượng:** bài `Order` có Bước 3 ở dòng 65, file chỉ có 64 dòng code. AI vẫn viết mô tả cho bước rỗng.
+- **Cần sửa:** áp đúng luật "Bỏ bước rỗng" của ENG-91 trong `nodes.ts`.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+---
 
 ## Vai D — Giao diện
 
-| Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
-| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| D-01 | Vừa | Bản đồ mở ở zoom 0,20–0,32, chữ gần như không đọc được, card hai đầu hàng còn bị cắt | Mở bản đồ 20 node | `DagCanvas.tsx`: bỏ `fitView` lúc mở, căn vào bài đang học; sửa T32 | Chưa làm | còn lỗi |
-| D-03 | Nhẹ | Nhãn "Luồng chính" gây hiểu sai, nên là "Lộ trình học chính" | Xem Tổng quan | `RepoOverviewModal.tsx` | Chưa làm | |
-| D-04 | Nhẹ | Thông báo lỗi repo thiếu phần hướng dẫn của spec (E06-06, E06-07) | Nhập repo không tồn tại, repo không có code | `src/lib/messages.ts` | Chưa làm | |
-| D-05 | Nặng | Cửa sổ Tổng quan và cửa sổ kết quả chấm bài dài hơn màn hình thì bị cắt mất đầu và cuối, không cuộn được, không thấy đủ tiêu đề và nút. Các `Dialog` nội dung dài khác cũng có thể bị | Mở Tổng quan của BrewLite ở màn 1920×1080 | `src/components/ui/Dialog.tsx`: thêm `max-h-[calc(100vh-2rem)]`, `flex flex-col`, phần thân `overflow-y-auto` | Chưa làm | còn lỗi |
-| D-06 | Nhẹ | Tổng quan hiện tên tầng thô như `ENTRY_POINT`, `BUSINESS_LOGIC`, khó hiểu với người mới | Xem mục Bản đồ tầng | `RepoOverviewModal.tsx` | Chưa làm | còn lỗi |
-| D-07 | Nặng | Bấm node "Sẵn sàng" trên đồ thị không vào được bài, phải qua Lộ trình học tập. Nút "Thử lại" trong card cũng bị ảnh hưởng | Mở Đồ thị bài học, bấm một node Sẵn sàng | `DagCanvas.tsx`: `nodesDraggable` và `elementsSelectable` đều `false`, không có `onNodeClick` nên ReactFlow đặt `pointerEvents: none` cho node. Thêm `onNodeClick` hoặc đặt `pointer-events-auto` cho card. Ở `LessonGraphDrawer.tsx` dòng 273, chọn bài xong phải gọi `onClose()` | Chưa làm | còn lỗi |
-| D-08 | Nhẹ | Câu hỏi, nhận xét và gợi ý hiện nguyên dấu ` quanh tên code, ví dụ ``Object.keys(ORDER_TRANSITIONS)`` | Xem câu hỏi và cửa sổ kết quả chấm bài | Hiển thị đoạn trong dấu ` dạng code ở các thành phần Feynman | Chưa làm | còn lỗi |
-| D-09 | Vừa | Bài học xong nhưng chưa đạt vẫn hiện 0/20, 0%, kèm "1 bài cần ôn". Người học tưởng tiến độ không cập nhật. D-35 đã bỏ ôn tập nên chữ "cần ôn" cũng sai | Học hết một bài mà có câu chưa đạt, mở Lộ trình học tập | Đổi nhãn thành "1 bài chưa đạt" và hiện rõ số bài đã học ở trang chủ, trang lộ trình | Chưa làm | còn lỗi |
-| D-10 | Nhẹ | Lộ trình hiện 2 thẻ BrewLite giống hệt nhau, không phân biệt được phiên nào | Quét lại hoặc học lại một repo, mở Lộ trình học tập | Hiện commit hoặc ngày tạo trên thẻ, hoặc gom phiên cùng repo | Cần xác minh 2 phiên có do học lại không | còn lỗi |
-| D-11 | Vừa | Chuyển trang hoặc vào phiên khác vẫn hiện bài cũ một lúc rồi mới đổi. Trong lúc đó người học có thể bấm nhầm vào dữ liệu cũ | Mở phiên A, về Lộ trình học tập, mở phiên B, xem màn hình ngay lúc vào | `src/app/learn/page.tsx` effect nạp phiên: store khác `sessionId` thì gọi `resetSession()` trước khi tải; đang tải thì hiện màn chờ thay vì dữ liệu cũ | Chưa làm | còn lỗi |
-| D-12 | Vừa | Phần giải thích từng bước hiện cùng màn hình với ô trả lời, lộ gần hết đáp án. Spec thiết kế X-Ray và Feynman là 2 tab riêng | Mở một bài, vừa xem Luồng thực thi vừa trả lời | Thu gọn hoặc ẩn Luồng thực thi khi đang trả lời, nộp xong mới mở lại | Chưa làm | còn lỗi |
-| D-13 | Nhẹ | Cảnh báo "giống 100%" hiện với 2 câu trả lời dài khác nhau (84 và 129 ký tự) trong ảnh test | Nộp sai một lần, sửa hẳn câu trả lời, xem % có giảm không | `FeynmanQuestionSection.tsx`, `last_failed_answers` | Cần xác minh, code tính theo Levenshtein có vẻ đúng | |
+### D-01 · Vừa · Bản đồ quá nhỏ
+
+- **Hiện tượng:** bản đồ mở ở zoom 0,20–0,32, chữ gần như không đọc được, card hai đầu hàng bị cắt.
+- **Cần sửa:** `DagCanvas.tsx` bỏ `fitView` lúc mở, căn vào bài đang học ở zoom khoảng 1. Nút xem toàn cảnh đã có. Sửa T32 trong `30_UI.md`.
+- **Kiểm tra:** mở đồ thị 20 node, đọc được tiêu đề, kéo xem hết được.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-03 · Nhẹ · Nhãn "Luồng chính" gây hiểu sai
+
+- **Cần sửa:** đổi thành "Lộ trình học chính" trong `RepoOverviewModal.tsx`, vì đây là chuỗi bài dài nhất, không phải luồng chạy của ứng dụng.
+- **Trạng thái:** chưa làm.
+
+### D-04 · Nhẹ · Thông báo lỗi repo thiếu hướng dẫn
+
+- **Hiện tượng:** E06-06, E06-07 ghi thiếu đoạn hướng dẫn `.zip` và `{details.hint}` theo `30_UI`.
+- **Cần sửa:** bổ sung trong `src/lib/messages.ts`.
+- **Trạng thái:** chưa làm.
+
+### D-05 · Nặng · Cửa sổ tràn khỏi màn hình
+
+- **Hiện tượng:** Tổng quan và kết quả chấm bài bị cắt đầu và cuối, không cuộn được, không thấy đủ tiêu đề và nút.
+- **Nguyên nhân:** `Dialog.tsx` không giới hạn chiều cao, ẩn phần dư, trang sau bị khóa cuộn.
+- **Cần sửa:** thêm `max-h-[calc(100vh-2rem)]`, `flex flex-col`; thân cửa sổ `overflow-y-auto`; tiêu đề và nút luôn hiện. Cửa sổ kết quả cần tách nút thành chân cửa sổ.
+- **Kiểm tra:** ở màn 1366×768, mở 2 cửa sổ trên, thấy đủ tiêu đề và nút, nội dung cuộn được.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-06 · Nhẹ · Tên tầng khó hiểu
+
+- **Hiện tượng:** Tổng quan hiện `ENTRY_POINT`, `BUSINESS_LOGIC`.
+- **Cần sửa:** đổi sang tên tiếng Việt dễ hiểu trong `RepoOverviewModal.tsx`.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-07 · Nặng · Không bấm được node trên đồ thị
+
+- **Hiện tượng:** bấm node "Sẵn sàng" không vào bài, phải đi qua Lộ trình học tập. Nút "Thử lại" trong card cũng bị ảnh hưởng.
+- **Nguyên nhân:** `DagCanvas.tsx` tắt kéo và chọn, không có `onNodeClick`, nên ReactFlow đặt `pointerEvents: none` cho node.
+- **Cần sửa:** thêm `onNodeClick`, hoặc `pointer-events-auto` cho card. Ở `LessonGraphDrawer.tsx` dòng 273, chọn bài xong phải gọi `onClose()`.
+- **Kiểm tra:** bấm node vào được bài và ngăn kéo đóng lại; bài bị khóa không vào được; nút "Thử lại" chạy.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-08 · Nhẹ · Hiện nguyên dấu backtick
+
+- **Hiện tượng:** câu hỏi, nhận xét, gợi ý hiện cả dấu backtick quanh tên code.
+- **Cần sửa:** hiển thị đoạn trong dấu backtick dạng code.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-09 · Vừa · Tiến độ gây hiểu nhầm
+
+- **Hiện tượng:** học xong mà chưa đạt thì Lộ trình hiện 0/20, 0%, kèm "1 bài cần ôn". Người học tưởng không lưu.
+- **Nguyên nhân:** "Hoàn thành" chỉ đếm bài đạt. Chữ "cần ôn" sai vì D-35 đã bỏ ôn tập.
+- **Cần sửa:** đổi thành "1 bài chưa đạt", hiện rõ số bài đã học ở `src/app/page.tsx` và `src/app/roadmap/page.tsx`. Xem thêm Q-A.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-10 · Nhẹ · Hai thẻ repo giống hệt nhau
+
+- **Hiện tượng:** Lộ trình có 2 thẻ BrewLite, không phân biệt được.
+- **Cần sửa:** hiện commit hoặc ngày tạo, hoặc gom phiên cùng repo. Có thể 2 thẻ là phiên cũ và phiên học lại.
+- **Trạng thái:** cần xác minh.
+
+### D-11 · Vừa · Giữ dữ liệu phiên cũ khi chuyển trang
+
+- **Hiện tượng:** mở phiên khác vẫn thấy bài cũ một lúc, có thể bấm nhầm.
+- **Nguyên nhân:** store không bị xóa khi chuyển trang, trang học không có màn chờ.
+- **Cần sửa:** `src/app/learn/page.tsx`: store khác `sessionId` thì gọi `resetSession()` trước khi tải, đang tải thì hiện màn chờ.
+- **Kiểm tra:** mở phiên A, về Lộ trình học tập, mở phiên B, không thấy bài của A.
+- **Trạng thái:** đã xác nhận khi test, chưa làm.
+
+### D-12 · Vừa · Lộ đáp án khi đang trả lời
+
+- **Hiện tượng:** Luồng thực thi hiện cùng màn hình với ô trả lời, người học chép lại được.
+- **Nguyên nhân:** spec chia X-Ray và Feynman thành 2 tab, giao diện hiện tại đặt chung.
+- **Cần sửa:** thu gọn hoặc ẩn phần giải thích khi đang trả lời, nộp xong mới mở lại.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### D-13 · Nhẹ · Cảnh báo "giống 100%" đáng ngờ
+
+- **Hiện tượng:** ảnh test có 2 câu trả lời dài 84 và 129 ký tự đều báo 100%.
+- **Cần sửa:** nộp sai một lần, sửa hẳn câu trả lời, xem % có giảm không. Code tính có vẻ đúng.
+- **Trạng thái:** cần xác minh.
+
+---
+
+## Vai C — AI
+
+### C-01 · Vừa · Gemini lỗi không để lại log
+
+- **Hiện tượng:** mọi loại lỗi Gemini đều hiện "Chưa phân tích được", nên lỗi `thinkingBudget` rất khó tìm.
+- **Cần sửa:** ghi mã lỗi trong `catch` của `callLLMOnce` ở `gemini.ts`, không ghi khóa hay nội dung nhạy cảm.
+- **Trạng thái:** chưa làm.
+
+### C-02 · Vừa · Giới hạn token có thể quá thấp
+
+- **Hiện tượng:** `ANALYZE` chỉ có 900 token đầu ra, tiếng Việt có thể bị cắt.
+- **Cần sửa:** phân tích hết repo demo trên AI thật, đếm bài lỗi rồi chỉnh `LLM_MAX_OUTPUT_TOKENS` nếu cần.
+- **Trạng thái:** cần đo trên AI thật.
+
+### C-03 · Vừa · Câu hỏi gắn sai dòng code
+
+- **Hiện tượng:** bài `Order` nói `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 "thay vì viết thủ công". Thực tế dòng 21–25 chính là ca viết tay, biến `ALL` chỉ dùng ở dòng 44 và 49. Đáp án tham khảo cũng sai theo.
+- **Cần sửa:** sửa prompt và thêm kiểm tra quan hệ giữa các dòng được nhắc tới, ghi vào `review/loi_da_gap.md`.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### C-04 · Vừa · Câu hỏi chỉ lặp lại phần giải thích
+
+- **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
+- **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
+- **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+---
 
 ## Vai A — Tích hợp, deploy
 
-| Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
-| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| A-01 | Vừa | Workflow `deploy` lên Cloud Run thất bại 6 lần gần nhất vì thiếu xác thực GCP. Site Vercel không bị ảnh hưởng | Xem tab Actions | Secret GitHub, hoặc tắt workflow nếu chỉ dùng Vercel | Chưa làm | |
-| A-02 | Vừa | `toErrorResponse` che lỗi thật, log chỉ có tên lỗi | Xem log khi API trả lỗi lưu tiến độ | `src/server/errors.ts` | Chưa làm | |
-| A-03 | Vừa | Từng gặp 401 "Phiên đăng nhập đã hết hạn" chưa rõ nguyên nhân | Dùng lâu sau khi đăng nhập, mở lại tab | Chưa xác định | Chưa tái hiện được | |
-| A-04 | Nhẹ | `assertGeminiEnv` không chạy lúc khởi động, thiếu biến AI chỉ lộ khi gọi Gemini | Xem log khởi động | Chưa có `instrumentation.ts` | Chưa làm | |
-| A-05 | Nhẹ | A06: `analyses: {}` chưa làm | Mở lại phiên đã phân tích, xem phân tích có hiện ngay không | `src/app/api/ingest/route.ts` | Chưa làm | |
-| A-06 | Nhẹ | PR #124 chưa merge nên báo cáo tiến độ và phiếu Vai B trên `main` còn cũ | Xem PR #124 | Vai A merge | Chờ merge | |
+### A-01 · Vừa · Workflow Cloud Run luôn thất bại
+
+- **Hiện tượng:** `deploy` thất bại 6 lần gần nhất vì thiếu xác thực GCP. Site Vercel không bị ảnh hưởng.
+- **Cần sửa:** đặt secret theo `deploy.yml`, hoặc tắt workflow nếu nhóm chỉ dùng Vercel.
+- **Trạng thái:** đã xác nhận, chưa làm.
+
+### A-02 · Vừa · Lỗi thật bị che
+
+- **Hiện tượng:** `toErrorResponse` đổi lỗi lạ thành `ERR_PERSISTENCE_UNAVAILABLE`, log chỉ có tên lỗi.
+- **Cần sửa:** ghi thêm thông tin an toàn để tìm lỗi trong `src/server/errors.ts`.
+- **Trạng thái:** chưa làm.
+
+### A-03 · Vừa · Lỗi 401 chưa rõ nguyên nhân
+
+- **Hiện tượng:** từng gặp "Phiên đăng nhập đã hết hạn", sau đó đăng nhập lại thì hết.
+- **Cần sửa:** gặp lại thì lưu request và phản hồi ở tab Network để tìm nguyên nhân.
+- **Trạng thái:** chưa tái hiện được.
+
+### A-04 · Nhẹ · Chưa kiểm biến AI lúc khởi động
+
+- **Hiện tượng:** `assertGeminiEnv` chỉ chạy khi gọi Gemini.
+- **Cần sửa:** gọi ở bước khởi động, ví dụ `instrumentation.ts`.
+- **Trạng thái:** chưa làm.
+
+### A-05 · Nhẹ · A06 chưa trả `analyses`
+
+- **Hiện tượng:** `src/app/api/ingest/route.ts` còn `analyses: {}`.
+- **Cần sửa:** trả phân tích có sẵn khi mở lại phiên theo `03` Mục 6.6.
+- **Trạng thái:** chưa làm.
+
+### A-06 · Nhẹ · PR #124 chưa merge
+
+- **Hiện tượng:** báo cáo tiến độ, phiếu Vai B và tài liệu này chưa có trên `main`.
+- **Cần sửa:** merge PR #124 cùng lúc hoặc sau khi spec có D-73.
+- **Trạng thái:** chờ merge.
+
+---
 
 ## Cần nhóm quyết
 
-| Mã | Vấn đề | Hiện tại theo spec | Phương án |
-| :-- | :-- | :-- | :-- |
-| Q-A | Đúng 2/3 câu mà bài vẫn `Chưa đạt`, không học lại được trong phiên | Có câu `FAILED` thì node `FAILED` (03 Mục 6.5, D-16, D-35). Bài sau vẫn mở kèm cảnh báo | Giữ luật và đổi cách hiển thị thành "đạt 2/3", hoặc đổi D-16 và D-35 để đạt theo tỉ lệ hay cho làm lại câu sai |
+### Q-A · Luật đạt bài
+
+Đúng 2/3 câu mà bài vẫn `Chưa đạt`, không học lại được trong phiên. Đây là luật đang có (03 Mục 6.5, D-16, D-35), bài sau vẫn mở kèm ⚠.
+
+| Hướng | Thay đổi | Đánh đổi |
+| :-- | :-- | :-- |
+| Giữ luật, sửa hiển thị | Hiện "Đạt 2/3 câu" | Ít việc nhất, nên chọn cho bản thi |
+| Đạt theo tỉ lệ | Đúng từ 2/3 là `Hoàn thành` | Đổi luật tính điểm |
+| Cho làm lại câu sai | Trả lời lại câu chưa đạt | Đổi D-16, D-35, đụng Vai A, C, D |
+
+## Không cần sửa
+
+- Không có nút zoom: báo nhầm, nút đã có ở `CanvasToolbar.tsx`.
+- Bài `Chưa đạt` không học lại được: đúng spec, xem Q-A.
+- Nút "Bắt đầu trả lời (1 câu)": đúng, vì đã xong 1 trong 2 câu.
 
 ## Chưa kiểm được
 
-- AI thật và đăng nhập GitHub trên site, Claude chưa đăng nhập được.
 - Biến môi trường và log của Vercel.
-- Giao diện sau đăng nhập, ngoài các ảnh chụp màn hình.
+- `Auth Login` sau bài `Auth Me` chưa đạt có mở kèm ⚠ không.
+- Nút "Báo sai kết quả chấm" có đổi màu node ngay không.
