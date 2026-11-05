@@ -8,11 +8,11 @@ Tài liệu này ghi lỗi tìm được khi chạy thử site và kiểm tra co
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 3 | 4 | 6 | 13 |
+| B — Engine | 3 | 5 | 7 | 15 |
 | D — Giao diện | 2 | 4 | 6 | 12 |
 | C — AI | 0 | 4 | 0 | 4 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **5** | **15** | **14** | **34** |
+| **Tổng** | **5** | **16** | **15** | **36** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -123,6 +123,21 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Hiện tượng:** spec ghi `initParsers` chạy 1 lần khi server khởi động, code gọi lúc `parseAll`, nên request đầu chậm hơn.
 - **Cần sửa:** gọi ở bước khởi động, làm cùng A-04.
 - **Trạng thái:** chưa làm.
+
+### B-14 · Vừa · Thăm dò GitHub dễ hết giờ ở lần đầu
+
+- **Hiện tượng:** chạy thật, lần gọi đầu mất khoảng 1,4 giây, các lần sau chỉ khoảng 110ms. Lần đầu vượt trần 300ms, nghỉ 1 giây rồi thử lại mới thành công. Nếu lần thử lại cũng chậm, người dùng nhận `ERR_NETWORK_TIMEOUT` dù repo vẫn bình thường.
+- **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần kết nối đầu tốn thêm thời gian DNS và TLS. Server vừa khởi động lạnh càng dễ gặp.
+- **Cần sửa:** đo trên Vercel rồi tăng trần, ví dụ 1000–1500ms. Đây là `src/contracts/config.ts`, cần báo Vai A và sửa spec.
+- **Kiểm tra:** gọi lần đầu sau khi server khởi động, không phải chờ thử lại.
+- **Trạng thái:** đã đo ở máy local, chưa đo trên Vercel.
+
+### B-15 · Nhẹ · Link viết hoa bị từ chối
+
+- **Hiện tượng:** `https://GitHub.com/...` và `HTTPS://github.com/...` báo `ERR_INVALID_GITHUB_URL`, dù trình duyệt mở được.
+- **Nguyên nhân:** `url.ts` so chuỗi phân biệt hoa thường. Spec cũng không nói tới trường hợp này.
+- **Cần sửa:** chuẩn hóa phần scheme và host về chữ thường, giữ nguyên owner và repo.
+- **Trạng thái:** đã chạy thật, chưa làm.
 
 ---
 
