@@ -1,33 +1,24 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Boot } from "@/components/layout/Boot";
+import { Toasts } from "@/components/ui/Toasts";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin", "vietnamese"],
-  display: "swap",
-  variable: "--font-plus-jakarta",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin", "vietnamese"],
-  display: "swap",
-  variable: "--font-jetbrains-mono",
-});
+const sans = Plus_Jakarta_Sans({ subsets: ["latin", "vietnamese"], variable: "--font-plus-jakarta", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin", "vietnamese"], variable: "--font-jetbrains-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "SimpliFey — Codebase Cognitive Twin",
-  description: "Người đồng hành, hỗ trợ phân tích và học tập kiến trúc từ chính mã nguồn của bạn theo phương pháp Feynman.",
+  title: "SimpliFey — Học kiến trúc mã nguồn",
+  description: "Dán link repo GitHub, nhận bản đồ lát cắt nghiệp vụ xuyên file và học bằng câu hỏi Feynman.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen bg-white text-[#131b2e] antialiased">
+    <html lang="vi" className={`${sans.variable} ${mono.variable}`}>
+      <body className="min-h-screen font-sans antialiased">
+        <Boot />
         {children}
+        <Toasts />
       </body>
     </html>
   );

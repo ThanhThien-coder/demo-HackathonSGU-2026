@@ -1,94 +1,79 @@
 @import "tailwindcss";
 
+/* 30 Mục 11 — token thiết kế (D-67: @theme trong globals.css, không có tailwind.config.ts) */
 @theme {
-  --color-brand-primary: #ff9640;
-  --color-brand-hover: #f2852e;
-  --color-brand-active: #e6761c;
-  --color-brand-dark: #944b00;
-  --color-brand-darker: #8b4600;
-  --color-brand-darkest: #301400;
-  --color-brand-brown: #554337;
-  --color-brand-light: #fff0e4;
-  --color-brand-light-2: #ffedd4;
-  --color-brand-light-3: #ffdcc5;
-
-  --color-accent-blue: #004cff;
-  --color-accent-cyan: #006780;
-  --color-surface-tint: #f2f3ff;
-  --color-surface-tint-alt: #faf8ff;
-  --color-surface-tint-border: #eaedff;
-
-  --color-text-main: #131b2e;
-  --color-text-secondary: #625e56;
-  --color-text-brown: #554337;
-  --color-text-muted: #99a1af;
-
-  --color-border-subtle: #f3f4f6;
-  --color-border-default: #e5e7eb;
-
-  --color-status-success: #00bc7d;
-  --color-status-warning: #f59e0b;
-  --color-status-danger: #e7000b;
-  --color-status-info: #004cff;
+  --color-bg: #0f172a;
+  --color-panel: #111b31;
+  --color-panel-2: #0d1629;
+  --color-line: rgba(148, 163, 184, 0.14);
+  --color-text: #e2e8f0;
+  --color-muted: #94a3b8;
+  --color-amber: #f59e0b;
+  --color-green: #10b981;
+  --color-red: #ef4444;
+  --color-locked: #475569;
+  --color-violet: #a78bfa;
+  --color-blue: #38bdf8;
 
   --font-sans: var(--font-plus-jakarta), "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
   --font-mono: var(--font-jetbrains-mono), Consolas, "Liberation Mono", Menlo, Courier, monospace;
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #131b2e;
-  --brand-primary: #ff9640;
-  --brand-dark: #944b00;
-  --brand-brown: #554337;
-  --brand-light: #fff0e4;
-  --surface-tint: #f2f3ff;
-  --border-subtle: #f3f4f6;
+  --bg: #0f172a;
+  --panel: #111b31;
+  --panel-2: #0d1629;
+  --line: rgba(148, 163, 184, 0.14);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --amber: #f59e0b;
+  --green: #10b981;
+  --red: #ef4444;
+  --locked: #475569;
+  --violet: #a78bfa;
+  --blue: #38bdf8;
+  color-scheme: dark;
 }
 
+html, body { height: 100%; }
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom SimpliFey Logo 3D Layered Text Shadow */
-.text-shadow-brand-logo {
-  text-shadow: 0px 5px 8px rgba(255, 150, 64, 0.25),
-               0px 3px 1px rgba(0, 0, 0, 0.1),
-               0px 2px 0px #cc620f,
-               0px 1px 0px #e6761c;
-}
+/* focus luôn thấy (bàn phím) */
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
-/* Horizontal bouncing pan animation for URL text */
-@keyframes pan-horizontal {
-  0%, 100% {
-    transform: translateX(0px);
-  }
-  50% {
-    transform: translateX(14px);
-  }
-}
+/* kính mờ cho toast, popover, hộp thoại */
+.glass { background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(10px); }
 
-.animate-pan-horizontal {
-  animation: pan-horizontal 3s ease-in-out infinite;
-}
+/* hiệu ứng CSS thuần */
+@keyframes pulse-amber { 0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); } 50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); } }
+@keyframes pop-in { 0% { transform: scale(0.92); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes slide-in { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Accessibility: Hỗ trợ giảm chuyển động theo spec/30_UI.md Mục 11 & Test T29 */
+.node-available { animation: pulse-amber 2.2s ease-in-out infinite; }
+.node-unlocked { animation: pop-in 0.5s ease-out 1; }
+.shimmer { background: linear-gradient(90deg, rgba(148,163,184,.08) 25%, rgba(148,163,184,.18) 37%, rgba(148,163,184,.08) 63%); background-size: 400px 100%; animation: shimmer 1.4s infinite linear; }
+.shake { animation: shake 0.3s ease-in-out 1; }
+.toast-in { animation: slide-in 0.25s ease-out 1; }
+.spinner { animation: spin 0.9s linear infinite; }
+.bar-grow { transition: width 0.6s ease-out, opacity 0.6s ease-out; }
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-status-warning);
-  outline-offset: 2px;
-}
+/* Monaco: vạch + nền các bước (30 Mục 5, UI-32) */
+.step-active-line { background: rgba(245, 158, 11, 0.12); border-left: 3px solid var(--amber); }
+.step-weak-line { border-left: 3px solid var(--red); }
+.step-hint-line { border-left: 3px solid var(--violet); background: rgba(167, 139, 250, 0.1); }
+.glyph-weak::before { content: "⚠"; color: var(--red); }
+.glyph-hint::before { content: "💡"; }
+
+.react-flow__attribution { display: none; }
