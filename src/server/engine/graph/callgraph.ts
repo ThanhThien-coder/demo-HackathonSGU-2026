@@ -1,1903 +1,614 @@
-// Đồ thị gọi hàm và entry point — spec 11 Mục 3 (ENG-30..35), Mục 4 (ENG-40), spec 12 Mục 1–2.
-import type { Node } from "web-tree-sitter";
-import type { FunctionCallEdge, IngestionReport } from "@/contracts";
+// 11 Mục 3–4 — đồ thị gọi hàm (RESOLVED / INFERRED), call site ngoài, route đăng ký, entry (ENG-30..35, ENG-40..).
+import type { FunctionCallEdge } from "@/contracts";
 import type {
-  ExternalCall,
-  EntryPoint,
-  FunctionInfo,
-  ParsedFile,
-  RouteBinding,
-  SymbolIndex,
-  ImportedSymbol,
-} from "./types";
+  CallSite, EntryPoint, ExternalCall, FunctionInfo, ImportBinding, RouteBinding, SymbolIndex, SyntaxNode,
+} from "./model";
+import { cmp, field, row1, rowEnd1, stripQuotes, walk } from "./model";
+import { register, resolveClassName, resolveExported } from "./symbols";
+import { hasRoleName } from "../ingest/prune";
 
-const HTTP_VERBS = new Set([
-  "get",
-  "post",
-  "put",
-  "patch",
-  "delete",
-  "all",
-  "options",
-  "head",
-]);
-
-const GENERIC_ENTRY_TOKENS = new Set([
-  "controller",
-  "controllers",
-  "route",
-  "routes",
-  "router",
-  "routers",
-  "handler",
-  "handlers",
-  "api",
-  "endpoint",
-  "endpoints",
-  "screen",
-  "screens",
-  "page",
-  "pages",
-  "view",
-  "views",
-  "activity",
-  "activities",
-  "fragment",
-  "fragments",
-  "command",
-  "commands",
-]);
-
-const FUNCTION_NODE_TYPES = new Set([
-  "function_declaration",
-  "function_expression",
-  "arrow_function",
-  "method_definition",
-  "function_definition",
-]);
-
-// Thu thập decorator cho node (gồm con trực tiếp, con của export_statement, và sibling đứng trước)
-function getDecorators(n: Node): Node[] {
-  const decs: Node[] = [];
-  for (let i = 0; i < n.childCount; i++) {
-    const c = n.child(i);
-    if (c && c.type === "decorator") decs.push(c);
-  }
-  const parent = n.parent;
-  if (parent && parent.type === "export_statement") {
-    for (let i = 0; i < parent.childCount; i++) {
-      const c = parent.child(i);
-      if (c && c.type === "decorator") decs.push(c);
-    }
-    let prev = parent.previousNamedSibling;
-    while (prev && prev.type === "decorator") {
-      decs.unshift(prev);
-      prev = prev.previousNamedSibling;
-    }
-  } else {
-    let prev = n.previousNamedSibling;
-    while (prev && prev.type === "decorator") {
-      decs.unshift(prev);
-      prev = prev.previousNamedSibling;
-    }
-  }
-  return decs;
+export interface CallGraph {
+  edges: FunctionCallEdge[];
+  sites: CallSite[];
+  external: ExternalCall[];
+  bindings: RouteBinding[];
+  entries: EntryPoint[];
+  file_graph: Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>;
 }
 
-// Tìm hàm bao bọc gần nhất cho một AST node (ENG-30)
-function findEnclosingFunctionKey(
-  node: Node,
-  filePath: string,
-  idx: SymbolIndex
-): string {
-  let cur: Node | null = node.parent;
-  while (cur) {
-    if (FUNCTION_NODE_TYPES.has(cur.type)) {
-      // 1. Kiểm tra nếu cur là hàm nằm trong hàm bọc cấp cao nhất hoặc biến giữ hàm
-      let p: Node | null = cur.parent;
-      while (p && (p.type === "arguments" || p.type === "call_expression")) {
-        p = p.parent;
-      }
-      if (p && p.type === "variable_declarator") {
-        const nameNode = p.childForFieldName("name");
-        if (nameNode && nameNode.type === "identifier") {
-          const varName = nameNode.text;
-          const varKey = `${filePath}#${varName}`;
-          if (idx.functions.has(varKey)) {
-            return varKey;
-          }
-          for (const [k, f] of idx.functions) {
-            if (f.file_path === filePath && f.name === varName) {
-              return k;
-            }
-          }
-        }
-      }
-      // ENG-20: line_start của symbol tính từ decorator đầu tiên (NestJS @Post + @UseGuards, Flask @route +
-      // @login_required…) nên có thể nằm trên node hàm nhiều dòng. Khớp theo dòng kết thúc trùng khít,
-      // line_start ≤ dòng đầu node, ưu tiên trùng tên; nhiều ứng viên ⇒ line_start lớn nhất, rồi khóa nhỏ.
-      const rowStart = cur.startPosition.row + 1;
-      const rowEnd = cur.endPosition.row + 1;
-      const nodeName = cur.childForFieldName("name")?.text ?? null;
-      let best: { key: string; start: number; named: boolean } | null = null;
-      for (const [key, func] of idx.functions.entries()) {
-        if (func.file_path !== filePath || func.line_end !== rowEnd || func.line_start > rowStart) continue;
-        const named = nodeName !== null && func.name === nodeName;
-        const better =
-          !best ||
-          (named && !best.named) ||
-          (named === best.named && (func.line_start > best.start || (func.line_start === best.start && key < best.key)));
-        if (better) best = { key, start: func.line_start, named };
-      }
-      if (best) return best.key;
-    }
-    cur = cur.parent;
+const VERBS = new Set(["get", "post", "put", "patch", "delete", "all", "options", "head"]);
+const ROUTER_FACTORIES = new Set(["express", "Router", "fastify", "Koa", "Hono", "express.Router"]);
+const ROUTER_NAMES = /^(app|router|server|fastify|api|route|routes)$|Router$/;
+
+// ---------- DATA_SINK / OUTPUT (ENG-81 mục 4) ----------
+const SINK_METHOD = /^(save|insert\w*|update\w*|delete\w*|remove|find\w*|create|upsert|query|execute|exec|aggregate|count|get|add|commit)$/;
+const SINK_RECEIVER = /(repository|repo|model|dao|entity|db|database|prisma|knex|pool|conn|connection|client|session|cursor|collection|datasource|manager|tx|trx|jdbcTemplate)$/i;
+const SINK_IMPORTS = new Set(["pg", "mysql", "mysql2", "mongodb", "mongoose", "sequelize", "typeorm", "@prisma/client", "sqlite3", "better-sqlite3",
+  "redis", "ioredis", "knex", "sqlalchemy", "psycopg2", "pymongo", "database/sql", "gorm.io/gorm"]);
+
+export function isDataSink(e: { receiver_chain: string[]; method: string; import_source: string | null }, techStack: string[]): boolean {
+  const chain = e.receiver_chain.filter((c) => c !== "this" && c !== "self");
+  if (SINK_METHOD.test(e.method) && chain.length > 0) {
+    if (SINK_RECEIVER.test(chain[chain.length - 1]) || chain.some((c) => ["prisma", "tx", "trx"].includes(c))) return true;
   }
-  // Mặc định gán cho top-level module nếu có
-  const modKey = `${filePath}#<module>`;
-  if (idx.symbols.has(modKey)) return modKey;
-  return `${filePath}#<anon>`;
+  if (e.import_source && SINK_IMPORTS.has(e.import_source) && chain.length > 0) return true;
+  const orm = techStack.some((t) => ["mongoose", "sequelize", "typeorm"].includes(t));
+  if (orm && chain.length === 1 && /^[A-Z]/.test(chain[0]) && SINK_METHOD.test(e.method)) return true;
+  return false;
 }
 
-// Lấy chuỗi receiver: a.b.c -> ['a', 'b'], method -> 'c'
-function parseMemberExpression(node: Node): { receiverChain: string[]; method: string } {
-  const parts: string[] = [];
-  let cur: Node | null = node;
-
-  while (cur && (cur.type === "member_expression" || cur.type === "attribute")) {
-    const prop = cur.childForFieldName("property") ?? cur.childForFieldName("attribute");
-    if (prop) parts.unshift(prop.text);
-    cur = cur.childForFieldName("object") ?? cur.childForFieldName("value");
-  }
-
-  if (cur) parts.unshift(cur.text);
-
-  const method = parts.pop() ?? "";
-  return { receiverChain: parts, method };
+const OUT_METHODS = new Set(["json", "send", "status", "render", "redirect", "end", "sendStatus"]);
+export function isOutput(e: { receiver_chain: string[]; method: string }): boolean {
+  const last = e.receiver_chain[e.receiver_chain.length - 1];
+  if (!last) return /^(print|jsonify|Response|HttpResponse)$/.test(e.method) || e.method === "next";
+  if (last === "res" || last === "reply" || last === "response") return OUT_METHODS.has(e.method);
+  if (last === "console" || last === "logger" || last === "logging") return false;
+  if (e.method === "fetch" || last === "axios") return true;
+  return false;
 }
 
-// Trích xuất chuỗi tĩnh từ AST node (nếu có)
-function extractStaticString(node: Node | null): string | null {
-  if (!node) return null;
-  if (node.type === "string" || node.type === "string_fragment") {
-    return node.text.replace(/^['"]|['"]$/g, "");
+// ---------- helpers ----------
+interface CalleeShape { bare: string | null; chain: string[]; method: string; unknownReceiver: boolean }
+
+function chainOfTs(n: SyntaxNode | null): { chain: string[]; unknown: boolean } {
+  if (!n) return { chain: [], unknown: true };
+  if (n.type === "identifier") return { chain: [n.text], unknown: false };
+  if (n.type === "this") return { chain: ["this"], unknown: false };
+  if (n.type === "member_expression" || n.type === "attribute") {
+    const prop = field(n, "property") ?? field(n, "attribute");
+    const inner = chainOfTs(field(n, "object"));
+    return { chain: [...inner.chain, prop?.text ?? ""], unknown: inner.unknown };
   }
-  if (node.type === "string_literal") {
-    return node.text.replace(/^['"]|['"]$/g, "");
+  if (n.type === "parenthesized_expression" || n.type === "await_expression" || n.type === "non_null_expression" || n.type === "as_expression") {
+    return chainOfTs(n.namedChildren[0] ?? null);
+  }
+  return { chain: [], unknown: true };
+}
+
+function calleeShape(call: SyntaxNode): CalleeShape | null {
+  const fn = field(call, "function") ?? field(call, "constructor");
+  if (!fn) return null;
+  if (fn.type === "identifier") return { bare: fn.text, chain: [], method: fn.text, unknownReceiver: false };
+  if (fn.type === "member_expression" || fn.type === "attribute") {
+    const prop = field(fn, "property") ?? field(fn, "attribute");
+    const inner = chainOfTs(field(fn, "object"));
+    return { bare: null, chain: inner.chain, method: prop?.text ?? "", unknownReceiver: inner.unknown };
   }
   return null;
 }
 
-// Nhận diện route handler từ đối số
-function resolveHandlerKey(
-  argNode: Node,
-  filePath: string,
-  verb: string,
-  routePath: string | null,
-  idx: SymbolIndex,
-  anonCounter: { count: number }
-): string | null {
-  // Lời gọi bọc: asyncHandler(ctrl.create)
-  if (argNode.type === "call_expression" || argNode.type === "call") {
-    const args = argNode.childForFieldName("arguments");
-    if (!args || args.namedChildCount === 0) {
+const isCallNode = (n: SyntaxNode) => n.type === "call_expression" || n.type === "call";
+
+function findMethod(idx: SymbolIndex, classKey: string, name: string, seen = new Set<string>()): { cls: string; fn: string } | null {
+  if (seen.has(classKey)) return null;
+  seen.add(classKey);
+  const ci = idx.classes.get(classKey);
+  if (!ci) return null;
+  const m = ci.methods.get(name);
+  if (m) return { cls: classKey, fn: m };
+  for (const p of ci.extends_names) for (const pk of resolveClassName(idx, ci.file, p)) { const r = findMethod(idx, pk, name, seen); if (r) return r; }
+  return null;
+}
+
+function fieldType(idx: SymbolIndex, classKey: string, name: string, seen = new Set<string>()): string | null {
+  if (seen.has(classKey)) return null;
+  seen.add(classKey);
+  const ci = idx.classes.get(classKey);
+  if (!ci) return null;
+  const t = ci.fields.get(name);
+  if (t) return t;
+  for (const p of ci.extends_names) for (const pk of resolveClassName(idx, ci.file, p)) { const r = fieldType(idx, pk, name, seen); if (r) return r; }
+  return null;
+}
+
+interface Target { key: string; confidence: "RESOLVED" | "INFERRED"; ambiguous: boolean }
+
+/** ENG-32: method của INTERFACE/abstract ⇒ implementor. */
+function viaImpl(idx: SymbolIndex, hit: { cls: string; fn: string } | null, method: string): Target[] | null {
+  if (!hit) return null;
+  const ci = idx.classes.get(hit.cls)!;
+  if (ci.kind === "INTERFACE" || (ci.kind === "ABSTRACT" && !idx.functions.has(hit.fn))) {
+    const impls = (idx.implMap.get(hit.cls) ?? []).map((k) => findMethod(idx, k, method)).filter((x): x is { cls: string; fn: string } => !!x && idx.functions.has(x.fn));
+    if (impls.length === 0) return idx.functions.has(hit.fn) ? [{ key: hit.fn, confidence: "RESOLVED", ambiguous: false }] : null;
+    return impls.map((i) => ({ key: i.fn, confidence: "RESOLVED" as const, ambiguous: impls.length > 1 }));
+  }
+  return idx.functions.has(hit.fn) ? [{ key: hit.fn, confidence: "RESOLVED", ambiguous: false }] : null;
+}
+
+function resolveBinding(idx: SymbolIndex, file: string, b: ImportBinding, name: string): string | null {
+  if (!b.file) return null;
+  if (b.kind === "named") return resolveExported(idx, b.file, b.imported ?? name, 0);
+  if (b.kind === "default") return resolveExported(idx, b.file, "default", 0) ?? resolveExported(idx, b.file, name, 0);
+  void file;
+  return null;
+}
+
+function resolveTypeToMethod(idx: SymbolIndex, fromFile: string, tname: string, method: string): Target[] | null {
+  const keys = resolveClassName(idx, fromFile, tname);
+  const out: Target[] = [];
+  for (const ck of keys) {
+    const t = viaImpl(idx, findMethod(idx, ck, method), method);
+    if (t) out.push(...t);
+  }
+  if (out.length === 0) return null;
+  const amb = out.length > 1;
+  return out.map((t) => ({ ...t, ambiguous: t.ambiguous || amb }));
+}
+
+/** ENG-31: phân giải 1 call site. null ⇒ ExternalCall. */
+function resolveCall(idx: SymbolIndex, caller: FunctionInfo, shape: CalleeShape): { targets: Target[]; importSource: string | null } {
+  const file = caller.file;
+  const imports = idx.imports.get(file) ?? new Map<string, ImportBinding>();
+  const locals = idx.locals.get(caller.key) ?? new Set<string>();
+  const res = (targets: Target[], importSource: string | null = null) => ({ targets, importSource });
+
+  if (shape.bare !== null) {
+    const name = shape.bare;
+    const sameFile = `${file}#${name}`;
+    if (!locals.has(name) || idx.functions.get(sameFile)?.kind === "FUNCTION") {
+      const fi = idx.functions.get(sameFile);
+      if (fi && !fi.is_module) return res([{ key: sameFile, confidence: "RESOLVED", ambiguous: false }]);
+    }
+    const b = imports.get(name);
+    if (b) {
+      const k = resolveBinding(idx, file, b, name);
+      if (k && idx.functions.has(k)) return res([{ key: k, confidence: "RESOLVED", ambiguous: false }]);
+      return res([], b.file ? null : b.source);
+    }
+    return res([]);
+  }
+
+  const chain = shape.chain;
+  const root = chain[0];
+  const method = shape.method;
+  if (!root || shape.unknownReceiver) return fallback(idx, caller, shape, null);
+
+  // this/self
+  if ((root === "this" || root === "self") && caller.class_key) {
+    if (chain.length === 1) {
+      const t = viaImpl(idx, findMethod(idx, caller.class_key, method), method);
+      if (t) return res(t);
+    } else if (chain.length === 2) {
+      const ty = fieldType(idx, caller.class_key, chain[1]);
+      if (ty) { const t = resolveTypeToMethod(idx, file, ty, method); if (t) return res(t); }
+    }
+    return fallback(idx, caller, shape, null);
+  }
+
+  if (chain.length === 1) {
+    // tham số có kiểu
+    const pty = idx.paramTypes.get(caller.key)?.get(root);
+    if (pty) { const t = resolveTypeToMethod(idx, file, pty, method); if (t) return res(t); }
+    // biến module có kiểu (new T())
+    const vt = idx.varTypes.get(file)?.get(root);
+    if (vt && !locals.has(root)) { const t = resolveTypeToMethod(idx, file, vt, method); if (t) return res(t); }
+    const b = imports.get(root);
+    if (b) {
+      if (b.file) {
+        if (b.kind === "namespace" || b.kind === "module") {
+          const k = resolveExported(idx, b.file, method, 0);
+          if (k && idx.functions.has(k)) return res([{ key: k, confidence: "RESOLVED", ambiguous: false }]);
+        } else {
+          const sym = resolveBinding(idx, file, b, root);
+          if (sym) {
+            if (idx.classes.has(sym)) { const t = viaImpl(idx, findMethod(idx, sym, method), method); if (t) return res(t); }
+            // biến import có kiểu
+            const symFile = sym.slice(0, sym.indexOf("#"));
+            const vname = sym.slice(sym.indexOf("#") + 1);
+            const ty = idx.varTypes.get(symFile)?.get(vname);
+            if (ty) { const t = resolveTypeToMethod(idx, symFile, ty, method); if (t) return res(t); }
+          }
+        }
+        return fallback(idx, caller, shape, null, b);
+      }
+      return res([], b.source); // gói ngoài
+    }
+    // lớp cùng file: C.m()
+    if (idx.classes.has(`${file}#${root}`)) {
+      const t = viaImpl(idx, findMethod(idx, `${file}#${root}`, method), method);
+      if (t) return res(t);
+    }
+    if (locals.has(root)) return fallback(idx, caller, shape, null);
+    return fallback(idx, caller, shape, null);
+  }
+  const b = imports.get(root);
+  return fallback(idx, caller, shape, b?.file ? null : (b?.source ?? null), b);
+}
+
+/** (6): receiver không rõ kiểu ⇒ mọi ứng viên cùng tên method trong file import / cùng file — INFERRED. */
+function fallback(idx: SymbolIndex, caller: FunctionInfo, shape: CalleeShape, importSource: string | null, binding?: ImportBinding): { targets: Target[]; importSource: string | null } {
+  const method = shape.method;
+  if (!method) return { targets: [], importSource };
+  if (binding && !binding.file) return { targets: [], importSource: binding.source };
+  const files = new Set<string>([caller.file]);
+  for (const b of idx.imports.get(caller.file)?.values() ?? []) if (b.file) files.add(b.file);
+  if (binding?.file) { files.clear(); files.add(binding.file); }
+  const cands: string[] = [];
+  for (const [k, fi] of idx.functions) {
+    if (!files.has(fi.file) || fi.is_module || fi.is_anon || k === caller.key) continue;
+    if (fi.kind === "METHOD" && fi.name.endsWith(`.${method}`)) cands.push(k);
+  }
+  cands.sort(cmp);
+  // chỉ nhận khi root là tên cục bộ/tham số không rõ kiểu hoặc không phải gói ngoài
+  if (cands.length === 0) return { targets: [], importSource };
+  const root = shape.chain[0];
+  if (root && !(idx.locals.get(caller.key)?.has(root)) && !binding && !idx.varTypes.get(caller.file)?.has(root) && root !== "this" && root !== "self") {
+    return { targets: [], importSource };
+  }
+  return { targets: cands.map((k) => ({ key: k, confidence: "INFERRED" as const, ambiguous: cands.length > 1 })), importSource };
+}
+
+// ---------- routes ----------
+function enclosingStatement(n: SyntaxNode): SyntaxNode {
+  let cur = n;
+  while (cur.parent && cur.parent.type !== "program" && cur.parent.type !== "statement_block" && cur.parent.type !== "module" && cur.parent.type !== "block") cur = cur.parent;
+  return cur;
+}
+
+const isFuncLiteral = (n: SyntaxNode) => ["arrow_function", "function_expression", "function"].includes(n.type);
+
+function staticString(n: SyntaxNode | undefined | null): string | null {
+  if (!n) return null;
+  if (n.type === "string" || n.type === "template_string") {
+    if (n.type === "template_string" && n.descendantsOfType("template_substitution").length > 0) return null;
+    return stripQuotes(n.text);
+  }
+  return null;
+}
+
+function routerVarsOf(f: SyntaxNode): Set<string> {
+  const vars = new Set<string>();
+  walk(f, (n) => {
+    if (n.type === "variable_declarator") {
+      const name = field(n, "name"), v = field(n, "value");
+      if (name?.type === "identifier" && v) {
+        const callee = v.type === "new_expression" ? field(v, "constructor") : v.type === "call_expression" ? field(v, "function") : null;
+        if (callee && ROUTER_FACTORIES.has(callee.text)) vars.add(name.text);
+      }
+    }
+  });
+  return vars;
+}
+
+export function findRoutes(idx: SymbolIndex): RouteBinding[] {
+  const bindings: RouteBinding[] = [];
+  const filePrefix = new Map<string, string>();      // file đích ⇒ tiền tố mount
+  const varPrefix = new Map<string, string>();       // `${file}|${var}` ⇒ tiền tố
+  const files = [...idx.files.values()].sort((a, b) => cmp(a.path, b.path));
+
+  // --- 1. mount (app.use('/p', router)) ---
+  for (const f of files) {
+    if (f.is_py) continue;
+    walk(f.tree.rootNode, (n) => {
+      if (n.type !== "call_expression") return;
+      const fn = field(n, "function");
+      if (fn?.type !== "member_expression" || field(fn, "property")?.text !== "use") return;
+      const args = field(n, "arguments")?.namedChildren ?? [];
+      const prefix = staticString(args[0]);
+      const target = args[1];
+      if (prefix === null || !target) return;
+      const mount = (p: string) => (p === "/" ? "" : p.replace(/\/$/, ""));
+      let tFile: string | null = null;
+      if (target.type === "identifier") {
+        const b = idx.imports.get(f.path)?.get(target.text);
+        if (b?.file) tFile = b.file; else varPrefix.set(`${f.path}|${target.text}`, mount(prefix));
+      } else if (target.type === "call_expression" && field(target, "function")?.text === "require") {
+        const src = stripQuotes(field(target, "arguments")?.namedChildren[0]?.text ?? "");
+        const b = [...(idx.imports.get(f.path)?.values() ?? [])].find((x) => x.source === src);
+        tFile = b?.file ?? null;
+      }
+      if (tFile) filePrefix.set(tFile, mount(prefix));
+    });
+  }
+
+  const resolveHandler = (n: SyntaxNode, f: { path: string }, ctx: FunctionInfo, anonName: string, stmt: SyntaxNode): string | null => {
+    if (isFuncLiteral(n)) {
+      const key = `${f.path}#${anonName}`;
+      const info = register(idx, {
+        key, file: f.path, name: anonName, class_key: null, kind: "FUNCTION", node: n, body: field(n, "body"),
+        line_start: row1(stmt), line_end: rowEnd1(stmt), params: [], complexity: 0, is_exported: false, is_module: false, is_anon: true, stmt_node: stmt,
+      }, false, field(n, "parameters"));
+      idx.functions.get(info.key)!.complexity = 0;
+      return info.key;
+    }
+    if (n.type === "identifier") {
+      const same = `${f.path}#${n.text}`;
+      if (idx.functions.has(same)) return same;
+      const b = idx.imports.get(f.path)?.get(n.text);
+      if (b) { const k = resolveBinding(idx, f.path, b, n.text); if (k && idx.functions.has(k)) return k; }
       return null;
     }
-    const inner = args.namedChild(args.namedChildCount - 1);
-    return inner ? resolveHandlerKey(inner, filePath, verb, routePath, idx, anonCounter) : null;
-  }
-
-  // Hàm ẩn danh (arrow function hoặc function expression)
-  if (
-    argNode.type === "arrow_function" ||
-    argNode.type === "function_expression" ||
-    argNode.type === "function_definition"
-  ) {
-    let key: string;
-    if (routePath !== null) {
-      key = `${filePath}#<${verb.toUpperCase()} ${routePath}>`;
-    } else {
-      key = `${filePath}#<anon@L${argNode.startPosition.row + 1}>`;
+    if (n.type === "member_expression") {
+      const shape = calleeShape({ childForFieldName: (x: string) => (x === "function" ? n : null) } as unknown as SyntaxNode);
+      if (shape) { const r = resolveCall(idx, ctx, shape); if (r.targets[0]) return r.targets[0].key; }
+      return null;
     }
-    if (idx.symbols.has(key)) {
-      anonCounter.count++;
-      key = `${key}~${anonCounter.count}`;
-    }
-
-    const funcInfo: FunctionInfo = {
-      key,
-      kind: "FUNCTION",
-      name: routePath ? `${verb.toLowerCase()} ${routePath}` : "<anonymous>",
-      file_path: filePath,
-      line_start: argNode.startPosition.row + 1,
-      line_end: argNode.endPosition.row + 1,
-      is_exported: false,
-      params: [],
-      locals: [],
-      complexity: 0,
-    };
-    idx.symbols.set(key, funcInfo);
-    idx.functions.set(key, funcInfo);
-    return key;
-  }
-
-  // Tên trực tiếp: handler hoặc ctrl.create
-  const text = argNode.text;
-  // Tìm trong symbol table
-  const directKey = `${filePath}#${text}`;
-  if (idx.symbols.has(directKey)) return directKey;
-
-  // Kiểm tra qua import
-  const parts = text.split(".");
-  const baseName = parts[0];
-  const imported = idx.imports.get(filePath)?.get(baseName);
-  if (imported && imported.source_file) {
-    if (parts.length > 1) {
-      const candidateKey = `${imported.source_file}#${imported.symbol_name}.${parts[1]}`;
-      if (idx.symbols.has(candidateKey)) return candidateKey;
-      const directCandidate = `${imported.source_file}#${parts[1]}`;
-      if (idx.symbols.has(directCandidate)) return directCandidate;
-    } else {
-      const candidateKey = `${imported.source_file}#${imported.symbol_name}`;
-      if (idx.symbols.has(candidateKey)) return candidateKey;
-    }
-  }
-
-  return `${filePath}#${text}`;
-}
-
-export interface CallGraphResult {
-  edges: FunctionCallEdge[];
-  external: ExternalCall[];
-  bindings: RouteBinding[];
-}
-
-export function buildCallGraph(
-  files: ParsedFile[],
-  idx: SymbolIndex
-): CallGraphResult {
-  const rawEdges: FunctionCallEdge[] = [];
-  const external: ExternalCall[] = [];
-  const bindings: RouteBinding[] = [];
-  const anonCounter = { count: 0 };
-
-  // Tính cờ một lần ở đầu buildCallGraph: hasExpoRouter = có import nào trong idx.imports với import_source là expo-router hoặc bắt đầu bằng expo-router/ (TASK_17)
-  let hasExpoRouter = false;
-  for (const [, fileImports] of idx.imports) {
-    for (const [, imp] of fileImports) {
-      if (
-        imp.import_source === "expo-router" ||
-        imp.import_source?.startsWith("expo-router/")
-      ) {
-        hasExpoRouter = true;
-        break;
-      }
-    }
-    if (hasExpoRouter) break;
-  }
-  if (!hasExpoRouter && idx.reexports) {
-    for (const [, fileReexports] of idx.reexports) {
-      for (const [, exp] of fileReexports) {
-        if (
-          exp.import_source === "expo-router" ||
-          exp.import_source?.startsWith("expo-router/")
-        ) {
-          hasExpoRouter = true;
-          break;
-        }
-      }
-      if (hasExpoRouter) break;
-    }
-  }
-  // Giữ tương thích cho các ca test T-ENG-39 / T-ENT-01 có thư mục nhóm route Expo (tabs)
-  if (!hasExpoRouter) {
-    hasExpoRouter = files.some(
-      (f) =>
-        (f.language === "TYPESCRIPT" || f.language === "TSX" || f.language === "JAVASCRIPT") &&
-        (f.path.includes("/(tabs)/") || f.path.startsWith("app/(tabs)/"))
-    );
-  }
-
-  for (const file of files) {
-    const filePath = file.path;
-    const lang = file.language;
-    const root = file.tree.rootNode;
-
-    const normFilePath = filePath.replace(/\\/g, "/");
-    const segments = normFilePath.split("/");
-    const fileName = segments[segments.length - 1] ?? "";
-    const stem = fileName.replace(/\.[^.]+$/, "");
-    // Next.js, Expo Router là mẫu dựa đường dẫn của TS/JS (12 Mục 1); không áp lên file Python trong app/.
-    const isJsLike = lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT";
-    const isInApp = isJsLike && (normFilePath.includes("/app/") || normFilePath.startsWith("app/"));
-
-    // A. Next.js pages/api/** (HTTP)
-    if (isJsLike && (normFilePath.includes("pages/api/") || normFilePath.startsWith("pages/api/"))) {
-      const apiIdx = normFilePath.indexOf("pages/api/");
-      const after = normFilePath.slice(apiIdx + "pages/api/".length);
-      const withoutExt = after.replace(/\.[^.]+$/, "");
-      const pathSeg = withoutExt.endsWith("/index")
-        ? withoutExt.slice(0, -"/index".length)
-        : withoutExt === "index"
-        ? ""
-        : withoutExt;
-      const routePath = `/api${pathSeg ? `/${pathSeg}` : ""}`;
-      const defaultHandlerKey = `${filePath}#default`;
-      const handlerKey = idx.symbols.has(defaultHandlerKey)
-        ? defaultHandlerKey
-        : `${filePath}#handler`;
-
-      bindings.push({
-        file_path: filePath,
-        line_start: 1,
-        line_end: root.endPosition.row + 1,
-        kind: "HTTP",
-        method: "ALL",
-        path: routePath,
-        handler: handlerKey,
-        middlewares: [],
-        display_name: `pages/api/${withoutExt}`,
-      });
-    }
-
-    // B. Next.js app/**/route.ts (HTTP)
-    if (isInApp && stem === "route") {
-      let appSubdir = "";
-      const appMatch = normFilePath.match(/(?:^|\/)app\/(.+)\/[^/]+$/);
-      if (appMatch && appMatch[1]) {
-        appSubdir = appMatch[1]
-          .split("/")
-          .filter((s) => !/^\([^)]+\)$/.test(s))
-          .join("/");
-      }
-      const routePath = appSubdir ? `/${appSubdir}` : "/";
-
-      const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
-      for (const m of HTTP_METHODS) {
-        const fnKey = `${filePath}#${m}`;
-        if (idx.functions.has(fnKey) || idx.symbols.has(fnKey)) {
-          bindings.push({
-            file_path: filePath,
-            line_start: idx.symbols.get(fnKey)?.line_start ?? 1,
-            line_end: idx.symbols.get(fnKey)?.line_end ?? root.endPosition.row + 1,
-            kind: "HTTP",
-            method: m,
-            path: routePath,
-            handler: fnKey,
-            middlewares: [],
-            display_name: `${m} ${routePath}`,
-          });
-        }
-      }
-    }
-
-    // C. Next.js app/**/page.tsx (PAGE)
-    if (isInApp && stem === "page") {
-      let appSubdir = "";
-      const appMatch = normFilePath.match(/(?:^|\/)app\/(.+)\/[^/]+$/);
-      if (appMatch && appMatch[1]) {
-        appSubdir = appMatch[1]
-          .split("/")
-          .filter((s) => !/^\([^)]+\)$/.test(s))
-          .join("/");
-      }
-      const routePath = appSubdir ? `/${appSubdir}` : "/";
-
-      let handlerKey = `${filePath}#default`;
-      for (const [k, s] of idx.symbols.entries()) {
-        if (s.file_path === filePath && s.is_exported && (s.kind === "FUNCTION" || s.kind === "CLASS")) {
-          handlerKey = k;
-          break;
-        }
-      }
-
-      bindings.push({
-        file_path: filePath,
-        line_start: 1,
-        line_end: root.endPosition.row + 1,
-        kind: "PAGE",
-        method: null,
-        path: routePath,
-        handler: handlerKey,
-        middlewares: [],
-        display_name: `${routePath === "/" ? "Home" : routePath.slice(1)} Page`,
-      });
-    }
-
-    // D. Expo Router (gói expo-router: file app/** có export default, trừ _layout, +*, bỏ (nhóm) khỏi path) (SCREEN)
-    const isExpoScreen =
-      hasExpoRouter &&
-      isInApp &&
-      !stem.startsWith("_layout") &&
-      !stem.startsWith("+") &&
-      stem !== "page" &&
-      stem !== "route";
-
-    if (isExpoScreen) {
-      let defaultHandler: string | null = null;
-
-      // 1. file#default như hiện tại
-      if (idx.symbols.has(`${filePath}#default`)) {
-        defaultHandler = `${filePath}#default`;
-      }
-
-      // 2. export { X as default } from p và export { default } from p:
-      // phân giải p như import thường, handler là đích#X hoặc đích#default
-      if (!defaultHandler) {
-        const reexp = idx.reexports?.get(filePath)?.get("default");
-        if (reexp && reexp.source_file) {
-          let targetFile: string | null = reexp.source_file;
-          let targetSym: string = reexp.symbol_name;
-          const visited = new Set<string>();
-          let depth = 0;
-          while (targetFile && depth < 5) {
-            const vk = `${targetFile}::${targetSym}`;
-            if (visited.has(vk)) break;
-            visited.add(vk);
-            const next: ImportedSymbol | undefined = idx.reexports?.get(targetFile)?.get(targetSym);
-            if (next && next.source_file) {
-              targetFile = next.source_file;
-              targetSym = next.symbol_name;
-              depth++;
-            } else {
-              break;
-            }
-          }
-          if (targetFile) {
-            if (targetSym === "default" && !idx.symbols.has(`${targetFile}#default`)) {
-              for (const [, s] of idx.symbols.entries()) {
-                if (
-                  s.file_path === targetFile &&
-                  s.is_exported &&
-                  (s.kind === "FUNCTION" || s.kind === "CLASS")
-                ) {
-                  targetSym = s.name;
-                  break;
-                }
-              }
-            }
-            defaultHandler = `${targetFile}#${targetSym}`;
-          }
-        }
-      }
-
-      // 3. export { X as default } với X khai báo trong file
-      if (!defaultHandler) {
-        for (let i = 0; i < root.childCount; i++) {
-          const child = root.child(i);
-          if (!child || child.type !== "export_statement") continue;
-          if (child.childForFieldName("source")) continue;
-
-          for (let j = 0; j < child.childCount; j++) {
-            const clause = child.child(j);
-            if (!clause || clause.type !== "export_clause") continue;
-            for (let k = 0; k < clause.childCount; k++) {
-              const spec = clause.child(k);
-              if (!spec || spec.type !== "export_specifier") continue;
-              const nameNode = spec.childForFieldName("name");
-              const aliasNode = spec.childForFieldName("alias");
-              const origName = nameNode ? nameNode.text : spec.text;
-              const exportedName = aliasNode ? aliasNode.text : origName;
-              if (exportedName === "default" && origName !== "default") {
-                defaultHandler = `${filePath}#${origName}`;
-                break;
-              }
-            }
-            if (defaultHandler) break;
-          }
-          if (defaultHandler) break;
-        }
-      }
-
-      // 4. Vòng lặp tìm symbol exported như hiện tại
-      if (!defaultHandler) {
-        for (const [k, s] of idx.symbols.entries()) {
-          if (
-            s.file_path === filePath &&
-            s.is_exported &&
-            (s.kind === "FUNCTION" || s.kind === "CLASS")
-          ) {
-            defaultHandler = k;
-            break;
-          }
-        }
-      }
-
-      if (defaultHandler) {
-        let afterApp = "";
-        const appMatch = normFilePath.match(/(?:^|\/)app\/(.+)$/);
-        if (appMatch && appMatch[1]) {
-          afterApp = appMatch[1].replace(/\.[^.]+$/, "");
-        }
-        const cleanedSegments = afterApp
-          .split("/")
-          .filter((s) => !/^\([^)]+\)$/.test(s));
-
-        let routePath = "/" + cleanedSegments.join("/");
-        if (routePath.endsWith("/index")) {
-          routePath = routePath.slice(0, -"/index".length) || "/";
-        }
-        if (!routePath.startsWith("/")) {
-          routePath = "/" + routePath;
-        }
-
-        bindings.push({
-          file_path: filePath,
-          line_start: 1,
-          line_end: root.endPosition.row + 1,
-          kind: "SCREEN",
-          method: null,
-          path: routePath,
-          handler: defaultHandler,
-          middlewares: [],
-          display_name: `Screen ${routePath}`,
-        });
-      }
-    }
-
-    function visit(node: Node): void {
-      // 1. Nhận diện Route Express / Koa / Fastify (ENG-40)
-      if (
-        (lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT") &&
-        node.type === "call_expression"
-      ) {
-        const fnNode = node.childForFieldName("function");
-        if (fnNode && fnNode.type === "member_expression") {
-          const prop = fnNode.childForFieldName("property");
-          const obj = fnNode.childForFieldName("object");
-          if (prop && obj) {
-            const verb = prop.text.toLowerCase();
-            if (HTTP_VERBS.has(verb)) {
-              const argsNode = node.childForFieldName("arguments");
-              if (argsNode && argsNode.namedChildCount >= 2) {
-                const firstArg = argsNode.namedChild(0);
-                const pathStr = extractStaticString(firstArg);
-
-                // Handler là arg cuối cùng, middlewares là các arg ở giữa
-                const argCount = argsNode.namedChildCount;
-                const lastArg = argsNode.namedChild(argCount - 1);
-                if (lastArg) {
-                  const handlerKey = resolveHandlerKey(
-                    lastArg,
-                    filePath,
-                    verb,
-                    pathStr,
-                    idx,
-                    anonCounter
-                  );
-
-                  if (handlerKey) {
-                    const middlewares: string[] = [];
-                    for (let i = 1; i < argCount - 1; i++) {
-                      const mwArg = argsNode.namedChild(i);
-                      if (mwArg) {
-                        const mwText =
-                          mwArg.type === "call_expression"
-                            ? mwArg.childForFieldName("function")?.text ?? mwArg.text
-                            : mwArg.text;
-                        middlewares.push(mwText);
-                      }
-                    }
-
-                    const displayName = `${obj.text}.${verb}('${pathStr ?? ""}')`;
-
-                    const binding: RouteBinding = {
-                      file_path: filePath,
-                      line_start: node.startPosition.row + 1,
-                      line_end: node.endPosition.row + 1,
-                      kind: "HTTP",
-                      method: verb.toUpperCase(),
-                      path: pathStr,
-                      handler: handlerKey,
-                      middlewares,
-                      display_name: displayName,
-                    };
-                    bindings.push(binding);
-
-                    // ENG-34: Hàm chứa câu lệnh đăng ký route gọi handler & middlewares
-                    let callerKey = findEnclosingFunctionKey(node, filePath, idx);
-                    if (callerKey === handlerKey) {
-                      callerKey = `${filePath}#<module>`;
-                    }
-                    if (callerKey !== handlerKey) {
-                      rawEdges.push({
-                        caller: callerKey,
-                        callee: handlerKey,
-                        confidence: "RESOLVED",
-                        ambiguous: false,
-                        call_count: 1,
-                      });
-                    }
-                    for (const mw of middlewares) {
-                      const mwDirectKey = `${filePath}#${mw}`;
-                      const mwKey = idx.symbols.has(mwDirectKey)
-                        ? mwDirectKey
-                        : resolveHandlerKey(
-                            argsNode.namedChild(1)!,
-                            filePath,
-                            verb,
-                            null,
-                            idx,
-                            anonCounter
-                          );
-                      if (!mwKey) continue;
-                      if (callerKey !== mwKey) {
-                        rawEdges.push({
-                          caller: callerKey,
-                          callee: mwKey,
-                          confidence: "RESOLVED",
-                          ambiguous: false,
-                          call_count: 1,
-                        });
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // 2. Nhận diện Route NestJS (ENG-40)
-      if (
-        (lang === "TYPESCRIPT" || lang === "TSX") &&
-        node.type === "class_declaration"
-      ) {
-        // Tìm @Controller(prefix?)
-        let controllerPrefix = "";
-        let isController = false;
-        const classDecorators = getDecorators(node);
-
-        for (const c of classDecorators) {
-          const decCall = c.namedChild(0);
-          if (decCall && decCall.type === "call_expression") {
-            const fn = decCall.childForFieldName("function");
-            if (fn && fn.text === "Controller") {
-              isController = true;
-              const args = decCall.childForFieldName("arguments");
-              if (args && args.namedChildCount > 0) {
-                controllerPrefix = extractStaticString(args.namedChild(0)) ?? "";
-              }
-            }
-          } else if (decCall && (decCall.type === "identifier" || decCall.text === "Controller")) {
-            if (decCall.text === "Controller") {
-              isController = true;
-            }
-          }
-        }
-
-        if (isController) {
-          const className = node.childForFieldName("name")?.text ?? "";
-          const body = node.childForFieldName("body");
-          if (body) {
-            let pendingDecorators: Node[] = [];
-
-            for (let i = 0; i < body.childCount; i++) {
-              const member = body.child(i);
-              if (!member) continue;
-
-              if (member.type === "decorator") {
-                pendingDecorators.push(member);
-                continue;
-              }
-
-              if (member.type === "method_definition") {
-                const methodName = member.childForFieldName("name")?.text ?? "";
-                let methodVerb: string | null = null;
-                let methodSubPath: string | null = null;
-                const middlewares: string[] = [];
-
-                // Gom tất cả decorator của method
-                const methodDecorators: Node[] = [...pendingDecorators];
-                for (let j = 0; j < member.childCount; j++) {
-                  const mc = member.child(j);
-                  if (mc && mc.type === "decorator") {
-                    methodDecorators.push(mc);
-                  }
-                }
-                pendingDecorators = [];
-
-                for (const mc of methodDecorators) {
-                  const decCall = mc.namedChild(0);
-                  if (decCall && decCall.type === "call_expression") {
-                    const dfn = decCall.childForFieldName("function")?.text ?? "";
-                    const dUpper = dfn.toUpperCase();
-                    if (["GET", "POST", "PUT", "PATCH", "DELETE", "ALL", "OPTIONS", "HEAD"].includes(dUpper)) {
-                      methodVerb = dUpper;
-                      const dargs = decCall.childForFieldName("arguments");
-                      if (dargs && dargs.namedChildCount > 0) {
-                        methodSubPath = extractStaticString(dargs.namedChild(0));
-                      } else {
-                        methodSubPath = "";
-                      }
-                    } else if (dUpper === "USEGUARDS" || dUpper === "USEINTERCEPTORS" || dUpper === "USEPIPES") {
-                      const dargs = decCall.childForFieldName("arguments");
-                      if (dargs) {
-                        for (let a = 0; a < dargs.namedChildCount; a++) {
-                          const mw = dargs.namedChild(a);
-                          if (mw) {
-                            const mwText = mw.text;
-                            if (dUpper === "USEGUARDS") {
-                              middlewares.push(`${mwText}.canActivate`);
-                            } else if (dUpper === "USEINTERCEPTORS") {
-                              middlewares.push(`${mwText}.intercept`);
-                            } else if (dUpper === "USEPIPES") {
-                              middlewares.push(`${mwText}.transform`);
-                            } else {
-                              middlewares.push(mwText);
-                            }
-                          }
-                        }
-                      }
-                    }
-                  } else if (decCall && decCall.type === "identifier") {
-                    const dUpper = decCall.text.toUpperCase();
-                    if (["GET", "POST", "PUT", "PATCH", "DELETE", "ALL", "OPTIONS", "HEAD"].includes(dUpper)) {
-                      methodVerb = dUpper;
-                      methodSubPath = "";
-                    }
-                  }
-                }
-
-                if (methodVerb) {
-                  let fullPath = "";
-                  const cp = controllerPrefix.replace(/^\/|\/$/g, "");
-                  const sp = (methodSubPath ?? "").replace(/^\/|\/$/g, "");
-                  if (cp && sp) fullPath = `/${cp}/${sp}`;
-                  else if (cp) fullPath = `/${cp}`;
-                  else if (sp) fullPath = `/${sp}`;
-                  else fullPath = "/";
-
-                  const handlerKey = `${filePath}#${className}.${methodName}`;
-                  const displayName = `@${methodVerb.charAt(0) + methodVerb.slice(1).toLowerCase()}('${fullPath}')`;
-
-                  bindings.push({
-                    file_path: filePath,
-                    line_start: member.startPosition.row + 1,
-                    line_end: member.endPosition.row + 1,
-                    kind: "HTTP",
-                    method: methodVerb,
-                    path: fullPath,
-                    handler: handlerKey,
-                    middlewares,
-                    display_name: displayName,
-                  });
-                }
-              } else {
-                pendingDecorators = [];
-              }
-            }
-          }
-        }
-      }
-
-      // 3. Nhận diện Flask / FastAPI Route (Python ENG-40)
-      if (lang === "PYTHON" && node.type === "decorated_definition") {
-        // `12` Mục 1 Flask/FastAPI: `@X.route(path, methods=…)`, `@X.get/post/…(path)`; decorator khác
-        // (`@login_required`) = middleware; FastAPI `Depends(fn)` ⇒ middleware theo thứ tự tham số.
-        let routeVerb: string | null = null;
-        let routePath: string | null = null;
-        let routeReceiver = "app";
-        let routeDecorator = "";
-        const middlewares: string[] = [];
-
-        for (let i = 0; i < node.childCount; i++) {
-          const c = node.child(i);
-          if (!c || c.type !== "decorator") continue;
-          const expr = c.namedChild(0);
-          const fn = expr?.type === "call" ? expr.childForFieldName("function") : expr;
-          const attr = fn?.type === "attribute" ? fn.childForFieldName("attribute")?.text?.toLowerCase() : undefined;
-          if (expr?.type === "call" && fn?.type === "attribute" && attr && (HTTP_VERBS.has(attr) || attr === "route")) {
-            routeReceiver = fn.childForFieldName("object")?.text ?? "app";
-            routeDecorator = attr;
-            routeVerb = attr === "route" ? "GET" : attr.toUpperCase();
-            const args = expr.childForFieldName("arguments");
-            for (let k = 0; k < (args?.namedChildCount ?? 0); k++) {
-              const a = args!.namedChild(k);
-              if (!a) continue;
-              if (a.type === "keyword_argument") {
-                // Flask methods=["POST", …] ⇒ verb đầu tiên
-                if (a.childForFieldName("name")?.text === "methods") {
-                  const list = a.childForFieldName("value");
-                  const first = list?.namedChild(0) ?? null;
-                  const m = extractStaticString(first);
-                  if (m) routeVerb = m.toUpperCase();
-                }
-              } else if (routePath === null) {
-                routePath = extractStaticString(a);
-              }
-            }
-          } else if (fn) {
-            // Decorator khác ⇒ middleware (tên hàm decorator, bỏ đối số)
-            middlewares.push(fn.text);
-          }
-        }
-
-        if (routeVerb) {
-          const defNode = node.childForFieldName("definition");
-          if (defNode && defNode.type === "function_definition") {
-            const fnName = defNode.childForFieldName("name")?.text ?? "";
-            const handlerKey = `${filePath}#${fnName}`;
-
-            // FastAPI: tham số `x = Depends(fn)` ⇒ middleware `fn`, theo thứ tự tham số
-            const params = defNode.childForFieldName("parameters");
-            for (let k = 0; k < (params?.namedChildCount ?? 0); k++) {
-              const p = params!.namedChild(k);
-              const value = p?.childForFieldName("value");
-              if (value?.type === "call" && value.childForFieldName("function")?.text === "Depends") {
-                const dep = value.childForFieldName("arguments")?.namedChild(0);
-                if (dep && (dep.type === "identifier" || dep.type === "attribute")) middlewares.push(dep.text);
-              }
-            }
-
-            bindings.push({
-              file_path: filePath,
-              line_start: node.startPosition.row + 1,
-              line_end: node.endPosition.row + 1,
-              kind: "HTTP",
-              method: routeVerb,
-              path: routePath,
-              handler: handlerKey,
-              middlewares,
-              display_name: `@${routeReceiver}.${routeDecorator}('${routePath ?? ""}')`,
-            });
-          }
-        }
-      }
-
-      // 3.1. Nhận diện React Native Screen & React Router Route trong JSX/TSX
-      if (
-        (lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT") &&
-        (node.type === "jsx_element" || node.type === "jsx_self_closing_element")
-      ) {
-        const opening =
-          node.type === "jsx_element"
-            ? node.childForFieldName("open_tag") ?? node.child(0)
-            : node;
-        const nameNode = opening
-          ? opening.childForFieldName("name") ?? opening.child(1)
-          : null;
-        const tagName = nameNode?.text ?? "";
-
-        // React Native <X.Screen name="..." component={...} />
-        if (tagName.endsWith(".Screen")) {
-          let screenName: string | null = null;
-          let componentNode: Node | null = null;
-
-          for (let i = 0; i < (opening?.childCount ?? 0); i++) {
-            const attr = opening!.child(i);
-            if (!attr || attr.type !== "jsx_attribute") continue;
-            const pName = (attr.childForFieldName("name") ?? attr.namedChild(0))?.text;
-            if (pName === "name") {
-              screenName = extractStaticString((attr.childForFieldName("value") ?? attr.namedChild(1)));
-            } else if (pName === "component") {
-              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
-              componentNode =
-                val?.type === "jsx_expression" ? val.namedChild(0) : val;
-            } else if (pName === "getComponent") {
-              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
-              if (val?.type === "jsx_expression") {
-                const expr = val.namedChild(0);
-                if (
-                  expr?.type === "arrow_function" ||
-                  expr?.type === "function_expression"
-                ) {
-                  const b = expr.childForFieldName("body");
-                  componentNode = b?.type === "identifier" ? b : expr;
-                } else {
-                  componentNode = expr;
-                }
-              }
-            }
-          }
-
-          if (screenName && componentNode) {
-            const routePath = screenName.startsWith("/")
-              ? screenName
-              : `/${screenName}`;
-            const handlerKey = resolveHandlerKey(
-              componentNode,
-              filePath,
-              "SCREEN",
-              routePath,
-              idx,
-              anonCounter
-            );
-
-            if (handlerKey) {
-              bindings.push({
-                file_path: filePath,
-                line_start: node.startPosition.row + 1,
-                line_end: node.endPosition.row + 1,
-                kind: "SCREEN",
-                method: null,
-                path: routePath,
-                handler: handlerKey,
-                middlewares: [],
-                display_name: `<${tagName} name="${screenName}">`,
-              });
-
-              const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-              if (callerKey !== handlerKey) {
-                rawEdges.push({
-                  caller: callerKey,
-                  callee: handlerKey,
-                  confidence: "RESOLVED",
-                  ambiguous: false,
-                  call_count: 1,
-                });
-              }
-            }
-          }
-        }
-
-        // React Router <Route path="..." element={<Comp />} /> hoặc component={Comp}
-        if (tagName === "Route") {
-          let routePath: string | null = null;
-          let componentNode: Node | null = null;
-
-          for (let i = 0; i < (opening?.childCount ?? 0); i++) {
-            const attr = opening!.child(i);
-            if (!attr || attr.type !== "jsx_attribute") continue;
-            const pName = (attr.childForFieldName("name") ?? attr.namedChild(0))?.text;
-            if (pName === "path") {
-              routePath = extractStaticString((attr.childForFieldName("value") ?? attr.namedChild(1)));
-            } else if (pName === "component") {
-              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
-              componentNode =
-                val?.type === "jsx_expression" ? val.namedChild(0) : val;
-            } else if (pName === "element") {
-              const val = (attr.childForFieldName("value") ?? attr.namedChild(1));
-              if (val?.type === "jsx_expression") {
-                const inner = val.namedChild(0);
-                if (
-                  inner &&
-                  (inner.type === "jsx_element" ||
-                    inner.type === "jsx_self_closing_element")
-                ) {
-                  const elOpen =
-                    inner.type === "jsx_element"
-                      ? inner.childForFieldName("open_tag") ?? inner.child(0)
-                      : inner;
-                  const elName =
-                    elOpen?.childForFieldName("name") ?? elOpen?.child(1);
-                  componentNode = elName ?? null;
-                } else {
-                  componentNode = inner;
-                }
-              }
-            }
-          }
-
-          if (componentNode) {
-            const normPath = routePath
-              ? routePath.startsWith("/")
-                ? routePath
-                : `/${routePath}`
-              : "/";
-            const handlerKey = resolveHandlerKey(
-              componentNode,
-              filePath,
-              "PAGE",
-              normPath,
-              idx,
-              anonCounter
-            );
-
-            if (handlerKey) {
-              bindings.push({
-                file_path: filePath,
-                line_start: node.startPosition.row + 1,
-                line_end: node.endPosition.row + 1,
-                kind: "PAGE",
-                method: null,
-                path: normPath,
-                handler: handlerKey,
-                middlewares: [],
-                display_name: `<Route path="${normPath}">`,
-              });
-
-              const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-              if (callerKey !== handlerKey) {
-                rawEdges.push({
-                  caller: callerKey,
-                  callee: handlerKey,
-                  confidence: "RESOLVED",
-                  ambiguous: false,
-                  call_count: 1,
-                });
-              }
-            }
-          }
-        }
-      }
-
-      // 3.2. Nhận diện Commander .command(n).action(fn)
-      if (
-        (lang === "TYPESCRIPT" || lang === "TSX" || lang === "JAVASCRIPT") &&
-        node.type === "call_expression"
-      ) {
-        const fn = node.childForFieldName("function");
-        if (
-          fn?.type === "member_expression" &&
-          fn.childForFieldName("property")?.text === "action"
-        ) {
-          const obj = fn.childForFieldName("object");
-          if (obj?.type === "call_expression") {
-            const innerFn = obj.childForFieldName("function");
-            if (
-              innerFn?.type === "member_expression" &&
-              innerFn.childForFieldName("property")?.text === "command"
-            ) {
-              const cmdArgs = obj.childForFieldName("arguments");
-              const actionArgs = node.childForFieldName("arguments");
-              const cmdName = extractStaticString(cmdArgs?.namedChild(0) ?? null);
-              const actionHandler = actionArgs?.namedChild(0);
-              if (cmdName && actionHandler) {
-                const handlerKey = resolveHandlerKey(
-                  actionHandler,
-                  filePath,
-                  "COMMAND",
-                  cmdName,
-                  idx,
-                  anonCounter
-                );
-                if (handlerKey) {
-                  bindings.push({
-                    file_path: filePath,
-                    line_start: node.startPosition.row + 1,
-                    line_end: node.endPosition.row + 1,
-                    kind: "COMMAND",
-                    method: null,
-                    path: cmdName,
-                    handler: handlerKey,
-                    middlewares: [],
-                    display_name: `command('${cmdName}')`,
-                  });
-                  const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-                  if (callerKey !== handlerKey) {
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: handlerKey,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // 3.3. Nhận diện Django path(route, view)
-      if (lang === "PYTHON" && node.type === "call") {
-        const fn = node.childForFieldName("function");
-        if (fn && (fn.text === "path" || fn.text === "re_path")) {
-          const args = node.childForFieldName("arguments");
-          if (args && args.namedChildCount >= 2) {
-            const routeStr = extractStaticString(args.namedChild(0));
-            const viewNode = args.namedChild(1);
-            if (viewNode) {
-              const handlerKey = resolveHandlerKey(
-                viewNode,
-                filePath,
-                "GET",
-                routeStr,
-                idx,
-                anonCounter
-              );
-              if (handlerKey) {
-                bindings.push({
-                  file_path: filePath,
-                  line_start: node.startPosition.row + 1,
-                  line_end: node.endPosition.row + 1,
-                  kind: "HTTP",
-                  method: "GET",
-                  path: routeStr,
-                  handler: handlerKey,
-                  middlewares: [],
-                  display_name: `path('${routeStr ?? ""}')`,
-                });
-                const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-                if (callerKey !== handlerKey) {
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: handlerKey,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // 3.4. Nhận diện Typer / Click @*.command()
-      if (lang === "PYTHON" && node.type === "decorated_definition") {
-        let isCommand = false;
-        for (let i = 0; i < node.childCount; i++) {
-          const c = node.child(i);
-          if (c?.type === "decorator") {
-            const decCall = c.namedChild(0);
-            const fn =
-              decCall?.type === "call"
-                ? decCall.childForFieldName("function")
-                : decCall;
-            if (
-              fn?.type === "attribute" &&
-              fn.childForFieldName("attribute")?.text === "command"
-            ) {
-              isCommand = true;
-            }
-          }
-        }
-        if (isCommand) {
-          const defNode = node.childForFieldName("definition");
-          if (defNode?.type === "function_definition") {
-            const fnName = defNode.childForFieldName("name")?.text ?? "";
-            const handlerKey = `${filePath}#${fnName}`;
-            bindings.push({
-              file_path: filePath,
-              line_start: node.startPosition.row + 1,
-              line_end: node.endPosition.row + 1,
-              kind: "COMMAND",
-              method: null,
-              path: fnName,
-              handler: handlerKey,
-              middlewares: [],
-              display_name: `@command ${fnName}`,
-            });
-          }
-        }
-      }
-
-      // 4. Phân giải Call Site chung (ENG-31)
-      const isCallNode =
-        node.type === "call_expression" ||
-        node.type === "new_expression" ||
-        node.type === "call";
-
-      if (isCallNode) {
-        const callerKey = findEnclosingFunctionKey(node, filePath, idx);
-        const fnNode =
-          node.childForFieldName("function") ??
-          node.childForFieldName("constructor");
-
-        if (fnNode) {
-          const line = node.startPosition.row + 1;
-
-          if (fnNode.type === "identifier") {
-            // (1) f() gọi trực tiếp
-            const name = fnNode.text;
-            const localKey = `${filePath}#${name}`;
-            const localSym = idx.symbols.get(localKey);
-
-            if (localSym) {
-              if (localSym.kind === "CLASS") {
-                // ENG-30: new T() chỉ trỏ tới constructor nếu có, không trỏ tới CLASS
-                if (node.type === "new_expression") {
-                  const ctorKey = `${filePath}#${name}.constructor`;
-                  const initKey = `${filePath}#${name}.__init__`;
-                  if (idx.functions.has(ctorKey) || idx.symbols.has(ctorKey)) {
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: ctorKey,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
-                  } else if (idx.functions.has(initKey) || idx.symbols.has(initKey)) {
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: initKey,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
-                  }
-                }
-              } else if (localSym.kind === "FUNCTION" || localSym.kind === "METHOD") {
-                rawEdges.push({
-                  caller: callerKey,
-                  callee: localKey,
-                  confidence: "RESOLVED",
-                  ambiguous: false,
-                  call_count: 1,
-                });
-              }
-            } else {
-              // (2) f import trực tiếp
-              const imported = idx.imports.get(filePath)?.get(name);
-              if (imported && imported.source_file) {
-                const targetSymName =
-                  imported.symbol_name === "default" ? name : imported.symbol_name;
-                const targetKey = `${imported.source_file}#${targetSymName}`;
-                const targetSym = idx.symbols.get(targetKey);
-
-                if (targetSym?.kind === "CLASS") {
-                  if (node.type === "new_expression") {
-                    const ctorKey = `${imported.source_file}#${targetSymName}.constructor`;
-                    const initKey = `${imported.source_file}#${targetSymName}.__init__`;
-                    if (idx.functions.has(ctorKey) || idx.symbols.has(ctorKey)) {
-                      rawEdges.push({
-                        caller: callerKey,
-                        callee: ctorKey,
-                        confidence: "RESOLVED",
-                        ambiguous: false,
-                        call_count: 1,
-                      });
-                    } else if (idx.functions.has(initKey) || idx.symbols.has(initKey)) {
-                      rawEdges.push({
-                        caller: callerKey,
-                        callee: initKey,
-                        confidence: "RESOLVED",
-                        ambiguous: false,
-                        call_count: 1,
-                      });
-                    }
-                  }
-                } else {
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: targetKey,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
-                  });
-                }
-              } else if (imported && imported.import_source) {
-                external.push({
-                  caller: callerKey,
-                  line,
-                  receiver_chain: [],
-                  method: name,
-                  import_source: imported.import_source,
-                });
-              }
-            }
-          } else if (fnNode.type === "member_expression" || fnNode.type === "attribute") {
-            const { receiverChain, method } = parseMemberExpression(fnNode);
-            const receiverText = receiverChain.join(".");
-
-            // Hàm tìm method của một class type (ENG-31 (3))
-            const resolveMethodOnType = (typeStr: string): string | null => {
-              // 1. Kiểm tra qua import
-              const imp = idx.imports.get(filePath)?.get(typeStr);
-              if (imp && imp.source_file) {
-                const symName = imp.symbol_name === "default" ? typeStr : imp.symbol_name;
-                const k = `${imp.source_file}#${symName}.${method}`;
-                if (idx.symbols.has(k) || idx.functions.has(k)) return k;
-                const simpleK = `${imp.source_file}#${method}`;
-                if (idx.symbols.has(simpleK) || idx.functions.has(simpleK)) return simpleK;
-              }
-              // 2. Cùng file
-              const loc = `${filePath}#${typeStr}.${method}`;
-              if (idx.symbols.has(loc) || idx.functions.has(loc)) return loc;
-              // 3. Quét toàn bộ symbols
-              const targetSymName = imp && imp.symbol_name !== "default" ? imp.symbol_name : typeStr;
-              for (const [sKey, sym] of idx.symbols) {
-                if (
-                  sym.kind === "METHOD" &&
-                  (sKey.endsWith(`#${targetSymName}.${method}`) || sKey.includes(`#${targetSymName}.${method}~`))
-                ) {
-                  return sKey;
-                }
-              }
-              return null;
-            };
-
-            if (receiverText === "this" || receiverText === "self") {
-              // this.m() cùng file / class
-              const callerSym = idx.symbols.get(callerKey);
-              if (callerSym && callerKey.includes(".")) {
-                const classPart = callerKey.split("#")[1]?.split(".")[0];
-                if (classPart) {
-                  const targetKey = `${filePath}#${classPart}.${method}`;
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: targetKey,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
-                  });
-                }
-              }
-            } else if (receiverText.startsWith("this.") || receiverText.startsWith("self.")) {
-              // this.x.m() (ENG-31 (3))
-              const fieldName = receiverText.split(".")[1] ?? "";
-              const callerSym = idx.symbols.get(callerKey);
-              let fieldType: string | undefined;
-
-              if (callerSym && callerKey.includes(".")) {
-                const classPart = callerKey.split("#")[1]?.split(".")[0];
-                if (classPart) {
-                  const classKey = `${filePath}#${classPart}`;
-                  fieldType =
-                    idx.field_types.get(`${classKey}.${fieldName}`) ??
-                    idx.field_types.get(`${filePath}#${fieldName}`);
-                }
-              }
-
-              if (fieldType) {
-                const typeImp = idx.imports.get(filePath)?.get(fieldType);
-                const effectiveType =
-                  typeImp && typeImp.source_file && typeImp.symbol_name !== "default"
-                    ? typeImp.symbol_name
-                    : fieldType;
-                const impls =
-                  idx.interface_impls.get(effectiveType) ??
-                  idx.interface_impls.get(fieldType);
-                if (impls && impls.length === 1) {
-                  const implClassKey = impls[0]!;
-                  const targetMethodKey = `${implClassKey}.${method}`;
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: targetMethodKey,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
-                  });
-                } else if (impls && impls.length > 1) {
-                  for (const implClassKey of impls) {
-                    const targetMethodKey = `${implClassKey}.${method}`;
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: targetMethodKey,
-                      confidence: "RESOLVED",
-                      ambiguous: true,
-                      call_count: 1,
-                    });
-                  }
-                } else {
-                  const resolvedKey = resolveMethodOnType(fieldType);
-                  if (resolvedKey) {
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: resolvedKey,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
-                  } else {
-                    external.push({
-                      caller: callerKey,
-                      line,
-                      receiver_chain: receiverChain,
-                      method,
-                      import_source: null,
-                    });
-                  }
-                }
-              } else {
-                external.push({
-                  caller: callerKey,
-                  line,
-                  receiver_chain: receiverChain,
-                  method,
-                  import_source: null,
-                });
-              }
-            } else {
-              // x.m()
-              const baseReceiver = receiverChain[0] ?? "";
-              const fullReceiver = receiverChain.join(".");
-              const imported =
-                idx.imports.get(filePath)?.get(fullReceiver) ??
-                idx.imports.get(filePath)?.get(baseReceiver);
-
-              if (imported && imported.source_file) {
-                // Đích trong file nội bộ. Thứ tự: (a) `C.m()` lớp/đối tượng import; (b) biến import giữ
-                // `new T()` (`export const svc = new Svc()`, ENG-22 "biến export có new T()") ⇒ tra kiểu ở file
-                // nguồn rồi tìm `T.m`; (c) namespace import `ns.f()`. Chỉ tạo cạnh khi đích có thật.
-                const src = imported.source_file;
-                const symName = imported.symbol_name === "default" ? baseReceiver : imported.symbol_name;
-                const exists = (k: string) => idx.symbols.has(k) || idx.functions.has(k);
-                let target: string | null = null;
-                if (imported.is_namespace && exists(`${src}#${method}`)) target = `${src}#${method}`;
-                if (!target && exists(`${src}#${symName}.${method}`)) target = `${src}#${symName}.${method}`;
-                if (!target) {
-                  const typeName =
-                    idx.field_types.get(`${src}#${symName}`) ??
-                    (imported.symbol_name === "default" ? idx.field_types.get(`${src}#default`) : undefined);
-                  if (typeName) {
-                    if (exists(`${src}#${typeName}.${method}`)) target = `${src}#${typeName}.${method}`;
-                    const typeImp = idx.imports.get(src)?.get(typeName);
-                    if (!target && typeImp?.source_file) {
-                      const tName = typeImp.symbol_name === "default" ? typeName : typeImp.symbol_name;
-                      if (exists(`${typeImp.source_file}#${tName}.${method}`)) target = `${typeImp.source_file}#${tName}.${method}`;
-                    }
-                  }
-                }
-                if (!target && exists(`${src}#${method}`)) target = `${src}#${method}`;
-
-                if (target) {
-                  rawEdges.push({
-                    caller: callerKey,
-                    callee: target,
-                    confidence: "RESOLVED",
-                    ambiguous: false,
-                    call_count: 1,
-                  });
-                } else {
-                  external.push({ caller: callerKey, line, receiver_chain: receiverChain, method, import_source: null });
-                }
-              } else if (imported && imported.import_source) {
-                external.push({
-                  caller: callerKey,
-                  line,
-                  receiver_chain: receiverChain,
-                  method,
-                  import_source: imported.import_source,
-                });
-              } else {
-                // Kiểm tra field_types cho biến cục bộ / module (ENG-22, ENG-31 (3))
-                let fieldType =
-                  idx.field_types.get(`${filePath}#${baseReceiver}`) ??
-                  idx.field_types.get(baseReceiver);
-
-                if (!fieldType) {
-                  let pNode: Node | null = node.parent;
-                  while (pNode && !FUNCTION_NODE_TYPES.has(pNode.type)) {
-                    pNode = pNode.parent;
-                  }
-                  if (pNode) {
-                    const scanLocal = (n: Node): void => {
-                      if (fieldType) return;
-                      if (n !== pNode && FUNCTION_NODE_TYPES.has(n.type)) return;
-                      if (n.type === "variable_declarator") {
-                        const nameNode = n.childForFieldName("name");
-                        const valNode = n.childForFieldName("value");
-                        if (nameNode?.text === baseReceiver && valNode?.type === "new_expression") {
-                          const ctor = valNode.childForFieldName("constructor");
-                          if (ctor) fieldType = ctor.text;
-                        }
-                      } else if (n.type === "assignment") {
-                        const left = n.childForFieldName("left");
-                        const right = n.childForFieldName("right");
-                        if (left?.text === baseReceiver && right?.type === "call") {
-                          const fn = right.childForFieldName("function");
-                          if (fn) fieldType = fn.text;
-                        }
-                      }
-                      for (let i = 0; i < n.childCount; i++) {
-                        const c = n.child(i);
-                        if (c) scanLocal(c);
-                      }
-                    };
-                    scanLocal(pNode);
-                  }
-                }
-
-                if (fieldType) {
-                  const typeImp = idx.imports.get(filePath)?.get(fieldType);
-                  const effectiveType =
-                    typeImp && typeImp.source_file && typeImp.symbol_name !== "default"
-                      ? typeImp.symbol_name
-                      : fieldType;
-                  const impls =
-                    idx.interface_impls.get(effectiveType) ??
-                    idx.interface_impls.get(fieldType);
-                  if (impls && impls.length === 1) {
-                    rawEdges.push({
-                      caller: callerKey,
-                      callee: `${impls[0]}.${method}`,
-                      confidence: "RESOLVED",
-                      ambiguous: false,
-                      call_count: 1,
-                    });
-                  } else if (impls && impls.length > 1) {
-                    for (const implClassKey of impls) {
-                      rawEdges.push({
-                        caller: callerKey,
-                        callee: `${implClassKey}.${method}`,
-                        confidence: "RESOLVED",
-                        ambiguous: true,
-                        call_count: 1,
-                      });
-                    }
-                  } else {
-                    const resolvedKey = resolveMethodOnType(fieldType);
-                    if (resolvedKey) {
-                      rawEdges.push({
-                        caller: callerKey,
-                        callee: resolvedKey,
-                        confidence: "RESOLVED",
-                        ambiguous: false,
-                        call_count: 1,
-                      });
-                    } else {
-                      external.push({
-                        caller: callerKey,
-                        line,
-                        receiver_chain: receiverChain,
-                        method,
-                        import_source: null,
-                      });
-                    }
-                  }
-                } else {
-                  external.push({
-                    caller: callerKey,
-                    line,
-                    receiver_chain: receiverChain,
-                    method,
-                    import_source: null,
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      for (let i = 0; i < node.childCount; i++) {
-        const child = node.child(i);
-        if (child) visit(child);
-      }
-    }
-
-    visit(root);
-  }
-
-  // ENG-33: Gộp cạnh theo (caller, callee), loại bỏ self-loop và cạnh tới CLASS (ENG-30, ENG-60)
-  const edgeMap = new Map<string, FunctionCallEdge>();
-  for (const e of rawEdges) {
-    if (e.caller === e.callee) continue; // Bỏ self-loop
-    const calleeSym = idx.symbols.get(e.callee);
-    if (calleeSym && calleeSym.kind === "CLASS") continue; // ENG-30: Không tới CLASS
-
-    const pairKey = `${e.caller}==>${e.callee}`;
-    const existing = edgeMap.get(pairKey);
-    if (!existing) {
-      edgeMap.set(pairKey, { ...e });
-    } else {
-      existing.call_count += e.call_count;
-      if (e.confidence === "RESOLVED") existing.confidence = "RESOLVED";
-      if (e.ambiguous) existing.ambiguous = true;
-    }
-  }
-
-  const edges = Array.from(edgeMap.values()).sort((a, b) => {
-    if (a.caller < b.caller) return -1;
-    if (a.caller > b.caller) return 1;
-    if (a.callee < b.callee) return -1;
-    if (a.callee > b.callee) return 1;
-    return 0;
-  });
-
-  applyMountPrefixes(files, idx, bindings);
-  return { edges, external, bindings };
-}
-
-function joinRoutePath(prefix: string, p: string): string {
-  const joined = `${prefix.replace(/\/+$/, "")}/${p.replace(/^\/+/, "")}`;
-  return joined.length > 1 ? joined.replace(/\/+$/, "") : "/";
-}
-
-/**
- * `12` Mục 1 (Express/Koa): `R.use(prefix, R2)` = tiền tố của `R2`; `11` ENG-40 ý 2: `path` = tiền tố mount
- * (`visited`), mount nhiều nơi ⇒ path nhỏ nhất. `R2` là router cùng file (so theo tên receiver) hoặc router
- * import mặc định từ file khác (mọi binding trong file đó). Chỉ đổi `binding.path` (dùng cho đặt tên);
- * `display_name` và khóa handler giữ path viết trong code nên id node không đổi.
- */
-function applyMountPrefixes(files: ParsedFile[], idx: SymbolIndex, bindings: RouteBinding[]): void {
-  type Mount = { prefix: string; fromFile: string; fromReceiver: string };
-  const fileMounts = new Map<string, Mount[]>(); // router import từ file khác: file đích ⇒ các chỗ mount
-  const localMounts = new Map<string, Mount[]>(); // router cùng file: `${file}::${receiver}` ⇒ các chỗ mount
-
-  // Python: tiền tố riêng của router (`X = APIRouter(prefix=…)`, `X = Blueprint(…, url_prefix=…)`) ⇒ ownPrefix;
-  // `R.include_router(T, prefix=…)` / `R.register_blueprint(T, url_prefix=…)` ⇒ mount của T (T = tên import,
-  // hoặc `mod.router` với `mod` là module import) ⇒ ghép: tiền tố ngoài + tiền tố riêng + path.
-  const ownPrefix = new Map<string, string>(); // `${file}::${receiver}` ⇒ tiền tố riêng
-  const kwString = (args: Node | null, names: string[]): string | null => {
-    for (let k = 0; k < (args?.namedChildCount ?? 0); k++) {
-      const a = args!.namedChild(k);
-      if (a?.type === "keyword_argument" && names.includes(a.childForFieldName("name")?.text ?? "")) {
-        return extractStaticString(a.childForFieldName("value"));
-      }
+    if (n.type === "call_expression") { // wrapper asyncHandler(fn) hoặc factory validate(schema)
+      const args = field(n, "arguments")?.namedChildren ?? [];
+      for (const a of args) if (isFuncLiteral(a) || a.type === "identifier" || a.type === "member_expression") { const r = resolveHandler(a, f, ctx, anonName, stmt); if (r) return r; }
+      const callee = field(n, "function");
+      if (callee?.type === "identifier") return resolveHandler(callee, f, ctx, anonName, stmt);
     }
     return null;
   };
-  const addMount = (map: Map<string, Mount[]>, key: string, m: Mount) => {
-    const list = map.get(key) ?? [];
-    list.push(m);
-    map.set(key, list);
-  };
-  for (const file of files) {
-    if (file.language !== "PYTHON") continue;
-    const visit = (node: Node): void => {
-      if (node.type === "assignment") {
-        const left = node.childForFieldName("left");
-        const right = node.childForFieldName("right");
-        const ctor = right?.type === "call" ? right.childForFieldName("function")?.text : undefined;
-        if (left?.type === "identifier" && (ctor === "APIRouter" || ctor === "Blueprint")) {
-          const p = kwString(right!.childForFieldName("arguments"), ["prefix", "url_prefix"]);
-          if (p) ownPrefix.set(`${file.path}::${left.text}`, p);
-        }
-      } else if (node.type === "call") {
-        const fn = node.childForFieldName("function");
-        const method = fn?.type === "attribute" ? fn.childForFieldName("attribute")?.text : undefined;
-        if (method === "include_router" || method === "register_blueprint") {
-          const args = node.childForFieldName("arguments");
-          const target = args?.namedChild(0) ?? null;
-          const prefix = kwString(args, ["prefix", "url_prefix"]) ?? "";
-          const mount: Mount = { prefix, fromFile: file.path, fromReceiver: fn!.childForFieldName("object")?.text ?? "" };
-          if (target?.type === "identifier") {
-            const imp = idx.imports.get(file.path)?.get(target.text);
-            if (imp?.source_file) addMount(localMounts, `${imp.source_file}::${imp.symbol_name || target.text}`, mount);
-            else addMount(localMounts, `${file.path}::${target.text}`, mount);
-          } else if (target?.type === "attribute") {
-            const mod = target.childForFieldName("object")?.text ?? "";
-            const recv = target.childForFieldName("attribute")?.text ?? "";
-            const imp = idx.imports.get(file.path)?.get(mod);
-            if (imp?.source_file) addMount(localMounts, `${imp.source_file}::${recv}`, mount);
-          }
-        }
-      }
-      for (let i = 0; i < node.namedChildCount; i++) {
-        const c = node.namedChild(i);
-        if (c) visit(c);
-      }
+
+  const handlerLike = (n: SyntaxNode) => isFuncLiteral(n) || n.type === "identifier" || n.type === "member_expression" || n.type === "call_expression";
+
+  // --- 2. Express / Koa / Fastify, Next.js ---
+  for (const f of files) {
+    if (f.is_py) continue;
+    const root = f.tree.rootNode;
+    const rvars = routerVarsOf(root);
+    const modFn = idx.functions.get(`${f.path}#<module>`)!;
+    const routerish = (chain: string[], params: Set<string>) => {
+      const r = chain[0];
+      if (!r) return false;
+      if (rvars.has(r)) return true;
+      return ROUTER_NAMES.test(chain[chain.length - 1] ?? "") || ROUTER_NAMES.test(r) || (params.has(r) && ROUTER_NAMES.test(r));
     };
-    visit(file.tree.rootNode);
-  }
-
-  for (const file of files) {
-    if (file.language !== "TYPESCRIPT" && file.language !== "TSX" && file.language !== "JAVASCRIPT") continue;
-    const visit = (node: Node): void => {
-      if (node.type === "call_expression") {
-        const fn = node.childForFieldName("function");
-        const args = node.childForFieldName("arguments");
-        if (fn?.type === "member_expression" && fn.childForFieldName("property")?.text === "use" && args && args.namedChildCount >= 2) {
-          const prefix = extractStaticString(args.namedChild(0));
-          const target = args.namedChild(args.namedChildCount - 1);
-          const receiver = fn.childForFieldName("object")?.text ?? "";
-          if (prefix !== null && target?.type === "identifier") {
-            const mount: Mount = { prefix, fromFile: file.path, fromReceiver: receiver };
-            const imported = idx.imports.get(file.path)?.get(target.text);
-            if (imported?.source_file) {
-              const list = fileMounts.get(imported.source_file) ?? [];
-              list.push(mount);
-              fileMounts.set(imported.source_file, list);
-            } else {
-              const key = `${file.path}::${target.text}`;
-              const list = localMounts.get(key) ?? [];
-              list.push(mount);
-              localMounts.set(key, list);
-            }
-          }
+    walk(root, (n) => {
+      if (n.type !== "call_expression") return;
+      const fnNode = field(n, "function");
+      if (fnNode?.type !== "member_expression") return;
+      const verb = field(fnNode, "property")?.text ?? "";
+      const args = field(n, "arguments")?.namedChildren ?? [];
+      let recvChain: string[] = [];
+      let path: string | null = null;
+      let handlers: SyntaxNode[] = [];
+      const method = verb.toUpperCase();
+      const recvNode = field(fnNode, "object");
+      if (VERBS.has(verb) && recvNode) {
+        if (recvNode.type === "call_expression" && field(recvNode, "function")?.type === "member_expression" && field(field(recvNode, "function")!, "property")?.text === "route") {
+          // R.route(path).verb(...fns)
+          const rr = field(recvNode, "function")!;
+          recvChain = chainOfTs(field(rr, "object")).chain;
+          path = staticString(field(recvNode, "arguments")?.namedChildren[0]);
+          handlers = args;
+        } else {
+          recvChain = chainOfTs(recvNode).chain;
+          path = staticString(args[0]);
+          handlers = args.slice(1);
+          if (path === null) return;
         }
+      } else return;
+      if (handlers.length === 0 || !handlers.every(handlerLike)) return;
+      const encl = enclosingFunctionOf(idx, n, modFn);
+      const params = new Set(encl.params);
+      if (!routerish(recvChain, params)) return;
+      if (handlers[handlers.length - 1].type === "call_expression" && !isFuncLiteral(handlers[handlers.length - 1])) {
+        // lời gọi bọc: chấp nhận khi tìm được hàm bên trong
       }
-      for (let i = 0; i < node.namedChildCount; i++) {
-        const c = node.namedChild(i);
-        if (c) visit(c);
+      const stmt = enclosingStatement(n);
+      const prefix = (varPrefix.get(`${f.path}|${recvChain[0]}`) ?? "") + (filePrefix.get(f.path) ?? "");
+      const full = `${prefix}${path ?? ""}` || "/";
+      const anonName = path !== null ? `<${method} ${full}>` : `<anon@L${row1(n)}>`;
+      const hKey = resolveHandler(handlers[handlers.length - 1], f, encl, anonName, stmt);
+      if (!hKey) return;
+      const mws: string[] = [];
+      for (const m of handlers.slice(0, -1)) { const k = resolveHandler(m, f, encl, `<anon@L${row1(m)}>`, stmt); if (k) mws.push(k); }
+      bindings.push({
+        file_path: f.path, line_start: row1(stmt), line_end: rowEnd1(stmt), kind: "HTTP", method, path: path === null ? null : full,
+        handler: hKey, middlewares: mws, display_name: `${recvChain.join(".")}.${verb}('${path ?? ""}')`,
+      });
+    });
+
+    // Next.js route handlers
+    const rm = /(?:^|\/)app\/(.*)route\.(?:ts|js)$/.exec(f.path);
+    if (rm) {
+      const segs = rm[1].split("/").filter((s) => s && !/^\(.*\)$/.test(s));
+      const p = `/${segs.join("/")}`;
+      for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+        const k = `${f.path}#${m}`;
+        const fi = idx.functions.get(k);
+        if (fi) bindings.push({ file_path: f.path, line_start: fi.line_start, line_end: fi.line_end, kind: "HTTP", method: m, path: p, handler: k, middlewares: [], display_name: `${m} ${p}` });
       }
-    };
-    visit(file.tree.rootNode);
-  }
-  if (fileMounts.size === 0 && localMounts.size === 0 && ownPrefix.size === 0) return;
-
-  // Tiền tố đầy đủ của router `receiver` trong `file`: tiền tố ngoài (đệ quy qua chỗ mount, visited chống vòng,
-  // mount nhiều nơi ⇒ path nhỏ nhất) + tiền tố riêng của router.
-  const resolvePrefix = (file: string, receiver: string, visited: Set<string>): string => {
-    const key = `${file}::${receiver}`;
-    if (visited.has(key)) return "";
-    visited.add(key);
-    const own = ownPrefix.get(key) ?? "";
-    const mounts = [...(localMounts.get(key) ?? []), ...(fileMounts.get(file) ?? [])];
-    if (mounts.length === 0) return own;
-    const outer = mounts
-      .map((m) => joinRoutePath(resolvePrefix(m.fromFile, m.fromReceiver, new Set(visited)), m.prefix))
-      .sort((a, b) => (a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0))[0] ?? "";
-    return own ? joinRoutePath(outer || "/", own) : outer;
-  };
-
-  for (const b of bindings) {
-    if (b.path === null || b.kind !== "HTTP") continue;
-    // display_name: `router.post('/x')` (Express) hoặc `@router.post('/x')` (Python) ⇒ receiver `router`
-    const receiver = b.display_name.slice(0, b.display_name.lastIndexOf(".")).replace(/^@/, "");
-    const prefix = resolvePrefix(b.file_path, receiver, new Set());
-    if (prefix && prefix !== "/") b.path = joinRoutePath(prefix, b.path);
-  }
-}
-
-// ENG-35: Đồ thị file từ đồ thị cạnh hàm
-export function fileGraph(
-  edges: FunctionCallEdge[]
-): Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>> {
-  const fg = new Map<
-    string,
-    Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>
-  >();
-
-  for (const edge of edges) {
-    const fileA = edge.caller.split("#")[0] ?? "";
-    const fileB = edge.callee.split("#")[0] ?? "";
-    if (!fileA || !fileB || fileA === fileB) continue; // bỏ self-loop
-
-    let adj = fg.get(fileA);
-    if (!adj) {
-      adj = new Map();
-      fg.set(fileA, adj);
     }
-
-    const cur = adj.get(fileB);
-    if (!cur) {
-      adj.set(fileB, { weight: edge.call_count, confidence: edge.confidence });
-    } else {
-      cur.weight += edge.call_count;
-      if (edge.confidence === "RESOLVED") {
-        cur.confidence = "RESOLVED";
-      }
+    const pm = /(?:^|\/)pages\/api\/(.*)\.(?:ts|js)$/.exec(f.path);
+    if (pm) {
+      const def = [...idx.functions.values()].find((x) => x.file === f.path && !x.is_module && x.is_exported);
+      if (def) bindings.push({ file_path: f.path, line_start: def.line_start, line_end: def.line_end, kind: "HTTP", method: null, path: `/api/${pm[1].replace(/\/index$/, "")}`, handler: def.key, middlewares: [], display_name: `/api/${pm[1]}` });
     }
   }
 
-  return fg;
-}
-
-// Mục 4: Nhận diện EntryPoint (REGISTERED, GENERIC)
-export function findEntries(
-  files: ParsedFile[],
-  idx: SymbolIndex,
-  graph: CallGraphResult,
-  scope: string,
-  _report?: IngestionReport
-): EntryPoint[] {
-  void _report;
-  const entries: EntryPoint[] = [];
-  const seenKeys = new Set<string>();
-
-  // 1. REGISTERED từ graph.bindings (ENG-40)
-  for (const binding of graph.bindings) {
-    // ENG-05: Entry chỉ lấy trong scope (root_dir_offset)
-    if (scope && !binding.file_path.startsWith(scope)) continue;
-
-    if (!seenKeys.has(binding.handler)) {
-      seenKeys.add(binding.handler);
-      entries.push({
-        key: binding.handler,
-        binding,
-        source: "REGISTERED",
+  // --- 3. NestJS ---
+  const nestMw: Record<string, [string, string]> = { UseGuards: ["canActivate", "guard"], UseInterceptors: ["intercept", "interceptor"], UsePipes: ["transform", "pipe"] };
+  for (const ci of [...idx.classes.values()].sort((a, b) => cmp(a.key, b.key))) {
+    const ctl = ci.decorators.find((d) => d.name === "Controller");
+    if (!ctl) continue;
+    const prefix = stripQuotes(ctl.args[0] ?? "").replace(/^\/|\/$/g, "");
+    const classMw = ci.decorators.filter((d) => nestMw[d.name]);
+    for (const [mname, fnKey] of ci.methods) {
+      const decos = idx.decorators.get(fnKey) ?? [];
+      const route = decos.find((d) => ["Get", "Post", "Put", "Patch", "Delete", "All"].includes(d.name));
+      if (!route) continue;
+      const sub = stripQuotes(route.args[0] ?? "").replace(/^\/|\/$/g, "");
+      const path = `/${[prefix, sub].filter(Boolean).join("/")}`;
+      const mws: string[] = [];
+      for (const d of [...classMw.map((x) => ({ name: x.name, args: x.args })), ...decos.filter((x) => nestMw[x.name])]) {
+        for (const a of d.args) {
+          const hit = resolveTypeToMethod(idx, ci.file, a, nestMw[d.name][0]);
+          if (hit) mws.push(hit[0].key);
+        }
+      }
+      const fi = idx.functions.get(fnKey)!;
+      bindings.push({
+        file_path: ci.file, line_start: fi.line_start, line_end: fi.line_end, kind: "HTTP", method: route.name.toUpperCase(), path,
+        handler: fnKey, middlewares: mws, display_name: `${ci.name}.${mname}`,
       });
     }
   }
 
-  // 2. GENERIC: Nếu không có REGISTERED nào (ENG-40 ý 3, spec 12 Mục 2 ý 1)
-  if (entries.length === 0) {
-    const fg = fileGraph(graph.edges);
-
-    // Tính in-degree của từng file
-    const inDegree = new Map<string, number>();
-    for (const file of files) {
-      inDegree.set(file.path, 0);
-    }
-    for (const [, adj] of fg) {
-      for (const [target] of adj) {
-        inDegree.set(target, (inDegree.get(target) ?? 0) + 1);
-      }
-    }
-
-    for (const file of files) {
-      if (scope && !file.path.startsWith(scope)) continue;
-      if ((inDegree.get(file.path) ?? 0) > 0) continue; // Phải có in-degree = 0
-
-      // Kiểm tra segment thư mục hoặc token cuối stem thuộc danh sách GENERIC
-      const normPath = file.path.replace(/\\/g, "/");
-      const segments = normPath.split("/");
-      const fileName = segments[segments.length - 1] ?? "";
-      const stem = fileName.replace(/\.[^.]+$/, "");
-      const stemTokens = stem.toLowerCase().split(/[-_.]/);
-      const lastStemToken = stemTokens[stemTokens.length - 1] ?? "";
-
-      const hasMatchingSegment = segments.some((s) =>
-        GENERIC_ENTRY_TOKENS.has(s.toLowerCase())
-      );
-      const hasMatchingStem = GENERIC_ENTRY_TOKENS.has(lastStemToken);
-
-      if (hasMatchingSegment || hasMatchingStem) {
-        // Mọi hàm/method export trong file là entry GENERIC
-        for (const [key, sym] of idx.symbols.entries()) {
-          if (
-            sym.file_path === file.path &&
-            sym.is_exported &&
-            (sym.kind === "FUNCTION" || sym.kind === "METHOD")
-          ) {
-            if (!seenKeys.has(key)) {
-              seenKeys.add(key);
-              entries.push({
-                key,
-                binding: null,
-                source: "GENERIC",
-              });
-            }
-          }
+  // --- 4. Flask / FastAPI / Click-Typer ---
+  const prefixOfPyVar = new Map<string, string>();
+  for (const f of files) {
+    if (!f.is_py) continue;
+    walk(f.tree.rootNode, (n) => {
+      if (n.type !== "assignment") return;
+      const l = field(n, "left"), r = field(n, "right");
+      if (l?.type === "identifier" && r?.type === "call") {
+        const fnName = field(r, "function")?.text ?? "";
+        if (/(APIRouter|Blueprint|Flask|FastAPI)$/.test(fnName)) {
+          const kw = (field(r, "arguments")?.namedChildren ?? []).find((a) => a.type === "keyword_argument" && /^(prefix|url_prefix)$/.test(field(a, "name")?.text ?? ""));
+          if (kw) prefixOfPyVar.set(`${f.path}|${l.text}`, stripQuotes(field(kw, "value")?.text ?? ""));
         }
       }
+    });
+  }
+  for (const [fnKey, decos] of [...idx.decorators.entries()].sort((a, b) => cmp(a[0], b[0]))) {
+    const fi = idx.functions.get(fnKey);
+    if (!fi) continue;
+    const isPy = idx.files.get(fi.file)?.is_py;
+    if (!isPy) continue;
+    const route = decos.find((d) => d.chain.length >= 2 && (VERBS.has(d.name) || d.name === "route"));
+    if (route) {
+      let method = route.name === "route" ? "GET" : route.name.toUpperCase();
+      const m = /methods\s*=\s*\[([^\]]*)\]/.exec(route.args.join(","));
+      if (route.name === "route" && m) method = stripQuotes(m[1].split(",")[0].trim()).toUpperCase() || "GET";
+      const subPath = stripQuotes(route.args.find((a) => /^["']/.test(a)) ?? "");
+      const prefix = prefixOfPyVar.get(`${fi.file}|${route.chain[0]}`) ?? "";
+      const path = `${prefix}${subPath}` || "/";
+      const mws: string[] = [];
+      for (const d of decos) {
+        if (d === route) continue;
+        const k = `${fi.file}#${d.name}`;
+        const same = idx.functions.get(k);
+        if (same) mws.push(same.key);
+        else { const b = idx.imports.get(fi.file)?.get(d.name); const rk = b ? resolveBinding(idx, fi.file, b, d.name) : null; if (rk && idx.functions.has(rk)) mws.push(rk); }
+      }
+      // Depends(fn)
+      for (const mm of fi.node.text.slice(0, fi.node.text.indexOf(":\n") > 0 ? fi.node.text.indexOf(":\n") : 400).matchAll(/Depends\(\s*([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+        const nm = mm[1].split(".").pop()!;
+        const same = idx.functions.get(`${fi.file}#${nm}`);
+        if (same) mws.push(same.key);
+        else { const b = idx.imports.get(fi.file)?.get(nm); const rk = b ? resolveBinding(idx, fi.file, b, nm) : null; if (rk && idx.functions.has(rk)) mws.push(rk); }
+      }
+      bindings.push({
+        file_path: fi.file, line_start: fi.line_start, line_end: fi.line_end, kind: "HTTP", method, path, handler: fnKey,
+        middlewares: [...new Set(mws)], display_name: `@${route.chain.join(".")}(${route.args[0] ?? ""})`,
+      });
+    }
+    const cmd = decos.find((d) => d.name === "command" && d.chain.length >= 2);
+    if (cmd) {
+      bindings.push({ file_path: fi.file, line_start: fi.line_start, line_end: fi.line_end, kind: "COMMAND", method: null, path: stripQuotes(cmd.args[0] ?? fi.name), handler: fnKey, middlewares: [], display_name: fi.name });
     }
   }
 
-  // 3. PROGRAM: Nếu không có REGISTERED và không có GENERIC (ENG-51 ý 3, D-58, spec 12 Mục 2)
-  if (entries.length === 0) {
-    // 3.1 Python: Khối if __name__ == "__main__":
-    for (const file of files) {
-      if (scope && !file.path.startsWith(scope)) continue;
-      if (file.language !== "PYTHON") continue;
-
-      let hasMainBlock = false;
-      const scanMain = (n: Node): void => {
-        if (hasMainBlock) return;
-        if (n.type === "if_statement") {
-          const cond = n.childForFieldName("condition");
-          if (cond) {
-            const condText = cond.text;
-            if (
-              (condText.includes("__name__") && condText.includes("__main__")) ||
-              /__name__\s*==\s*['"]__main__['"]/.test(condText) ||
-              /['"]__main__['"]\s*==\s*__name__/.test(condText)
-            ) {
-              hasMainBlock = true;
-              return;
-            }
-          }
-        }
-        for (let i = 0; i < n.namedChildCount; i++) {
-          const c = n.namedChild(i);
-          if (c) scanMain(c);
-        }
-      };
-      scanMain(file.tree.rootNode);
-
-      if (hasMainBlock) {
-        const modKey = `${file.path}#<module>`;
-        if (!idx.symbols.has(modKey)) {
-          const modInfo: FunctionInfo = {
-            key: modKey,
-            kind: "FUNCTION",
-            name: "<module>",
-            file_path: file.path,
-            line_start: 1,
-            line_end: file.tree.rootNode.endPosition.row + 1,
-            is_exported: false,
-            params: [],
-            locals: [],
-            complexity: 0,
-          };
-          idx.symbols.set(modKey, modInfo);
-          idx.functions.set(modKey, modInfo);
-        }
-        if (!seenKeys.has(modKey)) {
-          seenKeys.add(modKey);
-          entries.push({
-            key: modKey,
-            binding: null,
-            source: "PROGRAM",
-          });
-        }
-      }
-    }
-
-    // 3.2 Hàm main có thân trong TS/JS hoặc các ngôn ngữ khác
-    for (const [key, func] of idx.functions.entries()) {
-      if (scope && !func.file_path.startsWith(scope)) continue;
-      if (func.name.toLowerCase() === "main" && func.name !== "<module>") {
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          entries.push({
-            key,
-            binding: null,
-            source: "PROGRAM",
-          });
-        }
-      }
-    }
-  }
-
-  // Sắp xếp theo key (ENG-01 UTF-16)
-  entries.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  return entries;
+  return bindings.sort((a, b) => cmp(a.file_path, b.file_path) || a.line_start - b.line_start || cmp(a.handler, b.handler));
 }
+
+function enclosingFunctionOf(idx: SymbolIndex, n: SyntaxNode, fallbackFn: FunctionInfo): FunctionInfo {
+  for (let p: SyntaxNode | null = n; p; p = p.parent) {
+    const k = idx.functionByNode.get(p.id);
+    if (k) return idx.functions.get(k)!;
+  }
+  return fallbackFn;
+}
+
+// ---------- đồ thị ----------
+export function buildCallGraph(idx: SymbolIndex, techStack: string[], packageEntryFiles: string[]): CallGraph {
+  void techStack;
+  const bindings = findRoutes(idx);
+
+  const sites: CallSite[] = [];
+  const external: ExternalCall[] = [];
+  const merged = new Map<string, FunctionCallEdge>();
+
+  const addEdge = (caller: string, t: Target, count = 1) => {
+    if (caller === t.key) { /* đệ quy giữ ở đồ thị hàm */ }
+    const k = `${caller}\u0000${t.key}`;
+    const e = merged.get(k);
+    if (e) {
+      e.call_count += count;
+      if (t.confidence === "RESOLVED") e.confidence = "RESOLVED";
+      e.ambiguous = e.ambiguous || t.ambiguous;
+    } else merged.set(k, { caller, callee: t.key, confidence: t.confidence, ambiguous: t.ambiguous, call_count: count });
+  };
+
+  for (const f of [...idx.files.values()].sort((a, b) => cmp(a.path, b.path))) {
+    const modFn = idx.functions.get(`${f.path}#<module>`)!;
+    walk(f.tree.rootNode, (n) => {
+      if (!isCallNode(n)) return;
+      const shape = calleeShape(n);
+      if (!shape) return;
+      const caller = enclosingFunctionOf(idx, n, modFn);
+      // đăng ký route: lời gọi R.verb(...) thuộc ENG-34, vẫn xử lý bình thường (R không phải hàm nội bộ)
+      const r = resolveCall(idx, caller, shape);
+      if (r.targets.length > 0) {
+        for (const t of r.targets) { addEdge(caller.key, t); sites.push({ caller: caller.key, callee: t.key, node: n, confidence: t.confidence, ambiguous: t.ambiguous }); }
+      } else {
+        external.push({
+          caller: caller.key, line: row1(n), receiver_chain: shape.bare ? [] : shape.chain, method: shape.method,
+          import_source: r.importSource, node: n,
+        });
+      }
+    });
+  }
+
+  // ENG-34: cạnh đăng ký route
+  for (const b of bindings) {
+    const f = idx.functions.get(b.handler);
+    if (!f) continue;
+    const owner = f.is_anon ? `${b.file_path}#<module>` : (idx.functions.get(b.handler)?.class_key ? b.handler : `${b.file_path}#<module>`);
+    if (owner === b.handler) continue;
+    if (idx.functions.has(owner)) {
+      // hàm chứa lệnh đăng ký có thể là hàm khác (reg(app)); tìm theo vị trí
+      const container = [...idx.functions.values()].filter((x) => x.file === b.file_path && !x.is_anon && x.line_start <= b.line_start && x.line_end >= b.line_end && !x.is_module)
+        .sort((a, c) => (c.line_start - a.line_start))[0]?.key ?? owner;
+      addEdge(container, { key: b.handler, confidence: "RESOLVED", ambiguous: false });
+      for (const m of b.middlewares) addEdge(container, { key: m, confidence: "RESOLVED", ambiguous: false });
+    }
+  }
+
+  const edges = [...merged.values()].sort((a, b) => cmp(a.caller, b.caller) || cmp(a.callee, b.callee));
+
+  // ENG-35: đồ thị file
+  const fileGraph = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
+  for (const f of idx.files.keys()) fileGraph.set(f, new Map());
+  for (const e of edges) {
+    const fa = idx.functions.get(e.caller)?.file, fb = idx.functions.get(e.callee)?.file;
+    if (!fa || !fb || fa === fb) continue;
+    const m = fileGraph.get(fa)!;
+    const cur = m.get(fb);
+    if (cur) { cur.weight += e.call_count; if (e.confidence === "RESOLVED") cur.confidence = "RESOLVED"; }
+    else m.set(fb, { weight: e.call_count, confidence: e.confidence });
+  }
+
+  const entries = findEntries(idx, bindings, fileGraph, packageEntryFiles);
+  return { edges, sites, external, bindings, entries, file_graph: fileGraph };
+}
+
+// ---------- entry (Mục 4) ----------
+function findEntries(idx: SymbolIndex, bindings: RouteBinding[], fg: CallGraph["file_graph"], packageEntryFiles: string[]): EntryPoint[] {
+  const entries: EntryPoint[] = [];
+  const seen = new Set<string>();
+  const add = (e: EntryPoint) => { const k = `${e.source}|${e.key}`; if (!seen.has(k)) { seen.add(k); entries.push(e); } };
+  for (const b of bindings) add({ key: b.handler, binding: b, source: "REGISTERED" });
+
+  // GENERIC (D-58): file vai trò + in-degree 0 trong đồ thị file ⇒ hàm/method export
+  const indeg = new Map<string, number>();
+  for (const [, m] of fg) for (const t of m.keys()) indeg.set(t, (indeg.get(t) ?? 0) + 1);
+  const registeredFiles = new Set(bindings.map((b) => b.file_path));
+  if (bindings.length === 0 || true) {
+    for (const f of [...idx.files.keys()].sort(cmp)) {
+      if (registeredFiles.has(f)) continue;
+      if (!hasRoleName(f) || (indeg.get(f) ?? 0) > 0) continue;
+      const base = f.slice(f.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "").toLowerCase();
+      if (/^(index|main|app|server)$/.test(base)) continue; // bootstrap, không phải entry nghiệp vụ
+      for (const fi of [...idx.functions.values()].filter((x) => x.file === f && !x.is_module && !x.is_anon && x.is_exported && x.kind !== "VARIABLE").sort((a, b) => cmp(a.key, b.key))) {
+        if (fi.class_key && fi.name.endsWith(".constructor")) continue;
+        add({ key: fi.key, binding: null, source: "GENERIC" });
+      }
+    }
+  }
+
+  // PROGRAM (D-58)
+  for (const fi of [...idx.functions.values()].sort((a, b) => cmp(a.key, b.key))) {
+    const isPy = idx.files.get(fi.file)?.is_py;
+    if (!fi.is_module && fi.name === "main" && fi.body && fi.kind === "FUNCTION") add({ key: fi.key, binding: null, source: "PROGRAM" });
+    if (fi.is_module && isPy && /if\s+__name__\s*==\s*["']__main__["']/.test(idx.files.get(fi.file)!.source)) add({ key: fi.key, binding: null, source: "PROGRAM" });
+    if (fi.is_module && packageEntryFiles.some((p) => fi.file.endsWith(p.replace(/^\.\//, "")))) add({ key: fi.key, binding: null, source: "PROGRAM" });
+  }
+  return entries.sort((a, b) => cmp(a.key, b.key));
+}
+
+export type { FunctionInfo };
