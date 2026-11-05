@@ -1,9 +1,3 @@
-// 03 Mục 6.8: không đăng nhập, không gọi DB/AI, trả 200 text/plain "ok".
+// 03 Mục 6.8 — healthcheck: không đăng nhập, không DB, không AI, không log body.
 export const dynamic = "force-dynamic";
-
-export function GET(): Response {
-  return new Response("ok", {
-    status: 200,
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-  });
-}
+export const GET = () => new Response("ok", { status: 200, headers: { "content-type": "text/plain" } });

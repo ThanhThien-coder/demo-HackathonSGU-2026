@@ -1,36 +1,17 @@
 import type { ProgressResponse } from "@/contracts";
-import { authenticateRequest } from "@/server/auth";
-import { toErrorResponse } from "@/server/errors";
-import { getSessionProgress } from "@/server/progress";
+import { requireUser } from "@/server/auth";
+import { sql } from "@/server/db";
+import { handle } from "@/server/errors";
+import { loadProgress } from "@/server/progress";
+import { dbRead, getOwnedSession } from "@/server/store";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Next 15: params cua route dong luon la Promise (kieu khac lam next build bao loi).
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
-
-// 03_API_VA_LUU_TRU Muc 2 dong 13: GET /api/sessions/{session_id}/progress
-// Chi doc DB (graph_skeleton + node_progress + node_runs => deriveNodeStates), khong engine, khong AI
-export async function GET(
-  request: Request,
-  context: RouteContext
-): Promise<Response> {
-  try {
-    const user = await authenticateRequest(request);
-    const { id: sessionId } = await context.params;
-
-    const progress = await getSessionProgress(sessionId, user.id);
-
-    const responseBody: ProgressResponse = {
-      progress,
-    };
-
-    return new Response(JSON.stringify(responseBody), {
-      status: 200,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
-}
+// Chỉ đọc DB (graph_skeleton + node_progress + node_runs ⇒ deriveNodeStates), không engine, không AI
+export const GET = (req: Request, ctx: { params: Promise<{ id: string }> }) => handle<ProgressResponse>(async () => {
+  const u = await requireUser(req);
+  const { id } = await ctx.params;
+  const s = await getOwnedSession(id, u.userId);
+  return { progress: await dbRead(() => loadProgress(sql, s)) };
+});
