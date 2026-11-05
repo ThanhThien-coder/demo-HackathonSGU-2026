@@ -11,20 +11,22 @@ Mức độ: **Nặng** là ban giám khảo thấy ngay khi mở bài. **Vừa*
 | Mã | Lỗi | Nguyên nhân | Người sửa |
 | :-- | :-- | :-- | :-- |
 | X01 | Mọi bài báo "Chưa phân tích được" | App gửi `thinkingBudget: 0`, Google trả lỗi 400 | Phat107, commit `e94055b` |
+| X02 | Báo nhầm: thiếu nút zoom | Nút phóng to, thu nhỏ, xem toàn cảnh đã có ở `CanvasToolbar.tsx` | Không cần sửa |
 
 ## Vai B — Engine
 
 | Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | B-01 | Nặng | Bài NestJS hiện code của method khác. BrewLite 11/17 route, repo demo 14/18 bài | Quét repo NestJS chưa từng quét, mở `Get Order`: bước đầu không được có `create` | `symbols.ts`, `getStartLineWithDecorators` | Có bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, chưa vào `main` | |
-| B-02 | Nặng | Capstone lấy từ file test (E06-12) | Xem bài Capstone: file không được là `.spec` hay `test_` | `nodes.ts`, `selective.ts`, TASK_20 | Chưa làm | |
+| B-02 | Nặng | Capstone lấy từ file test (E06-12). Với BrewLite, bài này còn hiện làm bài đang học ở đầu đồ thị | Xem bài Capstone: file không được là `.spec` hay `test_` | `nodes.ts`, `selective.ts`, TASK_20 | Chưa làm | còn lỗi |
 | B-03 | Vừa | `config.get()` thành route giả: `List Jwt_expires_ins`, `Charge` | Quét BrewLite, tìm 2 bài này | `callgraph.ts`, TASK_20 | Chưa làm | còn lỗi |
 | B-04 | Vừa | Nhiều bài mở sẵn: BrewLite 13/20, `nestjs/nest` 19/20 | Quét repo, đếm bài chưa khóa lúc đầu | `nodes.ts`, TASK_21, thêm D-73 | Chưa làm, đổi cách khóa bài nên cần cân nhắc | còn lỗi |
-| B-05 | Vừa | Nhiều node lẻ, bản đồ dàn hàng ngang quá dài | Mở bản đồ BrewLite | `nodes.ts`, TASK_21; cần thêm D-01 | Chưa làm | |
+| B-05 | Vừa | Nhiều node lẻ, bản đồ dàn hàng ngang quá dài | Mở bản đồ BrewLite | `nodes.ts`, TASK_21; cần thêm D-01 | Chưa làm | còn lỗi |
 | B-06 | Vừa | BrewLite và `nestjs/nest` có 0 luồng tới tầng dữ liệu. Nghi engine chưa nhận lời gọi Prisma | Xem nhãn tầng của bước gọi Prisma | Chưa xác định | Chưa xác minh | |
 | B-07 | Vừa | Repo Java báo không có code (E06-10) | Quét `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang` | Chưa xác định | Chưa xác minh | |
 | B-08 | Nhẹ | Có node 0 bước (E06-11), có thể đã hết sau TASK_16 | Chạy lại repo demo, mở từng bài | Chưa xác định | Cần chạy lại | |
 | B-09 | Nhẹ | `tech_stack` lẫn thư viện dev và frontend | Xem danh sách thư viện ở Tổng quan | Tầng nhận diện dự án | Chưa làm | còn lỗi |
+| B-10 | Nhẹ | Hiện cảnh báo "Thời gian phân tích đồ thị (3070ms) vượt mức khuyến nghị (600ms)" cho người học. Mốc 600ms chỉ là khuyến nghị, không ảnh hưởng kết quả | Quét BrewLite trên site | Xem lại `ENGINE_BUDGET_MS` trên Vercel, hoặc Vai D không hiện cảnh báo này cho người học | Chưa làm | còn lỗi |
 
 Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu không, repo đã phân tích vẫn dùng phiên và phân tích AI cũ. Khi đổi, các phiên cũ phải quét lại repo.
 
@@ -39,8 +41,7 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 
 | Mã | Mức | Lỗi | Cách test | Sửa ở đâu | Trạng thái | Kết quả test |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| D-01 | Vừa | Bản đồ mở ở zoom 0,20–0,32, chữ gần như không đọc được | Mở bản đồ 20 node | `DagCanvas.tsx`: bỏ `fitView` lúc mở, căn vào bài đang học; sửa T32 | Chưa làm | |
-| D-02 | Vừa | Thiếu nút Controls dù spec yêu cầu | Tìm nút zoom trên bản đồ | `DagCanvas.tsx` | Chưa làm | |
+| D-01 | Vừa | Bản đồ mở ở zoom 0,20–0,32, chữ gần như không đọc được, card hai đầu hàng còn bị cắt | Mở bản đồ 20 node | `DagCanvas.tsx`: bỏ `fitView` lúc mở, căn vào bài đang học; sửa T32 | Chưa làm | còn lỗi |
 | D-03 | Nhẹ | Nhãn "Luồng chính" gây hiểu sai, nên là "Lộ trình học chính" | Xem Tổng quan | `RepoOverviewModal.tsx` | Chưa làm | |
 | D-04 | Nhẹ | Thông báo lỗi repo thiếu phần hướng dẫn của spec (E06-06, E06-07) | Nhập repo không tồn tại, repo không có code | `src/lib/messages.ts` | Chưa làm | |
 | D-05 | Nặng | Cửa sổ Tổng quan dài hơn màn hình thì bị cắt mất đầu và cuối, không cuộn được, không thấy tiêu đề và nút đóng. Các `Dialog` nội dung dài khác cũng có thể bị | Mở Tổng quan của BrewLite ở màn 1920×1080 | `src/components/ui/Dialog.tsx`: thêm `max-h-[calc(100vh-2rem)]`, `flex flex-col`, phần thân `overflow-y-auto` | Chưa làm | còn lỗi |
