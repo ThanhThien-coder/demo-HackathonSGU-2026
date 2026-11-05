@@ -1,818 +1,345 @@
-// Node thuật toán, ghép node, cạnh, Display Budget, Capstone — spec 11 Mục 9, 11 (ENG-90, 91, 110, 111, 112, 114), D-07, D-08, D-12, D-56.
-import type { Node } from "web-tree-sitter";
-import {
-  CONFIG,
-  type ExecutionTraceStep,
-  type GraphEdge,
-  type HybridArchitecturalNode,
-  type IngestionReport,
-} from "@/contracts";
-import { IngestionError } from "../ingest/types";
-import { getAdapter } from "./registry";
-import { cognitiveComplexity } from "./complexity";
-import { hash6, nameCandidate, slug } from "./naming";
-import { tarjanScc } from "./tarjan";
-import type {
-  Candidate,
-  EngineContext,
-  FunctionInfo,
-} from "./types";
+// 11 Mục 9–11 — ghép node: ứng viên, node thuật toán, node ảo, id (D-08), cạnh (D-07, D-56, D-73), Display Budget, Capstone.
+import { CONFIG } from "@/contracts/config";
+import type { ExecutionTraceStep, GraphEdge, HybridArchitecturalNode, IngestOutput } from "@/contracts";
+import { isDataSink } from "./callgraph";
+import type { EngineContext } from "./slicing";
+import { buildAlgoSteps, buildSlice } from "./slicing";
+import type { Candidate } from "./slicing";
+import { baseTitle, dedupeTitles, hash6, slug } from "./naming";
+import { layoutNodes, longestPath, uncleBob } from "./graphalgo";
+import { cmp } from "./model";
+import { adapterById, tierOfLanguage } from "./registry";
+import { isTestPath } from "../ingest/prune";
 
-/**
- * Tính điểm Cognitive Complexity cho một AST statement theo ENG-71.
- */
-function calculateStmtComplexity(n: Node): number {
-  let score = 0;
-  function walk(curr: Node, nesting: number): void {
-    const type = curr.type;
-    const isControl =
-      type === "if_statement" ||
-      type === "for_statement" ||
-      type === "for_in_statement" ||
-      type === "for_of_statement" ||
-      type === "while_statement" ||
-      type === "do_statement" ||
-      type === "switch_statement" ||
-      type === "match_statement" ||
-      type === "catch_clause" ||
-      type === "except_clause" ||
-      type === "ternary_expression" ||
-      type === "conditional_expression";
+export interface AssembleResult { nodes: HybridArchitecturalNode[]; edges: GraphEdge[]; warnings: string[]; omitted: number; degraded: "PROCEDURAL" | null }
 
-    if (isControl) {
-      score += 1 + nesting;
-      for (let i = 0; i < curr.childCount; i++) {
-        const child = curr.child(i);
-        if (child) walk(child, nesting + 1);
-      }
-      return;
-    }
+const easier = (a: { cognitive_complexity: number; rank_score: number; id: string }, b: { cognitive_complexity: number; rank_score: number; id: string }) =>
+  a.cognitive_complexity - b.cognitive_complexity || b.rank_score - a.rank_score || cmp(a.id, b.id);
 
-    if (type === "else_clause" || type === "elif_clause") {
-      score += 1;
-      for (let i = 0; i < curr.childCount; i++) {
-        const child = curr.child(i);
-        if (child) walk(child, nesting);
-      }
-      return;
-    }
+function inScope(ctx: EngineContext, file: string) { return ctx.scope === "" || file.startsWith(ctx.scope); }
 
-    for (let i = 0; i < curr.childCount; i++) {
-      const child = curr.child(i);
-      if (child) walk(child, nesting);
-    }
-  }
-  walk(n, 0);
-  return Math.max(1, score);
+function languagesOf(ctx: EngineContext, files: string[]): string[] {
+  return [...new Set(files.map((f) => ctx.idx.files.get(f)?.language ?? "").filter(Boolean))].sort();
 }
 
-/**
- * Xây dựng các candidate cho node thuật toán ALGORITHMIC_CORE theo Mục 9 (ENG-90, ENG-91).
- */
-export function buildAlgoCandidates(
-  fns: FunctionInfo[],
-  ctx: EngineContext
-): Candidate[] {
-  const result: Candidate[] = [];
+function mkCandidate(ctx: EngineContext, partial: {
+  kind: Candidate["kind"]; key: string; steps: ExecutionTraceStep[]; dto: string; functions: string[]; binding: Candidate["binding"];
+  node_type: Candidate["node_type"]; entry_symbol: string | null; resolved: Map<string, boolean>;
+}): Candidate {
+  const files = [...new Set(partial.steps.map((s) => s.file_path))];
+  const fns = partial.functions.map((k) => ctx.idx.functions.get(k)).filter((x): x is NonNullable<typeof x> => !!x);
+  const cc = Math.max(0, ...fns.map((f) => f.complexity));
+  const rank = ctx.fileRank.get(files[0]) ?? 0;
+  return {
+    id: "", node_type: partial.node_type, entry_symbol: partial.entry_symbol, trace_steps: partial.steps, dto_snippet: partial.dto,
+    cognitive_complexity: cc, rank_score: rank, title_source: "FILE_BASENAME", title_evidence: "",
+    kind: partial.kind, order_key: partial.key, functions: partial.functions, binding: partial.binding, base_title: "",
+    files, languages: languagesOf(ctx, files), resolved_paths: partial.resolved,
+  };
+}
 
-  for (const fn of fns) {
-    // Chỉ tạo từ các hàm trong scope
-    const pf = ctx.files.get(fn.file_path);
-    if (!pf) continue;
-
-    if (fn.complexity === 0) {
-      try {
-        fn.complexity = cognitiveComplexity(fn, pf);
-      } catch {
-        fn.complexity = 1;
-      }
+/** P2: tách hàm dài thành node ảo theo nhãn câu lệnh (ENG-102). */
+function proceduralVirtual(ctx: EngineContext): Candidate[] {
+  const out: Candidate[] = [];
+  const fns = [...ctx.idx.functions.values()].filter((f) => !f.is_module && f.body && inScope(ctx, f.file));
+  const M = fns.sort((a, b) => (b.line_end - b.line_start) - (a.line_end - a.line_start) || cmp(a.key, b.key))[0];
+  if (!M || !M.body) return out;
+  const f = ctx.idx.files.get(M.file)!;
+  const labels: Record<string, number[]> = { INPUT: [], VALIDATE: [], COMPUTE_OUTPUT: [], DATA: [] };
+  const stmts = M.body.namedChildren.filter((c) => c.type !== "comment");
+  const sinkLines = new Set((ctx.extByFn.get(M.key) ?? []).filter((e) => isDataSink(e, ctx.techStack)).map((e) => e.node.startPosition.row + 1));
+  for (const s of stmts) {
+    const a = s.startPosition.row + 1, b = s.endPosition.row + 1;
+    const text = s.text;
+    const rows = Array.from({ length: b - a + 1 }, (_, i) => a + i);
+    let label = "COMPUTE_OUTPUT";
+    if ([...sinkLines].some((l) => l >= a && l <= b)) label = "DATA";
+    else if (/req\.(body|params|query)|request\.(json|args)|\binput\(|sys\.argv|process\.argv|parse_args\(|Scanner/.test(text)) label = "INPUT";
+    else if (/^\s*if[\s\S]*?(raise|throw|return)|\bassert\b|\.parse\(|\.validate\(/.test(text)) label = "VALIDATE";
+    labels[label].push(...rows);
+  }
+  const present = Object.entries(labels).filter(([, r]) => r.length > 0);
+  if (present.length < 2) return out;
+  const layerOf: Record<string, ExecutionTraceStep["layer"]> = { INPUT: "ENTRY_POINT", VALIDATE: "MIDDLEWARE", COMPUTE_OUTPUT: "BUSINESS_LOGIC", DATA: "DATA_ACCESS" };
+  const cp = adapterById(f.language)?.comment_prefix ?? "//";
+  const sigRows = [M.line_start];
+  for (const label of ["INPUT", "VALIDATE", "COMPUTE_OUTPUT", "DATA"]) {
+    const rows = labels[label];
+    if (rows.length === 0) continue;
+    const keep = [...new Set([...sigRows, ...rows])].sort((a, b) => a - b).slice(0, CONFIG.STEP_MAX_LINES);
+    const lines: string[] = [], map: number[] = [];
+    let prev = 0;
+    for (const r of keep) {
+      if (prev && r > prev + 1) { lines.push(`${/^\s*/.exec(f.lines[prev] ?? "")![0]}${cp} … (${r - prev - 1} dòng)`); map.push(0); }
+      lines.push(f.lines[r - 1] ?? ""); map.push(r); prev = r;
     }
-
-    const sourceLines = pf.source.split(/\r?\n/);
-    const commentPrefix = getAdapter(pf.language)?.comment_prefix ?? "//";
-
-    // Tìm AST node của hàm
-    let fnNode: Node | null = null;
-    if (fn.name === "<module>") {
-      fnNode = pf.tree.rootNode;
-    } else {
-      let bestNode: Node | null = null;
-      let minSpan = Infinity;
-      const searchFn = (n: Node): void => {
-        const isFn =
-          n.type === "function_definition" ||
-          n.type === "function_declaration" ||
-          n.type === "function_expression" ||
-          n.type === "arrow_function" ||
-          n.type === "method_definition";
-        if (isFn) {
-          const s = n.startPosition.row + 1;
-          const e = n.endPosition.row + 1;
-          if (s <= fn.line_start && e >= fn.line_end) {
-            const span = e - s;
-            if (span < minSpan) {
-              minSpan = span;
-              bestNode = n;
-            }
-          }
-        }
-        for (let i = 0; i < n.childCount; i++) {
-          const c = n.child(i);
-          if (c) searchFn(c);
-        }
-      };
-      searchFn(pf.tree.rootNode);
-      fnNode = bestNode ?? pf.tree.rootNode;
-    }
-
-    if (!fnNode) continue;
-
-    // ENG-91: Chia bước cho node thuật toán
-    // Thân hàm: các câu lệnh cấp 1
-    const bodyNode = fnNode.childForFieldName("body") ?? fnNode;
-    const stmts: { node: Node; startLine: number; endLine: number; isLoop: boolean; complexity: number }[] = [];
-
-    for (let i = 0; i < bodyNode.childCount; i++) {
-      const child = bodyNode.child(i);
-      if (!child) continue;
-      if (child.type === "comment" || child.type === "{" || child.type === "}") continue;
-
-      const isLoop =
-        child.type === "for_statement" ||
-        child.type === "for_in_statement" ||
-        child.type === "for_of_statement" ||
-        child.type === "while_statement" ||
-        child.type === "do_statement";
-
-      let comp = 0;
-      try {
-        comp = calculateStmtComplexity(child);
-      } catch {
-        comp = isLoop ? 2 : 1;
-      }
-
-      stmts.push({
-        node: child,
-        startLine: child.startPosition.row + 1,
-        endLine: child.endPosition.row + 1,
-        isLoop,
-        complexity: comp,
-      });
-    }
-
-    // Câu chính = vòng lặp cấp 1 nhiều dòng nhất (hòa ⇒ đầu tiên); thiếu ⇒ câu có điểm ENG-71 lớn nhất
-    let mainStmtIdx = -1;
-    let maxLoopLines = -1;
-
-    for (let i = 0; i < stmts.length; i++) {
-      const st = stmts[i]!;
-      if (st.isLoop) {
-        const lines = st.endLine - st.startLine + 1;
-        if (lines > maxLoopLines) {
-          maxLoopLines = lines;
-          mainStmtIdx = i;
-        }
-      }
-    }
-
-    if (mainStmtIdx < 0 && stmts.length > 0) {
-      let maxComp = -1;
-      for (let i = 0; i < stmts.length; i++) {
-        const st = stmts[i]!;
-        if (st.complexity > maxComp) {
-          maxComp = st.complexity;
-          mainStmtIdx = i;
-        }
-      }
-    }
-
-    const traceSteps: ExecutionTraceStep[] = [];
-    const sigLine = fn.name === "<module>" ? 1 : fn.line_start;
-    const closeLine = fn.line_end;
-
-    if (mainStmtIdx >= 0 && stmts.length > 1) {
-      const mainStmt = stmts[mainStmtIdx]!;
-
-      // 1. ALGO_SETUP = chữ ký + câu trước
-      const setupStart = sigLine;
-      const setupEnd = mainStmt.startLine - 1;
-      if (setupEnd >= setupStart) {
-        const lines = sourceLines.slice(setupStart - 1, setupEnd);
-        traceSteps.push({
-          step_number: traceSteps.length + 1,
-          layer: "ALGO_SETUP",
-          file_path: fn.file_path,
-          function_name: fn.name,
-          line_start: setupStart,
-          line_end: setupEnd,
-          snippet: lines.join("\n"),
-          snippet_line_map: Array.from({ length: lines.length }, (_, k) => setupStart + k),
-        });
-      }
-
-      // 2. ALGO_EXECUTION = câu chính
-      const execLines = sourceLines.slice(mainStmt.startLine - 1, mainStmt.endLine);
-      traceSteps.push({
-        step_number: traceSteps.length + 1,
-        layer: "ALGO_EXECUTION",
-        file_path: fn.file_path,
-        function_name: fn.name,
-        line_start: mainStmt.startLine,
-        line_end: mainStmt.endLine,
-        snippet: execLines.join("\n"),
-        snippet_line_map: Array.from({ length: execLines.length }, (_, k) => mainStmt.startLine + k),
-      });
-
-      // 3. ALGO_TERMINATION = câu sau + đóng
-      const termStart = mainStmt.endLine + 1;
-      const termEnd = closeLine;
-      if (termEnd >= termStart) {
-        const termLines = sourceLines.slice(termStart - 1, termEnd);
-        traceSteps.push({
-          step_number: traceSteps.length + 1,
-          layer: "ALGO_TERMINATION",
-          file_path: fn.file_path,
-          function_name: fn.name,
-          line_start: termStart,
-          line_end: termEnd,
-          snippet: termLines.join("\n"),
-          snippet_line_map: Array.from({ length: termLines.length }, (_, k) => termStart + k),
-        });
-      }
-    } else {
-      // Không câu điều khiển hoặc chỉ có 1 câu: SETUP = mọi câu trừ cuối, TERMINATION = câu cuối
-      const allLines = sourceLines.slice(sigLine - 1, closeLine);
-      if (allLines.length > 1) {
-        const setupLines = allLines.slice(0, allLines.length - 1);
-        traceSteps.push({
-          step_number: 1,
-          layer: "ALGO_SETUP",
-          file_path: fn.file_path,
-          function_name: fn.name,
-          line_start: sigLine,
-          line_end: sigLine + setupLines.length - 1,
-          snippet: setupLines.join("\n"),
-          snippet_line_map: Array.from({ length: setupLines.length }, (_, k) => sigLine + k),
-        });
-        const termLine = [allLines[allLines.length - 1]!];
-        traceSteps.push({
-          step_number: 2,
-          layer: "ALGO_TERMINATION",
-          file_path: fn.file_path,
-          function_name: fn.name,
-          line_start: closeLine,
-          line_end: closeLine,
-          snippet: termLine.join("\n"),
-          snippet_line_map: [closeLine],
-        });
-      } else {
-        traceSteps.push({
-          step_number: 1,
-          layer: "ALGO_EXECUTION",
-          file_path: fn.file_path,
-          function_name: fn.name,
-          line_start: sigLine,
-          line_end: closeLine,
-          snippet: allLines.join("\n"),
-          snippet_line_map: [sigLine],
-        });
-      }
-    }
-
-    // Clamp các bước > CONFIG.STEP_MAX_LINES (ENG-87)
-    for (const st of traceSteps) {
-      const sLines = st.snippet.split("\n");
-      if (sLines.length > CONFIG.STEP_MAX_LINES) {
-        const kept = sLines.slice(0, CONFIG.STEP_MAX_LINES - 1);
-        const omitted = sLines.length - kept.length;
-        kept.push(`  ${commentPrefix} … (${omitted} dòng)`);
-        st.snippet = kept.join("\n");
-        st.snippet_line_map = st.snippet_line_map.slice(0, CONFIG.STEP_MAX_LINES);
-      }
-    }
-
-    const rankScore = ctx.rank.get(fn.file_path) ?? 0;
-
-    const cand: Candidate = {
-      id: `algo-${fn.key}`,
-      node_type: "ALGORITHMIC_CORE",
-      entry_symbol: fn.key,
-      trace_steps: traceSteps,
-      dto_snippet: "",
-      cognitive_complexity: fn.complexity,
-      rank_score: rankScore,
-      title_source: "ENTRY_SYMBOL",
-      title_evidence: fn.name,
-      kind: "ALGO",
-      order_key: fn.key,
-      functions: [fn.key],
-      binding: null,
-      base_title: fn.name,
+    const step: ExecutionTraceStep = {
+      step_number: 1, layer: layerOf[label], file_path: M.file, function_name: M.name,
+      line_start: Math.min(...keep), line_end: Math.max(...keep), snippet: lines.join("\n"), snippet_line_map: map,
     };
-
-    result.push(cand);
+    const c = mkCandidate(ctx, { kind: "VNODE", key: `${M.file}#${label}`, steps: [step], dto: "", functions: [], binding: null, node_type: "ARCHITECTURAL_DATA_FLOW", entry_symbol: null, resolved: new Map() });
+    c.id = `vnode-${hash6(`${M.file}#${label}`)}`;
+    c.cognitive_complexity = M.complexity;
+    c.base_title = `${M.name}: ${{ INPUT: "Input", VALIDATE: "Validation", COMPUTE_OUTPUT: "Compute & Output", DATA: "Data Access" }[label]}`;
+    c.title_source = "VIRTUAL"; c.title_evidence = `${M.file}#${label}`;
+    out.push(c);
   }
-
-  return result;
+  return out;
 }
 
-/**
- * Rút gọn bắc cầu (Transitive Reduction) trên đồ thị có hướng không chu trình.
- */
-export function transitiveReduction(
-  nodesList: string[],
-  adjMap: Map<string, Set<string>>
-): Map<string, Set<string>> {
-  const reduced = new Map<string, Set<string>>();
-  for (const u of nodesList) {
-    reduced.set(u, new Set(adjMap.get(u) ?? []));
+export function assemble(ctx: EngineContext, out: IngestOutput, nFilesInScope: number): AssembleResult {
+  const { idx, cg } = ctx;
+  const warnings: string[] = [];
+  const registered = cg.entries.filter((e) => e.source === "REGISTERED" || e.source === "GENERIC");
+  const program = cg.entries.filter((e) => e.source === "PROGRAM");
+  // ENG-51
+  let degraded: "PROCEDURAL" | null = null;
+  let useEntries = registered;
+  if (registered.length === 0) {
+    if (nFilesInScope <= CONFIG.PROCEDURAL_MAX_FILES) degraded = "PROCEDURAL";
+    else useEntries = program;
   }
 
-  for (const u of nodesList) {
-    const targets = Array.from(adjMap.get(u) ?? []);
-    for (const v of targets) {
-      let hasIndirectPath = false;
-      for (const w of targets) {
-        if (w === v) continue;
-        const visited = new Set<string>([u, w]);
-        const q = [w];
-        while (q.length > 0) {
-          const cur = q.shift()!;
-          if (cur === v) {
-            hasIndirectPath = true;
-            break;
-          }
-          const nxts = adjMap.get(cur);
-          if (nxts) {
-            for (const nxt of nxts) {
-              if (!visited.has(nxt)) {
-                visited.add(nxt);
-                q.push(nxt);
-              }
-            }
-          }
-        }
-        if (hasIndirectPath) break;
-      }
-
-      if (hasIndirectPath) {
-        reduced.get(u)?.delete(v);
-      }
-    }
-  }
-
-  return reduced;
-}
-
-/**
- * Tính cạnh trên tập giữ K = rút gọn bắc cầu của {(u,v) in K^2 : v đến được từ u trong G0} — Mục 11 ý 6.
- */
-export function computeEdgesOnKept(
-  keptIds: string[],
-  g0Adj: Map<string, Set<string>>,
-  rawEdges?: { source: { id: string }; target: { id: string }; isVnodeSequential?: boolean }[]
-): GraphEdge[] {
-  const keptIdSet = new Set(keptIds);
-  const kAdj = new Map<string, Set<string>>();
-  for (const id of keptIdSet) kAdj.set(id, new Set());
-
-  for (const u of keptIdSet) {
-    const visited = new Set<string>([u]);
-    const q = [u];
-    while (q.length > 0) {
-      const cur = q.shift()!;
-      for (const nxt of g0Adj.get(cur) ?? []) {
-        if (!visited.has(nxt)) {
-          visited.add(nxt);
-          q.push(nxt);
-          if (keptIdSet.has(nxt)) {
-            kAdj.get(u)!.add(nxt);
-          }
-        }
-      }
-    }
-  }
-
-  const kReducedAdj = transitiveReduction(Array.from(keptIdSet), kAdj);
-
-  const finalEdges: GraphEdge[] = [];
-  for (const [src, tgts] of kReducedAdj) {
-    for (const tgt of tgts) {
-      const edgeId = `${src}->${tgt}`;
-      let confidence: "RESOLVED" | "INFERRED" = "RESOLVED";
-      const edgeObj = rawEdges?.find((e) => e.source.id === src && e.target.id === tgt);
-      if (edgeObj && edgeObj.isVnodeSequential) {
-        confidence = "RESOLVED";
-      } else {
-        confidence = "RESOLVED";
-      }
-
-      finalEdges.push({
-        id: edgeId,
-        source: src,
-        target: tgt,
-        confidence,
-      });
-    }
-  }
-
-  return finalEdges.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-}
-
-/**
- * Ghép node, sinh id, dựng cạnh, Display Budget, Capstone — spec 11 Mục 11.
- */
-export function assembleGraph(
-  candidates: Candidate[],
-  ctx: EngineContext,
-  report: IngestionReport
-): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[] } {
-  // ENG-40 / B07: Bỏ candidate có trace_steps rỗng trước bước gộp ENG-110 (không cộng vào omitted_node_count)
-  const validCandidates = candidates.filter(
-    (c) => c.trace_steps && c.trace_steps.length > 0
-  );
-  if (validCandidates.length === 0) {
-    throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
-  }
-
-  // 1. ENG-110 Gộp: cùng tập functions ⇒ giữ order_key nhỏ nhất. Node ảo không gộp chung với nhau.
-  const functionGroupMap = new Map<string, Candidate>();
-  for (const c of validCandidates) {
-    const key = c.kind === "VNODE" ? `vnode::${c.order_key}` : c.functions.slice().sort().join("::");
-    const existing = functionGroupMap.get(key);
-    if (!existing) {
-      functionGroupMap.set(key, c);
-    } else {
-      if (c.order_key < existing.order_key) {
-        functionGroupMap.set(key, c);
-      }
-    }
-  }
-
-  const mergedCandidates = Array.from(functionGroupMap.values());
-
-  // 2. ENG-111 Tên gốc & sinh id tất định (D-08)
-  for (const c of mergedCandidates) {
-    const named = nameCandidate(c, ctx);
-    c.base_title = named.base_title;
-    c.title_source = named.title_source;
-    c.title_evidence = named.title_evidence;
-
-    const titleSlug = slug(c.base_title);
-    if (c.kind === "SLICE") {
-      const hash = hash6(c.entry_symbol ?? c.order_key);
-      c.id = `slice-${titleSlug}-${hash}`;
-    } else if (c.kind === "ALGO") {
-      const hash = hash6(c.entry_symbol ?? c.order_key);
-      c.id = `algo-${titleSlug}-${hash}`;
-    } else if (c.kind === "VNODE") {
-      // id của node ảo đã được gán sẵn ở degraded.ts theo vnode-<hash6(file#NHÃN)>
-      if (!c.id.startsWith("vnode-")) {
-        const hash = hash6(c.order_key);
-        c.id = `vnode-${hash}`;
-      }
-    }
-  }
-
-  // 3. ENG-112 Dựng cạnh D-07, D-56
-  const callGraphAdj = new Map<string, Set<string>>();
-  for (const edge of ctx.edges) {
-    let targets = callGraphAdj.get(edge.caller);
-    if (!targets) {
-      targets = new Set();
-      callGraphAdj.set(edge.caller, targets);
-    }
-    targets.add(edge.callee);
-  }
-
-  const matchFnKey = (a: string, b: string): boolean => {
-    if (a === b) return true;
-    if (a.endsWith(`#${b}`) || b.endsWith(`#${a}`)) return true;
-    return false;
+  let cands: Candidate[] = [];
+  const seenSets = new Set<string>();
+  const addSlice = (key: string, mws: string[], binding: Candidate["binding"], isProcedural = false) => {
+    const fn = idx.functions.get(key);
+    if (!fn || !inScope(ctx, fn.file)) return;
+    const s = buildSlice(key, mws, ctx);
+    if (!s || s.steps.length === 0) return;
+    const sig = [...s.functions].sort(cmp).join("|");
+    if (seenSets.has(sig)) return;
+    seenSets.add(sig);
+    const c = mkCandidate(ctx, { kind: "SLICE", key, steps: s.steps, dto: s.dto_snippet, functions: s.functions, binding, node_type: "ARCHITECTURAL_DATA_FLOW", entry_symbol: fn.is_anon ? key : key, resolved: s.resolved_chain });
+    void isProcedural;
+    cands.push(c);
   };
 
-  const canReach = (startFn: string, targetFn: string): boolean => {
-    if (matchFnKey(startFn, targetFn)) return true;
-    const visited = new Set<string>([startFn]);
-    const queue = [startFn];
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      if (matchFnKey(cur, targetFn)) return true;
-      const neighbors = callGraphAdj.get(cur);
-      if (neighbors) {
-        for (const nxt of neighbors) {
-          if (matchFnKey(nxt, targetFn)) return true;
-          if (!visited.has(nxt)) {
-            visited.add(nxt);
-            queue.push(nxt);
-          }
-        }
+  if (degraded === "PROCEDURAL") {
+    for (const fn of [...idx.functions.values()].sort((a, b) => cmp(a.key, b.key))) {
+      if (!fn.body || !inScope(ctx, fn.file)) continue;
+      if (fn.is_module && fn.body.namedChildren.filter((c) => !/function|class|import|decorated/.test(c.type)).length === 0) continue;
+      addSlice(fn.key, [], null, true);
+    }
+    const tooFew = cands.length < CONFIG.FUNCTION_GRAPH_MIN_NODES;
+    const longest = Math.max(0, ...[...idx.functions.values()].filter((f) => !f.is_module).map((f) => f.line_end - f.line_start));
+    if (tooFew || longest > CONFIG.LONG_FUNCTION_LINES) {
+      const v = proceduralVirtual(ctx);
+      if (v.length >= 2) {
+        const M = v[0].functions.length ? "" : v[0].trace_steps[0].function_name;
+        cands = [...v, ...cands.filter((c) => !c.trace_steps.some((s) => s.function_name === M))];
       }
     }
-    return false;
-  };
-
-  interface RawEdge {
-    source: Candidate;
-    target: Candidate;
-    isVnodeSequential?: boolean;
-  }
-
-  const rawEdges: RawEdge[] = [];
-
-  // Ngoại lệ: chuỗi node ảo P2 nối tuần tự theo thứ tự ban đầu
-  const vnodesOnly = mergedCandidates.filter((c) => c.kind === "VNODE");
-  if (vnodesOnly.length > 1) {
-    for (let i = 0; i < vnodesOnly.length - 1; i++) {
-      rawEdges.push({
-        source: vnodesOnly[i]!,
-        target: vnodesOnly[i + 1]!,
-        isVnodeSequential: true,
-      });
-    }
-  }
-
-  // Các candidate thông thường (không phải vnode nối chuỗi với nhau)
-  for (let i = 0; i < mergedCandidates.length; i++) {
-    for (let j = i + 1; j < mergedCandidates.length; j++) {
-      const a = mergedCandidates[i]!;
-      const b = mergedCandidates[j]!;
-
-      // Cả 2 cùng là vnode thì đã nối chuỗi ở trên
-      if (a.kind === "VNODE" && b.kind === "VNODE") continue;
-
-      let hasRelation = false;
-
-      // D-07: hàm chung
-      if (a.functions.length > 0 && b.functions.length > 0) {
-        const common = a.functions.some((fa) => b.functions.includes(fa));
-        if (common) hasRelation = true;
-      }
-
-      // D-56: Lát cắt gọi tới ALGO
-      if (!hasRelation) {
-        if (a.kind === "SLICE" && b.kind === "ALGO" && b.entry_symbol) {
-          const reach = a.functions.some((fa) => canReach(fa, b.entry_symbol!));
-          if (reach) hasRelation = true;
-        } else if (b.kind === "SLICE" && a.kind === "ALGO" && a.entry_symbol) {
-          const reach = b.functions.some((fb) => canReach(fb, a.entry_symbol!));
-          if (reach) hasRelation = true;
-        }
-      }
-
-      if (hasRelation) {
-        // Chiều cạnh: A -> B nếu A "dễ hơn" B (ENG-112)
-        let aIsEasier = false;
-        if (a.cognitive_complexity !== b.cognitive_complexity) {
-          aIsEasier = a.cognitive_complexity < b.cognitive_complexity;
-        } else if (a.rank_score !== b.rank_score) {
-          aIsEasier = a.rank_score > b.rank_score;
-        } else {
-          aIsEasier = a.id < b.id;
-        }
-
-        if (aIsEasier) {
-          rawEdges.push({ source: a, target: b });
-        } else {
-          rawEdges.push({ source: b, target: a });
-        }
-      }
-    }
-  }
-
-  // Dựng đồ thị G0
-  const g0Adj = new Map<string, Set<string>>();
-  for (const c of mergedCandidates) {
-    g0Adj.set(c.id, new Set());
-  }
-  for (const re of rawEdges) {
-    g0Adj.get(re.source.id)?.add(re.target.id);
-  }
-
-  // Kiểm tra G0 không chu trình bằng Tarjan (assert)
-  const candidateIds = mergedCandidates.map((c) => c.id);
-  const sccs = tarjanScc(candidateIds, g0Adj);
-  for (const scc of sccs) {
-    if (scc.length > 1) {
-      // Phá chu trình nếu có bằng cách chỉ giữ cạnh theo thứ tự dễ hơn
-      for (const u of scc) {
-        for (const v of scc) {
-          if (u !== v) {
-            const candU = mergedCandidates.find((c) => c.id === u);
-            const candV = mergedCandidates.find((c) => c.id === v);
-            if (candU && candV && candU.cognitive_complexity >= candV.cognitive_complexity) {
-              g0Adj.get(u)?.delete(v);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 4. Rút gọn bắc cầu G0 ⇒ G0r
-  const g0rAdj = transitiveReduction(candidateIds, g0Adj);
-
-  // 5. ENG-114 Display Budget: tối đa CONFIG.DISPLAY_MAX_NODES (20)
-  let keptCandidates: Candidate[] = [];
-  const maxNodes = CONFIG.DISPLAY_MAX_NODES;
-
-  if (mergedCandidates.length <= maxNodes) {
-    keptCandidates = mergedCandidates;
   } else {
-    // Tìm đường dài nhất trên G0r bằng DP theo Kahn
-    const inDeg = new Map<string, number>();
-    for (const id of candidateIds) inDeg.set(id, 0);
-    for (const [, tgts] of g0rAdj) {
-      for (const t of tgts) inDeg.set(t, (inDeg.get(t) ?? 0) + 1);
-    }
-
-    const q = candidateIds.filter((id) => (inDeg.get(id) ?? 0) === 0).sort();
-    const topo: string[] = [];
-    const curInDeg = new Map(inDeg);
-
-    while (q.length > 0) {
-      q.sort();
-      const u = q.shift()!;
-      topo.push(u);
-      for (const v of g0rAdj.get(u) ?? []) {
-        const d = curInDeg.get(v)! - 1;
-        curInDeg.set(v, d);
-        if (d === 0) q.push(v);
-      }
-    }
-
-    const dist = new Map<string, number>();
-    const prevNode = new Map<string, string | null>();
-    for (const id of candidateIds) {
-      dist.set(id, 1);
-      prevNode.set(id, null);
-    }
-
-    for (const u of topo) {
-      const dU = dist.get(u)!;
-      for (const v of g0rAdj.get(u) ?? []) {
-        if (dU + 1 > dist.get(v)!) {
-          dist.set(v, dU + 1);
-          prevNode.set(v, u);
-        } else if (dU + 1 === dist.get(v)!) {
-          const cp = prevNode.get(v);
-          if (!cp || u < cp) prevNode.set(v, u);
-        }
-      }
-    }
-
-    let bestEnd: string | null = null;
-    let maxDist = -1;
-    for (const id of candidateIds) {
-      const d = dist.get(id)!;
-      if (d > maxDist) {
-        maxDist = d;
-        bestEnd = id;
-      } else if (d === maxDist && bestEnd && id < bestEnd) {
-        bestEnd = id;
-      }
-    }
-
-    const criticalPath: string[] = [];
-    let curP = bestEnd;
-    while (curP) {
-      criticalPath.push(curP);
-      curP = prevNode.get(curP) ?? null;
-    }
-    criticalPath.reverse();
-
-    // Giữ tối đa CONFIG.CRITICAL_PATH_MAX_NODES (6) node đầu tiên của đường chính
-    const keptIdsSet = new Set<string>(
-      criticalPath.slice(0, CONFIG.CRITICAL_PATH_MAX_NODES)
-    );
-
-    // Thêm các node còn lại theo thứ tự ưu tiên ENG-114
-    const remaining = mergedCandidates
-      .filter((c) => !keptIdsSet.has(c.id))
-      .sort((a, b) => {
-        const aIsVip = a.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
-        const bIsVip = b.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
-        if (bIsVip !== aIsVip) return bIsVip - aIsVip;
-        if (b.rank_score !== a.rank_score) return b.rank_score - a.rank_score;
-        if (b.cognitive_complexity !== a.cognitive_complexity) {
-          return b.cognitive_complexity - a.cognitive_complexity;
-        }
-        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-      });
-
-    for (const r of remaining) {
-      if (keptIdsSet.size >= maxNodes) break;
-      keptIdsSet.add(r.id);
-    }
-
-    keptCandidates = mergedCandidates.filter((c) => keptIdsSet.has(c.id));
-
-    const omittedCount = mergedCandidates.length - keptCandidates.length;
-    report.omitted_node_count = omittedCount;
-    if (omittedCount > 0) {
-      report.warnings.push(`${omittedCount} luồng khác không hiển thị trên bản đồ`);
-    }
+    for (const e of useEntries) addSlice(e.key, e.binding?.middlewares ?? [], e.binding);
   }
 
-  // 6. Cạnh trên tập giữ K = rút gọn bắc cầu của {(u,v) in K^2 : v đến được từ u trong G0}
-  const keptIdSet = new Set(keptCandidates.map((c) => c.id));
-  const finalEdges = computeEdgesOnKept(
-    Array.from(keptIdSet),
-    g0Adj,
-    rawEdges
-  );
-
-  const inDegreeMap = new Map<string, string[]>();
-  for (const id of keptIdSet) inDegreeMap.set(id, []);
-  for (const e of finalEdges) {
-    inDegreeMap.get(e.target)?.push(e.source);
+  // Node thuật toán (ENG-90)
+  const usedFns = new Set(cands.flatMap((c) => c.functions));
+  const fnPool = [...idx.functions.values()].filter((f) => !f.is_module && !f.is_anon && f.body && inScope(ctx, f.file) && !usedFns.has(f.key) && !isTestPath(f.file));
+  const rankOf = (f: { file: string }) => ctx.fileRank.get(f.file) ?? 0;
+  const byWeight = (a: { complexity: number; file: string; key: string }, b: { complexity: number; file: string; key: string }) =>
+    b.complexity - a.complexity || rankOf(b) - rankOf(a) || cmp(a.key, b.key);
+  const vip = fnPool.filter((f) => f.complexity > CONFIG.VIP_COMPLEXITY_MIN).sort(byWeight);
+  const addAlgo = (key: string) => {
+    const r = buildAlgoSteps(key, ctx);
+    if (!r) return;
+    const fn = idx.functions.get(key)!;
+    const c = mkCandidate(ctx, { kind: "ALGO", key, steps: r.steps, dto: r.dto, functions: [key], binding: null, node_type: "ALGORITHMIC_CORE", entry_symbol: key, resolved: new Map() });
+    c.cognitive_complexity = fn.complexity;
+    cands.push(c);
+  };
+  vip.forEach((f) => addAlgo(f.key));
+  // ENG-110 lọc theo cờ test: bỏ candidate mang cờ khi còn đủ DISPLAY_MIN_NODES
+  const clean = cands.filter((c) => !isTestPath(c.files[0] ?? ""));
+  if (clean.length >= CONFIG.DISPLAY_MIN_NODES) cands = clean;
+  if (cands.length < CONFIG.DISPLAY_MIN_NODES && degraded === null) {
+    const have = new Set(cands.flatMap((c) => c.functions));
+    const extra = fnPool.filter((f) => !have.has(f.key) && f.complexity >= CONFIG.VIP_FALLBACK_MIN_SCORE).sort(byWeight).slice(0, CONFIG.VIP_FALLBACK_TOP_K);
+    for (const f of extra) { if (cands.length >= CONFIG.DISPLAY_MIN_NODES) break; addAlgo(f.key); }
   }
+  if (cands.length === 0) return { nodes: [], edges: [], warnings, omitted: 0, degraded };
 
-  // 7. Capstone (D-12)
-  let capstoneId: string | null = null;
-  let maxComp = -1;
-  let maxRank = -1;
-
-  for (const c of keptCandidates) {
-    if (c.cognitive_complexity > maxComp) {
-      maxComp = c.cognitive_complexity;
-      maxRank = c.rank_score;
-      capstoneId = c.id;
-    } else if (c.cognitive_complexity === maxComp) {
-      if (c.rank_score > maxRank) {
-        maxRank = c.rank_score;
-        capstoneId = c.id;
-      } else if (c.rank_score === maxRank) {
-        if (!capstoneId || c.id < capstoneId) {
-          capstoneId = c.id;
-        }
-      }
+  // tên gốc & id (ENG-111)
+  for (const c of cands) {
+    if (c.kind !== "VNODE") {
+      const t = baseTitle({ binding: c.binding, entry_symbol: c.kind === "ALGO" || !c.binding ? c.entry_symbol : c.entry_symbol, files: c.files, function_keys: c.functions, file_index: [...idx.files.keys()] }, idx);
+      c.base_title = t.title; c.title_source = t.source; c.title_evidence = t.evidence;
+      if (c.kind === "SLICE") c.id = `slice-${slug(c.base_title)}-${hash6(c.entry_symbol ?? c.order_key)}`;
+      else c.id = `algo-${slug(c.base_title)}-${hash6(c.order_key)}`;
     }
   }
+  // cùng tập functions ⇒ giữ order_key nhỏ nhất (đã lọc bằng seenSets); trùng id ⇒ giữ đầu
+  const byId = new Map<string, Candidate>();
+  for (const c of cands.sort((a, b) => cmp(a.order_key, b.order_key))) if (!byId.has(c.id)) byId.set(c.id, c);
+  cands = [...byId.values()].sort((a, b) => cmp(a.id, b.id));
 
-  // 8. Chuyển đổi sang HybridArchitecturalNode
-  const finalNodes: HybridArchitecturalNode[] = [];
+  // cạnh G0 (ENG-112)
+  const reach = (from: string, to: string): boolean => {
+    const seen = new Set<string>([from]); const q = [from];
+    while (q.length) { const x = q.shift()!; if (x === to) return true; for (const e of cg.edges) if (e.caller === x && !seen.has(e.callee)) { seen.add(e.callee); q.push(e.callee); } }
+    return false;
+  };
+  const g0 = new Map<string, { source: string; target: string; resolved: boolean }>();
+  const addPair = (a: Candidate, b: Candidate, resolved: boolean) => {
+    const [s, t] = easier(a, b) <= 0 ? [a, b] : [b, a];
+    const k = `${s.id}->${t.id}`;
+    const cur = g0.get(k);
+    if (!cur) g0.set(k, { source: s.id, target: t.id, resolved });
+    else cur.resolved = cur.resolved || resolved;
+  };
+  for (let i = 0; i < cands.length; i++) for (let j = i + 1; j < cands.length; j++) {
+    const A = cands[i], B = cands[j];
+    if (A.kind === "VNODE" || B.kind === "VNODE") continue;
+    const common = A.functions.filter((f) => B.functions.includes(f));
+    if (common.length > 0) { addPair(A, B, common.some((f) => A.resolved_paths.get(f) && B.resolved_paths.get(f))); continue; }
+    const slice = A.kind === "SLICE" ? A : B.kind === "SLICE" ? B : null;
+    const algo = A.kind === "ALGO" ? A : B.kind === "ALGO" ? B : null;
+    if (slice && algo && slice.functions.some((f) => reach(f, algo.functions[0]))) addPair(A, B, false);
+  }
+  // node ảo: chuỗi theo dòng đầu mỗi nhãn, RESOLVED
+  const vn = cands.filter((c) => c.kind === "VNODE").sort((a, b) => a.trace_steps[0].line_start - b.trace_steps[0].line_start);
+  for (let i = 0; i + 1 < vn.length; i++) g0.set(`${vn[i].id}->${vn[i + 1].id}`, { source: vn[i].id, target: vn[i + 1].id, resolved: true });
 
-  for (const c of keptCandidates) {
-    const rawFiles: string[] = [];
-    for (const st of c.trace_steps) {
-      if (st.file_path && !rawFiles.includes(st.file_path)) {
-        rawFiles.push(st.file_path);
-      }
-    }
-    if (rawFiles.length === 0 && c.entry_symbol) {
-      rawFiles.push(c.entry_symbol.split("#")[0]!);
-    }
-
-    const languages = Array.from(
-      new Set(
-        rawFiles
-          .map((f) => ctx.files.get(f)?.language)
-          .filter(Boolean) as string[]
-      )
-    ).sort();
-
-    const hasStructural = rawFiles.some((f) => ctx.files.get(f)?.tier === "STRUCTURAL");
-    const support_tier = hasStructural ? "STRUCTURAL" : "RESOLVED";
-
-    const prereqs = (inDegreeMap.get(c.id) ?? []).sort();
-
-    const node: HybridArchitecturalNode = {
-      id: c.id,
-      title: c.base_title,
-      title_source: c.title_source,
-      title_evidence: c.title_evidence,
-      node_type: c.node_type,
-      entry_symbol: c.entry_symbol,
-      prerequisites: prereqs,
-      position: { x: 0, y: 0 },
-      files: rawFiles,
-      languages,
-      support_tier,
-      cognitive_complexity: c.cognitive_complexity,
-      rank_score: c.rank_score,
-      is_vip_algorithm: c.kind === "ALGO",
-      is_capstone: c.id === capstoneId,
-      uncle_bob: {
-        instability: 0,
-        abstractness: 0,
-        distance: 0,
-        diagnosis: "BALANCED",
-        is_exempt: true,
-      },
-      trace_steps: c.trace_steps,
-      dto_snippet: c.dto_snippet,
+  const ids = cands.map((c) => c.id);
+  const closure = (edgesIn: Array<{ source: string; target: string }>) => {
+    const out = new Map<string, Set<string>>(ids.map((i) => [i, new Set<string>()]));
+    for (const e of edgesIn) out.get(e.source)?.add(e.target);
+    const memo = new Map<string, Set<string>>();
+    const dfs = (v: string): Set<string> => {
+      if (memo.has(v)) return memo.get(v)!;
+      const r = new Set<string>(); memo.set(v, r);
+      for (const w of out.get(v) ?? []) { r.add(w); for (const x of dfs(w)) r.add(x); }
+      return r;
     };
+    ids.forEach(dfs);
+    return memo;
+  };
+  const reduce = (edgesIn: Array<{ source: string; target: string }>) => {
+    const out = new Map<string, Set<string>>(ids.map((i) => [i, new Set<string>()]));
+    for (const e of edgesIn) out.get(e.source)?.add(e.target);
+    const memo = closure(edgesIn);
+    return edgesIn.filter((e) => ![...(out.get(e.source) ?? [])].some((m) => m !== e.target && memo.get(m)?.has(e.target)));
+  };
+  const g0r = reduce([...g0.values()]);
 
-    finalNodes.push(node);
+  // Display Budget (ENG-114)
+  let keep = new Set(ids);
+  let omitted = 0;
+  const max = CONFIG.DISPLAY_MAX_NODES;
+  if (ids.length > max) {
+    const path = longestPath(ids, g0r, CONFIG.CRITICAL_PATH_MAX_NODES);
+    const chosen = new Set<string>(path);
+    const rest = cands.filter((c) => !chosen.has(c.id)).sort((a, b) =>
+      Number(b.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN) - Number(a.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN) ||
+      b.rank_score - a.rank_score || b.cognitive_complexity - a.cognitive_complexity || cmp(a.id, b.id));
+    for (const c of rest) { if (chosen.size >= max) break; chosen.add(c.id); }
+    keep = chosen;
+    omitted = ids.length - keep.size;
+    warnings.push(`${omitted} luồng khác không hiển thị trên bản đồ`);
   }
+  const kept = cands.filter((c) => keep.has(c.id));
 
-  // Sắp xếp các node theo id tăng dần
-  finalNodes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // cạnh trên tập giữ K: rút gọn bắc cầu của quan hệ đến được trong G0
+  const reachG0 = closure([...g0.values()]);
+  const pairs: Array<{ source: string; target: string }> = [];
+  for (const u of kept) for (const v of kept) if (u.id !== v.id && reachG0.get(u.id)?.has(v.id)) pairs.push({ source: u.id, target: v.id });
+  const keptIds = new Set(kept.map((k) => k.id));
+  const reducedK = (() => {
+    const out = new Map<string, Set<string>>();
+    for (const p of pairs) { const s = out.get(p.source) ?? new Set<string>(); s.add(p.target); out.set(p.source, s); }
+    return pairs.filter((e) => ![...(out.get(e.source) ?? [])].some((m) => m !== e.target && out.get(m)?.has(e.target)));
+  })();
+  void keptIds;
+  const direct = new Map([...g0.entries()].map(([k, v]) => [k, v.resolved]));
+  let edges: GraphEdge[] = reducedK.map((e) => ({
+    id: `${e.source}->${e.target}`, source: e.source, target: e.target,
+    confidence: direct.get(`${e.source}->${e.target}`) ? "RESOLVED" : "INFERRED",
+  }));
 
-  if (finalNodes.length === 0) {
-    throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
+  // Cây bài học (ENG-115, D-73)
+  edges = lessonTree(kept, edges);
+
+  // trường node
+  const rankFile = ctx.fileRank;
+  const parents = new Map<string, string[]>(kept.map((k) => [k.id, []]));
+  for (const e of edges) parents.get(e.target)?.push(e.source);
+  const nodes: HybridArchitecturalNode[] = kept.map((c) => {
+    const langs = c.languages;
+    const tier = c.files.some((f) => tierOfLanguage(idx.files.get(f)?.language ?? "") === "STRUCTURAL") ? "STRUCTURAL" : "RESOLVED";
+    const ub = uncleBob(c.files, idx, cg.file_graph, {
+      virtual: c.kind === "VNODE", archetype: out.fingerprint.archetype,
+      allJsOrNoAbs: c.files.every((f) => idx.files.get(f)?.language === "JAVASCRIPT"),
+    });
+    return {
+      id: c.id, title: c.base_title, title_source: c.title_source, title_evidence: c.title_evidence, node_type: c.node_type,
+      entry_symbol: c.kind === "VNODE" ? null : c.entry_symbol, prerequisites: (parents.get(c.id) ?? []).sort(cmp), position: { x: 0, y: 0 },
+      files: c.files, languages: langs, support_tier: tier, cognitive_complexity: c.cognitive_complexity,
+      rank_score: Math.round((rankFile.get(c.files[0]) ?? c.rank_score) * 10000) / 10000,
+      is_vip_algorithm: c.kind === "ALGO", is_capstone: false, uncle_bob: ub,
+      trace_steps: c.trace_steps.map((s, i) => ({ ...s, step_number: i + 1 })), dto_snippet: c.dto_snippet,
+    };
+  });
+  // Capstone: trong node cuối (không có cạnh ra)
+  const hasOut = new Set(edges.map((e) => e.source));
+  const sinks = nodes.filter((n) => !hasOut.has(n.id));
+  const pool = sinks.length ? sinks : nodes;
+  const cap = [...pool].sort((a, b) => b.cognitive_complexity - a.cognitive_complexity || b.rank_score - a.rank_score || cmp(a.id, b.id))[0];
+  if (cap) cap.is_capstone = true;
+
+  // khử trùng tên (sau budget), layout
+  const named = nodes.map((n) => ({ id: n.id, base_title: n.title, binding: kept.find((k) => k.id === n.id)!.binding, files: n.files, title: n.title }));
+  dedupeTitles(named);
+  for (const n of nodes) n.title = named.find((x) => x.id === n.id)!.title;
+  const pos = layoutNodes(nodes, edges);
+  for (const n of nodes) n.position = pos.get(n.id) ?? { x: 0, y: 0 };
+  return { nodes: nodes.sort((a, b) => cmp(a.id, b.id)), edges: edges.sort((a, b) => cmp(a.id, b.id)), warnings, omitted, degraded };
+}
+
+/** ENG-115: nối các bài chưa có cạnh vào theo module để thành cây bài học. Cạnh thêm = INFERRED. */
+function lessonTree(kept: Candidate[], edges: GraphEdge[]): GraphEdge[] {
+  const slices = kept.filter((c) => c.kind === "SLICE");
+  if (slices.length === 0) return edges;
+  const dirOf = (f: string) => f.split("/").slice(0, -1).join("/");
+  const dirs = new Set(slices.map((s) => dirOf(s.files[0])));
+  const moduleOf = (f: string) => (dirs.size < 3 ? f : dirOf(f));
+  const modOfSlice = (s: Candidate) => moduleOf(s.files[0]);
+  const out = [...edges];
+  const has = new Set(out.map((e) => e.id));
+  const reachable = (from: string, to: string): boolean => {
+    const seen = new Set<string>([from]); const q = [from];
+    while (q.length) { const x = q.shift()!; if (x === to) return true; for (const e of out) if (e.source === x && !seen.has(e.target)) { seen.add(e.target); q.push(e.target); } }
+    return false;
+  };
+  const addEdge = (s: string, t: string) => {
+    if (s === t || has.has(`${s}->${t}`) || reachable(t, s)) return;
+    if (reachable(s, t)) return;
+    out.push({ id: `${s}->${t}`, source: s, target: t, confidence: "INFERRED" }); has.add(`${s}->${t}`);
+  };
+  const incoming = (id: string) => out.some((e) => e.target === id);
+  const mods = new Map<string, Candidate[]>();
+  for (const s of slices) { const l = mods.get(modOfSlice(s)) ?? []; l.push(s); mods.set(modOfSlice(s), l); }
+  // A dùng B khi lát cắt của A có file thuộc B
+  const uses = new Map<string, Set<string>>();
+  for (const s of slices) for (const f of s.files) { const m = moduleOf(f); if (m !== modOfSlice(s)) { const set = uses.get(modOfSlice(s)) ?? new Set<string>(); set.add(m); uses.set(modOfSlice(s), set); } }
+  const avg = (m: string) => { const l = mods.get(m) ?? []; return l.length ? l.reduce((a, c) => a + c.cognitive_complexity, 0) / l.length : 0; };
+  const order = [...mods.keys()].sort((a, b) => (uses.get(a)?.has(b) ? 1 : uses.get(b)?.has(a) ? -1 : avg(a) - avg(b) || cmp(a, b)));
+  const first = new Map<string, Candidate>();
+  for (const m of order) {
+    const ls = (mods.get(m) ?? []).slice().sort(easier);
+    first.set(m, ls.find((l) => !incoming(l.id)) ?? ls[0]);
   }
-
-  return { nodes: finalNodes, edges: finalEdges };
+  for (const m of order) {
+    const f = first.get(m);
+    if (!f) continue;
+    for (const s of mods.get(m) ?? []) if (s.id !== f.id && !incoming(s.id)) addEdge(f.id, s.id);
+  }
+  for (const m of order) {
+    const f = first.get(m);
+    if (!f || incoming(f.id)) continue;
+    const used = [...(uses.get(m) ?? [])].filter((x) => first.has(x)).sort((a, b) => order.indexOf(b) - order.indexOf(a))[0];
+    const b = used ? first.get(used) : undefined;
+    if (b && easier(b, f) < 0) addEdge(b.id, f.id);
+  }
+  return out;
 }

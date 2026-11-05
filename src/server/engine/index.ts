@@ -1,129 +1,81 @@
-// Điểm xuất phát của Engine SimpliFey — spec 10 Mục 0, spec 11 Mục 0, 15.
-import type {
-  ClientStaticEngineResult,
-  IngestSource,
-  StaticEngineResult,
-} from "@/contracts";
+// 11 Mục 0, 15 — runEngine / buildGraph / toClientResult. Tất định (ENG-01): cùng đầu vào ⇒ cùng đồ thị, node_id, tọa độ.
+import { CONFIG } from "@/contracts/config";
+import type { ClientStaticEngineResult, IngestOutput, IngestSource, StaticEngineResult } from "@/contracts";
+import { fail } from "../errors";
+import { buildCallGraph } from "./graph/callgraph";
+import { buildSymbolWhitelist, rankFiles } from "./graph/graphalgo";
+import { assemble } from "./graph/nodes";
+import { initParsers, parseAll } from "./graph/parser";
+import { makeContext } from "./graph/slicing";
+import { collectSymbols } from "./graph/symbols";
 import { runIngest } from "./ingest";
-import { buildGraph } from "./graph";
 
-export * from "./ingest";
-export * from "./graph";
+export { initParsers };
+export { mainPath } from "./graph/graphalgo";
 
-/**
- * Chạy toàn bộ quy trình Engine: Tầng 0 (Ingest) rồi Tầng 1–2 (Đồ thị & Lát cắt).
- * Chỉ Ingest 1 lần duy nhất trong RAM.
- *
- * @param src Nguồn Ingest (GITHUB_URL, GITHUB_COMMIT, hoặc ZIP_UPLOAD).
- * @param signal AbortSignal tùy chọn để dừng quy trình Ingest khi request bị hủy (ghi chú cho Vai A - A06).
- */
-export async function runEngine(
-  src: IngestSource,
-  signal?: AbortSignal
-): Promise<StaticEngineResult> {
-  const ingestOutput = await runIngest(src, signal);
-  return await buildGraph(ingestOutput);
+export async function buildGraph(input: IngestOutput): Promise<StaticEngineResult> {
+  const t0 = performance.now();
+  await initParsers(); // lần nạp đầu không tính engine_ms (ENG-11)
+  const t1 = performance.now();
+  const report = input.report;
+  const files = await parseAll(input.code, input.file_language, report);
+  const idx = collectSymbols(files, input.manifests, input.fingerprint.root_dir_offset);
+  const cg = buildCallGraph(idx, input.fingerprint.tech_stack, input.module_info.package_entry_files);
+
+  const warnings: string[] = [];
+  const ingressFiles = new Set(cg.entries.filter((e) => e.source !== "PROGRAM").map((e) => idx.functions.get(e.key)?.file).filter(Boolean) as string[]);
+  const fileRank = rankFiles(cg.file_graph, ingressFiles, warnings);
+  const scope = input.fingerprint.root_dir_offset;
+  const ctx = makeContext(idx, cg, input.fingerprint.tech_stack, input.source_map, fileRank, scope);
+  const nInScope = files.filter((f) => scope === "" || f.path.startsWith(scope)).length;
+  const res = assemble(ctx, input, nInScope);
+  if (res.nodes.length === 0) return fail("ERR_NO_ARCHITECTURAL_SLICE");
+
+  const finalFns = res.nodes.length ? [...idx.functions.values()].filter((f) => res.nodes[res.nodes.length - 1].trace_steps.some((s) => s.file_path === f.file && s.function_name === f.name)).map((f) => f.key) : [];
+  report.omitted_node_count = res.omitted;
+  report.degraded_mode = res.degraded;
+  report.warnings.push(...warnings, ...res.warnings);
+  const engineMs = Math.round(performance.now() - t1);
+  report.engine_ms = engineMs;
+  if (engineMs > CONFIG.ENGINE_BUDGET_MS) report.warnings.push(`Bước dựng đồ thị mất ${engineMs} ms (mục tiêu ${CONFIG.ENGINE_BUDGET_MS} ms) — chỉ cảnh báo, không cắt file.`);
+  void t0;
+
+  return {
+    engine_version: CONFIG.ENGINE_VERSION,
+    repo_name: input.repo_name,
+    snapshot: input.snapshot,
+    fingerprint: input.fingerprint,
+    total_files: report.code_file_count,
+    nodes: res.nodes,
+    edges: res.edges,
+    symbol_whitelist: buildSymbolWhitelist(idx, finalFns),
+    file_index: files.map((f) => f.path).sort(),
+    ingestion_report: report,
+  };
 }
 
-/**
- * Chuyển kết quả StaticEngineResult phía server thành bản ClientStaticEngineResult gửi về trình duyệt.
- * Dựng object mới từng trường (API-03, không spread):
- * Lược bỏ symbol_whitelist và suspicious_instruction_files.
- */
-export function toClientResult(
-  r: StaticEngineResult
-): ClientStaticEngineResult {
+export async function runEngine(src: IngestSource): Promise<StaticEngineResult> {
+  const out = await runIngest(src);
+  return buildGraph(out);
+}
+
+/** API-03: dựng object mới từng trường, không spread. */
+export function toClientResult(r: StaticEngineResult): ClientStaticEngineResult {
+  const rep = r.ingestion_report;
   return {
     engine_version: r.engine_version,
     repo_name: r.repo_name,
-    snapshot: {
-      source: r.snapshot.source,
-      repo_key: r.snapshot.repo_key,
-      snapshot_id: r.snapshot.snapshot_id,
-      snapshot_id_kind: r.snapshot.snapshot_id_kind,
-      subdir: r.snapshot.subdir,
-      ref_label: r.snapshot.ref_label,
-    },
-    fingerprint: {
-      archetype: r.fingerprint.archetype,
-      primary_language: r.fingerprint.primary_language,
-      language_breakdown: r.fingerprint.language_breakdown.map((lb) => ({
-        language: lb.language,
-        tier: lb.tier,
-        code_bytes: lb.code_bytes,
-      })),
-      graph_confidence: r.fingerprint.graph_confidence,
-      detected_framework: r.fingerprint.detected_framework,
-      tech_stack: r.fingerprint.tech_stack.slice(),
-      is_monorepo: r.fingerprint.is_monorepo,
-      root_dir_offset: r.fingerprint.root_dir_offset,
-    },
+    snapshot: r.snapshot,
+    fingerprint: r.fingerprint,
     total_files: r.total_files,
-    nodes: r.nodes.map((n) => ({
-      id: n.id,
-      title: n.title,
-      title_source: n.title_source,
-      title_evidence: n.title_evidence,
-      node_type: n.node_type,
-      entry_symbol: n.entry_symbol,
-      prerequisites: n.prerequisites.slice(),
-      position: {
-        x: n.position.x,
-        y: n.position.y,
-      },
-      files: n.files.slice(),
-      languages: n.languages.slice(),
-      support_tier: n.support_tier,
-      cognitive_complexity: n.cognitive_complexity,
-      rank_score: n.rank_score,
-      is_vip_algorithm: n.is_vip_algorithm,
-      is_capstone: n.is_capstone,
-      uncle_bob: {
-        instability: n.uncle_bob.instability,
-        abstractness: n.uncle_bob.abstractness,
-        distance: n.uncle_bob.distance,
-        diagnosis: n.uncle_bob.diagnosis,
-        is_exempt: n.uncle_bob.is_exempt,
-      },
-      trace_steps: n.trace_steps.map((st) => ({
-        step_number: st.step_number,
-        layer: st.layer,
-        file_path: st.file_path,
-        function_name: st.function_name,
-        line_start: st.line_start,
-        line_end: st.line_end,
-        snippet: st.snippet,
-        snippet_line_map: st.snippet_line_map.slice(),
-        origin_note: st.origin_note,
-      })),
-      dto_snippet: n.dto_snippet,
-    })),
-    edges: r.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      confidence: e.confidence,
-    })),
-    file_index: r.file_index.slice(),
+    nodes: r.nodes,
+    edges: r.edges,
+    file_index: r.file_index,
     ingestion_report: {
-      truncated: r.ingestion_report.truncated,
-      selective_fetch: r.ingestion_report.selective_fetch,
-      code_file_count: r.ingestion_report.code_file_count,
-      manifest_count: r.ingestion_report.manifest_count,
-      omitted_node_count: r.ingestion_report.omitted_node_count,
-      skipped: {
-        garbage: r.ingestion_report.skipped.garbage,
-        binary: r.ingestion_report.skipped.binary,
-        oversized: r.ingestion_report.skipped.oversized,
-        unsupported_lang: r.ingestion_report.skipped.unsupported_lang,
-        quota: r.ingestion_report.skipped.quota,
-        parse_error: r.ingestion_report.skipped.parse_error,
-      },
-      warnings: r.ingestion_report.warnings.slice(),
-      degraded_mode: r.ingestion_report.degraded_mode,
-      redacted_secret_count: r.ingestion_report.redacted_secret_count,
-      engine_ms: r.ingestion_report.engine_ms,
-      ingest_ms: r.ingestion_report.ingest_ms,
+      truncated: rep.truncated, selective_fetch: rep.selective_fetch, code_file_count: rep.code_file_count,
+      manifest_count: rep.manifest_count, omitted_node_count: rep.omitted_node_count, skipped: rep.skipped,
+      warnings: rep.warnings, degraded_mode: rep.degraded_mode, redacted_secret_count: rep.redacted_secret_count,
+      engine_ms: rep.engine_ms, ingest_ms: rep.ingest_ms,
     },
   };
 }
