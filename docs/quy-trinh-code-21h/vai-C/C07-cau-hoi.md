@@ -43,6 +43,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 3. B2 `checkQuestions` (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 5, GUARD-12): kiểm tra câu hỏi và đáp án mẫu theo Q1–Q8 (kỹ năng, số ý bắt buộc, tên trong code, số dòng, từ cấm, từ cuối symbol cho WEAKNESS, số bước cho FLOW, tên file cho CHANGE).
 4. Viết test trong `src/server/ai/__tests__/questions.test.ts` cho các trường hợp AI-22, AI-23, GUARD-12 dùng file fixture có sẵn `src/server/ai/__fixtures__/questions-n3.json` (fixture 2.3 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture.
 5. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+6. Thêm khối `<learner_history>` và 2 luật câu hỏi theo `20` AI-22..AI-25 (quyết định D-74).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai`
@@ -78,6 +79,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Test GUARD-12 đạt: cổng gác câu hỏi kiểm tra đầy đủ các quy tắc Q1–Q8 trên fixture 2.3.
 
 - [ ] Có test cho ca D4, D5 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Test khối `<learner_history>` đạt: không lịch sử thì không có khối, có thì tối đa `HISTORY_MISSED_POINTS_MAX` ý, mới nhất trước.
+- [ ] Đọc 3 câu hỏi trên AI thật: quan hệ giữa các dòng đúng với code, không trả lời được bằng cách chép phần giải thích (lỗi C-03, C-04).
 ```text
 Task "C07 — Đặt câu hỏi enrich-node" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

@@ -10,7 +10,7 @@ SimpliFey V2 Pro biến một repo GitHub public (hoặc file `.zip`) thành **b
 1. phân tích từng node (kỹ năng + điểm hay + điểm dở, dùng chung cho mọi người học);
 2. viết tổng quan repo;
 3. đặt câu hỏi Feynman cho đúng các kỹ năng người học còn yếu;
-4. chấm câu trả lời và gợi ý 2 nấc rồi lộ đáp án.
+4. chấm câu trả lời và gợi ý theo lượt và bậc (trỏ `20` AI-31) rồi lộ đáp án.
 
 Mô hình **BKT** ghi nhận năng lực của 16 kỹ năng lâu dài trong Postgres. Từ đó server chọn kỹ năng cần hỏi — kỹ năng đã thạo vẫn bị hỏi 1 câu, không node nào được miễn (D-34) — và kỹ năng của node đang mở hiện "đang mài mòn" khi trí nhớ phai, chỉ hiển thị (D-35).
 
@@ -74,7 +74,7 @@ flowchart LR
 | 3a | `analyze-node`: kỹ năng + bằng chứng, mẫu kiến trúc, giải thích từng bước, điểm hay, điểm dở — cache dùng chung | AI | `20`, `21` |
 | 3b | `analyze-overview`: tổng quan repo từ các bản phân tích (không gửi code) | AI | `20`, `21` |
 | 4 | `enrich-node`: server lập kế hoạch câu hỏi theo hồ sơ người học, AI viết câu hỏi + đáp án | AI | `20`, `21`, `22` |
-| 5 | `evaluate-feynman`: AI chấm + gợi ý 2 nấc rồi lộ đáp án; server quyết Đạt, cập nhật BKT, mở khóa | AI + 0 | `20`, `21`, `22`, `03` |
+| 5 | `evaluate-feynman`: AI chấm + gợi ý theo lượt và bậc (trỏ `20` AI-31) rồi lộ đáp án; server quyết Đạt, cập nhật BKT, mở khóa | AI + 0 | `20`, `21`, `22`, `03` |
 
 ---
 
@@ -194,7 +194,7 @@ Chuyển `FAILED → AVAILABLE` **không tồn tại** (D-16).
 
 ## 7. Vòng đời 1 câu hỏi (trong 1 run)
 
-Một run có n câu (Mục 5.2); bảng dưới áp riêng cho từng câu. Câu xong ⇒ người học bấm sang câu kế; câu cuối xong ⇒ run xong.
+Một run có n câu (Mục 5.2); bảng dưới áp riêng cho từng câu (loại gợi ý theo lượt và tier trỏ `20` AI-31). Câu xong ⇒ người học bấm sang câu kế; câu cuối xong ⇒ run xong.
 
 Lượt tối đa: `CONFIG.MAX_ATTEMPTS_PER_QUESTION`. Lượt nào là lượt tối đa thì áp dòng "Lượt cuối".
 

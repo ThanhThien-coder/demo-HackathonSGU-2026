@@ -148,7 +148,7 @@ Ký hiệu: $\tilde p(k)$ = `getDecayedMastery(skills[k], now)`; `weak(k)` = có
 
 - **Chọn kỹ năng (BKT-41):** kỹ năng có $\tilde p < $ `CONFIG.MASTERED_MIN`, tier = `tierOf(`$\tilde p$`)`. Hết kỹ năng ⇒ 1 câu cho kỹ năng nhỏ nhất theo ($\tilde p$ tăng, `practice_count` tăng, thứ tự phân tích), tier `ARCHITECT` (BKT-31, D-34). Không bao giờ trả `[]`.
 - **Thứ tự câu (BKT-42):** (1) có điểm dở trước; (2) $\tilde p$ nhỏ trước; (3) `practice_count` nhỏ trước (thiếu = 0); (4) thứ tự trong `analysis.skills`. `question_index` = 1..n theo thứ tự này (câu 2 của BKT-49 nối sau cùng).
-- Tier ghi vào kế hoạch là tier lúc lập; câu sau trong cùng run không đổi tier dù câu trước đổi điểm.
+- Tier ghi vào kế hoạch là tier lúc lập; câu sau trong cùng run không đổi tier dù câu trước đổi điểm. Gợi ý khi chấm theo lượt và tier của câu hỏi trỏ `20` AI-31. Lịch sử ý hụt (D-74 A5b) chỉ ảnh hưởng nội dung câu hỏi (`20` AI-25), KHÔNG ảnh hưởng BKT hay kế hoạch chọn kỹ năng/bậc.
 
 ### 6.2. Góc hỏi `focus`
 

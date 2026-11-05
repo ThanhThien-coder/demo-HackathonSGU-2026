@@ -321,13 +321,16 @@ async function enrichNode(req: EnrichNodeRequest, userId: string): Promise<Enric
   const graph = await getSessionStaticResult(session);                   // Đoạn code đã lưu (D-59) để AI đặt câu hỏi
   const node = mustFindNode(graph, req.node_id);
   const plan = planNodeQuestions(analysis, profile.skills, now, node.trace_steps.length); // 22; luôn ≥ 1 câu (Mục 5.3)
-  const questions: RunQuestion[] = await generateQuestions(session, graph, node, analysis, plan); // 20: không cache (D-37); câu hỏng ⇒ gọi lại riêng 1 lần ⇒ vẫn hỏng ⇒ DROPPED
+  // A5b: lấy tối đa CONFIG.HISTORY_MISSED_POINTS_MAX ý hụt cùng kỹ năng (join question_attempts → node_runs → learning_sessions theo user_id, lọc skill)
+  const questions: RunQuestion[] = await generateQuestions(session, graph, node, analysis, plan); // 20: không cache (D-37); có <learner_history> nếu có ý hụt; câu hỏng ⇒ gọi lại riêng 1 lần ⇒ vẫn hỏng ⇒ DROPPED
   if (questions.every(q => q.ended_by === "DROPPED")) throw ERR_AI_REJECTED;          // Không tạo run; UI hiện "Thử lại"
   const run = await db.createRun(session.id, node.id, "LEARN", questions, toStepRefs(node), forbiddenKeywords(graph)); // Vi phạm node_runs_one_open (2 tab) ⇒ đọc lại run đang mở, trả như nhánh idempotent
   await db.touchSession(session.id);
   return buildEnrichResponse(run);                                       // Không có đáp án của câu chưa xong (API-03)
 }
 ```
+
+Đọc lịch sử ý hụt (A5b): join `question_attempts` → `node_runs` → `learning_sessions` theo `user_id`, lọc `skill`, lấy tối đa `CONFIG.HISTORY_MISSED_POINTS_MAX` ý hụt mới nhất trước.
 
 ### 6.2. `evaluate-feynman` — kiểm ⇒ chấm ⇒ khóa ⇒ ghi (D-18)
 
@@ -336,7 +339,7 @@ flowchart TD
   A["POST /api/evaluate-feynman"] --> B{"1 · Độ dài & Từ ngữ"}
   B -- "sai độ dài" --> EB["ERR_ANSWER_TOO_*<br/>không tính lượt"]
   B -- "có từ xấu" --> EIN["ERR_ANSWER_INAPPROPRIATE<br/>0 token · không tính lượt"]
-  B -- "hợp lệ" --> C{"2 · Đọc DB, không khóa<br/>run · câu hỏi · đáp án (D-36)"}
+  B -- "hợp lệ" --> C{"2 · Đọc DB, không khóa<br/>run · đáp án (D-36) · lượt trước (A5a) · tra tên (M1)"}
   C -- "DB lỗi" --> EC["ERR_PERSISTENCE_UNAVAILABLE<br/>không gọi AI, không tính lượt"]
   C -- "câu đã xong · lệch lượt · trùng lần trước" --> ED["ERR_QUESTION_FINISHED · ERR_ATTEMPT_OUT_OF_SYNC<br/>ERR_ANSWER_DUPLICATE · không tính lượt"]
   C -- "hợp lệ" --> D{"3 · isInjection?"}
@@ -365,6 +368,8 @@ async function evaluateFeynman(req: EvaluateFeynmanRequest, userId: string): Pro
   if (run.finished_at || q.finished) throw ERR_QUESTION_FINISHED;
   if (req.attempt_number !== q.attempts_used + 1) throw ERR_ATTEMPT_OUT_OF_SYNC;
   if (q.last_answer && similarity(cleanAnswer, q.last_answer) >= CONFIG.ANSWER_DUPLICATE_SIMILARITY) throw ERR_ANSWER_DUPLICATE;
+  // A5a: từ lượt 2, đọc lượt trước của câu (question_attempts: student_answer, points_covered).
+  // M1: đọc snapshot phiên (RAM/session_snapshots) tra tối đa CONFIG.GRADE_REFERENCED_MAX tên hàm khớp node khác (ưu tiên node điều kiện; chỉ tên, không snippet/code, D-36; lỗi snapshot ⇒ bỏ qua).
 
   // 3. Chấm (ngoài transaction, gửi cleanAnswer đã che)
   const maxAttempts = CONFIG.MAX_ATTEMPTS_PER_QUESTION;

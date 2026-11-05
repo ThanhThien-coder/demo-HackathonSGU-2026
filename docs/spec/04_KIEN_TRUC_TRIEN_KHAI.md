@@ -248,8 +248,8 @@ Bản thi không dùng hàng đợi ngoài (D-31). Mọi cơ chế dưới đây
    - Khi có nhiều request đồng thời yêu cầu cùng một `cache_key` chưa tồn tại trong `ai_cache`, server chỉ gửi duy nhất 1 request tới Gemini API; các request sau cùng lắng nghe chung Promise đang chạy trong RAM.
 3. **Giới hạn tốc độ Gemini (Rate-limit Resilience):**
    - Số lần thử lại: `CONFIG.LLM_MAX_RETRIES`.
-   - Độ trễ chờ: `CONFIG.LLM_RETRY_DELAY_MS` cộng ngẫu nhiên `[0, CONFIG.LLM_RETRY_JITTER_MS)` (chống dồn dập).
-   - Khi gặp HTTP 429 hoặc 503: thử lại với backoff + jitter; vẫn lỗi ⇒ `ERR_AI_UNAVAILABLE` (không trừ lượt nộp của người học).
+   - Độ trễ chờ: theo `retryDelay` của Google khi có (`20` AI-12, D-74).
+   - Vẫn lỗi ⇒ `ERR_AI_UNAVAILABLE` (không trừ lượt nộp của người học).
 4. **Hạn mức phiên (Session Token Quota):**
    - Ngưỡng: `CONFIG.SESSION_TOKEN_QUOTA` token (vào + ra).
    - Server kiểm tra trước mỗi lời gọi AI; vượt ngưỡng ⇒ HTTP 429 `ERR_TOKEN_QUOTA_EXCEEDED` và khóa các lời gọi mới.
@@ -298,7 +298,7 @@ Sử dụng thư viện `pino` xuất log định dạng JSON 1 dòng (NDJSON) r
 }
 ```
 
-Số trong ví dụ chỉ minh họa định dạng, không phải số đo. Dòng log cổng gác chặn dùng `GuardLogEntry` (`02` Mục 5), theo `21` GUARD-22.
+Số trong ví dụ chỉ minh họa định dạng, không phải số đo. Dòng log cổng gác chặn dùng `GuardLogEntry` (`02` Mục 5), theo `21` GUARD-22. Log lỗi Gemini: `20` AI-12.
 
 ### 9.2. Danh sách CẤM ghi log tuyệt đối (Bảo mật mã nguồn)
 

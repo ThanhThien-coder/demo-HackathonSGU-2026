@@ -44,6 +44,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 4. B3 `verifyFollowUp`, làm sạch (.kb/spec/21_AI_KIEM_VA_DUYET.md Mục 6, GUARD-13, GUARD-14): hàm `verifyFollowUp` kiểm tra gợi ý không lộ vị trí/con số (leaksNumbers) và feedback người học; hàm làm sạch thuật ngữ và giới hạn số câu.
 5. Viết test trong `src/server/ai/__tests__/grade.test.ts` cho các trường hợp AI-27, AI-30a, AI-30b, AI-31, AI-32, AI-33, GUARD-13, GUARD-14 dùng file fixture có sẵn `src/server/ai/__fixtures__/grading-n3-q1.json` (fixture 2.4 của .kb/spec/50_TEST_VA_FIXTURE.md, Vai E viết ở E02). Không tự viết lại fixture. Nhận diện câu tấn công dùng `isInjection` của `src/server/ai/guard/injection.ts` (E04), không viết lại.
 6. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+7. Gợi ý theo lượt và bậc (`20` AI-31), khối lượt trước và khối tra tên xuyên bài (`20` AI-27, AI-28), quyết định D-74.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai`
@@ -77,8 +78,10 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx vitest run src/server/ai` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Test AI-30a, AI-30b đạt: luật Đạt yêu cầu trích dẫn có thật trong câu trả lời người học.
-- [ ] Test AI-31, AI-32 đạt: cơ chế gợi ý 3 nấc chuẩn xác và chuyển mẫu tĩnh an toàn khi trượt gác.
+- [ ] Test AI-31 đạt đủ 3 bậc × lượt; AI-32 chuyển mẫu tĩnh an toàn khi trượt gác.
 - [ ] Test GUARD-13, GUARD-14 đạt: cổng gác chặn đúng các ca lộ con số và tên hàm ở gợi ý CONCEPT trong GUARD-13.
+- [ ] Test khối lượt trước đạt: lượt 1 không có, lượt 2 đủ 2 khối; tên chỉ có trong câu trả lời lượt trước bị cổng gác coi là tên lạ.
+- [ ] Test tra tên xuyên bài đạt: khối chỉ có tên, không có code; tên của bài điều kiện xếp trước; đọc snapshot lỗi thì chấm như cũ.
 
 - [ ] Có test cho ca D8 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 ```text
