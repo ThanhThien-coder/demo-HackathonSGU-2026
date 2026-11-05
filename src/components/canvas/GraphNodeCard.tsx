@@ -1,263 +1,68 @@
 "use client";
-
-import React, { memo } from "react";
+// 30 Mục 4 — thẻ node trong đồ thị: màu theo status (INV-11) + lớp hiển thị (cảnh báo, đang phân tích, capstone, thuật toán).
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import { Lock, Check, X, AlertTriangle, Loader2, Star } from "lucide-react";
+import type { HybridArchitecturalNode, NodeStatus } from "@/contracts";
 import { CONFIG } from "@/contracts/config";
-import type {
-  HybridArchitecturalNode,
-  NodeStateView,
-  NodeAnalysisView,
-  NodeStatus,
-} from "@/contracts";
+import { STATUS_UI, cn, displayTitle } from "@/components/ui/common";
 
-export type GraphNodeCardData = {
+export interface GraphNodeData extends Record<string, unknown> {
   node: HybridArchitecturalNode;
-  state?: NodeStateView;
-  analysis?: NodeAnalysisView | "PENDING" | "FAILED";
+  status: NodeStatus;
+  hasWarning: boolean;
+  warningText: string;
+  lockedHint: string;
+  analysis: "READY" | "PENDING" | "FAILED" | "NONE";
+  analysisFailed: boolean;
   active: boolean;
-  blockedBy: string[];
-  onSelect: (id: string) => void;
+  unlocked: boolean;
+  onOpen: (id: string) => void;
   onRetry: (id: string) => void;
-};
+}
+export type GraphFlowNode = Node<GraphNodeData, "lesson">;
 
-export type GraphNodeCardNodeType = Node<GraphNodeCardData, "graphNode">;
-
-export const GraphNodeCard = memo(function GraphNodeCard(
-  props: NodeProps<GraphNodeCardNodeType>
-) {
-  const { data } = props;
-  const {
-    node,
-    state,
-    analysis,
-    active,
-    blockedBy = [],
-    onSelect,
-    onRetry,
-  } = data;
-
-  const status: NodeStatus = state?.status ?? "LOCKED";
-  const isLocked = status === "LOCKED";
-  const isAvailable = status === "AVAILABLE";
-  const isCompleted = status === "COMPLETED";
-  const isFailed = status === "FAILED";
-
-  const hasWarning = Boolean(state?.has_warning);
-  const isPending = analysis === "PENDING";
-  const isAnalysisFailed =
-    Boolean(state?.analysis_failed) || analysis === "FAILED";
-
-  // Tên: title_source thuộc DOMAIN_TERMS, DIRECTORY, FILE_BASENAME => tiền tố "~"
-  const isDerived =
-    node.title_source === "DOMAIN_TERMS" ||
-    node.title_source === "DIRECTORY" ||
-    node.title_source === "FILE_BASENAME";
-
-  const rawTitle = node.title || "";
-  // Dài hơn CONFIG.TITLE_MAX_CHARS ký tự => cắt đúng TITLE_MAX_CHARS - 1 ký tự rồi thêm "…"
-  const truncatedTitle =
-    rawTitle.length > CONFIG.TITLE_MAX_CHARS
-      ? rawTitle.slice(0, CONFIG.TITLE_MAX_CHARS - 1) + "…"
-      : rawTitle;
-  const displayTitle = (isDerived ? "~" : "") + truncatedTitle;
-
-  // title thuộc tính của thẻ
-  let cardTooltip: string;
-  if (isLocked) {
-    const blockedText =
-      blockedBy.length > 0
-        ? blockedBy.join(", ")
-        : node.prerequisites.length > 0
-        ? node.prerequisites.join(", ")
-        : "các bài học trước";
-    cardTooltip = `Hoàn thành trước: ${blockedText}`;
-  } else {
-    cardTooltip = node.title;
-    if (node.title_evidence) {
-      cardTooltip += ` — ${node.title_evidence}`;
-    }
-    if (isDerived) {
-      cardTooltip += " — Tên suy ra — gần đúng";
-    }
-    if (node.title_source === "VIRTUAL") {
-      cardTooltip +=
-        " — Chặng tách từ hàm dài — code thật, engine chia theo vai trò câu lệnh";
-    }
-  }
-
-  // aria-label: "{tên} — {nhãn trạng thái}[, có cảnh báo][, đang phân tích]"
-  const statusLabels: Record<NodeStatus, string> = {
-    LOCKED: "Chưa mở",
-    AVAILABLE: "Sẵn sàng",
-    COMPLETED: "Hoàn thành",
-    FAILED: "Chưa đạt",
-  };
-  const statusText = statusLabels[status] ?? "Chưa mở";
-  let ariaLabel = `${node.title} — ${statusText}`;
-  if (hasWarning) {
-    ariaLabel += ", có cảnh báo";
-  }
-  if (isPending) {
-    ariaLabel += ", đang phân tích";
-  }
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isLocked) return;
-    onSelect(node.id);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      if (isLocked) return;
-      onSelect(node.id);
-    }
-  };
-
-  // Styling theo 4 trạng thái
-  // LOCKED: viền đứt mờ, 🔒 "Chưa mở"
-  // AVAILABLE: hổ phách có nhịp sáng, ● "Sẵn sàng"
-  // COMPLETED: xanh, ✓ "Hoàn thành"
-  // FAILED: đỏ, ✗ "Chưa đạt"
-  let borderBgClass =
-    "border-dashed border-slate-300 bg-slate-50/90 text-slate-700 opacity-80 cursor-not-allowed";
-  if (isCompleted) {
-    borderBgClass =
-      "border-emerald-500 bg-emerald-50/95 text-emerald-950 shadow-xs cursor-pointer";
-  } else if (isAvailable) {
-    borderBgClass =
-      "border-[#ff9640] bg-[#fffaf5] text-slate-900 shadow-xs cursor-pointer";
-  } else if (isFailed) {
-    borderBgClass =
-      "border-red-500 bg-red-50/95 text-red-950 shadow-xs cursor-pointer";
-  }
-
-  const activeClass = active
-    ? "ring-2 ring-slate-900 ring-offset-2 border-slate-800"
-    : "";
+export function GraphNodeCard({ data }: NodeProps<GraphFlowNode>) {
+  const { node, status, active, hasWarning, analysis } = data;
+  const ui = STATUS_UI[status];
+  const locked = status === "LOCKED";
+  const title = displayTitle(node.title, node.title_source);
+  const tooltip = [
+    node.title, node.title_evidence, node.title_source === "VIRTUAL" ? "Chặng tách từ hàm dài — code thật, engine chia theo vai trò câu lệnh" : "",
+    ["DOMAIN_TERMS", "DIRECTORY", "FILE_BASENAME"].includes(node.title_source) ? "Tên suy ra — gần đúng" : "", locked ? data.lockedHint : "",
+  ].filter(Boolean).join("\n");
+  const label = `${node.title} — ${ui.label}${hasWarning ? ", có cảnh báo" : ""}${analysis === "PENDING" ? ", đang phân tích" : ""}`;
+  const failed = analysis === "FAILED" || data.analysisFailed;
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={ariaLabel}
-      aria-disabled={isLocked ? true : undefined}
-      title={cardTooltip}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      style={{ width: 200 }}
-      className={`relative flex flex-col justify-between rounded-xl border-2 p-3 transition-all select-none ${borderBgClass} ${activeClass}`}
+      role="button" tabIndex={0} aria-label={label} aria-disabled={locked} title={tooltip}
+      onClick={() => { if (!locked) data.onOpen(node.id); }}
+      onKeyDown={(e) => { if (!locked && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); data.onOpen(node.id); } }}
+      style={{ width: CONFIG.NODE_BOX_WIDTH, minHeight: CONFIG.NODE_BOX_HEIGHT }}
+      className={cn(
+        "relative rounded-xl border-2 bg-panel px-3 py-2 text-left transition-colors",
+        ui.border, locked ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-panel-2",
+        status === "AVAILABLE" && "node-available", data.unlocked && "node-unlocked", active && "outline outline-2 outline-offset-2 outline-white",
+      )}
     >
-      {/* Handle ẩn phía trên (target) và dưới (source) */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!opacity-0 !w-0 !h-0 !border-0 !pointer-events-none !min-w-0 !min-h-0"
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!opacity-0 !w-0 !h-0 !border-0 !pointer-events-none !min-w-0 !min-h-0"
-      />
-
-      {/* has_warning => ⚠ góc trên trái, title "Node trước chưa vững" */}
-      {hasWarning && (
-        <div
-          className="absolute -top-2 -left-2 z-10 flex items-center justify-center size-5 rounded-full bg-amber-100 border border-amber-500 text-amber-700 shadow-xs"
-          title="Node trước chưa vững"
-        >
-          <AlertTriangle className="size-3 stroke-[2.5]" />
+      <Handle type="target" position={Position.Top} className="!bg-line" />
+      {hasWarning && <span title={data.warningText} aria-hidden className="absolute -left-2 -top-2 rounded-full bg-amber px-1 text-xs text-bg">⚠</span>}
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-bold leading-tight">{title}</span>
+        <span className={cn("shrink-0 text-xs font-semibold", ui.color)}>{ui.icon} {ui.label}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted">
+        <span>{node.files.length} file · {node.languages.join(", ").toLowerCase()}</span>
+        {node.is_capstone && <span className="text-amber" title="Capstone">★ Capstone</span>}
+        {node.node_type === "ALGORITHMIC_CORE" && <span className="text-violet">Thuật toán</span>}
+      </div>
+      {analysis === "PENDING" && <div className="mt-1 flex items-center gap-1 text-[11px] text-blue"><span className="spinner inline-block h-3 w-3 rounded-full border border-blue border-t-transparent" />đang phân tích…</div>}
+      {failed && (
+        <div className="mt-1 text-[11px] text-red">
+          Chưa phân tích được{" "}
+          <button type="button" className="underline hover:text-text" onClick={(e) => { e.stopPropagation(); data.onRetry(node.id); }}>Thử lại phân tích</button>
         </div>
       )}
-
-      {/* Header card: Trạng thái & Badges */}
-      <div className="flex items-center justify-between gap-1 w-full text-xs mb-1.5">
-        <div className="flex items-center gap-1.5 font-bold">
-          {isCompleted && (
-            <span className="inline-flex items-center gap-1 text-emerald-700">
-              <Check className="size-3.5 stroke-[3]" />
-              <span>Hoàn thành</span>
-            </span>
-          )}
-          {isAvailable && (
-            <span className="inline-flex items-center gap-1 text-[#c2410c]">
-              <span className="size-2 rounded-full bg-[#ff9640] animate-pulse" />
-              <span>Sẵn sàng</span>
-            </span>
-          )}
-          {isFailed && (
-            <span className="inline-flex items-center gap-1 text-red-600">
-              <X className="size-3.5 stroke-[3]" />
-              <span>Chưa đạt</span>
-            </span>
-          )}
-          {isLocked && (
-            <span className="inline-flex items-center gap-1 text-slate-500">
-              <Lock className="size-3.5" />
-              <span>Chưa mở</span>
-            </span>
-          )}
-        </div>
-
-        {/* Badges: Capstone & Thuật toán */}
-        <div className="flex items-center gap-1 shrink-0">
-          {node.is_capstone && (
-            <span
-              className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-1 py-0.5 rounded"
-              title="Capstone"
-            >
-              <Star className="size-2.5 fill-amber-600 text-amber-600" />
-              <span>Capstone</span>
-            </span>
-          )}
-          {node.node_type === "ALGORITHMIC_CORE" && (
-            <span
-              className="inline-flex items-center text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 px-1 py-0.5 rounded"
-              title="Thuật toán"
-            >
-              Thuật toán
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Tên node */}
-      <div className="font-bold text-[13px] leading-snug line-clamp-2 text-slate-900">
-        {displayTitle}
-      </div>
-
-      {/* Dòng phụ: {files.length} file · {languages} */}
-      <div className="text-[11px] text-slate-500 mt-1 truncate">
-        {node.files.length} file · {node.languages.join(", ")}
-      </div>
-
-      {/* Trạng thái phân tích: PENDING hoặc FAILED/analysis_failed */}
-      {isPending && (
-        <div className="flex items-center gap-1.5 text-[11px] text-amber-700 mt-2 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200">
-          <Loader2 className="size-3 animate-spin text-amber-600 shrink-0" />
-          <span className="truncate">đang phân tích…</span>
-        </div>
-      )}
-
-      {isAnalysisFailed && (
-        <div className="flex flex-col gap-0.5 mt-2 p-1.5 bg-red-50 rounded border border-red-200 text-[11px]">
-          <span className="text-red-700 font-medium">Chưa phân tích được</span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRetry(node.id);
-            }}
-            className="text-[11px] font-bold text-amber-800 hover:text-amber-900 underline text-left cursor-pointer"
-          >
-            Thử lại phân tích
-          </button>
-        </div>
-      )}
+      <Handle type="source" position={Position.Bottom} className="!bg-line" />
     </div>
   );
-});
-
-export default GraphNodeCard;
+}
