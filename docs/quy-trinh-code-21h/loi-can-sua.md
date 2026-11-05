@@ -52,6 +52,7 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 | D-08 | Nhẹ | Câu hỏi, nhận xét và gợi ý hiện nguyên dấu ` quanh tên code, ví dụ ``Object.keys(ORDER_TRANSITIONS)`` | Xem câu hỏi và cửa sổ kết quả chấm bài | Hiển thị đoạn trong dấu ` dạng code ở các thành phần Feynman | Chưa làm | còn lỗi |
 | D-09 | Vừa | Bài học xong nhưng chưa đạt vẫn hiện 0/20, 0%, kèm "1 bài cần ôn". Người học tưởng tiến độ không cập nhật. D-35 đã bỏ ôn tập nên chữ "cần ôn" cũng sai | Học hết một bài mà có câu chưa đạt, mở Lộ trình học tập | Đổi nhãn thành "1 bài chưa đạt" và hiện rõ số bài đã học ở trang chủ, trang lộ trình | Chưa làm | còn lỗi |
 | D-10 | Nhẹ | Lộ trình hiện 2 thẻ BrewLite giống hệt nhau, không phân biệt được phiên nào | Quét lại hoặc học lại một repo, mở Lộ trình học tập | Hiện commit hoặc ngày tạo trên thẻ, hoặc gom phiên cùng repo | Cần xác minh 2 phiên có do học lại không | còn lỗi |
+| D-11 | Vừa | Chuyển trang hoặc vào phiên khác vẫn hiện bài cũ một lúc rồi mới đổi. Trong lúc đó người học có thể bấm nhầm vào dữ liệu cũ | Mở phiên A, về Lộ trình học tập, mở phiên B, xem màn hình ngay lúc vào | `src/app/learn/page.tsx` effect nạp phiên: store khác `sessionId` thì gọi `resetSession()` trước khi tải; đang tải thì hiện màn chờ thay vì dữ liệu cũ | Chưa làm | còn lỗi |
 
 ## Vai A — Tích hợp, deploy
 
