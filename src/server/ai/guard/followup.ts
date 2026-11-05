@@ -1,171 +1,71 @@
-/**
- * src/server/ai/guard/followup.ts
- *
- * Kiểm tra gợi ý và nhận xét khi chấm bài (GUARD-13, GUARD-14, D-13) theo spec 21 Mục 6.
- */
+// 21 Mục 6–7 — kiểm output chấm (GUARD-13/14), regex câu lệnh tấn công (GUARD-15), ghi mã lỗi (GUARD-22).
+import { CONFIG } from "@/contracts/config";
+import type { GradeContext, GradingRaw, GuardCall, GuardCode, GuardIssue, GuardLogEntry } from "@/contracts";
+import { log } from "../../log";
+import { LOC_RE, backticks, checkNames, findForbidden, gradeScope, identWords, norm, normText, stripLineRefs } from "./text";
 
-import type { GradeContext, GradingRaw } from "@/contracts";
-import {
-  IDENT_RE,
-  LANGUAGE_WORDS,
-  LOC_RE,
-  backticks,
-  identWords,
-  norm,
-  normText,
-} from "./text";
-import { LINE_RE } from "./lines";
-import { checkNames, gradeScope } from "./names";
-import { findForbidden } from "./forbidden";
+const nums = (s: string) => new Set(s.match(/\d+/g) ?? []);
 
-const nums = (s: string): Set<string> => new Set(s.match(/\d+/g) ?? []);
-
-/**
- * Kiểm tra lộ con số (GUARD-13 spec 21 Mục 6):
- * Lộ con số = số có trong đáp án / ý bắt buộc, KHÔNG có trong câu hỏi và KHÔNG có trong câu trả lời.
- */
-export function leaksNumbers(
-  text: string,
-  t: GradeContext,
-  answer: string
-): boolean {
-  const ansAndMust = new Set([
-    ...nums(t.reference_answer),
-    ...t.must_have_points.flatMap((p) => [...nums(p)]),
-  ]);
-  const allowedNums = new Set([
-    ...nums(t.feynman_question),
-    ...nums(answer),
-  ]);
-  const forbiddenNums = new Set(
-    [...ansAndMust].filter((n) => !allowedNums.has(n))
-  );
-
-  const textNums = nums(text);
-  for (const n of textNums) {
-    if (forbiddenNums.has(n)) {
-      return true;
-    }
-  }
+/** Lộ con số: có trong đáp án / ý bắt buộc, KHÔNG có trong câu hỏi và KHÔNG có trong câu trả lời. */
+export function leaksNumbers(text: string, t: GradeContext, answer: string): boolean {
+  const secret = nums(`${t.reference_answer} ${t.must_have_points.join(" ")}`);
+  const known = new Set([...nums(t.feynman_question), ...nums(answer)]);
+  for (const n of nums(text)) if (secret.has(n) && !known.has(n)) return true;
   return false;
 }
 
-/**
- * Kiểm tra đầu ra chấm: follow_up_question và feedback (GUARD-13 spec 21 Mục 6).
- */
-export function verifyFollowUp(
-  g: GradingRaw,
-  t: GradeContext,
-  answer: string,
-  isPassed: boolean
-): { follow_up_ok: boolean; feedback_ok: boolean } {
-  // 1. Kiểm tra follow_up_ok
-  let follow_up_ok = false;
-  const q = g.follow_up_question;
-
-  if (
-    q !== null &&
-    q.trim() !== "" &&
-    (g.follow_up_type === "CONCEPT" || g.follow_up_type === "CODE_POINTER")
-  ) {
-    // Điều kiện 2: không từ cấm và tên hợp lệ
-    const forbidden = findForbidden([q], t.forbidden_external_keywords);
-    const invalidNames = checkNames([q], gradeScope(t, answer));
-
-    if (forbidden.length === 0 && invalidNames.length === 0) {
-      if (g.follow_up_type === "CONCEPT") {
-        // Điều kiện 3: CONCEPT — không lộ vị trí
-        const noBackticks = backticks(q).length === 0;
-        const noLoc = !LOC_RE.test(q);
-
-        const fileBasenames = t.steps
-          .map((s) => s.file_path.split(/[/\\]/).pop()?.toLowerCase())
-          .filter((b): b is string => Boolean(b));
-        const lowerQ = q.toLowerCase();
-        const noBasename = !fileBasenames.some((base) => lowerQ.includes(base));
-
-        const qIdents = identWords(q);
-        const noFunctionName = !t.steps.some((s) => {
-          const parts = s.function_name.split(/[^A-Za-z0-9_$]+/).filter(Boolean);
-          const lastPart = parts[parts.length - 1];
-          return lastPart ? qIdents.has(norm(lastPart)) : false;
-        });
-
-        const noLeakedNums = !leaksNumbers(q, t, answer);
-
-        if (
-          noBackticks &&
-          noLoc &&
-          noBasename &&
-          noFunctionName &&
-          noLeakedNums
-        ) {
-          follow_up_ok = true;
-        }
-      } else if (g.follow_up_type === "CODE_POINTER") {
-        // Điều kiện 4: CODE_POINTER
-        const stepValid =
-          g.follow_up_step_index !== null &&
-          Number.isInteger(g.follow_up_step_index) &&
-          t.step_indices.includes(g.follow_up_step_index);
-
-        const qPrime = q
-          .replace(new RegExp(LOC_RE.source, "giu"), "")
-          .replace(new RegExp(LINE_RE.source, "giu"), "");
-        const noLeakedNums = !leaksNumbers(qPrime, t, answer);
-
-        if (stepValid && noLeakedNums) {
-          follow_up_ok = true;
-        }
-      }
-    }
+export function verifyFollowUp(g: GradingRaw, t: GradeContext, answer: string, isPassed: boolean): { follow_up_ok: boolean; feedback_ok: boolean } {
+  const sc = gradeScope(t, answer);
+  const q = g.follow_up_question ?? "";
+  let fok = q.trim().length > 0 && (g.follow_up_type === "CONCEPT" || g.follow_up_type === "CODE_POINTER");
+  fok = fok && findForbidden([q], t.forbidden_external_keywords).length === 0 && checkNames([q], sc).length === 0;
+  if (fok && g.follow_up_type === "CONCEPT") {
+    const lastNames = t.steps.map((s) => norm(s.function_name.split(".").pop() ?? ""));
+    const qWords = identWords(q);
+    const baseNames = t.steps.map((s) => s.file_path.split("/").pop()!.toLowerCase());
+    fok = backticks(q).length === 0 && !LOC_RE.test(q) && !baseNames.some((b) => q.toLowerCase().includes(b)) &&
+      !lastNames.some((n) => n && qWords.has(n)) && !leaksNumbers(q, t, answer);
+  } else if (fok) {
+    const idx = g.follow_up_step_index;
+    const stepIdx = t.steps.map((s) => s.step_index);
+    fok = Number.isInteger(idx) && stepIdx.includes(idx as number) && !leaksNumbers(stripLineRefs(q.replace(new RegExp(LOC_RE.source, "giu"), "")), t, answer);
   }
-
-  // 2. Kiểm tra feedback_ok
-  let feedback_ok = false;
-  const f = g.feedback;
-
-  if (f !== null && f.trim() !== "") {
-    const forbidden = findForbidden([f], t.forbidden_external_keywords);
-    const invalidNames = checkNames([f], gradeScope(t, answer));
-
-    if (forbidden.length === 0 && invalidNames.length === 0) {
-      if (isPassed) {
-        feedback_ok = true;
-      } else {
-        // Chưa đạt: phải thỏa mãn cả 3 điều kiện (a), (b), (c)
-        // (a) mọi từ dạng tên trong backtick của f ∈ identWords(answer)
-        const answerWords = identWords(answer);
-        const btStrings = backticks(f);
-        const btOk = btStrings.every((bt) => {
-          const ws = (bt.match(IDENT_RE) ?? []).filter(
-            (w) => !LANGUAGE_WORDS.has(w.toLowerCase())
-          );
-          return ws.every((w) => answerWords.has(norm(w)));
-        });
-
-        // (b) LOC_RE khớp ⇒ cụm khớp (sau normText) phải có trong câu trả lời
-        let locOk = true;
-        const locMatches = f.match(new RegExp(LOC_RE.source, "giu"));
-        if (locMatches) {
-          const normAns = normText(answer);
-          for (const m of locMatches) {
-            if (!normAns.includes(normText(m))) {
-              locOk = false;
-              break;
-            }
-          }
-        }
-
-        // (c) !leaksNumbers(f)
-        const noLeakedNums = !leaksNumbers(f, t, answer);
-
-        if (btOk && locOk && noLeakedNums) {
-          feedback_ok = true;
-        }
-      }
-    }
+  const f = g.feedback ?? "";
+  let bok = f.trim().length > 0 && findForbidden([f], t.forbidden_external_keywords).length === 0 && checkNames([f], sc).length === 0;
+  if (bok && !isPassed) {
+    const ansWords = identWords(answer);
+    const namesOk = backticks(f).every((b) => (b.match(/[A-Za-z_$][A-Za-z0-9_$]*/g) ?? []).every((w) => ansWords.has(norm(w))));
+    const loc = LOC_RE.exec(f);
+    const locOk = !loc || normText(answer).includes(normText(loc[0]));
+    bok = namesOk && locOk && !leaksNumbers(f, t, answer);
   }
+  return { follow_up_ok: fok, feedback_ok: bok };
+}
 
-  return { follow_up_ok, feedback_ok };
+export function cleanJargons(list: string[], answer: string): string[] {
+  const a = normText(answer);
+  return [...new Set(list.filter((j) => normText(j) && a.includes(normText(j))))];
+}
+
+// ---------- GUARD-15 ----------
+const INJECTION_PATTERNS = [
+  String.raw`(?:bỏ\s*qua|bo\s*qua|phớt\s*lờ|phot\s*lo|lờ\s*đi|lo\s*di|quên\s*(?:hết|đi)?|quen\s*(?:het|di)?)\s+(?:(?:hết|het|mọi|moi|tất\s*cả|tat\s*ca|các|cac|những|nhung|toàn\s*bộ|toan\s*bo)\s+)*(?:hướng\s*dẫn|huong\s*dan|chỉ\s*thị|chi\s*thi|chỉ\s*dẫn|chi\s*dan|prompt|(?:quy\s*tắc|quy\s*tac|luật|luat)\s+(?:chấm|cham|hệ\s*thống|he\s*thong|trước|truoc|ở\s*trên|o\s*tren|trên|tren))`,
+  String.raw`(?:cho|chấm|cham)\s+(?:cho\s+)?(?:tôi|toi|em|mình|minh|tao|tui|bài\s*này|bai\s*nay|câu\s*này|cau\s*nay)\s+(?:được\s+|duoc\s+)?(?:\d{1,3}\s*(?:điểm|diem|\/\s*100)|(?:điểm|diem)\s+(?:tối\s*đa|toi\s*da|cao\s*nhất|cao\s*nhat|max|full)|(?:full|max)\s*(?:điểm|diem))`,
+  String.raw`(?:hãy|hay)\s+(?:chấm|cham)\s+(?:cho\s+\S+\s+)?(?:là\s+|la\s+)?(?:đạt|dat|đúng|dung|pass|qua|100)`,
+  String.raw`(?:ignore|disregard|forget)\s+(?:all\s+|any\s+|the\s+|your\s+)?(?:previous\s+|prior\s+|above\s+|earlier\s+)?(?:instructions?|prompts?|rules)`,
+  String.raw`(?:give|grade|score|mark)\s+(?:me|this(?:\s+answer)?|it)\s+(?:a\s+|an\s+)?(?:\d{1,3}\s*(?:points?|marks?|\/\s*100)|full\s+(?:points?|marks?|score)|max(?:imum)?\s+(?:points?|marks?|score))`,
+  String.raw`system\s*prompt|prompt\s*injection|system\s*override|jailbreak|developer\s*mode|you\s+are\s+now`,
+  String.raw`\b(?:is_passed|core_accuracy|intent)\b\s*["']?\s*[:=]`,
+  String.raw`<\s*\/?\s*(?:system|student_answer|code_data|reference_answer|must_have_points|hint_rule|instructions?)\s*>`,
+];
+export const INJECTION_REGEX = new RegExp(INJECTION_PATTERNS.map((p) => `(?:${p})`).join("|"), "iu");
+export const isInjection = (answer: string) => INJECTION_REGEX.test(answer.normalize("NFC"));
+
+// ---------- GUARD-22 ----------
+export function logGuardBlock(call: GuardCall, attempt: number, nodeId: string | null, issues: GuardIssue[]): void {
+  const codes = [...new Set(issues.map((i) => i.code))] as GuardCode[];
+  const entry: GuardLogEntry = {
+    event: "guard_blocked", call, attempt, node_id: nodeId, codes, prompt_version: CONFIG.PROMPT_VERSION, llm_model: CONFIG.LLM_MODEL,
+  };
+  log.warn(entry);
 }
