@@ -16,7 +16,7 @@ File này là nơi duy nhất ghi lỗi và việc sửa lỗi. Không tạo fil
 
 ### Mẫu thêm lỗi
 
-Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-12`, `D-14`, `C-05`, `A-07`.
+Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-12`, `D-14`, `C-07`, `A-07`.
 
 ```markdown
 ### B-12 · Nặng | Vừa | Nhẹ · Tên ngắn
@@ -36,9 +36,9 @@ Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác min
 | :-- | --: | --: | --: | --: |
 | B — Engine | 2 | 5 | 4 | 11 |
 | D — Giao diện | 2 | 4 | 6 | 12 |
-| C — AI | 0 | 4 | 0 | 4 |
+| C — AI | 0 | 6 | 0 | 6 |
 | A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **4** | **16** | **12** | **32** |
+| **Tổng** | **4** | **18** | **12** | **34** |
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -231,7 +231,7 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 ### C-01 · Vừa · Gemini lỗi không để lại log
 
 - **Hiện tượng:** mọi loại lỗi Gemini đều hiện "Chưa phân tích được", nên lỗi `thinkingBudget` rất khó tìm.
-- **Cần sửa:** ghi mã lỗi trong `catch` của `callLLMOnce` ở `gemini.ts`, không ghi khóa hay nội dung nhạy cảm.
+- **Cần sửa:** ghi mã lỗi trong `catch` của `callLLMOnce` ở `gemini.ts`, không ghi khóa hay nội dung nhạy cảm. Luật log đã có trong quyết định D-74 (`20` AI-12).
 - **Trạng thái:** chưa làm.
 
 ### C-02 · Vừa · Giới hạn token có thể quá thấp
@@ -251,6 +251,22 @@ AI đã chạy. Lỗi cũ là app gửi `thinkingBudget: 0` nên Google trả 40
 - **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
 - **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
 - **Trạng thái:** đã xác nhận trên site, chưa làm.
+
+### C-05 · Vừa · Tổng quan AI không ra sau khi phân tích hết bài
+
+- **Hiện tượng:** lần đo bằng `scripts/agent-probe.ts` ngày 05/11/2026 (12 bài, key miễn phí), `analyze-overview` thất bại cả 2 request, 0 token, không bị cổng gác chặn. Gọi lại cùng đầu vào sau đó thì thành công.
+- **Nguyên nhân:** gọi ngay sau loạt `analyze-node` nên gặp 429/503. `retryDelay` trong `gemini.ts` chỉ chờ `CONFIG.LLM_RETRY_DELAY_MS` cộng ngẫu nhiên, trong khi Google trả `retryDelay` khoảng 57 giây.
+- **Cần sửa:** code theo luật gọi lại mới trong quyết định D-74 (`20` AI-12), ở `retryDelay` và `callLLMOnce` của `src/server/ai/gemini.ts`.
+- **Kiểm tra:** test AI-12 mới xanh; chạy lại probe, tổng quan có kết quả.
+- **Trạng thái:** chưa làm.
+
+### C-06 · Vừa · Điểm dở luôn rỗng
+
+- **Hiện tượng:** cùng lần đo, 24/24 lần phân tích (12 bài, cả lời gọi AI và agent) có `weak_points` rỗng, kể cả bản agent không qua cổng gác. Đo thêm repo `gothinkster/node-express-realworld-example-app` cùng ngày: 7 lần phân tích thành công (5 bản qua cổng gác, 2 bản JSON thô chưa qua cổng gác) đều có `weak_points` rỗng; các lần còn lại bị Google trả 503. Chạy lại lần 2 (giãn 8 giây): 3 bản JSON thô thì 1 bản có điểm dở hợp lý (bài Create Article: service nhận tham số `any`, không có schema validation), nhưng lần `analyzeNode` riêng của bài đó trả `null` sau 2 request, chưa rõ do cổng gác hay 503; 8 bản qua cổng gác đều rỗng.
+- **Nguyên nhân:** nghi chủ yếu do prompt hoặc model (bản thô chưa qua gác cũng gần như luôn rỗng); chưa loại trừ cổng gác chặn bớt, cần ghi lý do chặn để biết. Prompt `analyze-node` có câu "Không chắc thì mảng rỗng — không bịa lỗi cho có", nghi model nhỏ hiểu quá chặt.
+- **Cần sửa:** chạy thêm 1–2 repo khác. Nếu vẫn rỗng thì sửa prompt `analyze-node` và đổi `PROMPT_VERSION`.
+- **Kiểm tra:** repo demo có ít nhất 1 bài có điểm dở hợp lý, qua duyệt tay.
+- **Trạng thái:** cần xác minh.
 
 ---
 
@@ -348,12 +364,13 @@ Các file ở `docs/spec/`. Trạng thái chung: chưa làm. Mọi việc phải
 | S-05 | `00`, `10` ING-131, `11` Mục 1 | Ghi đúng ngôn ngữ code đang có, chuyển phần còn lại sang `KNOWN_NO_GRAMMAR` | B-07 | Q-E |
 | S-06 | `30` | Bỏ `fitView` lúc mở, sửa T32. Đổi nhãn "Lộ trình học chính". Thêm bảng đổi `details.hint`, luật cửa sổ ở 1366×768, tên tầng tiếng Việt, ca bấm được node, ẩn giải thích khi trả lời, không hiện cảnh báo thời gian cho người học | B-10, D-01, D-03, D-04, D-05, D-06, D-07, D-12 | Q-E |
 | S-07 | `30`, `04` Mục 15 | Viết lại theo giao diện thật: `/learn`, ngăn kéo, `/roadmap`, không có `cockpit/*` | D-09, D-10 | Q-D, Q-E |
-| S-08 | `20`, `02` | Ghi rõ `LLM_THINKING_BUDGET = 0` thì không gửi `thinkingConfig`, để không lặp lỗi 400 | Lỗi `thinkingBudget` đã sửa | Q-E |
-| S-09 | `20` | Thêm luật câu hỏi: dòng nhắc tới phải đúng quan hệ trong code, không trả lời được bằng cách chép Tab 1. Thêm luật log lỗi Gemini | C-01, C-03, C-04 | Q-E |
+| S-08 | `20`, `02` | Ghi rõ `LLM_THINKING_BUDGET = 0` thì không gửi `thinkingConfig`, để không lặp lỗi 400 | Lỗi `thinkingBudget` đã sửa | đã sửa ở quyết định D-74, chờ kiểm |
+| S-09 | `20` | Thêm luật câu hỏi: dòng nhắc tới phải đúng quan hệ trong code, không trả lời được bằng cách chép Tab 1. Thêm luật log lỗi Gemini | C-01, C-03, C-04 | đã sửa ở quyết định D-74, chờ kiểm |
 | S-10 | `04` Mục 9 | Thêm trường log an toàn cho lỗi lạ, kiểm biến môi trường lúc khởi động | A-02, A-04 | không |
 | S-11 | `00`, `04`, `05` | Đổi host chính theo quyết định của nhóm | A-01 | Q-C |
 | S-12 | `50` Mục 5 | Thêm vào DoD: repo NestJS nghiệp vụ, đọc nội dung bài, một vòng học trên site thật, thử ở 1366×768 | Mọi lỗi lọt qua test | không |
 | S-13 | `00`, `11`, `50` | Thêm quyết định D-73 và ca test cây bài học | B-04, B-05 | Q-B |
+| S-14 | `00`, `01`, `02`, `03`, `04`, `20`, `22` | Quyết định D-74: gợi ý theo lượt và bậc BKT, chấm nhớ lượt trước, đặt câu hỏi nhớ ý đã hụt, tra tên xuyên bài khi chấm (chỉ tên), gọi lại theo `retryDelay` | C-05 | đã sửa, chờ kiểm |
 
 Không cần sửa spec, chỉ sửa code và phiếu: B-11, D-08, D-11, A-05. Các lỗi còn lại chưa rõ thì xác minh trước.
 
@@ -374,6 +391,11 @@ Các file ở `docs/quy-trinh-code-21h/`. Trạng thái chung: chưa làm. Trư�
 | D07 | Ô thử cửa sổ kết quả ở 1366×768, ẩn giải thích khi trả lời, backtick hiện dạng code | D-05, D-08, D-12 |
 | C01 | Ô lỗi Gemini có log mã lỗi | C-01 |
 | C06, C07, C08 | Ô chạy AI thật, đọc nội dung câu hỏi và đáp án, không chỉ xem test xanh | C-02, C-03, C-04 |
+| C04 | Ô gọi lại theo `retryDelay`, không gửi `thinkingConfig` khi budget 0, log lỗi Gemini (D-74) | C-01, C-05 |
+| C06 | Ô chạy AI thật trên repo demo, có bài có điểm dở | C-06 |
+| C07 | Ô khối `<learner_history>` và 2 luật câu hỏi mới (D-74) | C-03, C-04 |
+| C08 | Ô gợi ý theo bậc, khối lượt trước, khối tra tên xuyên bài (D-74) | — |
+| C09 | Ô tổng quan chạy được ngay sau khi phân tích hết bài | C-05 |
 | A06, A12 | Ô rà phần làm tạm còn sót, `analyses` trả đúng khi mở lại phiên | A-05 |
 | A11 hoặc A12 | Ô lỗi lạ có log đủ để tìm nguyên nhân, kiểm biến môi trường lúc khởi động | A-02, A-04 |
 | E06, E09 | Chạy thêm repo NestJS nghiệp vụ, đọc nội dung 3 bài, làm trọn một vòng học trên site thật, thử ở 1366×768 | Mọi lỗi lọt qua test |
@@ -389,7 +411,7 @@ Agent không tự trả lời các câu này. Nhóm chốt xong thì đổi cộ
 | Q-B | Có thêm quyết định D-73, nối bài thành cây theo module không? | Có, nhưng phải thử kỹ khóa bài | B-04, B-05, S-13 | chờ quyết |
 | Q-C | Host chính của vòng 2 là Cloud Run hay Vercel? | Vercel, tắt workflow Cloud Run, vì GCP còn thiếu secret | A-01, S-11 | chờ quyết |
 | Q-D | Spec 30 theo giao diện thật hay đổi code về 3 cột? | Viết lại spec theo giao diện thật | S-07 | chờ quyết |
-| Q-E | 6 file spec đã vượt trần byte: nâng trần hay cắt bớt? | Nâng trần cho `02`, `10`, `20`, `21`, `30`, ghi một quyết định, cắt `00` | Việc spec có cột Chờ là Q-E | chờ quyết |
+| Q-E | 6 file spec đã vượt trần byte: nâng trần hay cắt bớt? | Nâng trần cho `02`, `10`, `20`, `21`, `30`, ghi một quyết định, cắt `00` | Việc spec có cột Chờ là Q-E | nâng trần, quyết định D-75 |
 | Q-F | Có nâng `ENGINE_VERSION` lên `1.7.0` và gom các đổi engine vào một lần không? | Có | Bước đổi phiên bản của B-01 … B-07 | chờ quyết |
 
 ### Q-A · Luật đạt bài

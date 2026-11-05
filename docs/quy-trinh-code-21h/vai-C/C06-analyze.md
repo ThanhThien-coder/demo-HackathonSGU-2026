@@ -77,6 +77,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Báo cho Vai A chữ ký hàm `analyzeNode` để nối vào route `POST /api/analyze-node` (A07) kịp mốc Lát dọc 1.
 
 - [ ] Có test cho ca D2, D3 của `.kb/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
+- [ ] Chạy AI thật trên repo demo, đọc phần điểm dở: không phải bài nào cũng rỗng (lỗi C-06).
 ```text
 Task "C06 — Lời gọi analyze-node" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```
