@@ -27,6 +27,7 @@ Mức độ: **Nặng** là ban giám khảo thấy ngay khi mở bài. **Vừa*
 | B-08 | Nhẹ | Có node 0 bước (E06-11), có thể đã hết sau TASK_16 | Chạy lại repo demo, mở từng bài | Chưa xác định | Cần chạy lại | |
 | B-09 | Nhẹ | `tech_stack` lẫn thư viện dev và frontend | Xem danh sách thư viện ở Tổng quan | Tầng nhận diện dự án | Chưa làm | còn lỗi |
 | B-10 | Nhẹ | Hiện cảnh báo "Thời gian phân tích đồ thị (3070ms) vượt mức khuyến nghị (600ms)" cho người học. Mốc 600ms chỉ là khuyến nghị, không ảnh hưởng kết quả | Quét BrewLite trên site | Xem lại `ENGINE_BUDGET_MS` trên Vercel, hoặc Vai D không hiện cảnh báo này cho người học | Chưa làm | còn lỗi |
+| B-11 | Nhẹ | Bài thuật toán có bước trỏ vào dòng rỗng cuối file: Bước 3 của `Order` là dòng 65, file chỉ có 64 dòng code. AI vẫn viết mô tả cho bước rỗng này | Mở bài `Order`, xem Bước 3 | `nodes.ts`, ENG-91 chia bước | Chưa làm | còn lỗi |
 
 Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu không, repo đã phân tích vẫn dùng phiên và phân tích AI cũ. Khi đổi, các phiên cũ phải quét lại repo.
 
@@ -36,6 +37,7 @@ Sau khi sửa B-01, B-02 hoặc B-03 phải đổi `ENGINE_VERSION`. Nếu khôn
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | C-01 | Vừa | Gemini lỗi nhưng server không ghi log, màn hình lại giống hệt mọi loại lỗi | Xem log Vercel khi có bài phân tích hỏng | `callLLMOnce` trong `gemini.ts` | Chưa làm | |
 | C-02 | Vừa | Rủi ro: `ANALYZE` 900 token có thể bị cắt với tiếng Việt | Phân tích hết các bài của repo demo, đếm bài lỗi | `LLM_MAX_OUTPUT_TOKENS` trong `config.ts` | Cần đo trên AI thật | |
+| C-03 | Vừa | Câu hỏi gắn sai dòng code. Bài `Order` hỏi `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 thay vì viết thủ công, nhưng dòng 21–25 chính là các ca viết thủ công; `ALL` chỉ dùng ở dòng 44 và 49. Cổng gác không phát hiện | Đối chiếu dòng trong câu hỏi với code bên trái | Prompt câu hỏi và cổng gác Vai C | Chưa làm | còn lỗi |
 
 ## Vai D — Giao diện
 
