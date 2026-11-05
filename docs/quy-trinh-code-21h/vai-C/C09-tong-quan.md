@@ -79,6 +79,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Test GUARD-11 đạt: cổng gác tổng quan gạch nhận xét không có căn cứ từ fixture 2.2.
 - [ ] Route `/api/analyze-overview` kiểm tra trạng thái các node sẵn sàng trước khi gọi AI và xử lý cache đúng chuẩn.
+- [ ] Chạy AI thật: phân tích hết bài rồi mở Tổng quan, có nhận định AI, không lỗi 429 (lỗi C-05, quyết định D-74).
 
 ```text
 Task "C09 — Tổng quan repo, route analyze-overview" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

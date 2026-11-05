@@ -45,6 +45,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 5. Nếu C01 đang dùng chuỗi `"ERR_AI_UNAVAILABLE"` tạm thì đổi sang kiểu mã lỗi lấy từ `@/contracts`.
 6. Viết test trong `src/server/ai/__tests__/gemini.test.ts` và `common.test.ts` cho các trường hợp AI-12, AI-13 và AI-37 (dòng 1: nội dung `<guard_feedback>`; dòng 2: 503/JSON hỏng; dòng 4: câu tấn công không lọt vào request 2, `name` có khoảng trắng bị bỏ). Test mock SDK, không gọi Gemini thật.
 7. Dùng skill kiem-contract so code với `.kb/spec/02_CONTRACTS.md`.
+8. Gọi lại theo `retryDelay` của server, không gửi `thinkingConfig` khi budget 0, ghi log lỗi theo `20` AI-12 (quyết định D-74).
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx vitest run src/server/ai/__tests__`
@@ -80,6 +81,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Test AI-13 đạt: wrapData đóng gói thẻ XML an toàn, renderSteps đúng cấu trúc dòng.
 - [ ] Test AI-37 đạt: ca lỗi mạng hoặc JSON hỏng không có khối phản hồi `<guard_feedback>`.
 - [ ] Test AI-37 đạt: `<guard_feedback>` không chép lại câu chữ của AI (câu tấn công không lọt vào request 2).
+- [ ] Test AI-12 mới đạt: `retryDelay` vừa phải thì chờ đủ rồi gọi lại, quá `LLM_RETRY_DELAY_MAX_MS` thì không gọi lại; log lỗi không chứa khóa hay nội dung.
 
 ```text
 Task "C04 — Hoàn thiện gemini.ts, đóng gói prompt, schema" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
