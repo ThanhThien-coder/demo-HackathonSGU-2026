@@ -1,963 +1,613 @@
-// Lát cắt gọi hàm (Forward Slicing) từ entry point — spec 11 Mục 8 (ENG-80..89).
-import {
-  CONFIG,
-  type ArchitecturalLayer,
-  type ExecutionTraceStep,
-  type FunctionCallEdge,
-  type SymbolDefinition,
-} from "@/contracts";
-import type { Node } from "web-tree-sitter";
-import { getAdapter } from "./registry";
-import type {
-  Candidate,
-  EngineContext,
-  EntryPoint,
-  ExternalCall,
-  ParsedFile,
-} from "./types";
+// 11 Mục 8–9 — lát cắt xuyên file từ 1 entry (ENG-80..89) và node thuật toán (ENG-90, 91).
+import { CONFIG } from "@/contracts/config";
+import type { ArchitecturalLayer, ExecutionTraceStep, HybridArchitecturalNode, VirtualFileOrigin } from "@/contracts";
+import type { CallGraph } from "./callgraph";
+import { isDataSink, isOutput } from "./callgraph";
+import type { FunctionInfo, ParsedFile, SymbolIndex, SyntaxNode } from "./model";
+import { cmp, field, row1, rowEnd1, walk } from "./model";
+import { adapterById } from "./registry";
+import { originNoteFor } from "../ingest/special";
+import { splitStem } from "../ingest/prune";
 
-// Mục 8 ý 6 "Điều khiển": câu lệnh giữ nằm trong câu ghép ⇒ giữ header + dòng đóng của câu ghép đó
-// (gồm else, case, catch, finally). Đi theo cây AST (ENG-04), không theo văn bản.
-const CONTROL_NODE_TYPES = new Set([
-  // TS/JS
-  "if_statement", "else_clause", "for_statement", "for_in_statement", "while_statement",
-  "do_statement", "try_statement", "catch_clause", "finally_clause", "switch_statement",
-  "switch_case", "switch_default",
-  // Python
-  "elif_clause", "except_clause", "with_statement", "match_statement", "case_clause",
-]);
+export interface EngineContext {
+  idx: SymbolIndex;
+  cg: CallGraph;
+  techStack: string[];
+  sourceMap: Map<string, VirtualFileOrigin>;
+  fileRank: Map<string, number>;
+  scope: string;
+  sinkByFn: Map<string, boolean>;
+  extByFn: Map<string, CallGraph["external"]>;
+  sitesByFn: Map<string, CallGraph["sites"]>;
+  throwsByFn: Map<string, boolean>;
+}
 
-function addEnclosingControlLines(
-  keptLines: Set<number>,
-  file: ParsedFile,
-  fnStartLine: number,
-  fnEndLine: number
-): boolean {
-  let changed = false;
-  const lines = file.source.split(/\r?\n/);
-  const add = (l: number) => {
-    if (l >= fnStartLine && l <= fnEndLine && !keptLines.has(l)) {
-      keptLines.add(l);
-      changed = true;
+export type CandidateKind = "SLICE" | "ALGO" | "VNODE";
+export interface Candidate extends Pick<HybridArchitecturalNode,
+  "id" | "node_type" | "entry_symbol" | "trace_steps" | "dto_snippet" | "cognitive_complexity" | "rank_score" | "title_source" | "title_evidence"> {
+  kind: CandidateKind;
+  order_key: string;
+  functions: string[];
+  binding: import("./model").RouteBinding | null;
+  base_title: string;
+  files: string[];
+  languages: string[];
+  /** hàm chung với lát cắt khác + đường gọi (cho ENG-112) */
+  resolved_paths: Map<string, boolean>;
+}
+
+export function makeContext(idx: SymbolIndex, cg: CallGraph, techStack: string[], sourceMap: Map<string, VirtualFileOrigin>,
+  fileRank: Map<string, number>, scope: string): EngineContext {
+  const extByFn = new Map<string, CallGraph["external"]>();
+  for (const e of cg.external) { const l = extByFn.get(e.caller) ?? []; l.push(e); extByFn.set(e.caller, l); }
+  const sitesByFn = new Map<string, CallGraph["sites"]>();
+  for (const s of cg.sites) { const l = sitesByFn.get(s.caller) ?? []; l.push(s); sitesByFn.set(s.caller, l); }
+  const sinkByFn = new Map<string, boolean>();
+  const throwsByFn = new Map<string, boolean>();
+  for (const fn of idx.functions.values()) {
+    sinkByFn.set(fn.key, (extByFn.get(fn.key) ?? []).some((e) => isDataSink(e, techStack)));
+    let t = false;
+    if (fn.body && !fn.is_module) walk(fn.body, (n) => { if (n.type === "throw_statement" || n.type === "raise_statement") t = true; });
+    throwsByFn.set(fn.key, t);
+  }
+  return { idx, cg, techStack, sourceMap, fileRank, scope, sinkByFn, extByFn, sitesByFn, throwsByFn };
+}
+
+const pos = (n: SyntaxNode) => n.startPosition.row * 100000 + n.startPosition.column;
+
+function subtreeHasSink(ctx: EngineContext, key: string, seen = new Set<string>()): boolean {
+  if (seen.has(key)) return false;
+  seen.add(key);
+  if (ctx.sinkByFn.get(key)) return true;
+  return (ctx.sitesByFn.get(key) ?? []).some((s) => subtreeHasSink(ctx, s.callee, seen));
+}
+
+const valueUsed = (call: SyntaxNode): boolean => {
+  let p = call.parent;
+  while (p && (p.type === "await_expression" || p.type === "parenthesized_expression")) p = p.parent;
+  return !!p && p.type !== "expression_statement";
+};
+
+// ---------- cấu trúc câu lệnh ----------
+interface Stmt {
+  node: SyntaxNode;
+  start: number; end: number;           // hàng 1-based
+  parent: Stmt | null;
+  children: Stmt[];
+  headerEnd: number;                    // hàng cuối của phần header (tới khối lồng đầu tiên)
+  compound: boolean;
+  defs: Set<string>;
+  uses: Set<string>;
+}
+
+const BLOCKS = new Set(["statement_block", "block", "switch_body", "class_body"]);
+const NON_STMT = new Set(["comment", "decorator"]);
+
+function collectStmts(body: SyntaxNode, isModule: boolean): Stmt[] {
+  const all: Stmt[] = [];
+  const DEF_TYPES = new Set(["function_declaration", "class_declaration", "abstract_class_declaration", "interface_declaration", "type_alias_declaration",
+    "function_definition", "class_definition", "decorated_definition", "import_statement", "import_from_statement"]);
+  const visitContainer = (container: SyntaxNode, parent: Stmt | null, out: Stmt[]) => {
+    for (const c of container.namedChildren) {
+      if (NON_STMT.has(c.type)) continue;
+      if (isModule && parent === null && (DEF_TYPES.has(c.type) || c.type === "export_statement")) continue;
+      const nested = nestedBlocks(c);
+      const s: Stmt = {
+        node: c, start: row1(c), end: rowEnd1(c), parent, children: [], compound: nested.length > 0,
+        headerEnd: nested.length > 0 ? Math.max(row1(c), row1(nested[0])) : rowEnd1(c), defs: new Set(), uses: new Set(),
+      };
+      if (nested.length > 0 && row1(nested[0]) === row1(c)) s.headerEnd = row1(c);
+      out.push(s);
+      all.push(s);
+      for (const b of nested) visitContainer(b, s, s.children);
     }
   };
-  for (const l of Array.from(keptLines).sort((a, b) => a - b)) {
-    if (l <= fnStartLine || l >= fnEndLine) continue;
-    const text = lines[l - 1] ?? "";
-    const col = text.length - text.trimStart().length;
-    let node: Node | null = file.tree.rootNode.descendantForPosition({ row: l - 1, column: col });
-    while (node) {
-      const startRow = node.startPosition.row + 1;
-      if (startRow < fnStartLine) break;
-      if (CONTROL_NODE_TYPES.has(node.type)) {
-        // Header: từ dòng đầu tới dòng mở thân (điều kiện nhiều dòng vẫn đủ)
-        const body = node.childForFieldName("body") ?? node.childForFieldName("consequence");
-        const headerEnd = body ? body.startPosition.row + 1 : startRow;
-        for (let h = startRow; h <= headerEnd; h++) add(h);
-        add(node.endPosition.row + 1);
+  const first = BLOCKS.has(body.type) || body.type === "program" || body.type === "module" ? body : null;
+  if (first) visitContainer(first, null, []);
+  return all;
+}
+
+/** Các khối lồng trực tiếp của 1 câu lệnh (không đi vào thân hàm literal; thân 1 câu không ngoặc thuộc về câu lệnh cha). */
+function nestedBlocks(n: SyntaxNode): SyntaxNode[] {
+  const out: SyntaxNode[] = [];
+  const t = n.type;
+  const pushField = (f: string) => { const x = field(n, f); if (x && BLOCKS.has(x.type)) out.push(x); };
+  if (["if_statement", "for_statement", "for_in_statement", "while_statement", "do_statement", "with_statement", "labeled_statement"].includes(t)) {
+    pushField("consequence"); pushField("body");
+    for (const c of n.namedChildren) if (c.type === "elif_clause" || c.type === "else_clause") out.push(...nestedAlt(c));
+  } else if (t === "try_statement") {
+    pushField("body");
+    for (const c of n.namedChildren) if (["catch_clause", "finally_clause", "except_clause", "else_clause"].includes(c.type)) out.push(...nestedAlt(c));
+  } else if (t === "switch_statement" || t === "match_statement") {
+    const b = field(n, "body"); if (b) out.push(b);
+  } else if (t === "switch_case" || t === "switch_default" || t === "case_clause") {
+    out.push(n);
+  }
+  return out;
+}
+
+function nestedAlt(alt: SyntaxNode): SyntaxNode[] {
+  const out: SyntaxNode[] = [];
+  for (const c of alt.namedChildren) if (BLOCKS.has(c.type)) out.push(c);
+  if (alt.namedChildren.some((c) => c.type === "if_statement")) out.push(alt); // else if (...) { … }
+  return out;
+}
+
+const identTypes = new Set(["identifier", "shorthand_property_identifier"]);
+
+function analyzeNames(s: Stmt, childNodeIds: Set<number>, isPy: boolean): void {
+  const visit = (n: SyntaxNode, header: boolean) => {
+    if (header && childNodeIds.has(n.id) && n !== s.node) return;
+    if (identTypes.has(n.type)) {
+      const p = n.parent;
+      const isProp = p && ((p.type === "attribute" && field(p, "attribute")?.id === n.id) || (p.type === "keyword_argument" && field(p, "name")?.id === n.id));
+      if (!isProp) s.uses.add(n.text);
+    }
+    if (n.type === "variable_declarator") { const nm = field(n, "name"); if (nm) walk(nm, (x) => { if (identTypes.has(x.type) || x.type === "shorthand_property_identifier_pattern") s.defs.add(x.text); }); }
+    if (n.type === "assignment_expression" || n.type === "augmented_assignment_expression" || (isPy && (n.type === "assignment" || n.type === "augmented_assignment"))) {
+      const l = field(n, "left");
+      if (l) { let r = l; while (r.type === "member_expression" || r.type === "subscript_expression" || r.type === "attribute" || r.type === "subscript") r = field(r, "object") ?? r.namedChildren[0] ?? r; if (r.type === "identifier") s.defs.add(r.text); else walk(l, (x) => { if (x.type === "identifier") s.defs.add(x.text); }); }
+    }
+    if (n.type === "for_in_statement" || (isPy && n.type === "for_statement")) { const l = field(n, "left"); if (l) walk(l, (x) => { if (x.type === "identifier") s.defs.add(x.text); }); }
+    if (n.type === "catch_clause") { const pm = field(n, "parameter"); if (pm) s.defs.add(pm.text); }
+    if (n.type === "call_expression" || n.type === "call") { // v.push(...) định nghĩa/đổi v
+      const fn = field(n, "function");
+      if (fn && (fn.type === "member_expression" || fn.type === "attribute")) {
+        const obj = field(fn, "object");
+        const m = field(fn, "property") ?? field(fn, "attribute");
+        if (obj?.type === "identifier" && m && /^(push|append|add|set|extend|unshift|insert|update)$/.test(m.text)) s.defs.add(obj.text);
       }
-      node = node.parent;
     }
-  }
-  return changed;
+    for (const c of n.namedChildren) visit(c, header);
+  };
+  visit(s.node, true);
 }
 
-const DATA_ACCESS_STEM_TOKENS = new Set([
-  "repository",
-  "repositories",
-  "repo",
-  "repos",
-  "dao",
-  "daos",
-  "model",
-  "models",
-  "entity",
-  "entities",
-]);
-
-const DATA_SINK_METHOD_REGEX =
-  /^(save|insert.*|update.*|delete.*|remove|find.*|create|upsert|query|execute|exec|aggregate|count|get|add|commit)$/i;
-
-const DATA_SINK_RECEIVER_REGEX =
-  /(repository|repo|model|dao|entity|db|database|prisma|knex|pool|conn|connection|client|session|cursor|collection|datasource|manager|tx|trx|jdbcTemplate)$/i;
-
-const DATA_SINK_IMPORT_SOURCES = new Set([
-  "pg",
-  "mysql",
-  "mysql2",
-  "mongodb",
-  "mongoose",
-  "sequelize",
-  "typeorm",
-  "@prisma/client",
-  "sqlite3",
-  "better-sqlite3",
-  "redis",
-  "ioredis",
-  "knex",
-  "sqlalchemy",
-  "psycopg2",
-  "pymongo",
-  "database/sql",
-  "gorm.io/gorm",
-]);
-
-const NON_VAR_TOKENS = new Set([
-  "const", "let", "var", "function", "return", "if", "else", "for", "while", "do",
-  "switch", "case", "break", "continue", "default", "try", "catch", "finally", "throw",
-  "new", "typeof", "instanceof", "in", "of", "void", "delete", "await", "async", "yield",
-  "import", "export", "from", "as", "class", "extends", "implements", "interface", "type",
-  "this", "super", "null", "undefined", "true", "false", "NaN", "Infinity",
-  "any", "number", "string", "boolean", "unknown", "never", "object", "symbol", "bigint",
-  "def", "elif", "except", "pass", "raise", "with", "is", "lambda", "global", "nonlocal",
-  "self", "None", "True", "False", "and", "or", "not", "print",
-]);
-
-// Kiểm tra ExternalCall có phải là DATA_SINK không (ENG-82 ý 4)
-function isDataSinkCall(call: ExternalCall, techStack: string[]): boolean {
-  const method = call.method;
-  const receiverLast = call.receiver_chain[call.receiver_chain.length - 1] ?? "";
-  const receiverFull = call.receiver_chain.join(".");
-
-  // (a) method in regex and receiver in regex or prisma.
-  const isMethodA = DATA_SINK_METHOD_REGEX.test(method);
-  const isReceiverA =
-    DATA_SINK_RECEIVER_REGEX.test(receiverLast) ||
-    receiverFull.startsWith("prisma.");
-  if (isMethodA && isReceiverA) return true;
-
-  // (b) receiver có import_source thuộc DB libraries
-  if (call.import_source && DATA_SINK_IMPORT_SOURCES.has(call.import_source)) {
-    return true;
-  }
-
-  // (c) receiver viết hoa + method in (a) khi tech_stack có mongoose/sequelize/typeorm
-  const hasOrm = techStack.some((t) =>
-    ["mongoose", "sequelize", "typeorm"].includes(t.toLowerCase())
-  );
-  if (
-    hasOrm &&
-    isMethodA &&
-    receiverLast.length > 0 &&
-    receiverLast[0] === receiverLast[0]!.toUpperCase()
-  ) {
-    return true;
-  }
-
-  return false;
+const TERMINAL = /^(return_statement|throw_statement|raise_statement|continue_statement|break_statement)$/;
+function isGuard(s: Stmt): boolean {
+  if (s.node.type !== "if_statement") return false;
+  const cons = field(s.node, "consequence");
+  if (!cons) return false;
+  const last = cons.namedChildren.filter((c) => c.type !== "comment").pop() ?? cons;
+  if (TERMINAL.test(last.type) || TERMINAL.test(cons.type)) return true;
+  return /\bsys\.exit\b|res\.status\(\s*[45]\d\d/.test(last.text);
 }
 
-// Kiểm tra dòng text có phải là OUTPUT không (ENG-82 ý 4)
-function isOutputStatement(lineText: string): boolean {
-  if (
-    lineText.includes("console.") ||
-    lineText.includes("logger.") ||
-    lineText.includes("logging.")
-  ) {
-    return false;
-  }
-
-  const outputPatterns = [
-    /res\.(json|send|status|render|redirect|end|sendStatus)/,
-    /reply\.send/,
-    /next\s*\(/,
-    /return\s+(jsonify|Response|HttpResponse)\s*\(/,
-    /\bprint\s*\(/,
-    /\bfetch\s*\(/,
-    /\baxios\./,
-    /\bsetState\s*\(/,
-    /\bset[A-Z]\w*\s*\(/,
-  ];
-
-  return outputPatterns.some((p) => p.test(lineText));
-}
-
-// Tính độ dài tiền tố chung giữa 2 đường dẫn
-function commonPrefixLength(a: string, b: string): number {
-  let len = 0;
-  const minLen = Math.min(a.length, b.length);
-  while (len < minLen && a[len] === b[len]) {
-    len++;
-  }
-  return len;
-}
-
-// Xác định comment prefix cho file
-function getCommentPrefix(file?: ParsedFile): string {
-  if (!file) return "//";
-  const adapter = getAdapter(file.language);
-  return adapter?.comment_prefix ?? "//";
-}
-
-// Xác định xem file có thuộc tầng DATA_ACCESS không (ENG-82)
-function isDataAccessFile(filePath: string): boolean {
-  const norm = filePath.replace(/\\/g, "/");
-  const segments = norm.split("/");
-  const fileName = segments[segments.length - 1] ?? "";
-  const stem = fileName.replace(/\.[^.]+$/, "");
-  const stemTokens = stem.toLowerCase().split(/[-_.]/);
-  const lastStemToken = stemTokens[stemTokens.length - 1] ?? "";
-
-  for (const seg of segments) {
-    if (DATA_ACCESS_STEM_TOKENS.has(seg.toLowerCase())) return true;
-  }
-  if (DATA_ACCESS_STEM_TOKENS.has(lastStemToken)) return true;
-  return false;
-}
-
-// Trích xuất các định danh biến được đọc trong một dòng code
-function extractReadIdentifiers(lineText: string): string[] {
-  // Bỏ comment
-  const clean = lineText.replace(/\/\/.*$|#.*$/, "");
-  // Bỏ chuỗi literals
-  const noStrings = clean.replace(/(["'`])(?:(?=(\\?))\2.)*?\1/g, " ");
-  const matches = noStrings.match(/\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g);
-  if (!matches) return [];
-  const results: string[] = [];
-  for (const m of matches) {
-    if (!NON_VAR_TOKENS.has(m)) {
-      results.push(m);
-    }
-  }
-  return results;
-}
-
-interface StepBuildingContext {
-  fnKey: string;
-  fnSym: SymbolDefinition;
+// ---------- dựng snippet cho 1 hàm ----------
+interface StepDraft {
+  fn: FunctionInfo;
   hop: number;
-  isEntry: boolean;
-  isMiddleware: boolean;
-  file: ParsedFile;
-  hasDataSink: boolean;
-  dataSinkLines: number[];
-  callsDataAccessFile: boolean;
+  parent: string | null;
+  layer: ArchitecturalLayer;
+  protected_: boolean;
+  seeds: Set<number>;            // node.id của các node hạt giống (call tới callee giữ, sink, output)
+  maxLines: number;
+  rows: number[];
+  prefix_rows: number[];
+  mark_row: number | null;
+  criterion_row: number | null;
+  stmts: Stmt[];
 }
 
-export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
-  const fnInfo =
-    ctx.idx.functions.get(entry.key);
-  const hasFunctionBody = Boolean(
-    fnInfo &&
-      fnInfo.name !== "<module>" &&
-      (fnInfo.kind === "FUNCTION" || fnInfo.kind === "METHOD")
-  );
+function regionOf(fn: FunctionInfo): { start: number; end: number; sigEnd: number; closeStart: number; exprBody: boolean } {
+  const stmt = fn.stmt_node ?? fn.node;
+  const start = fn.is_anon ? row1(stmt) : Math.min(fn.line_start, row1(stmt));
+  const end = rowEnd1(stmt);
+  const body = fn.body;
+  if (!body) return { start, end, sigEnd: end, closeStart: end + 1, exprBody: true };
+  const isBlock = BLOCKS.has(body.type);
+  if (!isBlock) return { start, end, sigEnd: end, closeStart: end + 1, exprBody: true };
+  const py = body.type === "block";
+  const bStart = row1(body);
+  const sigEnd = py ? Math.max(row1(fn.node), bStart === row1(fn.node) ? bStart : bStart - 1) : bStart;
+  return { start, end, sigEnd, closeStart: py ? end + 1 : rowEnd1(body), exprBody: false };
+}
 
-  // Entry không có FunctionInfo có thân ⇒ dùng line_start, line_end của RouteBinding, không thay bằng <module>
-  const entrySym: SymbolDefinition | undefined =
-    hasFunctionBody && fnInfo
-      ? fnInfo
-      : entry.binding
-      ? {
-          key: entry.key,
-          kind: "FUNCTION",
-          name: entry.binding.display_name,
-          file_path: entry.binding.file_path,
-          line_start: entry.binding.line_start,
-          line_end: entry.binding.line_end,
-          is_exported: false,
-        }
-      : ctx.idx.functions.get(entry.key) ?? ctx.idx.symbols.get(entry.key);
-  const entryFile =
-    entry.binding && !hasFunctionBody
-      ? entry.binding.file_path
-      : entry.key.split("#")[0] ?? "";
-  const parsedEntryFile = ctx.files.get(entryFile);
+function draftRows(ctx: EngineContext, f: ParsedFile, d: StepDraft, isPy: boolean): void {
+  const fn = d.fn;
+  const reg = regionOf(fn);
+  const keep = new Set<number>();
+  const range = (a: number, b: number) => { for (let r = a; r <= b; r++) keep.add(r); };
+  range(reg.start, reg.sigEnd);
+  if (reg.closeStart <= reg.end) range(reg.closeStart, reg.end);
+  if (reg.exprBody || !fn.body) { range(reg.start, reg.end); d.rows = [...keep].sort((a, b) => a - b); return; }
 
-  // 1. ENG-80 Thu hàm (Forward Slicing)
-  const stepsMeta: StepBuildingContext[] = [];
-  const visitedFns = new Set<string>();
+  const stmts = fn.is_module ? collectStmts(fn.body, true) : collectStmts(fn.body, false);
+  d.stmts = stmts;
+  const childIds = new Set<number>();
+  for (const s of stmts) for (const c of s.children) childIds.add(c.node.id);
+  for (const s of stmts) analyzeNames(s, childIds, isPy);
 
-  // Map từ caller đến danh sách callee edges
-  const callerEdges = new Map<string, FunctionCallEdge[]>();
-  for (const edge of ctx.edges) {
-    let list = callerEdges.get(edge.caller);
-    if (!list) {
-      list = [];
-      callerEdges.set(edge.caller, list);
+  const inner = (n: SyntaxNode): Stmt | null => {
+    let best: Stmt | null = null;
+    for (const s of stmts) if (s.node.startIndex <= n.startIndex && s.node.endIndex >= n.endIndex) if (!best || (s.node.endIndex - s.node.startIndex) <= (best.node.endIndex - best.node.startIndex)) best = s;
+    return best;
+  };
+
+  const kept = new Set<Stmt>();
+  const compoundKept = new Set<Stmt>();
+  const seedStmts: Stmt[] = [];
+  walk(fn.body, (n) => {
+    if (d.seeds.has(n.id)) { const s = inner(n); if (s) seedStmts.push(s); }
+    if (/^(return_statement|throw_statement|raise_statement)$/.test(n.type) || n.type === "yield_expression" || n.type === "yield") {
+      const s = inner(n); if (s) seedStmts.push(s);
     }
-    list.push(edge);
-  }
-
-  // Thu thập các ExternalCall theo từng hàm caller
-  const fnExternalCalls = new Map<string, ExternalCall[]>();
-  for (const ext of ctx.external) {
-    let list = fnExternalCalls.get(ext.caller);
-    if (!list) {
-      list = [];
-      fnExternalCalls.set(ext.caller, list);
-    }
-    list.push(ext);
-  }
-
-  function resolveCalleeKey(callerKey: string, calleeKey: string): string {
-    const callerFile = callerKey.split("#")[0] ?? "";
-    const edges = callerEdges.get(callerKey) ?? [];
-    const edge = edges.find((e) => e.callee === calleeKey);
-    if (!edge || !edge.ambiguous) return calleeKey;
-
-    // Call site ambiguous ⇒ chọn 1 đích: file có tiền tố chung dài nhất, hòa ⇒ khóa nhỏ
-    const candidates = edges
-      .filter((e) => e.callee.endsWith(calleeKey.split("#")[1] ?? ""))
-      .map((e) => e.callee);
-    if (candidates.length <= 1) return calleeKey;
-
-    candidates.sort((a, b) => {
-      const fileA = a.split("#")[0] ?? "";
-      const fileB = b.split("#")[0] ?? "";
-      const pA = commonPrefixLength(callerFile, fileA);
-      const pB = commonPrefixLength(callerFile, fileB);
-      if (pB !== pA) return pB - pA;
-      return a < b ? -1 : a > b ? 1 : 0;
-    });
-
-    return candidates[0] ?? calleeKey;
-  }
-
-  function collectFromFunction(
-    curKey: string,
-    hop: number,
-    isEntry: boolean,
-    isMiddleware: boolean
-  ): void {
-    if (hop > CONFIG.SLICE_MAX_HOPS) return;
-    if (visitedFns.has(curKey)) return;
-    if (curKey.endsWith("#<module>")) return;
-
-    const sym = ctx.idx.functions.get(curKey) ?? ctx.idx.symbols.get(curKey);
-    if (!sym || sym.name === "<module>") return;
-    if (sym.kind !== "FUNCTION" && sym.kind !== "METHOD") return;
-    const file = ctx.files.get(sym.file_path);
-    if (!file) return;
-
-    visitedFns.add(curKey);
-
-    const extCalls = fnExternalCalls.get(curKey) ?? [];
-    const dataSinkLines: number[] = [];
-    for (const ext of extCalls) {
-      if (isDataSinkCall(ext, ctx.tech_stack)) {
-        dataSinkLines.push(ext.line);
+    // gắn thêm vào tham số (VD req.user = jwt.verify(...)): tác dụng phụ quan sát được ở bước sau
+    if (n.type === "assignment_expression" || n.type === "assignment") {
+      const l = field(n, "left");
+      if (l && (l.type === "member_expression" || l.type === "attribute" || l.type === "subscript_expression")) {
+        let r: SyntaxNode = l;
+        while (r.type === "member_expression" || r.type === "attribute" || r.type === "subscript_expression") r = field(r, "object") ?? r;
+        if (r.type === "identifier" && fn.params.includes(r.text)) { const s = inner(n); if (s) seedStmts.push(s); }
       }
     }
+  });
+  const markSeed = (s: Stmt) => { kept.add(s); };
+  seedStmts.forEach(markSeed);
 
-    const curStep: StepBuildingContext = {
-      fnKey: curKey,
-      fnSym: sym,
-      hop,
-      isEntry,
-      isMiddleware,
-      file,
-      hasDataSink: dataSinkLines.length > 0,
-      dataSinkLines,
-      callsDataAccessFile: false,
+  // def-use lùi tới bất động
+  const queue = [...kept];
+  const keepHeader = (s: Stmt) => { if (s.compound) compoundKept.add(s); else if (!kept.has(s)) { kept.add(s); queue.push(s); } };
+  const inLoop = (s: Stmt) => { for (let p: Stmt | null = s.parent; p; p = p.parent) if (/for|while|do_statement/.test(p.node.type)) return p; return null; };
+  while (queue.length) {
+    const k = queue.pop()!;
+    for (const v of k.uses) {
+      for (const s of stmts) {
+        if (!s.defs.has(v) || s === k) continue;
+        const loop = inLoop(k);
+        if (s.start < k.start || (loop && s.start >= loop.start && s.end <= loop.end)) {
+          if (s.compound) { if (!compoundKept.has(s)) { compoundKept.add(s); } }
+          else if (!kept.has(s)) { kept.add(s); queue.push(s); }
+        }
+      }
+    }
+  }
+  void keepHeader;
+
+  // điều khiển: header + đóng của mọi câu lệnh ghép bao câu lệnh giữ; else/catch/finally
+  const addHeader = (a: Stmt) => {
+    range(a.start, a.headerEnd);
+    if (!isPy) keep.add(a.end);
+  };
+  const addAncestors = (s: Stmt) => {
+    for (let a: Stmt | null = s.parent; a; a = a.parent) {
+      addHeader(a);
+      // nhánh else / catch / finally / case chứa s
+      for (const c of a.node.namedChildren) {
+        if (["else_clause", "elif_clause", "catch_clause", "finally_clause", "except_clause", "switch_case", "switch_default", "case_clause"].includes(c.type)) {
+          if (c.startIndex <= s.node.startIndex && c.endIndex >= s.node.endIndex) keep.add(row1(c));
+        }
+      }
+      const alt = field(a.node, "alternative");
+      if (alt && alt.startIndex <= s.node.startIndex && alt.endIndex >= s.node.endIndex) keep.add(row1(alt));
+    }
+  };
+  for (const s of kept) { range(s.start, s.end); addAncestors(s); }
+  for (const s of compoundKept) { addHeader(s); addAncestors(s); }
+  // guard clause: `if` đứng trước câu lệnh giữ, thân kết thúc bằng return/throw/…
+  for (const s of kept) {
+    const siblings = s.parent ? s.parent.children : stmts.filter((x) => x.parent === null);
+    for (let a: Stmt | null = s; a; a = a.parent) {
+      const sib = a.parent ? a.parent.children : stmts.filter((x) => x.parent === null);
+      for (const g of sib) if (g.end < a.start && isGuard(g)) range(g.start, g.end);
+    }
+    void siblings;
+  }
+
+  // biến module cùng file được dùng ⇒ giữ dòng khai báo (ngoài hàm)
+  const mvars = ctx.idx.module_vars.get(fn.file);
+  const used = new Set<string>();
+  for (const s of kept) s.uses.forEach((u) => used.add(u));
+  const prefix: number[] = [];
+  if (mvars && !fn.is_module) for (const u of [...used].sort()) {
+    const mv = mvars.get(u);
+    if (mv && !ctx.idx.locals.get(fn.key)?.has(u) && (mv.line_end < reg.start || mv.line_start > reg.end)) {
+      for (let r = mv.line_start; r <= mv.line_end; r++) prefix.push(r);
+    }
+  }
+  d.prefix_rows = [...new Set(prefix)].sort((a, b) => a - b);
+
+  // mốc cho Hard Clamp
+  const firstSeed = seedStmts.sort((a, b) => a.start - b.start)[0];
+  d.mark_row = d.criterion_row ?? (firstSeed ? firstSeed.start : null);
+  void f;
+  d.rows = [...keep].filter((r) => r >= reg.start && r <= reg.end).sort((a, b) => a - b);
+}
+
+function renderRows(f: ParsedFile, rows: number[], prefix: number[], commentPrefix: string): { snippet: string; map: number[] } {
+  const all = [...new Set([...prefix, ...rows])].sort((a, b) => a - b);
+  const lines: string[] = [];
+  const map: number[] = [];
+  let prev = 0;
+  for (const r of all) {
+    if (prev > 0 && r > prev + 1) {
+      const omitted = [];
+      for (let x = prev + 1; x < r; x++) if ((f.lines[x - 1] ?? "").trim() !== "") omitted.push(x);
+      if (omitted.length > 0) {
+        const indent = /^\s*/.exec(f.lines[omitted[0] - 1] ?? "")![0];
+        lines.push(`${indent}${commentPrefix} … (${omitted.length} dòng)`);
+        map.push(0);
+      }
+    }
+    lines.push(f.lines[r - 1] ?? "");
+    map.push(r);
+    prev = r;
+  }
+  return { snippet: lines.join("\n"), map };
+}
+
+/** ENG-87 Hard Clamp: bước dài hơn maxLines ⇒ giữ chữ ký, dòng đóng, cửa sổ quanh mốc. */
+function clampRows(d: StepDraft, f: ParsedFile, cp: string, maxLines: number): { snippet: string; map: number[]; rows: number[] } {
+  const reg = regionOf(d.fn);
+  let rows = d.rows;
+  let r = renderRows(f, rows, d.prefix_rows, cp);
+  if (r.map.length <= maxLines) return { ...r, rows };
+  const sig = rows.filter((x) => x <= reg.sigEnd);
+  const close = rows.filter((x) => x >= reg.closeStart);
+  const body = rows.filter((x) => x > reg.sigEnd && x < reg.closeStart);
+  let S = sig;
+  let W = Math.min(CONFIG.CLAMP_WINDOW_LINES, maxLines - S.length - close.length - 2);
+  if (W < 1) { S = sig.slice(0, 1); W = Math.max(1, Math.min(CONFIG.CLAMP_WINDOW_LINES, maxLines - 1 - close.length - 2)); }
+  const mark = d.mark_row ?? body[Math.floor(body.length / 2)] ?? 0;
+  let idx = body.findIndex((x) => x >= mark);
+  if (idx < 0) idx = Math.max(0, body.length - 1);
+  let a = Math.max(0, idx - Math.floor(W / 2));
+  const b = Math.min(body.length, a + W);
+  a = Math.max(0, b - W);
+  rows = [...S, ...body.slice(a, b), ...close];
+  r = renderRows(f, rows, [], cp);
+  // phòng thủ: vẫn dài ⇒ cắt cửa sổ thêm
+  while (r.map.length > maxLines && rows.length > S.length + close.length + 1) {
+    const i = rows.length - close.length - 1;
+    rows.splice(i, 1);
+    r = renderRows(f, rows, [], cp);
+  }
+  return { ...r, rows };
+}
+
+const LAYER_ROLE = new Set(["repository", "repositories", "repo", "repos", "dao", "daos", "model", "models", "entity", "entities"]);
+function isDataRoleFile(path: string): boolean {
+  const segs = path.split("/");
+  const base = segs[segs.length - 1];
+  const stem = base.slice(0, base.lastIndexOf(".") > 0 ? base.lastIndexOf(".") : undefined);
+  const toks = splitStem(stem);
+  return segs.slice(0, -1).some((s) => LAYER_ROLE.has(s.toLowerCase())) || (toks.length > 0 && LAYER_ROLE.has(toks[toks.length - 1]));
+}
+
+export interface SliceResult {
+  steps: ExecutionTraceStep[];
+  functions: string[];
+  dto_snippet: string;
+  criterion_fn: string | null;
+  resolved_chain: Map<string, boolean>;
+}
+
+/** Lát cắt cho 1 entry (D-06). `bindingMws` = middleware của route. */
+export function buildSlice(entryKey: string, middlewares: string[], ctx: EngineContext): SliceResult | null {
+  const { idx } = ctx;
+  const entry = idx.functions.get(entryKey);
+  if (!entry || !entry.body) return null;
+
+  const order: StepDraft[] = [];
+  const visited = new Set<string>();
+  const parentOf = new Map<string, string | null>();
+  const resolvedPath = new Map<string, boolean>();
+
+  const callSitesOf = (key: string) => {
+    const bySite = new Map<number, typeof ctx.cg.sites>();
+    for (const s of ctx.sitesByFn.get(key) ?? []) { const l = bySite.get(s.node.id) ?? []; l.push(s); bySite.set(s.node.id, l); }
+    const picked: Array<{ callee: string; node: SyntaxNode; confidence: "RESOLVED" | "INFERRED" }> = [];
+    for (const [, list] of bySite) {
+      const caller = idx.functions.get(key)!;
+      const common = (p: string) => { let i = 0; while (i < p.length && i < caller.file.length && p[i] === caller.file[i]) i++; return i; };
+      const best = [...list].sort((a, b) => common(idx.functions.get(b.callee)?.file ?? "") - common(idx.functions.get(a.callee)?.file ?? "") || cmp(a.callee, b.callee))[0];
+      picked.push({ callee: best.callee, node: best.node, confidence: best.confidence });
+    }
+    return picked.sort((a, b) => pos(a.node) - pos(b.node) || cmp(a.callee, b.callee));
+  };
+
+  const add = (key: string, hop: number, parent: string | null, layer: ArchitecturalLayer, prot: boolean, chainResolved: boolean) => {
+    const fn = idx.functions.get(key);
+    if (!fn || visited.has(key)) return false;
+    visited.add(key);
+    parentOf.set(key, parent);
+    resolvedPath.set(key, chainResolved);
+    order.push({ fn, hop, parent, layer, protected_: prot, seeds: new Set(), maxLines: CONFIG.STEP_MAX_LINES, rows: [], prefix_rows: [], mark_row: null, criterion_row: null, stmts: [] });
+    return true;
+  };
+
+  const dfs = (key: string, hop: number, chainResolved: boolean) => {
+    if (hop >= CONFIG.SLICE_MAX_HOPS) return;
+    for (const s of callSitesOf(key)) {
+      if (visited.has(s.callee)) continue;
+      const g = idx.functions.get(s.callee);
+      if (!g || g.is_module || !g.body) continue;
+      // ENG-81: lọc liên quan
+      const keep = subtreeHasSink(ctx, s.callee) || valueUsed(s.node) || ctx.throwsByFn.get(s.callee);
+      if (!keep) continue;
+      const cr = chainResolved && s.confidence === "RESOLVED";
+      add(s.callee, hop + 1, key, "BUSINESS_LOGIC", false, cr);
+      dfs(s.callee, hop + 1, cr);
+    }
+  };
+
+  add(entryKey, 0, null, "ENTRY_POINT", true, true);
+  for (const m of middlewares) {
+    if (add(m, 1, entryKey, "MIDDLEWARE", true, true)) dfs(m, 1, true);
+  }
+  dfs(entryKey, 0, true);
+
+  // layer (ENG-82)
+  const stepKeys = new Set(order.map((o) => o.fn.key));
+  for (const d of order) {
+    if (d.layer === "ENTRY_POINT" || d.layer === "MIDDLEWARE") continue;
+    const callsOther = (ctx.sitesByFn.get(d.fn.key) ?? []).some((s) => stepKeys.has(s.callee) && idx.functions.get(s.callee)?.file !== d.fn.file);
+    if (isDataRoleFile(d.fn.file)) d.layer = "DATA_ACCESS";
+    else if (ctx.sinkByFn.get(d.fn.key) && !callsOther) d.layer = "DATA_ACCESS";
+    else d.layer = "BUSINESS_LOGIC";
+  }
+
+  // hạt giống cho từng bước
+  for (const d of order) {
+    for (const s of ctx.sitesByFn.get(d.fn.key) ?? []) if (stepKeys.has(s.callee)) d.seeds.add(s.node.id);
+    for (const e of ctx.extByFn.get(d.fn.key) ?? []) if (isDataSink(e, ctx.techStack) || isOutput(e)) d.seeds.add(e.node.id);
+  }
+
+  // criterion (mục 5): DATA_SINK đầu tiên theo (thứ tự bước, dòng) — không có ⇒ OUTPUT cuối của entry …
+  let criterionFn: string | null = null;
+  for (const d of order) {
+    const sinks = (ctx.extByFn.get(d.fn.key) ?? []).filter((e) => isDataSink(e, ctx.techStack)).sort((a, b) => pos(a.node) - pos(b.node));
+    if (sinks.length > 0) { d.criterion_row = row1(sinks[0].node); criterionFn = d.fn.key; break; }
+  }
+  if (!criterionFn) {
+    const e0 = order[0];
+    const outs = (ctx.extByFn.get(e0.fn.key) ?? []).filter((e) => isOutput(e)).sort((a, b) => pos(b.node) - pos(a.node));
+    if (outs[0]) { e0.criterion_row = row1(outs[0].node); criterionFn = e0.fn.key; }
+  }
+
+  // render
+  const renderAll = () => order.map((d) => {
+    const f = idx.files.get(d.fn.file)!;
+    const adapter = adapterById(f.language);
+    const cp = adapter?.comment_prefix ?? "//";
+    draftRows(ctx, f, d, f.is_py);
+    const r = clampRows(d, f, cp, d.maxLines);
+    d.rows = r.rows;
+    return { d, f, r };
+  });
+  let rendered = renderAll();
+  const totals = () => {
+    const lines = rendered.reduce((a, x) => a + x.r.map.length, 0);
+    const chars = rendered.reduce((a, x) => a + x.r.snippet.length, 0);
+    return { lines, tokens: Math.ceil(chars / CONFIG.CHARS_PER_TOKEN) };
+  };
+  // protected: entry, middleware, hàm trên đường tới criterion
+  if (criterionFn) for (let k: string | null = criterionFn; k; k = parentOf.get(k) ?? null) { const d = order.find((o) => o.fn.key === k); if (d) d.protected_ = true; }
+  let guard = 0;
+  while ((totals().lines > CONFIG.NODE_MAX_LINES || totals().tokens > CONFIG.NODE_MAX_CODE_TOKENS) && guard++ < 200) {
+    const hasChild = (k: string) => order.some((o) => o.parent === k);
+    const leaves = order.filter((o) => !o.protected_ && !hasChild(o.fn.key));
+    if (leaves.length > 0) {
+      leaves.sort((a, b) => b.hop - a.hop || order.indexOf(b) - order.indexOf(a));
+      order.splice(order.indexOf(leaves[0]), 1);
+      rendered = renderAll();
+      continue;
+    }
+    const longest = [...order].sort((a, b) => b.rows.length - a.rows.length)[0];
+    if (!longest || longest.maxLines <= 3) break;
+    longest.maxLines = Math.max(3, longest.maxLines - 1);
+    rendered = renderAll();
+  }
+
+  const steps: ExecutionTraceStep[] = rendered.map(({ d, f, r }, i) => {
+    const nz = r.map.filter((x) => x > 0);
+    const origin = ctx.sourceMap.get(d.fn.file);
+    const step: ExecutionTraceStep = {
+      step_number: i + 1, layer: d.layer, file_path: d.fn.file, function_name: d.fn.name,
+      line_start: nz.length ? Math.min(...nz) : d.fn.line_start, line_end: nz.length ? Math.max(...nz) : d.fn.line_end,
+      snippet: r.snippet, snippet_line_map: r.map,
     };
-    stepsMeta.push(curStep);
-
-    // Lấy các callee
-    const edges = callerEdges.get(curKey) ?? [];
-    // Sort callee theo UTF-16
-    const sortedEdges = edges.slice().sort((a, b) => {
-      if (a.callee < b.callee) return -1;
-      if (a.callee > b.callee) return 1;
-      return 0;
-    });
-
-    for (const e of sortedEdges) {
-      const resolvedKey = resolveCalleeKey(curKey, e.callee);
-      const targetFile = resolvedKey.split("#")[0] ?? "";
-      if (isDataAccessFile(targetFile)) {
-        curStep.callsDataAccessFile = true;
-      }
-      collectFromFunction(resolvedKey, hop + 1, false, false);
-    }
-  }
-
-  // Bước 1: Entry (hop 0)
-  if (entrySym) {
-    visitedFns.add(entry.key);
-    const extCalls = hasFunctionBody ? (fnExternalCalls.get(entry.key) ?? []) : [];
-    const dataSinkLines: number[] = [];
-    for (const ext of extCalls) {
-      if (isDataSinkCall(ext, ctx.tech_stack)) {
-        dataSinkLines.push(ext.line);
-      }
-    }
-
-    stepsMeta.push({
-      fnKey: entry.key,
-      fnSym: entrySym,
-      hop: 0,
-      isEntry: true,
-      isMiddleware: false,
-      file: parsedEntryFile ?? {
-        path: entryFile,
-        language: "TYPESCRIPT",
-        tier: "RESOLVED",
-        tree: null as unknown as ParsedFile["tree"],
-        source: "",
-      },
-      hasDataSink: dataSinkLines.length > 0,
-      dataSinkLines,
-      callsDataAccessFile: false,
-    });
-
-    // Middlewares của binding (hop 1)
-    if (entry.binding?.middlewares) {
-      for (const mwName of entry.binding.middlewares) {
-        let mwKey: string | null = null;
-        for (const [k, s] of ctx.idx.symbols) {
-          if (
-            (s.name === mwName || k.endsWith(`#${mwName}`)) &&
-            (s.kind === "FUNCTION" || s.kind === "METHOD")
-          ) {
-            mwKey = k;
-            break;
-          }
-        }
-        if (mwKey) {
-          collectFromFunction(mwKey, 1, false, true);
-        }
-      }
-    }
-
-    // Các hàm mà entry gọi (chỉ thu nếu entry là hàm có thân)
-    if (hasFunctionBody) {
-    const entryEdges = callerEdges.get(entry.key) ?? [];
-    const sortedEntryEdges = entryEdges.slice().sort((a, b) => {
-      if (a.callee < b.callee) return -1;
-      if (a.callee > b.callee) return 1;
-      return 0;
-    });
-
-    for (const e of sortedEntryEdges) {
-      const resolvedKey = resolveCalleeKey(entry.key, e.callee);
-      const targetFile = resolvedKey.split("#")[0] ?? "";
-      if (isDataAccessFile(targetFile)) {
-        stepsMeta[0]!.callsDataAccessFile = true;
-      }
-      collectFromFunction(resolvedKey, 1, false, false);
-    }
-    }
-  }
-
-  // 2. ENG-81 Lọc liên quan
-  // Giữ callee G khi: cây con G có DATA_SINK, hoặc G dùng kết quả, hoặc G có throw/raise.
-  const keptStepsMeta = stepsMeta.filter((st) => {
-    if (st.isEntry || st.isMiddleware) return true;
-    if (st.hasDataSink) return true;
-
-    // G có throw/raise TRONG THÂN G (không phải cả file)
-    const gLines = st.file.source.split(/\r?\n/).slice(st.fnSym.line_start - 1, st.fnSym.line_end);
-    if (gLines.some((t) => /\b(throw|raise)\b/.test(t))) return true;
-
-    // Giá trị trả về của G được dùng ở ≥ 1 call site (gán, return, đối số, điều kiện) — `11` ENG-81
-    const local = st.fnKey.slice(st.fnKey.indexOf("#") + 1);
-    const gName = local.slice(local.lastIndexOf(".") + 1).replace(/~\d+$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const usedRe = new RegExp(
-      `(=(?!=)|\\breturn\\b|\\byield\\b|\\bif\\s*\\(|\\bwhile\\s*\\(|\\bif\\b|\\belif\\b|\\?|&&|\\|\\||\\(|,|\\[|:)\\s*(await\\s+)?(new\\s+)?[\\w$.]*\\b${gName}\\s*\\(`
-    );
-    for (const caller of stepsMeta) {
-      if (!(callerEdges.get(caller.fnKey) ?? []).some((e) => e.callee === st.fnKey)) continue;
-      const cLines = caller.file.source.split(/\r?\n/).slice(caller.fnSym.line_start - 1, caller.fnSym.line_end);
-      if (cLines.some((t) => new RegExp(`\\b${gName}\\s*\\(`).test(t) && usedRe.test(t))) return true;
-    }
-
-    // Kiểm tra cây con có DATA_SINK không
-    const hasSubtreeSink = stepsMeta.some(
-      (other) =>
-        other.hasDataSink &&
-        (callerEdges.get(st.fnKey) ?? []).some((e) => e.callee === other.fnKey)
-    );
-    if (hasSubtreeSink) return true;
-
-    // Kiểm tra giá trị trả về có được dùng không (callee có gọi tiếp thì coi như được dùng)
-    const outEdges = callerEdges.get(st.fnKey) ?? [];
-    if (outEdges.length > 0) return true;
-
-    return false;
+    if (origin) { const note = originNoteFor(origin, r.map); if (note) step.origin_note = note; }
+    void f;
+    return step;
   });
 
-  // 3. Xác định Criterion (ENG-82 ý 5)
-  // Criterion = câu lệnh DATA_SINK đầu tiên theo (thứ tự bước, dòng);
-  // không có ⇒ OUTPUT cuối của entry; không ⇒ return cuối của entry; không ⇒ dòng cuối thân entry.
-  let criterionStepIndex = 0;
-  let criterionLine = 0;
-  let foundCriterion = false;
-
-  for (let i = 0; i < keptStepsMeta.length; i++) {
-    const st = keptStepsMeta[i]!;
-    if (st.dataSinkLines.length > 0) {
-      st.dataSinkLines.sort((a, b) => a - b);
-      criterionStepIndex = i;
-      criterionLine = st.dataSinkLines[0]!;
-      foundCriterion = true;
-      break;
-    }
-  }
-
-  if (!foundCriterion && keptStepsMeta.length > 0) {
-    const entryStep = keptStepsMeta[0]!;
-    const lines = entryStep.file.source.split(/\r?\n/);
-    let lastOutputLine = 0;
-    let lastReturnLine = 0;
-
-    for (
-      let lineNum = entryStep.fnSym.line_start;
-      lineNum <= entryStep.fnSym.line_end;
-      lineNum++
-    ) {
-      const text = lines[lineNum - 1] ?? "";
-      if (isOutputStatement(text)) {
-        lastOutputLine = lineNum;
-      }
-      if (/\breturn\b/.test(text)) {
-        lastReturnLine = lineNum;
-      }
-    }
-
-    if (lastOutputLine > 0) {
-      criterionLine = lastOutputLine;
-    } else if (lastReturnLine > 0) {
-      criterionLine = lastReturnLine;
-    } else {
-      criterionLine = entryStep.fnSym.line_end;
-    }
-  }
-
-  // 4. Dựng ExecutionTraceStep cho từng hàm (ENG-82..87)
-  const traceSteps: ExecutionTraceStep[] = [];
-  const dtoNames = new Set<string>();
-
-  for (let i = 0; i < keptStepsMeta.length; i++) {
-    const st = keptStepsMeta[i]!;
-    const file = st.file;
-    const fileSource = file.source;
-    const allLines = fileSource.split(/\r?\n/);
-    const commentPrefix = getCommentPrefix(file);
-
-    // Gán layer kiến trúc (ENG-82 ý 3)
-    let layer: ArchitecturalLayer = "BUSINESS_LOGIC";
-    if (st.isEntry) {
-      layer = "ENTRY_POINT";
-    } else if (st.isMiddleware) {
-      layer = "MIDDLEWARE";
-    } else if (isDataAccessFile(st.fnSym.file_path)) {
-      layer = "DATA_ACCESS";
-    } else if (st.hasDataSink && !st.callsDataAccessFile) {
-      layer = "DATA_ACCESS";
-    }
-
-    // Xác định tên hàm hiển thị
-    // ENG-86: function_name = `Class.method` / tên hàm / `display_name`. Khóa ENG-20 là
-    // `file#Class.method` ⇒ lấy phần sau `#` để giữ tên lớp.
-    let funcName = st.fnSym.key.includes("#")
-      ? st.fnSym.key.slice(st.fnSym.key.indexOf("#") + 1)
-      : st.fnSym.name;
-    if (st.isEntry && entry.binding) {
-      funcName = entry.binding.display_name;
-    }
-
-    // Tập dòng giữ trong hàm (ENG-82 ý 6)
-    const keptLines = new Set<number>();
-    const startLine = st.fnSym.line_start;
-    const endLine = st.fnSym.line_end;
-
-    // Giữ chữ ký hàm
-    let sigEnd = startLine;
-    for (let l = startLine; l <= Math.min(endLine, startLine + 10); l++) {
-      const lineText = allLines[l - 1] ?? "";
-      if (lineText.includes("{") || lineText.trim().endsWith(":")) {
-        sigEnd = l;
-        break;
-      }
-    }
-    for (let l = startLine; l <= sigEnd; l++) {
-      keptLines.add(l);
-    }
-    // Giữ dòng đóng
-    keptLines.add(endLine);
-
-
-    const isAnonHandler =
-      st.isEntry &&
-      entry.binding &&
-      (entry.key.includes("<POST ") ||
-        entry.key.includes("<GET ") ||
-        entry.key.includes("<PUT ") ||
-        entry.key.includes("<DELETE ") ||
-        entry.key.includes("<anon@"));
-
-    let moduleVarLine = 0;
-
-    if ((isAnonHandler || (st.isEntry && !hasFunctionBody)) && entry.binding) {
-      keptLines.clear();
-      for (
-        let l = entry.binding.line_start;
-        l <= entry.binding.line_end;
-        l++
-      ) {
-        keptLines.add(l);
-      }
-    } else {
-      // 1) Hạt giống: dòng chứa call site, DATA_SINK, OUTPUT, return/throw/raise/yield
-      for (let l = startLine; l <= endLine; l++) {
-        const text = allLines[l - 1] ?? "";
-
-        if (st.dataSinkLines.includes(l)) {
-          keptLines.add(l);
-        }
-        if (isOutputStatement(text)) {
-          keptLines.add(l);
-        }
-        if (/\b(return|throw|raise|yield)\b/.test(text)) {
-          keptLines.add(l);
-        }
-        const edges = callerEdges.get(st.fnKey) ?? [];
-        for (const e of edges) {
-          // Hạt giống "câu lệnh chứa call site tới callee giữ": so theo TÊN ĐƯỢC GỌI (phần cuối khóa
-          // `file#Class.method` ⇒ `method`) đi kèm `(`, vì call site viết qua biến instance
-          // (`categoryRepo.findById(…)`), không viết tên lớp `CategoryRepo`.
-          const local = e.callee.includes("#") ? e.callee.slice(e.callee.indexOf("#") + 1) : e.callee;
-          if (local.startsWith("<")) continue; // <module>, handler ẩn danh: không có tên gọi
-          const calledName = local.slice(local.lastIndexOf(".") + 1).replace(/~\d+$/, "");
-          if (!calledName) continue;
-          const escaped = calledName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          if (new RegExp(`(^|[^\\w$])${escaped}\\s*\\(`).test(text)) {
-            keptLines.add(l);
-          }
-        }
-        if (/^\s*if\s*\(/.test(text) && /\b(return|throw|res\.)\b/.test(text)) {
-          keptLines.add(l);
-        }
-      }
-
-      // 2) Def-use lùi: với câu lệnh giữ và tên v đọc, giữ định nghĩa v trong F trước nó;
-      // lặp tới bất động. v là biến module cùng file ⇒ giữ khai báo trong snippet.
-      let changed = true;
-      let iterations = 0;
-      while (changed && iterations < 20) {
-        changed = false;
-        iterations++;
-
-        if (addEnclosingControlLines(keptLines, file, startLine, endLine)) changed = true;
-        const currentKept = Array.from(keptLines);
-        for (const l of currentKept) {
-          const lineText = allLines[l - 1] ?? "";
-          const readVars = extractReadIdentifiers(lineText);
-
-          for (const v of readVars) {
-            // Tìm định nghĩa v trong thân hàm trước dòng l
-            let defLine = 0;
-            for (let prevL = l - 1; prevL >= startLine; prevL--) {
-              const prevText = allLines[prevL - 1] ?? "";
-              const isVarDecl = new RegExp(`\\b(const|let|var)\\s+[^=;]*\\b${v}\\b`).test(prevText);
-              // Gán thường và gán phức hợp (`+=`, `-=`, `??=`…), không nhầm phép so sánh `==`.
-              const ASSIGN_OP = `([-+*/%&|^]|\\*\\*|<<|>>|\\?\\?|&&|\\|\\|)?=(?!=)`;
-              const isAssign = new RegExp(`\\b${v}\\s*${ASSIGN_OP}`).test(prevText);
-              const isDestruct = new RegExp(`[\\{\\[][^\\}\\]]*\\b${v}\\b[^\\}\\]]*[\\}\\]]\\s*=`).test(prevText);
-              const isLoop = new RegExp(`\\bfor\\s*\\([^;]*\\b${v}\\b`).test(prevText);
-              const isCatch = new RegExp(`\\bcatch\\s*\\(\\s*${v}\\b`).test(prevText);
-              // Mục 8 ý 6: `v.push(…)`, `v.x = …`, kể cả `v.x -= …`
-              const isMutate = new RegExp(`\\b${v}\\.(push|set|add|append)\\b|\\b${v}\\.[a-zA-Z0-9_$]+\\s*${ASSIGN_OP}`).test(prevText);
-
-              if (isVarDecl || isAssign || isDestruct || isLoop || isCatch || isMutate) {
-                defLine = prevL;
-                break;
-              }
-            }
-
-            if (defLine > 0 && !keptLines.has(defLine)) {
-              keptLines.add(defLine);
-              changed = true;
-            }
-
-            // Nếu không tìm thấy trong hàm, kiểm tra biến module ở cấp file
-            if (defLine === 0) {
-              for (let modL = 1; modL < startLine; modL++) {
-                const isInsideOtherFn = Array.from(ctx.idx.functions.values()).some(
-                  (fn) =>
-                    fn.file_path === file.path &&
-                    fn.name !== "<module>" &&
-                    modL >= fn.line_start &&
-                    modL <= fn.line_end
-                );
-                if (isInsideOtherFn) continue;
-                const modText = allLines[modL - 1] ?? "";
-                const isModDecl = new RegExp(`\\b(const|let|var|export const|export let)\\s+[^=;]*\\b${v}\\b`).test(modText);
-                if (isModDecl) {
-                  if (!keptLines.has(modL)) {
-                    keptLines.add(modL);
-                    changed = true;
-                  }
-                  moduleVarLine = moduleVarLine > 0 ? Math.min(moduleVarLine, modL) : modL;
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Thu thập tên kiểu DTO xuất hiện trong các dòng giữ
-    for (const l of keptLines) {
-      const text = allLines[l - 1] ?? "";
-      const matches = text.matchAll(/\b([A-Z][A-Za-z0-9]+(?:Dto|Request|Response|Input|Payload|Schema|Model|Entity))\b/g);
-      for (const m of matches) {
-        if (m[1]) dtoNames.add(m[1]);
-      }
-    }
-
-    // ENG-87 Hard Clamp: khi bước > CONFIG.STEP_MAX_LINES (30 dòng)
-    const sortedKeptLines = Array.from(keptLines).sort((a, b) => a - b);
-    const minLine = moduleVarLine > 0 ? moduleVarLine : sortedKeptLines[0] ?? startLine;
-    const maxLine = sortedKeptLines[sortedKeptLines.length - 1] ?? endLine;
-
-    // Sinh snippet và snippet_line_map với marker lược dòng (ENG-86)
-    const rawSnippetLines: string[] = [];
-    const rawLineMap: number[] = [];
-
-    let currentOmittedStart = 0;
-    let currentOmittedCount = 0;
-
-    for (let l = minLine; l <= maxLine; l++) {
-      if (keptLines.has(l)) {
-        if (currentOmittedCount > 0) {
-          const firstOmittedText = allLines[currentOmittedStart - 1] ?? "";
-          const indent = firstOmittedText.match(/^\s*/)?.[0] ?? "  ";
-          rawSnippetLines.push(
-            `${indent}${commentPrefix} … (${currentOmittedCount} dòng)`
-          );
-          rawLineMap.push(0);
-          currentOmittedStart = 0;
-          currentOmittedCount = 0;
-        }
-
-        rawSnippetLines.push(allLines[l - 1] ?? "");
-        rawLineMap.push(l);
-      } else {
-        const text = allLines[l - 1] ?? "";
-        if (text.trim().length > 0) {
-          if (currentOmittedCount === 0) {
-            currentOmittedStart = l;
-          }
-          currentOmittedCount++;
-        }
-      }
-    }
-
-    if (currentOmittedCount > 0) {
-      const firstOmittedText = allLines[currentOmittedStart - 1] ?? "";
-      const indent = firstOmittedText.match(/^\s*/)?.[0] ?? "  ";
-      rawSnippetLines.push(
-        `${indent}${commentPrefix} … (${currentOmittedCount} dòng)`
-      );
-      rawLineMap.push(0);
-    }
-
-    // Áp dụng Hard Clamp nếu > CONFIG.STEP_MAX_LINES (30) dòng (ENG-87)
-    let finalSnippetLines = rawSnippetLines;
-    let finalLineMap = rawLineMap;
-
-    if (rawSnippetLines.length > CONFIG.STEP_MAX_LINES) {
-      const sigLineCount = 1;
-      const closeLineCount = 1;
-      const W = Math.min(
-        CONFIG.CLAMP_WINDOW_LINES,
-        CONFIG.STEP_MAX_LINES - sigLineCount - closeLineCount - 2
-      ); // W = 26 khi sig=1, close=1
-
-      // Tìm vị trí của criterionLine trong rawLineMap
-      let targetIndex = rawLineMap.findIndex((ln) => ln >= criterionLine);
-      if (targetIndex < 0) targetIndex = Math.floor(rawLineMap.length / 2);
-
-      const halfW = Math.floor(W / 2);
-      let windowStart = Math.max(sigLineCount, targetIndex - halfW);
-      let windowEnd = windowStart + W;
-
-      if (windowEnd >= rawSnippetLines.length - closeLineCount) {
-        windowEnd = rawSnippetLines.length - closeLineCount;
-        windowStart = Math.max(sigLineCount, windowEnd - W);
-      }
-
-      const clampedSnippet: string[] = [];
-      const clampedMap: number[] = [];
-
-      // Chữ ký
-      for (let k = 0; k < sigLineCount; k++) {
-        clampedSnippet.push(rawSnippetLines[k] ?? "");
-        clampedMap.push(rawLineMap[k] ?? 0);
-      }
-
-      // Marker trước cửa sổ
-      if (windowStart > sigLineCount) {
-        const omittedBefore = windowStart - sigLineCount;
-        clampedSnippet.push(`  ${commentPrefix} … (${omittedBefore} dòng)`);
-        clampedMap.push(0);
-      }
-
-      // Cửa sổ W dòng
-      for (let k = windowStart; k < windowEnd; k++) {
-        clampedSnippet.push(rawSnippetLines[k] ?? "");
-        clampedMap.push(rawLineMap[k] ?? 0);
-      }
-
-      // Marker sau cửa sổ
-      if (windowEnd < rawSnippetLines.length - closeLineCount) {
-        const omittedAfter = rawSnippetLines.length - closeLineCount - windowEnd;
-        clampedSnippet.push(`  ${commentPrefix} … (${omittedAfter} dòng)`);
-        clampedMap.push(0);
-      }
-
-      // Dòng đóng
-      for (let k = rawSnippetLines.length - closeLineCount; k < rawSnippetLines.length; k++) {
-        clampedSnippet.push(rawSnippetLines[k] ?? "");
-        clampedMap.push(rawLineMap[k] ?? 0);
-      }
-
-      finalSnippetLines = clampedSnippet;
-      finalLineMap = clampedMap;
-    }
-
-    const nonZeroLines = finalLineMap.filter((n) => n > 0);
-    const stepLineStart =
-      nonZeroLines.length > 0 ? Math.min(...nonZeroLines) : startLine;
-    const stepLineEnd =
-      nonZeroLines.length > 0 ? Math.max(...nonZeroLines) : endLine;
-
-    // Kiểm tra file ảo từ source_map
-    let originNote: string | undefined;
-    const origin = ctx.source_map.get(st.fnSym.file_path);
-    if (origin && origin.line_origin[stepLineStart - 1]) {
-      originNote = origin.line_origin[stepLineStart - 1];
-    }
-
-    traceSteps.push({
-      step_number: i + 1,
-      layer,
-      file_path: st.fnSym.file_path,
-      function_name: funcName,
-      line_start: stepLineStart,
-      line_end: stepLineEnd,
-      snippet: finalSnippetLines.join("\n"),
-      snippet_line_map: finalLineMap,
-      origin_note: originNote,
-    });
-  }
-
-  // 5. ENG-88 Trần node: lines ≤ NODE_MAX_LINES (100), tokens ≤ NODE_MAX_CODE_TOKENS (1500)
-  function computeTotalMetrics(steps: ExecutionTraceStep[]): {
-    lines: number;
-    tokens: number;
-  } {
-    let lines = 0;
-    let chars = 0;
-    for (const s of steps) {
-      lines += s.snippet.split("\n").length;
-      chars += s.snippet.length;
-    }
-    const tokens = Math.ceil(chars / CONFIG.CHARS_PER_TOKEN);
-    return { lines, tokens };
-  }
-
-  let metrics = computeTotalMetrics(traceSteps);
-  while (
-    (metrics.lines > CONFIG.NODE_MAX_LINES ||
-      metrics.tokens > CONFIG.NODE_MAX_CODE_TOKENS) &&
-    traceSteps.length > 1
-  ) {
-    // Tìm bước lá không bảo vệ có hop lớn nhất (hòa ⇒ step_number lớn nhất)
-    // Các bước bảo vệ: entry (bước 1), middleware, và các bước từ 1 đến criterionStepIndex + 1
-    const protectedLimit = Math.max(1, criterionStepIndex + 1);
-
-    let candidateToRemove = -1;
-    for (let idx = traceSteps.length - 1; idx >= protectedLimit; idx--) {
-      candidateToRemove = idx;
-      break;
-    }
-
-    if (candidateToRemove >= 0) {
-      traceSteps.splice(candidateToRemove, 1);
-      metrics = computeTotalMetrics(traceSteps);
-    } else {
-      break;
-    }
-  }
-
-  // Đánh số lại step_number 1..n
-  for (let idx = 0; idx < traceSteps.length; idx++) {
-    traceSteps[idx]!.step_number = idx + 1;
-  }
-
-  // 6. ENG-89 dto_snippet
-  let dtoSnippet = "";
-  if (dtoNames.size > 0) {
-    const dtoBlocks: string[] = [];
-    const sortedDtoNames = Array.from(dtoNames).sort();
-    for (const dName of sortedDtoNames) {
-      for (const [, sym] of ctx.idx.symbols) {
-        if (
-          sym.name === dName &&
-          (sym.kind === "INTERFACE" ||
-            sym.kind === "TYPE" ||
-            sym.kind === "CLASS")
-        ) {
-          const dFile = ctx.files.get(sym.file_path);
-          if (dFile) {
-            const dLines = dFile.source.split(/\r?\n/);
-            const block = dLines
-              .slice(sym.line_start - 1, sym.line_end)
-              .join("\n");
-            dtoBlocks.push(block);
-          }
-          break;
-        }
-      }
-    }
-
-    if (dtoBlocks.length > 0) {
-      const combined = dtoBlocks.join("\n\n");
-      const lines = combined.split("\n");
-      if (lines.length > CONFIG.STEP_MAX_LINES) {
-        const prefix = getCommentPrefix(parsedEntryFile);
-        const kept = lines.slice(0, CONFIG.STEP_MAX_LINES - 1);
-        const omitted = lines.length - kept.length;
-        kept.push(`${prefix} … (${omitted} dòng)`);
-        dtoSnippet = kept.join("\n");
-      } else {
-        dtoSnippet = combined;
-      }
-    }
-  }
-
-  // 7. Hoàn thiện Candidate SLICE
-  const functionsInSlice = Array.from(
-    new Set(keptStepsMeta.map((s) => s.fnKey))
-  );
-
-  let maxComplexity = 0;
-  for (const fnKey of functionsInSlice) {
-    const comp = ctx.idx.functions.get(fnKey)?.complexity ?? 0;
-    if (comp > maxComplexity) maxComplexity = comp;
-  }
-
-  const rankScore = ctx.rank.get(entryFile) ?? 0;
-  const baseTitle = entry.binding?.display_name ?? entry.key;
-
   return {
-    id: `slice-${entry.key}`,
-    node_type: "ARCHITECTURAL_DATA_FLOW",
-    entry_symbol: entry.key,
-    trace_steps: traceSteps,
-    dto_snippet: dtoSnippet,
-    cognitive_complexity: maxComplexity,
-    rank_score: rankScore,
-    title_source: entry.binding ? "ROUTE" : "ENTRY_SYMBOL",
-    title_evidence: entry.binding?.display_name ?? entry.key,
-    kind: "SLICE",
-    order_key: entry.key,
-    functions: functionsInSlice,
-    binding: entry.binding,
-    base_title: baseTitle,
+    steps,
+    functions: order.map((o) => o.fn.key),
+    dto_snippet: buildDto(ctx, order.map((o) => o.fn), steps),
+    criterion_fn: criterionFn,
+    resolved_chain: resolvedPath,
   };
 }
+
+// ---------- ENG-89: dto_snippet ----------
+const DTO_SUFFIX = /(Dto|DTO|Request|Response|Input|Payload|Schema|Model|Entity)$/;
+function buildDto(ctx: EngineContext, fns: FunctionInfo[], steps: ExecutionTraceStep[]): string {
+  const { idx } = ctx;
+  const text = steps.map((s) => s.snippet).join("\n");
+  const stepClasses = new Set(fns.map((f) => f.class_key).filter(Boolean) as string[]);
+  const names: string[] = [];
+  for (const m of text.matchAll(/\b[A-Z][A-Za-z0-9_]*\b/g)) if (!names.includes(m[0])) names.push(m[0]);
+  const defs: Array<{ file: string; a: number; b: number }> = [];
+  for (const n of names) {
+    for (const fn of fns) {
+      const sameFile = `${fn.file}#${n}`;
+      const imp = idx.imports.get(fn.file)?.get(n);
+      const keys = [sameFile, ...(imp?.file ? [`${imp.file}#${imp.imported ?? n}`, `${imp.file}#${n}`] : [])];
+      const sym = keys.map((k) => idx.symbols.get(k)).find(Boolean);
+      if (!sym || stepClasses.has(sym.key)) continue;
+      const ci = idx.classes.get(sym.key);
+      const dataLike = sym.kind === "INTERFACE" || sym.kind === "TYPE" ||
+        (sym.kind === "CLASS" && (DTO_SUFFIX.test(sym.name) || (ci && ci.fields.size > ci.methods.size) || /BaseModel/.test(ci?.extends_names.join(",") ?? "")));
+      if (!dataLike) continue;
+      if (!defs.some((d) => d.file === sym.file_path && d.a === sym.line_start)) defs.push({ file: sym.file_path, a: sym.line_start, b: sym.line_end });
+      break;
+    }
+  }
+  if (defs.length === 0) return "";
+  const lines: string[] = [];
+  for (const d of defs) {
+    const src = idx.files.get(d.file)?.lines ?? [];
+    for (let r = d.a; r <= d.b; r++) {
+      if (lines.length >= CONFIG.STEP_MAX_LINES) { lines.push("// …"); return lines.join("\n"); }
+      lines.push(src[r - 1] ?? "");
+    }
+  }
+  return lines.join("\n");
+}
+
+// ---------- Node thuật toán (ENG-91) ----------
+export function buildAlgoSteps(fnKey: string, ctx: EngineContext): { steps: ExecutionTraceStep[]; dto: string } | null {
+  const fn = ctx.idx.functions.get(fnKey);
+  if (!fn || !fn.body || fn.is_module) return null;
+  const f = ctx.idx.files.get(fn.file)!;
+  const cp = adapterById(f.language)?.comment_prefix ?? "//";
+  const reg = regionOf(fn);
+  const stmts = collectStmts(fn.body, false).filter((s) => s.parent === null);
+  if (stmts.length === 0) return null;
+  // câu chính = vòng lặp cấp 1 nhiều dòng nhất; thiếu ⇒ câu có điểm phức tạp lớn nhất
+  const loops = stmts.filter((s) => /for|while|do_statement/.test(s.node.type));
+  const main = (loops.length ? loops : stmts).slice().sort((a, b) => (b.end - b.start) - (a.end - a.start) || a.start - b.start)[0];
+  const mi = stmts.indexOf(main);
+  const hasControl = loops.length > 0 || stmts.some((s) => s.compound);
+  const parts: Array<{ layer: ArchitecturalLayer; rows: number[]; mark: number }> = [];
+  const rowsOf = (list: Stmt[]) => list.flatMap((s) => Array.from({ length: s.end - s.start + 1 }, (_, i) => s.start + i));
+  const sig = Array.from({ length: reg.sigEnd - reg.start + 1 }, (_, i) => reg.start + i);
+  const clos = reg.closeStart <= reg.end ? Array.from({ length: reg.end - reg.closeStart + 1 }, (_, i) => reg.closeStart + i) : [];
+  if (hasControl) {
+    const pre = stmts.slice(0, mi), post = stmts.slice(mi + 1);
+    if (pre.length || sig.length) parts.push({ layer: "ALGO_SETUP", rows: [...sig, ...rowsOf(pre)], mark: pre[0]?.start ?? main.start });
+    parts.push({ layer: "ALGO_EXECUTION", rows: rowsOf([main]), mark: main.start });
+    if (post.length || clos.length) parts.push({ layer: "ALGO_TERMINATION", rows: [...rowsOf(post), ...clos], mark: post[0]?.start ?? main.end });
+  } else {
+    parts.push({ layer: "ALGO_SETUP", rows: [...sig, ...rowsOf(stmts.slice(0, -1))], mark: stmts[0].start });
+    parts.push({ layer: "ALGO_TERMINATION", rows: [...rowsOf(stmts.slice(-1)), ...clos], mark: stmts[stmts.length - 1].start });
+  }
+  const steps: ExecutionTraceStep[] = [];
+  for (const p of parts) {
+    const rows = [...new Set(p.rows)].sort((a, b) => a - b);
+    if (rows.length === 0) continue;
+    const d: StepDraft = { fn, hop: 0, parent: null, layer: p.layer, protected_: true, seeds: new Set(), maxLines: CONFIG.STEP_MAX_LINES, rows, prefix_rows: [], mark_row: p.mark, criterion_row: null, stmts: [] };
+    const r = clampRows(d, f, cp, CONFIG.STEP_MAX_LINES);
+    const nz = r.map.filter((x) => x > 0);
+    steps.push({
+      step_number: steps.length + 1, layer: p.layer, file_path: fn.file, function_name: fn.name,
+      line_start: Math.min(...nz), line_end: Math.max(...nz), snippet: r.snippet, snippet_line_map: r.map,
+      ...(ctx.sourceMap.get(fn.file) ? { origin_note: originNoteFor(ctx.sourceMap.get(fn.file)!, r.map) } : {}),
+    });
+  }
+  // trần node
+  let guard = 0;
+  while (guard++ < 50 && steps.reduce((a, s) => a + s.snippet_line_map.length, 0) > CONFIG.NODE_MAX_LINES) {
+    const i = steps.reduce((bi, s, k) => (s.snippet_line_map.length > steps[bi].snippet_line_map.length ? k : bi), 0);
+    const s = steps[i];
+    const body = s.snippet.split("\n");
+    const cut = Math.max(3, Math.floor(body.length * 0.8));
+    s.snippet = body.slice(0, cut).join("\n");
+    s.snippet_line_map = s.snippet_line_map.slice(0, cut);
+  }
+  return { steps, dto: buildDto(ctx, [fn], steps) };
+}
+
+export { rowEnd1 };
