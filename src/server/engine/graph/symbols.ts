@@ -35,13 +35,13 @@ function getStartLineWithDecorators(node: Node): number {
         minRow = Math.min(minRow, prev.startPosition.row);
         prev = prev.previousNamedSibling;
       }
-    }
-    for (let i = 0; i < parent.childCount; i++) {
-      const sibling = parent.child(i);
-      if (!sibling) continue;
-      if (sibling.type === "decorator") {
-        if (sibling.endPosition.row <= node.startPosition.row) {
-          minRow = Math.min(minRow, sibling.startPosition.row);
+      for (let i = 0; i < parent.childCount; i++) {
+        const sibling = parent.child(i);
+        if (!sibling) continue;
+        if (sibling.type === "decorator") {
+          if (sibling.endPosition.row <= node.startPosition.row) {
+            minRow = Math.min(minRow, sibling.startPosition.row);
+          }
         }
       }
     }
