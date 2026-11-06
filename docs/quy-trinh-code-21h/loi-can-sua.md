@@ -189,7 +189,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** spec ghi `initParsers` chạy 1 lần khi server khởi động, code gọi lúc `parseAll`, nên request đầu chậm hơn.
 - **Cần sửa:** gọi ở bước khởi động, làm cùng A-04.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a02-a04-log-khoi-dong`: `src/instrumentation.ts` gọi `initParsers`, lỗi chỉ log `warn` vì trên Vercel chỉ route ingest có file grammar. Chưa thử trên Vercel.
 
 ### B-14 · Vừa · Thăm dò GitHub dễ hết giờ với repo mới
 
@@ -521,7 +521,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `toErrorResponse` đổi lỗi lạ thành `ERR_PERSISTENCE_UNAVAILABLE`, log chỉ có tên lỗi.
 - **Cần sửa:** ghi thêm thông tin an toàn để tìm lỗi trong `src/server/errors.ts`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a02-a04-log-khoi-dong`: log `error_name`, `error_message` đã che secret, có test với `password=` và chuỗi kết nối Postgres. Typecheck, lint, 752 test, build xanh.
 
 ### A-03 · Vừa · Lỗi 401 chưa rõ nguyên nhân
 
@@ -533,7 +533,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `assertGeminiEnv` chỉ chạy khi gọi Gemini.
 - **Cần sửa:** gọi ở bước khởi động, ví dụ `instrumentation.ts`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a02-a04-log-khoi-dong`. Chạy `next start` thật: thiếu `GEMINI_API_KEY` với `studio` ⇒ `Failed to prepare server`, nhưng tiến trình không tự thoát; `vertex` không có key ⇒ `/api/health` 200. Chưa thử trên Vercel.
 
 ### A-05 · Nhẹ · A06 chưa trả `analyses`
 
