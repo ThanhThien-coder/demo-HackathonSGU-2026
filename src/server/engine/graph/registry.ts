@@ -86,10 +86,20 @@ export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
     abstraction_kinds: ["class_definition"],
     comment_prefix: "#",
   },
+  {
+    id: "JAVA",
+    extensions: [".java"],
+    wasm_grammar: "tree-sitter-java.wasm",
+    query_file: "queries/java.scm",
+    manifest_files: ["pom.xml", "build.gradle", "build.gradle.kts"],
+    import_resolver: "JAVA",
+    ingress_patterns: [],
+    abstraction_kinds: ["interface_declaration"],
+    comment_prefix: "//",
+  },
 ];
 
 // Đuôi không có grammar ⇒ tier UNSUPPORTED (spec 10 ING-77).
-// .java không ở đây vì Java vào LANGUAGE_REGISTRY theo B-38 (D-76).
 export const KNOWN_NO_GRAMMAR: Record<string, LanguageId> = {
   ".go": "GO",
   ".dart": "DART",
