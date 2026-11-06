@@ -122,7 +122,7 @@ Bài học: 600 ca test xanh trên `shop-api` vẫn sót lỗi lớn, vì test v
 | 17 | Repo có file cực lớn: `microsoft/TypeScript` mất 64 giây ở `engine_ms` | Chưa chốt | Chọn trần thời gian hoặc trần kích thước file cho engine, nếu không request có thể quá hạn |
 | 18 | ENG-20 `line_start` từ decorator đầu tiên | Đã vào spec: chỉ decorator của chính method | Xem B05 |
 | 19 | ENG-40 nhận route theo tên `get` và số đối số | Đã vào spec: `12` Mục 1, kiểm cả receiver và đối số cuối | Xem B05 |
-| 20 | D-07 chỉ nối bài gọi chung hàm | Đã vào spec: D-73, `11` ENG-115. Chỉ áp cho lát cắt, cạnh khác module chỉ thêm khi bài cha dễ hơn | Xem B07 |
+| 20 | D-07 chỉ nối bài gọi chung hàm | Đã vào spec: D-85, `11` ENG-116 … ENG-119 thay D-73. Cạnh theo phụ thuộc dữ liệu, D-07 chỉ còn cho bài không đọc được thực thể | Xem B07 |
 | 21 | T32 yêu cầu `fitView` vừa khung | Đã vào spec: mở ở cỡ đọc được, kéo để xem hết | Xem D03 |
 
 **Việc vai khác cần làm (không phải chốt spec, đã báo)**
