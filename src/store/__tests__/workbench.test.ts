@@ -8,7 +8,9 @@ import {
   analyzeOverviewSafe,
   enrichNodeSafe,
   getSessionProgressSafe,
+  explainSelectionSafe,
 } from "@/lib/api";
+import { ERROR_MESSAGES } from "@/lib/messages";
 import type {
   IngestResponse,
   NodeAnalysisView,
@@ -17,9 +19,21 @@ import type {
   NodeStateView,
   QuestionState,
   SkillChange,
+  ExplainSelectionResponse,
 } from "@/contracts";
 
 vi.mock("@/lib/api", () => ({
+  explainSelectionSafe: vi.fn().mockResolvedValue({
+    ok: false,
+    data: null,
+    error: {
+      error: {
+        code: "ERR_AI_UNAVAILABLE",
+        message: "Chưa sẵn sàng",
+        retryable: false,
+      },
+    },
+  }),
   analyzeNodeSafe: vi.fn().mockResolvedValue({
     ok: true,
     data: {
@@ -187,6 +201,7 @@ describe("src/store/workbench.ts", () => {
           presentation_pane: true,
           hint_step: 3,
           offline_persona: "SENIOR_RUSTY",
+          explanations: {},
         },
       });
 
@@ -1126,6 +1141,148 @@ describe("src/store/workbench.ts", () => {
       useWorkbenchStore.getState().setSkillChange(key, mockChange);
 
       expect(useWorkbenchStore.getState().ui.skill_changes[key]).toEqual(mockChange);
+    });
+  });
+
+  describe("T-UI-11: Giải thích đoạn chọn (D-82, UI-34, D19)", () => {
+    const mockRange = {
+      line_start: 12,
+      col_start: 1,
+      line_end: 12,
+      col_end: 6,
+    };
+    const key = "node-1:2:12:1-12:6";
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      useWorkbenchStore.setState({
+        session_id: "sess-explain-1",
+        progress: {
+          session_id: "sess-explain-1",
+          tokens_used: 100,
+          nodes: {},
+        },
+        ui: {
+          ...useWorkbenchStore.getState().ui,
+          explanations: {},
+          errors: {},
+        },
+      });
+    });
+
+    it("gọi explainSelection lần 1: gọi mock 1 lần, lưu ui.explanations và cập nhật tokens_used; gọi lại đúng vùng trả kết quả đã nhớ (0 request mới)", async () => {
+      const mockResponseData: ExplainSelectionResponse = {
+        explanation: {
+          kind: "KEYWORD",
+          what: "Từ khóa await dùng để đợi một Promise giải quyết.",
+          here: "Đợi kết quả trả về từ hàm gọi mạng.",
+          analogy: "Như việc đứng chờ lấy đồ ăn nhanh.",
+          skill: null,
+        },
+        references: [
+          {
+            node_id: "node-2",
+            step_number: 1,
+            name: "fetchUserData",
+          },
+        ],
+        tokens_used: 250,
+      };
+
+      vi.mocked(explainSelectionSafe).mockResolvedValueOnce({
+        ok: true,
+        data: mockResponseData,
+        error: null,
+      });
+
+      const result = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(explainSelectionSafe).toHaveBeenCalledWith({
+        session_id: "sess-explain-1",
+        node_id: "node-1",
+        step_number: 2,
+        range: mockRange,
+        selected_text: "await",
+      });
+
+      expect(result).toEqual({ ok: true, data: mockResponseData });
+      expect(useWorkbenchStore.getState().ui.explanations[key]).toEqual(
+        mockResponseData
+      );
+      expect(useWorkbenchStore.getState().progress?.tokens_used).toBe(250);
+
+      // Gọi lại đúng vùng đó => mock vẫn 1 lần (0 request mới), trả kết quả đã nhớ
+      const resultCached = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(resultCached).toEqual({ ok: true, data: mockResponseData });
+    });
+
+    it("response explanation: null ⇒ trả về kết quả đó nhưng KHÔNG ghi vào ui.explanations", async () => {
+      const mockNullExplanation: ExplainSelectionResponse = {
+        explanation: null,
+        references: [],
+        tokens_used: 120,
+      };
+
+      vi.mocked(explainSelectionSafe).mockResolvedValueOnce({
+        ok: true,
+        data: mockNullExplanation,
+        error: null,
+      });
+
+      const result = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ ok: true, data: mockNullExplanation });
+      expect(useWorkbenchStore.getState().ui.explanations[key]).toBeUndefined();
+      expect(useWorkbenchStore.getState().progress?.tokens_used).toBe(120);
+    });
+
+    it("lỗi ERR_EXPLAIN_LIMIT ⇒ không ghi ui.explanations; ui.errors['explain_limit'] có thông điệp Mục 10", async () => {
+      vi.mocked(explainSelectionSafe).mockResolvedValueOnce({
+        ok: false,
+        data: null,
+        error: {
+          error: {
+            code: "ERR_EXPLAIN_LIMIT",
+            message: "Hết lượt",
+            retryable: false,
+          },
+        },
+      });
+
+      const result = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(result.ok).toBe(false);
+      expect(useWorkbenchStore.getState().ui.explanations[key]).toBeUndefined();
+
+      const expectedMsg = ERROR_MESSAGES.ERR_EXPLAIN_LIMIT;
+      expect(useWorkbenchStore.getState().ui.errors["explain_limit"]).toBe(
+        expectedMsg
+      );
+
+      // Khi ui.errors['explain_limit'] đã có giá trị, gọi tiếp phải trả lỗi ngay mà không gọi API (0 request mới)
+      const resultBlocked = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "other_code");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(resultBlocked).toEqual({
+        ok: false,
+        code: "ERR_EXPLAIN_LIMIT",
+        message: expectedMsg,
+      });
     });
   });
 });
