@@ -94,7 +94,11 @@ const ROOT_TEST_SEGMENTS = new Set(["integration", "sample", "samples"]);
 /** Đường dẫn có mang cờ test ING-87 không. Nơi duy nhất giữ luật này. */
 export function isTestPath(filePath: string): boolean {
   const segments = filePath.split("/");
+  // Từ src/main/ trở xuống là mã chạy thật: package như com/example/demo (mặc định của Spring Initializr)
+  // không phải cờ test, chỉ xét tên file bên dưới (lỗi B-42)
+  const mainIdx = segments.findIndex((seg, i) => i > 0 && seg === "main" && segments[i - 1] === "src");
   for (const [i, seg] of segments.entries()) {
+    if (mainIdx >= 0 && i >= mainIdx) break;
     const lower = seg.toLowerCase();
     if (TEST_SEGMENTS.has(lower)) return true;
     if (i === 0 && ROOT_TEST_SEGMENTS.has(lower)) return true;

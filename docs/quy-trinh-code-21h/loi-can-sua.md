@@ -847,7 +847,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 - **Nguyên nhân:** `example`, `demo` nằm trong danh sách segment của ING-87, áp cho cả package Java. `isTestPath` ở `priority.ts` được dùng ở chấm điểm file, chọn file, và lọc candidate ở `nodes.ts`.
 - **Cần sửa:** đường dẫn trong `src/main/` không xét segment ING-87. Sửa `10` ING-87 và `priority.ts`. `spring.ts` đã dùng riêng luật ENT-44 nên không vướng lỗi này.
 - **Kiểm tra:** quét 1 repo Spring dùng `com.example.demo`, ra đủ bài theo route.
-- **Trạng thái:** cần xác minh, chờ Phat107.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42-java-demo`. Đã xác minh trên repo thật: `SimonHarmonicMinor/spring-security-dynamic-roles-inheritance-model-example` có 23 trong 29 file, `ninuxGithub/spring-boot-vue-separate` có 50 trong 63 file nằm dưới `src/main/java/com/example/demo/` đều mang cờ test. Sửa: `isTestPath` trong `priority.ts` từ `src/main/` trở xuống chỉ xét tên file (`.test`, `.spec`, `_test`, `test_`); segment cờ test nằm trước `src/main` vẫn tính (`examples/x/src/main/...`); spec 10 ING-87 thêm 1 câu. Sau sửa: số file trong `src/main` mang cờ test về 0 ở cả hai repo (còn 6 và 1 file ở `src/test`, đúng). Số bài và tên bài không đổi vì Spring đã dùng luật ENT-44 riêng; lỗi ảnh hưởng chấm điểm file, chọn file và lọc candidate của `nodes.ts`. Test `co-test-src-main.test.ts` (13 ca). `spec/10` 43 982 byte (trần 44 000, còn 18 byte). Typecheck sạch, lint 0 lỗi, 957 test qua. Chưa đổi `ENGINE_VERSION`.
 
 ### D-19 · Nặng · X-Ray chưa là tour
 
