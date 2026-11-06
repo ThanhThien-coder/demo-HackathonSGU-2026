@@ -299,7 +299,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** loại `<module>` khỏi chọn VIP và ENG-90, trừ chế độ `PROCEDURAL`. Liên quan B-02 và B-11: B-02 chỉ bỏ được file test, không bỏ được trường hợp này.
 - **Kiểm tra:** không còn node `ALGORITHMIC_CORE` có `function_name` là `<module>`.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `graph/index.ts` loại `<module>` khỏi ứng viên ENG-90 (a), (b), PROCEDURAL đi nhánh riêng nên không đổi. Test `ENG-90: <module>` đỏ trước khi sửa. Quét 7 repo (BrewLite, `nestjs/nest`, `bulletproof-react`, `node-express-realworld`, `node-express-boilerplate`, `pallets/click`, repo này): 0 node `ALGORITHMIC_CORE` có `function_name` là `<module>`. Capstone `realworld` là `Update Article`, `nestjs/nest` là `Create Redactor`. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-28 · Nhẹ · Dòng "bỏ qua" của bài thuật toán có số dòng thật
 
@@ -693,7 +693,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đề xuất không chọn hàm trả về JSX làm VIP, hoặc không tính `? :`, `&&` nằm trong JSX. Ghi quyết định mới vào `00`, sửa `11` Mục 7 và `complexity.ts`, đổi `ENGINE_VERSION`. Làm cùng B-27.
 - **Kiểm tra:** quét code `main`, không còn bài `ALGORITHMIC_CORE` nào trỏ tới file `.tsx`. Quét riêng phần server vẫn còn bài thuật toán thật như `Tarjan Scc`.
 - **Ảnh hưởng demo:** chỉ khi repo demo có giao diện React.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. Quyết định D-86, Minh chốt 06/11/2026: hàm có `return` trả JSX không là ứng viên ENG-90, không đổi ENG-71. Thêm `returnsJsx` ở `complexity.ts`, T-ENG-51. Quét repo này: 0 bài `ALGORITHMIC_CORE` trỏ tới `.tsx`, vẫn còn `Tarjan Scc`, `Build Graph`. Hàm chỉ có callback trả JSX vẫn được chọn. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-36 · Vừa · Cắt còn 20 bài thì bài server bị mất
 
