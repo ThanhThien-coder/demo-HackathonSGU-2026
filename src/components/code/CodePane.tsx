@@ -4,7 +4,14 @@ import React, { useMemo, useEffect, useRef, useState } from "react";
 import Editor, { loader, type OnMount } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import type { HybridArchitecturalNode, NodeAnalysisView } from "@/contracts";
-import { buildSliceModel, stepAtLine } from "./slice-model";
+import type { HlRange } from "@/store/workbench";
+import {
+  buildDtoModel,
+  buildStepModel,
+  hlToModelRanges,
+  toOriginalSelection,
+  type CodeSelection,
+} from "./slice-model";
 
 loader.config({ monaco });
 
@@ -32,9 +39,20 @@ export interface CodePaneProps {
   analysis: NodeAnalysisView | null;
   activeStep: number | null;
   hintStep: number | null;
-  onSelectStep?: (step: number) => void;
+  hl?: HlRange[];
+  showDto?: boolean; // Tab "Kiểu dữ liệu": hiện dto_snippet, không đổi active_step
+  onSelect?: (selection: CodeSelection | null) => void;
   fontSize: number;
 }
+
+const NO_HL: HlRange[] = [];
+
+// UI-32: nền và vạch của từng loại tô sáng.
+const HL_CLASS: Record<HlRange["kind"], { className: string; linesDecorationsClassName: string }> = {
+  FOCUS: { className: "sf-hl-focus", linesDecorationsClassName: "sf-bar-amber" },
+  GOOD: { className: "sf-hl-good", linesDecorationsClassName: "sf-bar-green" },
+  BAD: { className: "sf-hl-bad", linesDecorationsClassName: "sf-bar-red" },
+};
 
 function getMonacoLanguage(rawLang?: string): string {
   if (!rawLang) return "plaintext";
@@ -66,22 +84,32 @@ export default function CodePane({
   analysis,
   activeStep,
   hintStep,
-  onSelectStep,
+  hl = NO_HL,
+  showDto = false,
+  onSelect,
   fontSize,
 }: CodePaneProps) {
-  const model = useMemo(() => buildSliceModel(node), [node]);
+  const model = useMemo(
+    () => (showDto ? buildDtoModel(node) : buildStepModel(node, activeStep)),
+    [node, activeStep, showDto]
+  );
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   const modelRef = useRef(model);
-  const onSelectStepRef = useRef(onSelectStep);
+  const activeStepRef = useRef(activeStep);
+  const onSelectRef = useRef(onSelect);
 
   useEffect(() => {
     modelRef.current = model;
   }, [model]);
 
   useEffect(() => {
-    onSelectStepRef.current = onSelectStep;
-  }, [onSelectStep]);
+    activeStepRef.current = activeStep;
+  }, [activeStep]);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   const collectionRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 
@@ -93,66 +121,67 @@ export default function CodePane({
     }
 
     const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+    const lineCount = model.lineMap.length;
 
-    // Bước activeStep: isWholeLine, className: "sf-step-active", linesDecorationsClassName: "sf-bar-amber"
-    if (activeStep !== null && model.stepRanges[activeStep]) {
-      const range = model.stepRanges[activeStep];
-      decorations.push({
-        range: new monaco.Range(range.startLine, 1, range.endLine, 1),
-        options: {
-          isWholeLine: true,
-          className: "sf-step-active",
-          linesDecorationsClassName: "sf-bar-amber",
-        },
-      });
-    }
+    // Model chỉ có code của 1 bước, nên mọi lớp tô đều phủ từ dòng đầu tới dòng cuối của model.
+    if (!showDto && lineCount > 0) {
+      const wholeStep = new monaco.Range(1, 1, lineCount, 1);
+      const firstLine = new monaco.Range(1, 1, 1, 1);
+      const hlRanges = hlToModelRanges(model, hl);
 
-    // Bước có trong analysis.weak_points: linesDecorationsClassName: "sf-bar-red"; dòng tiêu đề bước thêm glyphMarginClassName: "sf-glyph-warn" và hoverMessage: { value: "Nhận định của AI: " + what }
-    if (analysis?.weak_points) {
-      for (const wp of analysis.weak_points) {
-        const range = model.stepRanges[wp.step];
-        if (range) {
-          decorations.push({
-            range: new monaco.Range(range.startLine, 1, range.endLine, 1),
-            options: {
-              isWholeLine: true,
-              linesDecorationsClassName: "sf-bar-red",
-            },
-          });
-          decorations.push({
-            range: new monaco.Range(range.startLine, 1, range.startLine, 1),
-            options: {
-              glyphMarginClassName: "sf-glyph-warn",
-              hoverMessage: { value: "Nhận định của AI: " + wp.what },
-            },
-          });
-        }
+      // Như bản vẽ: nền của bước chỉ hiện khi chưa có dải tô nào, có dải tô thì dải tô thay thế.
+      if (hlRanges.length === 0) {
+        decorations.push({
+          range: wholeStep,
+          options: {
+            isWholeLine: true,
+            className: "sf-hl-step",
+            linesDecorationsClassName: "sf-bar-blue",
+          },
+        });
+      }
+
+      for (const { startLine, endLine, kind } of hlRanges) {
+        decorations.push({
+          range: new monaco.Range(startLine, 1, endLine, 1),
+          options: { isWholeLine: true, ...HL_CLASS[kind] },
+        });
+      }
+
+      // Bước có trong analysis.weak_points: dòng đầu có glyph ⚠ và hover "Nhận định của AI: {what}"
+      for (const wp of analysis?.weak_points ?? []) {
+        if (wp.step !== activeStep) continue;
+        decorations.push({
+          range: firstLine,
+          options: {
+            glyphMarginClassName: "sf-glyph-warn",
+            hoverMessage: { value: "Nhận định của AI: " + wp.what },
+          },
+        });
+      }
+
+      // Bước hintStep: vạch tím, dòng đầu thêm glyph gợi ý
+      if (hintStep !== null && hintStep === activeStep) {
+        decorations.push({
+          range: wholeStep,
+          options: {
+            isWholeLine: true,
+            linesDecorationsClassName: "sf-bar-violet",
+          },
+        });
+        decorations.push({
+          range: firstLine,
+          options: {
+            glyphMarginClassName: "sf-glyph-hint",
+          },
+        });
       }
     }
 
-    // Bước hintStep: linesDecorationsClassName: "sf-bar-violet", dòng tiêu đề thêm glyphMarginClassName: "sf-glyph-hint"
-    if (hintStep !== null && model.stepRanges[hintStep]) {
-      const range = model.stepRanges[hintStep];
-      decorations.push({
-        range: new monaco.Range(range.startLine, 1, range.endLine, 1),
-        options: {
-          isWholeLine: true,
-          linesDecorationsClassName: "sf-bar-violet",
-        },
-      });
-      decorations.push({
-        range: new monaco.Range(range.startLine, 1, range.startLine, 1),
-        options: {
-          glyphMarginClassName: "sf-glyph-hint",
-        },
-      });
-    }
-
-    // Dòng bắt đầu bằng // ... hoặc # ...: inlineClassName: "sf-marker"
-    const lines = model.text.split("\n");
-    lines.forEach((line, idx) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("// ...") || trimmed.startsWith("# ...")) {
+    // Marker là dòng có lineMap = 0 (UI-31). Tab "Kiểu dữ liệu" mọi dòng đều 0 nên không tô.
+    if (!showDto) {
+      model.text.split("\n").forEach((line, idx) => {
+        if (model.lineMap[idx] !== 0) return;
         const lineNum = idx + 1;
         decorations.push({
           range: new monaco.Range(lineNum, 1, lineNum, line.length + 1),
@@ -160,22 +189,25 @@ export default function CodePane({
             inlineClassName: "sf-marker",
           },
         });
-      }
-    });
+      });
+    }
 
     collectionRef.current.set(decorations);
-  }, [editor, model, activeStep, hintStep, analysis]);
+  }, [editor, model, activeStep, hintStep, hl, analysis, showDto]);
 
-  // Cuộn tới bước target: revealLinesInCenter tới stepRanges[hintStep ?? activeStep]
+  // Đổi bước hoặc đổi tab: về đầu code, bỏ vùng chọn cũ
   useEffect(() => {
     if (!editor) return;
-    const targetStep = hintStep ?? activeStep;
-    if (targetStep === null || targetStep === undefined) return;
-    const range = model.stepRanges[targetStep];
-    if (range) {
-      editor.revealLinesInCenter(range.startLine, range.endLine);
-    }
-  }, [editor, activeStep, hintStep, model]);
+    editor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+    onSelectRef.current?.(null);
+  }, [editor, model]);
+
+  // Cuộn tới dòng đầu của dải tô (UI-32). Đứng sau effect trên để không bị kéo về đầu code.
+  useEffect(() => {
+    if (!editor) return;
+    const first = hlToModelRanges(model, hl)[0];
+    if (first) editor.revealLineInCenter(first.startLine);
+  }, [editor, model, hl]);
 
   // Dọn dẹp decorations collection khi unmount
   useEffect(() => {
@@ -188,14 +220,26 @@ export default function CodePane({
   const handleEditorMount: OnMount = (editorInstance) => {
     setEditor(editorInstance);
 
-    editorInstance.onMouseDown((e) => {
-      const pos = e.target?.position;
-      if (pos?.lineNumber) {
-        const step = stepAtLine(modelRef.current, pos.lineNumber);
-        if (step !== null) {
-          onSelectStepRef.current?.(step);
-        }
+    editorInstance.onDidChangeCursorSelection(({ selection }) => {
+      const stepNumber = activeStepRef.current;
+      const original = toOriginalSelection(modelRef.current, selection);
+      const box = editorInstance.getDomNode()?.getBoundingClientRect();
+      const start = editorInstance.getScrolledVisiblePosition(selection.getStartPosition());
+      const end = editorInstance.getScrolledVisiblePosition(selection.getEndPosition());
+      if (!original || stepNumber === null || !box || !start || !end) {
+        onSelectRef.current?.(null);
+        return;
       }
+
+      const left = box.left + Math.min(start.left, end.left);
+      const right = box.left + Math.max(start.left, end.left);
+      const top = box.top + start.top;
+      const bottom = box.top + end.top + end.height;
+      onSelectRef.current?.({
+        ...original,
+        step_number: stepNumber,
+        rect: new DOMRect(left, top, right - left, bottom - top),
+      });
     });
   };
 
@@ -219,11 +263,28 @@ export default function CodePane({
   return (
     <div className="w-full h-full relative">
       <style>{`
-        .sf-step-active {
-          background-color: rgba(254, 243, 199, 0.45) !important;
+        .sf-hl-step {
+          background-color: rgba(23, 105, 224, 0.12) !important;
+        }
+        .sf-hl-focus {
+          background-color: rgba(168, 106, 0, 0.22) !important;
+        }
+        .sf-hl-good {
+          background-color: rgba(23, 121, 74, 0.18) !important;
+        }
+        .sf-hl-bad {
+          background-color: rgba(198, 47, 49, 0.17) !important;
+        }
+        .sf-bar-blue {
+          border-left: 3px solid #004cff !important;
+          box-sizing: border-box;
         }
         .sf-bar-amber {
           border-left: 3px solid #f59e0b !important;
+          box-sizing: border-box;
+        }
+        .sf-bar-green {
+          border-left: 3px solid #00bc7d !important;
           box-sizing: border-box;
         }
         .sf-bar-red {
