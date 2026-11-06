@@ -151,7 +151,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Không nới regex receiver chung, vì `client` đã khớp cả `httpClient.get`. Ghi rõ luật `prisma.` trong spec 11 Mục 8. Đổi `ENGINE_VERSION`.
 - **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`, các bài BrewLite có gọi Prisma đều tới tầng dữ liệu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật trên BrewLite, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `isDataSinkCall` bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: 14/17 bài tới `DATA_ACCESS`, đọc bài `Create Order`, `Get Order` đúng luồng. `nestjs-realworld` 19/20, `node-express-boilerplate` 12/14. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-07 · Nặng · Repo Java, Go, Dart bị báo sai hoặc phân tích sai
 
@@ -177,7 +177,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** bài `Order` có Bước 3 ở dòng 65, file chỉ có 64 dòng code. AI vẫn viết mô tả cho bước rỗng.
 - **Cần sửa:** áp đúng luật "Bỏ bước rỗng" của ENG-91 trong `nodes.ts`.
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. Ca dòng ngoài file đã hết nhờ B-27. Đo 5 repo còn 4 bước `ALGO_TERMINATION` chỉ có `}`, tính là bước rỗng theo ENG-91. `nodes.ts` bỏ bước chỉ có dòng trống, ngoặc đóng rồi đánh số lại. Quét `pallets/click`, `nestjs/nest`, `pallets/flask`, `expressjs/express`, repo này: 0 bước rỗng. Chưa đổi `ENGINE_VERSION`.
 
 ### B-12 · Nhẹ · Lỗi nạp query bị bỏ qua
 
@@ -306,7 +306,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** dòng `// … (24 dòng)` có `snippet_line_map` khác 0, đo được 8 dòng trên 6 repo. Spec yêu cầu marker có map bằng 0.
 - **Nguyên nhân:** phần cắt bước trong `nodes.ts` (quanh dòng 288) chèn marker rồi chỉ cắt mảng map, không dựng lại. Các dòng sau marker cũng có thể lệch số.
 - **Cần sửa:** dựng lại `snippet_line_map` khi chèn marker.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `nodes.ts` dựng lại `snippet_line_map`, marker có map 0, thụt lề theo dòng bị bỏ đầu, `line_end` theo map. Quét 5 repo trên: marker sai 47 → 0, `line_start`, `line_end` lệch map 47 → 0. Chưa đổi `ENGINE_VERSION`.
 
 ### B-29 · Nhẹ · Route dạng `.route()` hiện tên nhiều dòng
 
@@ -711,7 +711,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đo xem bước nào bị bỏ ở đâu, rồi chốt luật bỏ hàm vặt khỏi lát cắt. Đề xuất: hàm ngắn, không đụng database, được nhiều route gọi. Ghi quyết định mới vào `00`, sửa ENG-80, ENG-81, ENG-88 nếu cần, và `slicing.ts`. Đổi `ENGINE_VERSION`.
 - **Kiểm tra:** quét code `main`, bài `Create Evaluate-feynman` có `evaluateFeynman` và hàm chấm, các bài API không còn chung chuỗi xác thực. Chạy thêm trên BrewLite.
 - **Ảnh hưởng demo:** cần đo trên BrewLite.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** đang làm. Nhánh `b/fix-b27-module`. Đo trên repo này: ENG-81 làm mất 35/439 bước, ENG-88 làm mất 320/439, nên giả thuyết ENG-88 là đúng. Đã sửa code theo spec: ENG-80 sắp callee theo (dòng, cột) call site, ENG-88 bỏ bước lá hop lớn nhất, chỉ bảo vệ đường tới criterion. Thêm D-87, Minh chốt 06/11/2026: bỏ hàm có mặt ở ≥ 50% số lát cắt và ≥ 3 lát cắt, không là entry, middleware, cây con không có `DATA_SINK`. Quét repo này: bài API hết chuỗi xác thực, `Create Evaluate-feynman` có `evaluateFeynman`. BrewLite giữ 17 bài, 9 cạnh, Capstone `Create Order`. **Còn thiếu:** `gradeWithAI` chưa vào bài, vì bước `evaluateFeynman` bị kẹp ở `CONFIG.STEP_MAX_LINES` và bài chạm `CONFIG.NODE_MAX_LINES`. Repo này dùng `sql` dạng tagged template nên không có `DATA_SINK`, 0/11 bài tới `DATA_ACCESS`. 2 hằng số D-87 đang để cục bộ ở `slicing.ts`, chờ Luồng 5 chuyển vào `CONFIG`.
 
 ### D-16 · Vừa · Khung code nối mọi file thành một file dài
 
