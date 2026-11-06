@@ -3,6 +3,7 @@ export * from "./LessonGraphDrawer";
 export * from "./CodeSnippetViewer";
 export * from "./FeynmanQuestionSection";
 export * from "./RepoOverviewModal";
+export * from "./RepoOverview";
 export * from "./SubmitEvaluationDialog";
 export * from "./SkipConfirmDialog";
 export * from "./ReportWrongDialog";

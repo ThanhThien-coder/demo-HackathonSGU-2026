@@ -865,7 +865,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-71, D-83, D-84: bản đồ chia nhóm, tên AI kèm nhãn "AI đặt tên" và tên code ở dòng nhỏ; Tổng quan 2 nhịp, phần tất định hiện ngay, phần AI hiện khi có; nút bắt đầu ở bài gốc của đường chính.
 - **Kiểm tra:** tắt AI vẫn có nhóm, tên engine và câu dự phòng; bật AI thì tên và bức tranh chung hiện thêm.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** phần Tổng quan chờ kiểm (D18): cột giữa hiện Tổng quan khi chưa chọn bài, câu dự phòng + thẻ nhóm + nút "Bắt đầu với"; ingest xong gọi `analyze-overview` 1 lần, về rồi mới tải trước 2 bài; lỗi ⇒ giữ nhịp 1, không báo lỗi. Sửa luôn lỗi trước đây không gọi tổng quan khi chưa mở bài. Nhóm dự phòng theo đầu route khi engine chưa có `groups` (`overviewGroups`). Test T-UI-10 xanh. Phần bản đồ nhóm là D17, chưa làm.
 
 ### D-22 · Vừa · Chưa có thẻ vai trò
 
