@@ -188,7 +188,7 @@ export function RoleCard({ node, onStartTour }: RoleCardProps) {
       <button
         type="button"
         onClick={() => onStartTour?.()}
-        className="w-full py-3 px-4 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold text-sm rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+        className="w-full py-3 px-4 bg-[#ff9640] hover:bg-[#e07f2e] text-white font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
       >
         Bắt đầu tour →
       </button>
