@@ -288,7 +288,7 @@ export function SelectionPopover({
                 Kỹ năng:
               </span>
               {/* TODO D13: mở ConceptPopover */}
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-[#eaedff] text-[#004cff] border border-[#d8e0ff]">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#eaedff] text-[#004cff] border border-[#d8e0ff]">
                 {SKILL_METADATA[explanation.skill]?.label ?? explanation.skill}
               </span>
             </div>
