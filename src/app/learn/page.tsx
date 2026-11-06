@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import {
   CockpitHeader,
-  LessonGraphDrawer,
+  LessonGraphPanel,
   CodeSnippetViewer,
   FeynmanQuestionSection,
   RepoOverviewModal,
@@ -14,7 +14,6 @@ import {
   SkipConfirmDialog,
   ReportWrongDialog,
   FullFileModal,
-  GraphSidebarButton,
 } from "./components";
 import {
   evaluateFeynmanSafe,
@@ -87,7 +86,6 @@ function LearnCockpitContent() {
   }, [userProfile, serverClockOffsetMs]);
 
   // 4. Chỉ giữ useState cục bộ cho 6 hộp thoại/ngăn kéo, các cờ nộp/bỏ qua/báo sai, và reloadKey
-  const [isGraphDrawerOpen, setIsGraphDrawerOpen] = useState(false);
   const [isFullFileModalOpen, setIsFullFileModalOpen] = useState(false);
   const [isEvaluationDialogOpen, setIsEvaluationDialogOpen] = useState(false);
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
@@ -563,29 +561,23 @@ function LearnCockpitContent() {
           onChangeDir={handleChangeDir}
         />
 
-        {/* 3. Left-side Floating Tab Button: "Đồ thị bài học" (Figma node 5:217) */}
-        <GraphSidebarButton onClick={() => setIsGraphDrawerOpen(true)} />
-
-        {/* 4. Lesson Knowledge Graph Drawer (Figma node 5:1751) - Step 6 GET /api/sessions/{id}/progress */}
-        <LessonGraphDrawer
-          isOpen={isGraphDrawerOpen}
-          onClose={() => setIsGraphDrawerOpen(false)}
-          graphNodes={result?.nodes}
-          graphEdges={result?.edges}
-          progress={progress}
-          isLoading={Boolean(ui_pending["session"])}
-          errorMessage={ui_errors["session"] ?? null}
-          onRetry={() => setReloadKey((k) => k + 1)}
-          selectedNodeId={active_node_id ?? ""}
-          onSelectNode={handleSelectNode}
-        />
 
         {/* 5. Main Cockpit Learning Workspace (Figma node 5:63) */}
         <main
-          className="flex-1 flex flex-col lg:flex-row items-stretch lg:items-start gap-5 lg:gap-[20px] px-4 sm:px-8 lg:pl-[120px] lg:pr-[45px] py-6 sm:py-8 w-full max-w-[1536px] mx-auto z-10"
+          className="flex-1 flex flex-col lg:flex-row lg:flex-wrap xl:flex-nowrap items-stretch lg:items-start gap-5 lg:gap-[20px] px-4 sm:px-8 lg:px-6 py-6 sm:py-8 w-full max-w-[1536px] mx-auto z-10"
           data-node-id="5:63"
           data-name="Container"
         >
+          {/* Bản đồ bài học chia nhóm (D17). Từ xl mới đủ chỗ cho 3 cột vì khung code rộng cố định */}
+          <LessonGraphPanel
+            key={sessionId}
+            hideOnDesktop={presentation_pane}
+            isLoading={Boolean(ui_pending["session"])}
+            errorMessage={ui_errors["session"] ?? null}
+            onRetry={() => setReloadKey((k) => k + 1)}
+            onSelectNode={handleSelectNode}
+          />
+
           {/* Left Column: Code Snippet Viewer (Figma node 5:64) - Step 8 POST /api/analyze-node */}
           {active_node_id ? (
             <CodeSnippetViewer

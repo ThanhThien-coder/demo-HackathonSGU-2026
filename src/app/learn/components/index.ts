@@ -1,5 +1,5 @@
 export * from "./CockpitHeader";
-export * from "./LessonGraphDrawer";
+export * from "./LessonGraphPanel";
 export * from "./CodeSnippetViewer";
 export * from "./FeynmanQuestionSection";
 export * from "./RepoOverviewModal";
@@ -8,5 +8,4 @@ export * from "./SubmitEvaluationDialog";
 export * from "./SkipConfirmDialog";
 export * from "./ReportWrongDialog";
 export * from "./FullFileModal";
-export * from "./GraphSidebarButton";
 export * from "./XRayPanel";

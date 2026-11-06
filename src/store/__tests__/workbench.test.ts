@@ -187,6 +187,8 @@ describe("src/store/workbench.ts", () => {
           presentation_pane: true,
           hint_step: 3,
           offline_persona: "SENIOR_RUSTY",
+          xray_stage: "SUMMARY",
+          hl: [],
         },
       });
 
@@ -232,6 +234,7 @@ describe("src/store/workbench.ts", () => {
       expect(state.active_question_index).toBeNull();
       expect(state.last_failed_answers).toEqual({});
       expect(state.ui.offline_persona).toBe("SENIOR_RUSTY");
+      expect(state.ui.xray_stage).toBe("ROLE");
       expect(state.ui.pending).toEqual({});
       expect(state.ui.errors).toEqual({});
       expect(state.ui.hint_step).toBeNull();

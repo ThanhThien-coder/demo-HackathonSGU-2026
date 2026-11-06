@@ -11,19 +11,24 @@ import { getDecayedMastery, tierOf, isDecaying } from "@/lib/bkt-engine";
 export interface SkillChipsProps {
   analysis: NodeAnalysisView;
   onSelectStep?: (step: number) => void;
+  /** D12: chỉ hiện chip của bước này (tour). Bỏ trống ⇒ hiện mọi kỹ năng. */
+  step?: number;
 }
 
 /**
  * Hiển thị chip kỹ năng theo dõi mài mòn theo thời gian (BKT-24, D-35).
  */
-export function SkillChips({ analysis, onSelectStep }: SkillChipsProps) {
+export function SkillChips({ analysis, onSelectStep, step }: SkillChipsProps) {
   const profile = useUserStore((s) => s.profile);
   const serverClockOffset = useWorkbenchStore(
     (s) => s.server_clock_offset_ms ?? 0
   );
   const now = Date.now() + serverClockOffset;
 
-  if (!analysis.skills || analysis.skills.length === 0) {
+  const skills = (analysis.skills ?? []).filter(
+    (s) => step === undefined || s.step === step
+  );
+  if (skills.length === 0) {
     return null;
   }
 
@@ -31,10 +36,10 @@ export function SkillChips({ analysis, onSelectStep }: SkillChipsProps) {
     <div className="flex flex-col gap-1.5">
       <span className="text-[11px] font-bold text-[#554337] uppercase tracking-wider flex items-center gap-1.5">
         <Activity className="size-3.5 text-[#004cff]" />
-        Kỹ năng
+        {step === undefined ? "Kỹ năng" : "Kỹ năng ở bước này"}
       </span>
       <div className="flex flex-wrap gap-2">
-        {analysis.skills.map((s, idx) => {
+        {skills.map((s, idx) => {
           const baseTooltip = `Vì: ${s.reason} — bước ${s.step} · \`${s.symbol}\` · ${s.file_path} dòng ${s.line_start}–${s.line_end}`;
 
           // Không có profile: chỉ hiện mã, không bịa điểm

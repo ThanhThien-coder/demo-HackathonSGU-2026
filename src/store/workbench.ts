@@ -23,6 +23,19 @@ import {
 } from "@/lib/api";
 import { buildOverviewFacts } from "@/lib/overview-view";
 import { ERROR_MESSAGES } from "@/lib/messages";
+import {
+  tourForward,
+  tourBackward,
+  type XrayStage,
+} from "@/app/learn/components/xray-tour";
+import { findStep, stepHl, weakPointHl } from "@/components/code/slice-model";
+
+// D14 — dải dòng tô sáng theo số dòng gốc (UI-32)
+export interface HlRange {
+  line_start: number;
+  line_end: number;
+  kind: "FOCUS" | "GOOD" | "BAD";
+}
 
 export interface WorkbenchUiSlice {
   pending: Record<string, boolean>;
@@ -33,6 +46,9 @@ export interface WorkbenchUiSlice {
   presentation_pane: boolean;
   hint_step: number | null;
   offline_persona: PersonaMode;
+  // D12 — tour X-Ray: ROLE ⇒ TOUR ⇒ SUMMARY
+  xray_stage: XrayStage;
+  hl: HlRange[]; // D14
 }
 
 export interface WorkbenchStoreState extends ClientWorkbenchState {
@@ -74,7 +90,18 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   setSkillChange: (key: string, change: SkillChange) => void;
   setPresentationPane: (enabled: boolean) => void;
   setHintStep: (step: number | null) => void;
+
+  // D14 — tô đúng dòng (UI-33, UI-44)
+  setHl: (hl: HlRange[]) => void;
+  showStrength: (step: number) => void;
+  showWeakPoint: (weakPoint: { step: number; symbol: string }) => void;
   setOfflinePersona: (persona: PersonaMode) => void;
+
+  // D12 — tour X-Ray
+  setXrayStage: (stage: XrayStage) => void;
+  goToStep: (step: number) => void;
+  tourNext: (stepNumbers: number[]) => void;
+  tourPrev: (stepNumbers: number[]) => void;
 }
 
 const initialUiSlice: WorkbenchUiSlice = {
@@ -86,6 +113,8 @@ const initialUiSlice: WorkbenchUiSlice = {
   presentation_pane: false,
   hint_step: null,
   offline_persona: "NEWBIE",
+  xray_stage: "ROLE",
+  hl: [],
 };
 
 /**
@@ -446,6 +475,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       ui: {
         ...state.ui,
         hint_step: null,
+        xray_stage: "ROLE",
+        hl: [],
       },
     })),
 
@@ -765,4 +796,78 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         offline_persona,
       },
     })),
+
+  // ===== D12 — tour X-Ray =====
+  setXrayStage: (xray_stage) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        xray_stage,
+      },
+    })),
+
+  // Mở lại bước n trong tour (D12; D15 gọi hàm này cho gợi ý CODE_POINTER)
+  goToStep: (step) =>
+    set((state) => ({
+      active_tab: "XRAY",
+      active_step: step,
+      ui: {
+        ...state.ui,
+        xray_stage: "TOUR",
+      },
+    })),
+
+  tourNext: (stepNumbers) =>
+    set((state) => {
+      const next = tourForward(
+        { stage: state.ui.xray_stage, step: state.active_step ?? stepNumbers[0] },
+        stepNumbers
+      );
+      return {
+        active_step: next.step,
+        ui: { ...state.ui, xray_stage: next.stage },
+      };
+    }),
+
+  tourPrev: (stepNumbers) =>
+    set((state) => {
+      const prev = tourBackward(
+        { stage: state.ui.xray_stage, step: state.active_step ?? stepNumbers[0] },
+        stepNumbers
+      );
+      return {
+        active_step: prev.step,
+        ui: { ...state.ui, xray_stage: prev.stage },
+      };
+    }),
+  // ===== D14 — tô đúng dòng =====
+  setHl: (hl) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        hl,
+      },
+    })),
+
+  showStrength: (step) => set((state) => applyStepHl(state, step, (s) => stepHl(s, "GOOD"))),
+
+  showWeakPoint: ({ step, symbol }) =>
+    set((state) => applyStepHl(state, step, (s) => weakPointHl(s, symbol))),
 }));
+
+// D14 — gán active_step và ui.hl trong cùng 1 lần cập nhật để lớp xóa dưới đây không xóa nhầm.
+function applyStepHl(
+  state: WorkbenchStoreState,
+  step: number,
+  toHl: (s: ReturnType<typeof findStep>) => HlRange[]
+): Partial<WorkbenchStoreState> {
+  const node = state.result?.nodes.find((n) => n.id === state.active_node_id);
+  if (!node) return {};
+  return { active_step: step, ui: { ...state.ui, hl: toHl(findStep(node, step)) } };
+}
+
+// D14 — đổi bước ⇒ ui.hl = [] (UI-32). Đặt ở đây để mọi hàm gán active_step đều được áp dụng.
+useWorkbenchStore.subscribe((state, prev) => {
+  if (state.active_step === prev.active_step || state.ui.hl !== prev.ui.hl) return;
+  if (state.ui.hl.length > 0) state.setHl([]);
+});
