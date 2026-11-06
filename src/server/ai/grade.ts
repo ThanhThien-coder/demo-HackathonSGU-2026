@@ -26,7 +26,7 @@ import { callLLMWithRetry } from "./gemini";
 import { firstSentences, normText } from "./guard/text";
 import { verifyFollowUp } from "./guard/followup";
 import { logGuardBlock } from "./guard/log";
-import { gradeRequest } from "./prompts/grade";
+import { expectedFollowUpType, gradeRequest, type GradeExtras } from "./prompts/grade";
 
 export interface GradeUsage {
   tokens_in: number;
@@ -188,19 +188,8 @@ export const decidePass = (
   g.core_accuracy >= CONFIG.PASS_CORE_ACCURACY &&
   coveredFlags(g, mustHave, answer).every(Boolean);
 
-/**
- * Loại gợi ý mong đợi theo số lượt (AI-31):
- * attempt >= maxAttempts => null (lượt cuối, hiện đáp án)
- * attempt === 1 => "CONCEPT"
- * attempt > 1 => "CODE_POINTER"
- */
-export function expectedFollowUpType(
-  attempt: number,
-  maxAttempts: number
-): FollowUpType | null {
-  if (attempt >= maxAttempts) return null;
-  return attempt === 1 ? "CONCEPT" : "CODE_POINTER";
-}
+// AI-31 (D-74 A1): gợi ý theo bậc × lượt, định nghĩa ở prompts/grade.ts để prompt và luật dùng chung.
+export { expectedFollowUpType };
 
 /**
  * Mẫu gợi ý tĩnh (AI-32) khi AI trượt cổng gác.
@@ -269,7 +258,7 @@ export function decideFollowUp(
   answer: string
 ): FollowUp | null {
   if (isPassed || g.misconception === INJECTION_MARKER) return null;
-  const expected = expectedFollowUpType(attempt, maxAttempts);
+  const expected = expectedFollowUpType(attempt, maxAttempts, t.tier);
   if (expected === null) return null;
 
   const ok =
@@ -295,11 +284,11 @@ export async function gradeWithAI(
   attempt: number,
   maxAttempts: number,
   session: SessionRow,
-  opts?: { usage?: GradeUsage; nodeId?: string }
+  opts?: { usage?: GradeUsage; nodeId?: string; extras?: GradeExtras }
 ): Promise<GradingRaw> {
   checkTokenQuota(session.tokens_used);
 
-  const req = gradeRequest(t, answer, attempt, maxAttempts, session);
+  const req = gradeRequest(t, answer, attempt, maxAttempts, session, opts?.extras); // D-74 A5a, M1
   const outcome = await callLLMWithRetry(req);
 
   if (opts?.usage) {
@@ -315,7 +304,7 @@ export async function gradeWithAI(
   const g = normalizeGrading(outcome.value, t, answer);
   const isPassed = decidePass(g, t.must_have_points, answer);
 
-  const expected = expectedFollowUpType(attempt, maxAttempts);
+  const expected = expectedFollowUpType(attempt, maxAttempts, t.tier);
   const verification = verifyFollowUp(g, t, answer, isPassed);
 
   const issues: GuardIssue[] = [];

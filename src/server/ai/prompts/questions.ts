@@ -39,6 +39,9 @@ LUẬT CHO MỖI CÂU
 5. fix: cách sửa cụ thể, được viết code mới. Câu không về điểm dở và không có gì cần sửa ⇒ "Không có lỗi cần sửa ở góc này."
 6. Chỉ nhắc tên có trong <code_data>, <dto_data> hoặc tên file trong <repo_info> (riêng fix được dùng tên mới). Không nhắc công nghệ trong <forbidden_tech> ở bất kỳ trường nào.
 7. Tiếng Việt, câu ngắn, không markdown ngoài backtick.
+8. Khi câu hỏi hoặc đáp án mẫu nói về quan hệ giữa các dòng/hàm (A gọi B, A dùng biến X, A thay cho B), quan hệ đó phải đúng như trong <code_data>; không chắc thì không nêu quan hệ (S-09).
+9. Câu hỏi phải bắt suy luận (vì sao, nếu đổi … thì sao, chuyện gì xảy ra khi …), không trả lời được bằng cách chép lại phần giải thích các bước (S-09).
+10. Khối <learner_history> (A5b, nếu có): dùng để nhắm câu hỏi vào chỗ người học từng hiểu sai; câu hỏi vẫn chỉ về code của node đang mở, không nhắc tên hàm/file từ lịch sử.
 
 ĐỘ SÂU THEO tier: NOVICE — 1 tình huống, 1–2 bước suy luận, trả lời trong vài câu. PRACTITIONER — thêm hậu quả hoặc cách sửa, hoặc so sánh 2 cách. ARCHITECT — tình huống biên, tải lớn, đồng thời hoặc đánh đổi thiết kế.`;
 
@@ -176,6 +179,7 @@ export function buildQuestionsUserPrompt(
   node: HybridArchitecturalNode,
   analysis: NodeAnalysis,
   items: QuestionPlanItem[],
+  missed: Partial<Record<SWESkill, string[]>> = {},
 ): string {
   const fp = graph.fingerprint;
   const report = graph.ingestion_report;
@@ -216,6 +220,16 @@ export function buildQuestionsUserPrompt(
     parts.push(renderWarning(intersecting));
   }
 
+  // A5b (D-74): ý đã hụt theo kỹ năng trong kế hoạch; không có ⇒ bỏ khối
+  const history = [...new Set(items.map((i) => i.skill))].flatMap((skill) =>
+    (missed[skill] ?? [])
+      .slice(0, CONFIG.HISTORY_MISSED_POINTS_MAX)
+      .map((p) => `- [${skill}] ${p}`),
+  );
+  if (history.length > 0) {
+    parts.push(wrapData("learner_history", history.join("\n")));
+  }
+
   parts.push(wrapData("code_data", codeData));
   parts.push(wrapData("dto_data", dtoData));
   parts.push(`Viết đúng ${items.length} câu theo <questions_plan>.`);
@@ -229,6 +243,7 @@ export function questionsRequest(
   node: HybridArchitecturalNode,
   analysis: NodeAnalysis,
   items: QuestionPlanItem[],
+  missed: Partial<Record<SWESkill, string[]>> = {},
 ): LlmRequest<{ questions: GeneratedQuestionRaw[] }> {
   const modeB =
     node.node_type === "ALGORITHMIC_CORE" ||
@@ -242,7 +257,7 @@ export function questionsRequest(
     system += `\n\n${LOW_CONFIDENCE}`;
   }
 
-  const user = buildQuestionsUserPrompt(graph, node, analysis, items);
+  const user = buildQuestionsUserPrompt(graph, node, analysis, items, missed);
 
   return {
     kind: "QUESTIONS",

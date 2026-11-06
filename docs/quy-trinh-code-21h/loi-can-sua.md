@@ -752,7 +752,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Nguyên nhân:** quyết định D-74 chốt sau khi code AI của `main` đã xong. `feat/giao-dien-ide` đã có các phần này nhưng dùng tên file khác spec, nên phải viết lại trên `main`, không chép thẳng.
 - **Cần sửa:** làm theo các ô D-74 trong phiếu `vai-C/C07-cau-hoi.md`, `vai-C/C08-cham.md`. Phần trần `retryDelay` thuộc C-05.
 - **Kiểm tra:** test AI-31 xanh theo từng bậc. Chạy AI thật một câu qua 3 lượt sai, gợi ý đổi đúng bảng trong quyết định D-74.
-- **Trạng thái:** đã kiểm code, chưa làm.
+- **Trạng thái:** chờ kiểm. A1 gợi ý theo bậc × lượt; A5a `<previous_answer>`, `<previous_points>` từ lượt 2; A5b `<learner_history>` (đọc ý hụt trong `generateQuestions`, DB lỗi thì bỏ khối); M1 `<referenced_steps>` chỉ tên (snapshot lỗi thì bỏ khối); luật câu hỏi 8, 9, 10. Code mới ở `src/server/ai/history.ts`; `evaluate.ts` thêm vài dòng truyền dữ liệu A5a, M1; test A4 trong `src/app/api/__tests__/evaluate.test.ts` sửa theo `50` (NOVICE lượt 1 ra `CODE_POINTER`). Test xanh (700). Chạy AI thật N3 Q1, 3 bậc × 2 lượt: gợi ý đúng bảng D-74, cả 6 gợi ý của AI qua cổng gác. `PROMPT_VERSION` giữ `1.1.0` (chấm, câu hỏi không cache), lên `1.2.0` cùng C-12.
 
 ### A-07 · Vừa · Chưa có test tích hợp đủ luồng trên `main`
 

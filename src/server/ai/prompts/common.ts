@@ -25,6 +25,10 @@ export const DATA_TAGS = [
   "hint_rule",
   "student_answer",
   "guard_feedback",
+  "previous_answer",
+  "previous_points",
+  "learner_history",
+  "referenced_steps",
 ] as const;
 
 export type DataTag = (typeof DATA_TAGS)[number];
