@@ -72,6 +72,7 @@ describe("Server Errors & HTTP Status Mapping (02_CONTRACTS.md Muc 9)", () => {
       "ERR_ANSWER_TOO_LONG",
       "ERR_ANSWER_DUPLICATE",
       "ERR_ANSWER_INAPPROPRIATE",
+      "ERR_SELECTION_INVALID",
     ];
     for (const code of codes400) {
       expect(getHttpStatus(code)).toBe(400);
@@ -140,6 +141,7 @@ describe("Server Errors & HTTP Status Mapping (02_CONTRACTS.md Muc 9)", () => {
     const codes429: ServerErrorCode[] = [
       "ERR_GITHUB_RATE_LIMIT_CDN",
       "ERR_TOKEN_QUOTA_EXCEEDED",
+      "ERR_EXPLAIN_LIMIT",
     ];
     for (const code of codes429) {
       expect(getHttpStatus(code)).toBe(429);
