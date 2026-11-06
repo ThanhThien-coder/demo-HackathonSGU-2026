@@ -89,7 +89,25 @@ export const LANGUAGE_REGISTRY: LanguageAdapter[] = [
 ];
 
 // Đuôi không có grammar ⇒ tier UNSUPPORTED (spec 10 ING-77).
+// .java không ở đây vì Java vào LANGUAGE_REGISTRY theo B-38 (D-76).
 export const KNOWN_NO_GRAMMAR: Record<string, LanguageId> = {
+  ".go": "GO",
+  ".dart": "DART",
+  ".cs": "CSHARP",
+  ".php": "PHP",
+  ".kt": "KOTLIN",
+  ".kts": "KOTLIN",
+  ".c": "C",
+  ".h": "C",
+  ".cpp": "CPP",
+  ".cc": "CPP",
+  ".cxx": "CPP",
+  ".hpp": "CPP",
+  ".hh": "CPP",
+  ".rs": "RUST",
+  ".rb": "RUBY",
+  ".swift": "SWIFT",
+  ".scala": "SCALA",
   ".sol": "SOLIDITY",
   ".vhd": "VHDL",
   ".vhdl": "VHDL",

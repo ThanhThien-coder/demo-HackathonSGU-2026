@@ -1,6 +1,6 @@
 # Vai D — Giao diện: website bài học, lộ trình tương tác, hiển thị và offline
 
-Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập token 2 chủ đề sáng / tối, dựng website học tập nhiều trang (Trang chủ, Lộ trình, trang học kiểu IDE 3 cột với Bản đồ ReactFlow, Code Monaco, tab X-Ray / Feynman, Báo cáo và Lịch sử), quản lý trạng thái máy khách bằng Zustand theo nguyên tắc bản sao chỉ đọc dữ liệu máy chủ, tích hợp toàn bộ các API route học tập, xây dựng chế độ Offline tự vận hành và hỗ trợ trình chiếu demo.
+Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập token 2 chủ đề sáng / tối, dựng website học tập nhiều trang (Trang chủ, Lộ trình, trang học kiểu IDE 3 cột với Bản đồ bài học chia nhóm, Code Monaco theo tab file, tab X-Ray (tour) / Feynman, Báo cáo và Lịch sử), quản lý trạng thái máy khách bằng Zustand theo nguyên tắc bản sao chỉ đọc dữ liệu máy chủ, tích hợp toàn bộ các API route học tập, xây dựng chế độ Offline tự vận hành và hỗ trợ trình chiếu demo.
 
 Đọc chung: [README tổng](../README.md) · lịch gốc [`07`](../../doc-de-hieu/07_ke_hoach_21h.md)
 
@@ -9,9 +9,9 @@ Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập toke
 Người học trải qua hành trình học tập hoàn chỉnh trên giao diện SimpliFey:
 1. **Đăng nhập:** Người học đăng nhập bằng tài khoản GitHub qua Supabase Auth.
 2. **Dán link repo:** Tại trang chủ, người học dán đường link GitHub (hoặc kéo thả file zip) để quét kiến trúc dự án.
-3. **Thấy bản đồ:** Sau khi quét xong, hệ thống vào `/learn`, tự mở cửa sổ Tổng quan; đóng cửa sổ là thấy Bản đồ bài học ở cột trái.
-4. **Bấm bài:** Người học bấm một node sẵn sàng trên bản đồ để mở bài.
-5. **Đọc code và phân tích:** Người học xem các đoạn lát cắt mã nguồn thật ở cột giữa, đọc tab X-Ray ở cột phải giải thích luồng nghiệp vụ từng bước, điểm hay và điểm dở do AI nhận định (không lộ cách sửa).
+3. **Thấy bản đồ:** Sau khi quét xong, hệ thống vào `/learn`: cột trái là Bản đồ bài học chia nhóm, cột giữa là Tổng quan 2 nhịp với nút bắt đầu ở bài gốc của đường chính.
+4. **Bấm bài:** Người học bấm một bài sẵn sàng trên bản đồ để mở bài.
+5. **Đọc code và phân tích:** Tab X-Ray đi theo tour: thẻ vai trò ⇒ từng bước (code cột giữa đổi tab file theo bước, chip mở thẻ khái niệm) ⇒ tóm tắt điểm hay, điểm dở do AI nhận định (không lộ cách sửa). Bôi đen code để AI giải thích đoạn chọn.
 6. **Trả lời:** Người học chuyển sang tab Feynman, giải thích cơ chế hoạt động qua các câu hỏi nhằm củng cố kỹ năng còn yếu.
 7. **Được chấm, mở khóa:** Hệ thống gửi câu trả lời lên máy chủ, nhận kết quả đánh giá, hiển thị gợi ý hoặc đáp án, cập nhật điểm kỹ năng và mở khóa bài học kế tiếp.
 8. **Xem kết quả:** Người học theo dõi báo cáo tiến độ, xem lại lịch sử các câu trả lời và hành trình làm chủ kiến trúc.
