@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="vi" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SimpliFey — Bản vẽ thử giao diện học code</title>
+<style>
+html[data-theme="dark"]{
+  --bg:#0e1319; --panel:#161c25; --panel2:#1d2531; --border:#2a3443; --text:#e7edf5; --muted:#93a0b2;
+  --accent:#5aa9ff; --on-accent:#06121f;
+  --ready:#f2b53c; --done:#46c28a; --fail:#f0605f; --locked:#7b8696;
+  --code-bg:#0b1016; --code-text:#d6deea; --kw:#ff8f85; --str:#9fd0ff; --gutter:#5f6c80;
+  --hl-step:rgba(90,169,255,.16); --hl-focus:rgba(242,181,60,.26); --hl-good:rgba(70,194,138,.22); --hl-bad:rgba(240,96,95,.24);
+  --shadow:0 10px 30px rgba(0,0,0,.5); --overlay:rgba(3,6,10,.62);
+}
+html[data-theme="light"]{
+  --bg:#f3f5f9; --panel:#ffffff; --panel2:#eef1f6; --border:#d3dae5; --text:#18212d; --muted:#586577;
+  --accent:#1769e0; --on-accent:#ffffff;
+  --ready:#a86a00; --done:#17794a; --fail:#c62f31; --locked:#6a7586;
+  --code-bg:#f8f9fb; --code-text:#1f2733; --kw:#c4261f; --str:#0b4f9e; --gutter:#8a95a6;
+  --hl-step:rgba(23,105,224,.12); --hl-focus:rgba(168,106,0,.22); --hl-good:rgba(23,121,74,.18); --hl-bad:rgba(198,47,49,.17);
+  --shadow:0 10px 30px rgba(20,30,50,.18); --overlay:rgba(20,28,40,.4);
+}
+:root{ --mono:Consolas,"Cascadia Mono","SFMono-Regular",Menlo,monospace; }
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.55 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;transition:background .2s,color .2s}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3,p{margin:0}
+code{font-family:var(--mono);font-size:.9em;background:var(--panel2);padding:1px 5px;border-radius:4px}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* thanh trên */
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);flex:none}
+.brand{font-weight:700;letter-spacing:.2px}
+.repo{font-family:var(--mono);font-size:13px;padding:2px 10px;border:1px solid var(--border);border-radius:999px;background:var(--panel2)}
+.spacer{flex:1}
+.tbtn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:5px 10px;transition:background .15s,border-color .15s}
+.tbtn:hover{background:var(--panel2)}
+.tbtn[aria-pressed="false"]{opacity:.6}
+.tbtn.icon{padding:5px 7px}
+
+/* bố cục */
+.main{padding:12px;gap:12px}
+.col{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-width:0}
+@media (min-width:1024px){
+  body{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .main{flex:1;min-height:0;display:grid;grid-template-rows:minmax(0,1fr)}
+  .col{min-height:0;overflow:auto}
+  .col-mid{overflow:hidden}
+}
+@media (max-width:1023.98px){
+  .main{display:flex;flex-direction:column}
+  .col-mid{position:sticky;top:0;z-index:5;height:min(430px,52vh);overflow:hidden}
+  .top .brand{display:none}
+}
+.pane{padding:14px 14px 18px}
+.pane-title{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+
+/* bản đồ */
+.grp{margin-bottom:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg);overflow:hidden}
+.grp-h{width:100%;display:flex;align-items:center;gap:8px;background:var(--panel2);border:0;padding:9px 10px;text-align:left}
+.grp-h .chev{display:inline-block;transition:transform .18s;color:var(--muted)}
+.grp-h[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.gname{font-weight:600}
+.badge{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--ready);color:var(--ready)}
+.cnt{margin-left:auto;font-size:12px;color:var(--muted)}
+.grp-b{padding:8px;display:grid;gap:8px}
+.slice{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:9px 11px;transition:border-color .15s,background .15s,transform .15s}
+.slice:hover{border-color:var(--muted)}
+.slice.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.slice[aria-disabled="true"]{opacity:.68}
+.s-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.s-name{font-size:15px;font-weight:600}
+.star{color:var(--ready)}
+.ai-tag{font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:0 6px}
+.s-code{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:2px}
+.s-st{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}
+.st-ready .s-st{color:var(--ready)} .st-done .s-st{color:var(--done)} .st-fail .s-st{color:var(--fail)} .st-locked .s-st{color:var(--locked)}
+.st-done{border-color:var(--done)} .st-fail{border-color:var(--fail)}
+.slice svg{flex:none}
+.need{display:none;margin-top:6px;font-size:12px;color:var(--muted);border-top:1px dashed var(--border);padding-top:5px}
+.slice:hover .need,.slice:focus-visible .need{display:block}
+.pop-fx{animation:pop .7s ease}
+
+/* khung giữa */
+.mid-frame{display:flex;flex-direction:column;height:100%;min-height:0}
+.ftabs{display:flex;background:var(--panel2);border-bottom:1px solid var(--border);overflow-x:auto;flex:none}
+.ftab{display:inline-flex;align-items:center;gap:7px;background:transparent;border:0;border-right:1px solid var(--border);border-bottom:2px solid transparent;padding:9px 14px;font-family:var(--mono);font-size:12.5px;color:var(--muted);white-space:nowrap;transition:color .15s,background .15s}
+.ftab:hover{color:var(--text)}
+.ftab[aria-selected="true"]{background:var(--code-bg);color:var(--text);border-bottom-color:var(--accent)}
+.weak-dot{width:7px;height:7px;border-radius:50%;background:var(--fail)}
+.fpath{padding:5px 14px;font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--code-bg);border-bottom:1px solid var(--border);flex:none}
+.code-scroll{position:relative;flex:1;min-height:0;overflow:auto;background:var(--code-bg);color:var(--code-text);padding:8px 0}
+.ln{display:flex;border-left:3px solid transparent;font-family:var(--mono);font-size:13px;line-height:1.75;white-space:pre;min-width:max-content}
+.ln .no{flex:none;width:52px;padding-right:14px;text-align:right;color:var(--gutter);user-select:none}
+.ln .tx{padding-right:16px}
+.ln .k{color:var(--kw)} .ln .s{color:var(--str)}
+.ln.hl-step{background:var(--hl-step);border-left-color:var(--accent);animation:hlIn .22s ease}
+.ln.hl-focus{background:var(--hl-focus);border-left-color:var(--ready);animation:hlIn .22s ease}
+.ln.hl-good{background:var(--hl-good);border-left-color:var(--done);animation:hlIn .22s ease}
+.ln.hl-bad{background:var(--hl-bad);border-left-color:var(--fail);animation:hlIn .22s ease}
+.gap{font-family:var(--mono);font-size:12px;color:var(--gutter);padding:2px 0 2px 55px;font-style:italic}
+
+/* bức tranh chung */
+.overview{padding:22px;max-width:640px}
+.overview h2{font-size:20px;margin-bottom:8px}
+.overview .lead{color:var(--text);margin-bottom:16px}
+.gcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.gcard{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.gcard b{display:block;margin-bottom:2px}
+.gcard small{color:var(--muted);display:block}
+.ov-wrap{height:100%;overflow:auto}
+.empty{padding:24px 18px;color:var(--muted)}
+.empty h2{font-size:16px;color:var(--text);margin-bottom:6px}
+
+/* nút */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;transition:background .15s,border-color .15s,transform .1s}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.45}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08)}
+.btn.big{padding:11px 18px;font-size:15px;width:100%}
+.btn.small{padding:3px 10px;font-size:12.5px}
+
+/* cột phải */
+.rtabs{position:sticky;top:0;z-index:3;display:flex;background:var(--panel);border-bottom:1px solid var(--border);padding:0 8px}
+.rtab{background:transparent;border:0;border-bottom:2px solid transparent;padding:11px 14px;font-weight:600;color:var(--muted);transition:color .15s}
+.rtab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.rtab:hover{color:var(--text)}
+.stack{display:grid;gap:12px}
+.enter .stack{animation:fadeUp .2s ease}
+.card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.card h2{font-size:16px;margin-bottom:6px}
+.card p+p{margin-top:4px}
+.tag{display:inline-block;font-size:11.5px;border:1px solid var(--border);border-radius:999px;padding:0 8px;margin-left:2px;color:var(--muted)}
+.banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--hl-focus);border:1px solid var(--ready);border-radius:10px;padding:8px 12px;font-size:13px}
+.stephead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.stephead h2{font-size:15px}
+.dots{display:flex;gap:5px}
+.dots i{width:22px;height:5px;border-radius:3px;background:var(--border);transition:background .2s}
+.dots i.on{background:var(--accent)}
+.where{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.expl{font-size:15px;line-height:1.65}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{background:var(--hl-step);border:1px solid var(--accent);color:var(--text);border-radius:999px;padding:3px 12px;font-size:13px;transition:background .15s}
+.chip:hover{background:var(--accent);color:var(--on-accent)}
+.navrow{display:flex;gap:10px;justify-content:space-between}
+.keyhint{font-size:12px;color:var(--muted)}
+.sum-title{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.sum-title.good{color:var(--done)} .sum-title.bad{color:var(--fail)}
+.sum-item{display:block;width:100%;text-align:left;background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px;transition:background .15s}
+.sum-item:hover{background:var(--panel)}
+.sum-item.good{border-left-color:var(--done)} .sum-item.bad{border-left-color:var(--fail)}
+.sum-item small{display:block;color:var(--muted);font-size:12px}
+.cons{margin:-2px 0 8px;padding:8px 12px;border-radius:8px;background:var(--hl-bad);font-size:13px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font-size:12.5px;text-decoration:underline;margin-bottom:8px}
+
+/* Feynman */
+.seg{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.seg button{flex:1;background:transparent;border:0;border-right:1px solid var(--border);padding:7px 6px;font-size:13px;color:var(--muted);transition:background .15s}
+.seg button:last-child{border-right:0}
+.seg button[aria-checked="true"]{background:var(--accent);color:var(--on-accent);font-weight:600}
+.lbl{font-size:12px;color:var(--muted);margin-bottom:5px;display:block}
+.qchips{display:flex;gap:8px}
+.qchip{min-width:46px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:3px 14px;font-size:15px;transition:border-color .15s}
+.qchip[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.qchip.ok{color:var(--done);border-color:var(--done)} .qchip.no{color:var(--fail);border-color:var(--fail)}
+.qchip:disabled{opacity:.45}
+.qtext{font-size:15.5px;line-height:1.6;font-weight:600}
+textarea{width:100%;min-height:110px;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font:inherit;line-height:1.55}
+textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+.subrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.err{color:var(--fail);font-size:12.5px;margin-top:6px}
+.att{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:6px 10px}
+.att summary{cursor:pointer;font-weight:600;font-size:13px}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:0 8px;border-radius:999px;border:1px solid currentColor;margin-left:6px}
+.pill.ok{color:var(--done)} .pill.no{color:var(--fail)}
+.said{margin:6px 0;padding:6px 10px;border-left:3px solid var(--border);color:var(--muted);white-space:pre-wrap}
+.fb{margin:4px 0}
+.hint{margin-top:6px;padding:8px 10px;border-radius:8px;background:var(--hl-focus);font-size:13.5px}
+.hint-act{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.sample{padding:10px 12px;border-radius:8px;border:1px dashed var(--done);background:var(--hl-good)}
+.sample b{display:block;font-size:12px;margin-bottom:2px}
+.delta{animation:fadeUp .25s ease}
+.delta .dname{font-size:13.5px;margin-bottom:5px}
+.bar{position:relative;height:10px;border-radius:5px;background:var(--border);overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;left:0;display:block}
+.bar .base{background:var(--accent);width:var(--base)}
+.bar .diff{left:var(--base);width:var(--diff);animation:grow .7s ease-out}
+.bar .diff.up{background:var(--done)} .bar .diff.down{background:var(--fail)}
+.result{border-radius:10px;padding:12px 14px;border:1px solid;animation:fadeUp .25s ease}
+.result.done{border-color:var(--done);background:var(--hl-good)}
+.result.fail{border-color:var(--fail);background:var(--hl-bad)}
+.result h3{font-size:15px;margin-bottom:4px}
+.result ul{margin:6px 0 0;padding-left:18px}
+
+/* popover & modal & toast */
+.pop{position:fixed;z-index:60;width:min(380px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;animation:fadeUp .18s ease}
+.pop h3{font-size:16px;padding-right:28px}
+.pop h3 code{font-size:11px;color:var(--muted);margin-left:4px}
+.pop dt{font-size:12px;font-weight:700;color:var(--muted);margin-top:10px}
+.pop dd{margin:2px 0 0}
+.pop hr{border:0;border-top:1px solid var(--border);margin:12px 0 10px}
+.pop .ai b{color:var(--accent)}
+.xbtn{position:absolute;top:8px;right:8px;background:transparent;border:0;width:28px;height:28px;border-radius:6px;color:var(--muted)}
+.xbtn:hover{background:var(--panel2);color:var(--text)}
+.overlay{position:fixed;inset:0;z-index:80;background:var(--overlay);display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .18s ease}
+.modal{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);max-height:calc(100vh - 32px);overflow:auto;animation:fadeUp .2s ease}
+#toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,16px);z-index:90;max-width:min(520px,calc(100vw - 24px));background:var(--text);color:var(--bg);padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;font-size:13.5px}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes hlIn{from{background-color:transparent}}
+@keyframes grow{from{width:0}}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.03);box-shadow:0 0 0 4px var(--hl-good)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="tbtn icon" id="btnLeft" data-act="toggle-left" aria-label="Ẩn hoặc hiện bản đồ bài học" aria-pressed="true" title="Ẩn/hiện bản đồ bài học">
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor"/><rect x="2" y="3" width="4" height="10" fill="currentColor" opacity=".75"/></svg>
+  </button>
+  <span class="brand">SimpliFey</span>
+  <span class="repo" aria-label="Repo đang học">shop-api</span>
+  <button class="tbtn" data-act="overview">Tổng quan</button>
+  <span class="spacer"></span>
+  <button class="tbtn" id="btnTheme" data-act="theme" aria-label="Đổi chủ đề sáng hoặc tối"></button>
+  <button class="tbtn icon" id="btnRight" data-act="toggle-right" aria-label="Ẩn hoặc hiện cột X-Ray và Feynman" aria-pressed="true" title="Ẩn/hiện X-Ray và Feynman">
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor"/><rect x="10" y="3" width="4" height="10" fill="currentColor" opacity=".75"/></svg>
+  </button>
+</header>
+
+<main class="main" id="main">
+  <aside class="col col-left" id="colLeft" aria-label="Bản đồ bài học"><div class="pane" id="map"></div></aside>
+  <section class="col col-mid" id="colMid" aria-label="Khung code"><div id="mid" style="height:100%"></div></section>
+  <aside class="col col-right" id="colRight" aria-label="X-Ray và Feynman"><div id="right"></div></aside>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="modalRoot"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============ tiện ích ============ */
+var $ = function(s){ return document.querySelector(s); };
+var ESC_MAP = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ESC_MAP[c]; }); }
+function md(s){ return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>'); }
+function rng(a,b){ return a===b ? 'dòng '+a : 'dòng '+a+'–'+b; }
+var TOK = /('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|\b(async|await|const|let|var|for|of|return|new|this|function|if|else|import|export)\b/g;
+function synt(line){
+  var out='', last=0, m; TOK.lastIndex=0;
+  while((m = TOK.exec(line))){
+    out += esc(line.slice(last, m.index));
+    out += m[1] ? '<span class="s">'+esc(m[1])+'</span>' : '<span class="k">'+esc(m[2])+'</span>';
+    last = TOK.lastIndex;
+  }
+  return out + esc(line.slice(last));
+}
+
+/* ============ dữ liệu giả ============ */
+var PID = 'slice-product-list';
+var SLICES = {
+  'slice-register': {vi:'Đăng ký', code:'POST /register · Register User', req:[]},
+  'slice-profile': {vi:'Hồ sơ người dùng', code:'GET /me · Get Profile', req:['slice-register']},
+  'slice-product-list': {vi:'Xem danh sách sản phẩm', code:'GET /products · List Products', req:[]},
+  'slice-cart': {vi:'Giỏ hàng', code:'POST /cart/items · Add To Cart', req:['slice-profile']},
+  'slice-order-checkout': {vi:'Thanh toán', code:'POST /orders · Place Order', req:['slice-cart','slice-product-list'], star:true},
+  'slice-send-email': {vi:'Gửi email xác nhận', code:'OrderPlaced · Send Confirmation Email', req:['slice-order-checkout']},
+  'slice-revenue-report': {vi:'Báo cáo doanh thu', code:'GET /reports/revenue · Revenue Report', req:['slice-order-checkout']}
+};
+var GROUPS = [
+  {id:'acc', name:'Tài khoản', items:['slice-register','slice-profile']},
+  {id:'buy', name:'Mua hàng', badge:'★ Nên học trước', items:[PID,'slice-cart','slice-order-checkout']},
+  {id:'after', name:'Sau khi mua', items:['slice-send-email','slice-revenue-report']}
+];
+var STATUS_VI = {ready:'Sẵn sàng', done:'Đã xong', fail:'Chưa đạt', locked:'Khóa'};
+
+var LESSON = {
+  files: [
+    {name:'product.controller.ts', path:'src/controllers/product.controller.ts', weak:false, lines:[
+      [8,"router.get('/products', async (req, res) => {"],
+      [9,"  const products = await productService.listProducts();"],
+      [10,"  res.json(products);"],
+      [11,"});"]]},
+    {name:'product.service.ts', path:'src/services/product.service.ts', weak:true, lines:[
+      [14,"async listProducts() {"],
+      [15,"  const products = await productRepo.findAll();"],
+      [16,"  for (const p of products) {"],
+      [17,"    p.category = await categoryRepo.findById(p.categoryId);"],
+      [18,"  }"],
+      [19,"  return products;"],
+      [20,"}"]]},
+    {name:'category.repo.ts', path:'src/repos/category.repo.ts', weak:false, lines:[
+      [5,"findById(id) {"],
+      [6,"  return this.repo.findOne({ where: { id } });"],
+      [7,"}"]]}
+  ],
+  steps: [
+    {layer:'Nhận yêu cầu', kind:'ENTRY_POINT', file:0, from:8, to:11,
+     text:"Khi khách mở trang sản phẩm, route `GET /products` nhận yêu cầu, giao cho `productService.listProducts`, rồi trả kết quả dạng JSON.",
+     skills:['HTTP_ROUTING']},
+    {layer:'Xử lý nghiệp vụ', kind:'BUSINESS_LOGIC', file:1, from:14, to:20,
+     text:"`listProducts` lấy hết sản phẩm bằng `productRepo.findAll`, rồi với từng sản phẩm lại gọi `categoryRepo.findById` để gắn loại hàng.",
+     skills:['LAYERED_SEPARATION','DB_OPTIMIZATION']},
+    {layer:'Đọc dữ liệu', kind:'DATA_ACCESS', file:2, from:5, to:7,
+     text:"`findById` hỏi database một lần để lấy đúng một loại hàng theo `id`.",
+     skills:[]}
+  ],
+  good: {file:0, from:8, to:11, step:1, text:"Route mỏng, chỉ chuyển việc cho service."},
+  bad: {file:1, from:16, to:18, step:2, text:"Gọi `categoryRepo.findById` bên trong vòng lặp.",
+        cons:"Càng nhiều sản phẩm thì càng nhiều lần hỏi database, trang chậm dần."}
+};
+
+var SKILLS = {
+  HTTP_ROUTING: {title:'Định tuyến HTTP',
+    what:"Mỗi địa chỉ (như `GET /products`) được gắn với một hàm xử lý. Server nhìn địa chỉ và phương thức để biết gọi hàm nào.",
+    eg:"Lễ tân nghe bạn cần gì rồi chỉ đúng phòng.",
+    why:"Route rõ ràng giúp biết ngay chức năng nào nằm ở đâu.",
+    repo:"`router.get('/products')` nhận yêu cầu rồi giao cho service.", step:0, line:8},
+  LAYERED_SEPARATION: {title:'Chia tầng',
+    what:"Code chia thành tầng nhận yêu cầu, tầng xử lý nghiệp vụ, tầng đọc ghi dữ liệu; mỗi tầng một việc. Yêu cầu đi lần lượt qua từng tầng.",
+    eg:"Nhà hàng có người phục vụ, đầu bếp, thủ kho.",
+    why:"Sửa một tầng ít ảnh hưởng tầng khác.",
+    repo:"Route chỉ chuyển việc, phần lấy dữ liệu nằm ở `listProducts`.", step:1, line:14},
+  DB_OPTIMIZATION: {title:'Tối ưu truy vấn database',
+    what:"Mỗi lần hỏi database là một chuyến đi qua mạng, tốn thời gian. Code tốt hỏi ít lần và lấy đúng dữ liệu cần.",
+    eg:"Đi chợ 20 món mà mua món nào chạy về nhà món đó, thay vì ghi danh sách đi một lần.",
+    why:"Dữ liệu càng nhiều thì trang càng chậm.",
+    repo:"`listProducts` lấy loại hàng cho từng sản phẩm.", step:1, line:17}
+};
+
+var QS = [
+  {kind:'Luồng xử lý', skill:'LAYERED_SEPARATION',
+   text:"Khi khách mở trang danh sách sản phẩm, yêu cầu đi qua những bước nào và mỗi bước làm gì?",
+   sample:"Route GET /products giao cho listProducts ở service; listProducts lấy hết sản phẩm rồi với từng sản phẩm gọi categoryRepo.findById; findById hỏi database lấy một loại hàng.",
+   concept:"Hãy nghĩ xem yêu cầu được chuyền qua những tầng nào trước khi có dữ liệu?"},
+  {kind:'Điểm yếu', skill:'DB_OPTIMIZATION',
+   text:"Nếu cửa hàng có 200 sản phẩm, mở trang này thì code hỏi database bao nhiêu lần? Vì sao?",
+   sample:"201 lần: 1 lần findAll lấy danh sách, cộng 200 lần findById cho từng sản phẩm.",
+   concept:"Hãy nghĩ xem mỗi sản phẩm cần thêm bao nhiêu lần hỏi database?"}
+];
+var CODE_HINT = "Xem lại Bước 2: điều gì xảy ra trong vòng `for` khi có nhiều sản phẩm?";
+var HINTS = { novice:['code','code'], practitioner:['concept','code'], architect:['concept','concept'] };
+var LEVELS = [['novice','Mới học'],['practitioner','Đã làm'],['architect','Kiến trúc sư']];
+var SCORE = {
+  LAYERED_SEPARATION:{name:'Chia tầng', base:50, up:71, down:47},
+  DB_OPTIMIZATION:{name:'Tối ưu truy vấn DB', base:35, up:62, down:32}
+};
+
+/* ============ trạng thái ============ */
+function newQ(){ return {draft:'', attempts:[], done:false, passed:false}; }
+var S = {
+  theme:'dark', leftOpen:true, rightOpen:true,
+  openGroups:{acc:false, buy:true, after:false},
+  selected:null, results:{}, fx:{},
+  rightTab:'xray', stage:'role', step:0, returnQ:false, expandBad:false,
+  fileIdx:0, hl:[],
+  level:'novice', qi:0, q:[newQ(), newQ()],
+  modal:false, popover:null
+};
+var lastAnchor=null, modalPrev=null, toastTimer=null, wantAnsFocus=false, wantPanelFocus=false;
+
+function missing(id){ return SLICES[id].req.filter(function(r){ return S.results[r] !== 'done'; }); }
+function status(id){
+  if(S.results[id]) return S.results[id];
+  return missing(id).length ? 'locked' : 'ready';
+}
+function names(ids){ return ids.map(function(i){ return SLICES[i].vi; }).join(', '); }
+function unlockInfo(id){
+  var deps = Object.keys(SLICES).filter(function(k){ return SLICES[k].req.indexOf(id) >= 0; });
+  var unlocked = deps.filter(function(k){ return status(k) === 'ready'; });
+  var blocked = deps.filter(function(k){ return status(k) === 'locked'; });
+  var lines = [];
+  if(unlocked.length) lines.push('Đã mở khóa: '+names(unlocked));
+  blocked.forEach(function(k){ lines.push(SLICES[k].vi+' còn cần: '+names(missing(k))); });
+  return lines;
+}
+
+/* ============ thông báo nhỏ ============ */
+function toast(msg){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.classList.remove('show'); }, 3800);
+}
+
+/* ============ render ============ */
+function render(opts){
+  opts = opts || {};
+  closePopover(false);
+  var af = captureFocus();
+  applyChrome();
+  renderMap(); renderMid(); renderRight();
+  $('#right').classList.toggle('enter', !!opts.resetRight);
+  if(opts.resetRight) $('#colRight').scrollTop = 0;
+  restoreFocus(af);
+}
+function captureFocus(){
+  var a=document.activeElement;
+  if(a && a.dataset && a.dataset.act) return {act:a.dataset.act, id:a.dataset.id, i:a.dataset.i, skill:a.dataset.skill};
+  if(a && a.id === 'ans') return {elid:'ans'};
+  return null;
+}
+function restoreFocus(f){
+  var el=null;
+  if(wantAnsFocus){ el=$('#ans'); wantAnsFocus=false; wantPanelFocus=false; if(el){ el.focus(); return; } }
+  if(f){
+    if(f.elid) el=document.getElementById(f.elid);
+    else{
+      var sel='[data-act="'+f.act+'"]';
+      if(f.id!==undefined) sel+='[data-id="'+f.id+'"]';
+      if(f.i!==undefined) sel+='[data-i="'+f.i+'"]';
+      if(f.skill!==undefined) sel+='[data-skill="'+f.skill+'"]';
+      el=document.querySelector(sel);
+    }
+    if(el && !el.disabled){ el.focus({preventScroll:true}); wantPanelFocus=false; return; }
+  }
+  if(wantPanelFocus){ var h=$('#rp-title'); if(h){ h.focus({preventScroll:true}); } wantPanelFocus=false; }
+}
+function applyChrome(){
+  document.documentElement.setAttribute('data-theme', S.theme);
+  var tb=$('#btnTheme');
+  tb.textContent = S.theme==='dark' ? '☀ Chế độ sáng' : '☾ Chế độ tối';
+  $('#btnLeft').setAttribute('aria-pressed', String(S.leftOpen));
+  $('#btnRight').setAttribute('aria-pressed', String(S.rightOpen));
+  $('#colLeft').hidden = !S.leftOpen;
+  $('#colRight').hidden = !S.rightOpen;
+  var cols=[];
+  if(S.leftOpen) cols.push('minmax(0,24fr)');
+  cols.push('minmax(0,45fr)');
+  if(S.rightOpen) cols.push('minmax(0,31fr)');
+  $('#main').style.gridTemplateColumns = cols.join(' ');
+}
+
+var LOCK_SVG='<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+
+function sliceCard(id){
+  var sl=SLICES[id], st=status(id), miss=missing(id);
+  var pop=S.fx[id]; delete S.fx[id];
+  var need = st==='locked' ? 'Cần xong: '+names(miss) : '';
+  return '<button class="slice st-'+st+(S.selected===id?' sel':'')+(pop?' pop-fx':'')+'" data-act="slice" data-id="'+id+'"'
+    +(st==='locked' ? ' aria-disabled="true" title="'+esc(need)+'"' : '')
+    +(S.selected===id ? ' aria-current="true"' : '')+'>'
+    +'<span class="s-top"><span class="s-name">'+esc(sl.vi)+(sl.star?' <span class="star" aria-label="bài quan trọng">★</span>':'')+'</span><span class="ai-tag">AI đặt tên</span></span>'
+    +'<span class="s-code">'+esc(sl.code)+'</span>'
+    +'<span class="s-st">'+(st==='locked' ? LOCK_SVG : '<i class="dot"></i>')+STATUS_VI[st]+'</span>'
+    +(need ? '<span class="need">'+esc(need)+'</span>' : '')
+    +'</button>';
+}
+function renderMap(){
+  var h='<h2 class="pane-title">Bản đồ bài học</h2>';
+  GROUPS.forEach(function(g){
+    var open=S.openGroups[g.id];
+    h+='<section class="grp"><button class="grp-h" data-act="grp" data-id="'+g.id+'" aria-expanded="'+open+'" aria-controls="grp-'+g.id+'">'
+      +'<span class="chev" aria-hidden="true">▸</span><span class="gname">'+esc(g.name)+'</span>'
+      +(g.badge?'<span class="badge">'+esc(g.badge)+'</span>':'')
+      +'<span class="cnt">'+g.items.length+' bài</span></button>'
+      +'<div class="grp-b" id="grp-'+g.id+'"'+(open?'':' hidden')+'>'+g.items.map(sliceCard).join('')+'</div></section>';
+  });
+  $('#map').innerHTML=h;
+}
+
+function overviewInner(titleId){
+  return '<div class="overview"><h2 id="'+titleId+'" tabindex="-1">Bức tranh chung</h2>'
+    +'<p class="lead">Hệ thống bán hàng online: khách đăng ký, xem sản phẩm, thêm vào giỏ và thanh toán. Sau khi mua, hệ thống gửi email xác nhận và tổng hợp doanh thu.</p>'
+    +'<div class="gcards">'+GROUPS.map(function(g){
+        return '<div class="gcard"><b>'+esc(g.name)+'</b><small>'+g.items.map(function(i){return esc(SLICES[i].vi);}).join(' · ')+'</small></div>';
+      }).join('')+'</div>'
+    +'<button class="btn primary big" data-act="start-with">Bắt đầu với: Xem danh sách sản phẩm →</button></div>';
+}
+
+function renderMid(){
+  var mid=$('#mid');
+  if(!S.selected){
+    mid.innerHTML='<div class="ov-wrap">'+overviewInner('ovTitle')+'</div>';
+    return;
+  }
+  var f=LESSON.files[S.fileIdx];
+  var tabs=LESSON.files.map(function(fl,i){
+    return '<button class="ftab" role="tab" data-act="file" data-i="'+i+'" aria-selected="'+(i===S.fileIdx)+'" title="'+esc(fl.path)+'">'
+      +esc(fl.name)+(fl.weak?'<span class="weak-dot" role="img" aria-label="có điểm dở do AI nhận định" title="Có điểm dở do AI nhận định"></span>':'')+'</button>';
+  }).join('');
+  var first=f.lines[0][0], lastN=f.lines[f.lines.length-1][0];
+  var rows='';
+  if(first>1) rows+='<div class="gap">⋯ dòng 1–'+(first-1)+' không thuộc bài học</div>';
+  f.lines.forEach(function(l){
+    var n=l[0], cls='';
+    S.hl.forEach(function(h){ if(h.file===S.fileIdx && n>=h.from && n<=h.to) cls=' hl-'+h.cls; });
+    rows+='<div class="ln'+cls+'" data-n="'+n+'"><span class="no">'+n+'</span><span class="tx">'+synt(l[1])+'</span></div>';
+  });
+  rows+='<div class="gap">⋯ phần còn lại của file</div>';
+  mid.innerHTML='<div class="mid-frame"><div class="ftabs" role="tablist" aria-label="Các file trong bài">'+tabs+'</div>'
+    +'<div class="fpath">'+esc(f.path)+'</div>'
+    +'<div class="code-scroll" id="codeScroll" role="region" aria-label="Code của '+esc(f.name)+'" tabindex="0">'+rows+'</div></div>';
+  var el=mid.querySelector('.ln[class*="hl-"]'), sc=$('#codeScroll');
+  if(el && sc){
+    var target=Math.max(0, el.offsetTop - sc.clientHeight/3);
+    if(Math.abs(sc.scrollTop - target) > 2) sc.scrollTo({top:target, behavior:'smooth'});
+  }
+}
+
+/* ---- cột phải ---- */
+function renderRight(){
+  var r=$('#right');
+  if(!S.selected){
+    r.innerHTML='<div class="empty"><h2 id="rp-title" tabindex="-1">Chưa chọn bài</h2><p>Chọn một bài ở bản đồ bên trái, hoặc bấm “Bắt đầu với: Xem danh sách sản phẩm”.</p></div>';
+    return;
+  }
+  var body = S.rightTab==='xray' ? xrayHTML() : feynmanHTML();
+  r.innerHTML='<div class="rtabs" role="tablist" aria-label="X-Ray và Feynman">'
+    +'<button class="rtab" role="tab" data-act="tab" data-id="xray" aria-selected="'+(S.rightTab==='xray')+'">X-Ray</button>'
+    +'<button class="rtab" role="tab" data-act="tab" data-id="feynman" aria-selected="'+(S.rightTab==='feynman')+'">Feynman</button></div>'
+    +'<div class="pane" role="tabpanel">'+body+'</div>';
+}
+
+function xrayHTML(){
+  var st=LESSON.steps;
+  if(S.stage==='role'){
+    return '<div class="stack"><div class="card">'
+      +'<h2 id="rp-title" tabindex="-1">Xem danh sách sản phẩm · GET /products</h2>'
+      +'<p><b>Vai trò:</b> cho khách xem toàn bộ sản phẩm kèm loại hàng.</p>'
+      +'<p><b>Mở ra cho:</b> → Thanh toán</p>'
+      +'<p><b>Dữ liệu:</b> Product <span class="tag">Đọc</span> · Category <span class="tag">Đọc</span></p></div>'
+      +'<button class="btn primary big" data-act="next">Bắt đầu tour →</button></div>';
+  }
+  if(S.stage==='tour'){
+    var s=st[S.step], i;
+    var dots=''; for(i=0;i<st.length;i++) dots+='<i class="'+(i<=S.step?'on':'')+'"></i>';
+    var banner = S.returnQ ? '<div class="banner"><span>Bạn đang xem lại theo gợi ý.</span><button class="btn small" data-act="back-q">Quay lại câu hỏi</button></div>' : '';
+    var chips = s.skills.length
+      ? '<div><span class="lbl">Kỹ năng ở bước này (bấm để xem thẻ khái niệm):</span><div class="chips">'
+        +s.skills.map(function(k){ return '<button class="chip" data-act="skill" data-skill="'+k+'" aria-haspopup="dialog">'+esc(SKILLS[k].title)+'</button>'; }).join('')
+        +'</div></div>' : '';
+    return '<div class="stack">'+banner
+      +'<div class="stephead"><h2 id="rp-title" tabindex="-1">Bước '+(S.step+1)+'/'+st.length+' · '+esc(s.layer)+'</h2><div class="dots" aria-hidden="true">'+dots+'</div></div>'
+      +'<div class="where">'+esc(LESSON.files[s.file].path)+' · '+rng(s.from,s.to)+'</div>'
+      +'<p class="expl">'+md(s.text)+'</p>'+chips
+      +'<div class="navrow"><button class="btn" data-act="prev">'+(S.step===0?'← Thẻ vai trò':'← Bước trước')+'</button>'
+      +'<button class="btn primary" data-act="next">'+(S.step===st.length-1?'Xem tóm tắt →':'Bước sau →')+'</button></div>'
+      +'<p class="keyhint">Mẹo: bấm phím ← → để chuyển bước.</p></div>';
+  }
+  var g=LESSON.good, b=LESSON.bad;
+  return '<div class="stack"><h2 id="rp-title" tabindex="-1" style="font-size:16px">Tóm tắt bài</h2>'
+    +'<div><div class="sum-title good">Điểm hay</div>'
+    +'<button class="sum-item good" data-act="sum" data-id="good">'+md(g.text)+'<small>Bước '+g.step+' · '+rng(g.from,g.to)+'</small></button></div>'
+    +'<div><div class="sum-title bad">Điểm dở <span class="tag">Nhận định của AI</span></div>'
+    +'<button class="sum-item bad" data-act="sum" data-id="bad">'+md(b.text)+'<small>Bước '+b.step+' · '+rng(b.from,b.to)+'</small></button>'
+    +'<button class="linkbtn" data-act="more-bad" aria-expanded="'+S.expandBad+'">'+(S.expandBad?'Thu gọn':'Xem thêm')+'</button>'
+    +(S.expandBad?'<div class="cons"><b>Hậu quả:</b> '+md(b.cons)+'</div>':'')+'</div>'
+    +'<button class="btn primary big" data-act="to-feynman">Bắt đầu trả lời (2 câu) →</button>'
+    +'<div class="navrow"><button class="btn" data-act="prev">← Về Bước 3</button><span></span></div></div>';
+}
+
+/* ---- Feynman ---- */
+function deltaHTML(q, qi){
+  var sk=SCORE[QS[qi].skill], after = q.passed ? sk.up : sk.down;
+  var lo=Math.min(sk.base, after), diff=Math.abs(after-sk.base);
+  return '<div class="delta"><div class="dname">'+esc(sk.name)+': <b>'+sk.base+'% → '+after+'%</b></div>'
+    +'<div class="bar" role="img" aria-label="'+esc(sk.name)+' từ '+sk.base+' phần trăm lên '+after+' phần trăm"><i class="base" style="--base:'+lo+'%;width:'+lo+'%"></i>'
+    +'<i class="diff '+(q.passed?'up':'down')+'" style="--base:'+lo+'%;--diff:'+diff+'%;left:'+lo+'%;width:'+diff+'%"></i></div></div>';
+}
+function hintHTML(a, isLast, qi){
+  if(!a.hint) return '';
+  if(a.hint==='concept') return '<div class="hint"><b>Gợi ý:</b> '+esc(QS[qi].concept)+'</div>';
+  return '<div class="hint"><b>Gợi ý:</b> '+md(CODE_HINT)
+    +(isLast?'<div class="hint-act"><button class="btn small" data-act="open-step" data-i="1">Mở Bước 2 trong tour</button></div>':'')+'</div>';
+}
+function feynmanHTML(){
+  var id=S.selected, q=S.q[S.qi], Q=QS[S.qi], res=S.results[id];
+  var h='<div class="stack"><h2 id="rp-title" tabindex="-1" class="sr">Trả lời bằng lời của bạn</h2>';
+  h+='<div><span class="lbl">Bậc người học</span><div class="seg" role="radiogroup" aria-label="Bậc người học">'
+    +LEVELS.map(function(l){ return '<button role="radio" data-act="level" data-id="'+l[0]+'" aria-checked="'+(S.level===l[0])+'">'+l[1]+'</button>'; }).join('')+'</div></div>';
+  h+='<div><span class="lbl">Câu hỏi (làm lần lượt)</span><div class="qchips">'
+    +QS.map(function(_,i){
+      var d=S.q[i], cls=d.done?(d.passed?' ok':' no'):'';
+      var dis = i>0 && !S.q[i-1].done;
+      var lab='Câu '+(i+1)+(d.done?(d.passed?', đã đạt':', chưa đạt'):(dis?', chưa mở':''));
+      return '<button class="qchip'+cls+'" data-act="qsel" data-i="'+i+'" aria-label="'+lab+'"'+(i===S.qi?' aria-current="true"':'')+(dis?' disabled':'')+'>'+['①','②'][i]+(d.done?(d.passed?' ✓':' ✗'):'')+'</button>';
+    }).join('')+'</div></div>';
+  h+='<div class="card"><span class="lbl">Câu '+(S.qi+1)+'/2 · '+esc(Q.kind)+'</span><p class="qtext">'+esc(Q.text)+'</p></div>';
+  if(q.attempts.length){
+    h+='<div class="stack" style="gap:8px">'+q.attempts.map(function(a,k){
+      var last=k===q.attempts.length-1;
+      return '<details class="att"'+(last?' open':'')+'><summary>Lượt '+(k+1)+' <span class="pill '+(a.pass?'ok':'no')+'">'+(a.pass?'Đạt':'Chưa đạt')+'</span></summary>'
+        +'<div class="said">'+esc(a.text)+'</div><p class="fb">'+esc(a.fb)+'</p>'+hintHTML(a,last,S.qi)+'</details>';
+    }).join('')+'</div>';
+  }
+  if(!q.done){
+    h+='<div><label class="lbl" for="ans">Câu trả lời của bạn</label>'
+      +'<textarea id="ans" rows="5" placeholder="Viết bằng lời của bạn…">'+esc(q.draft)+'</textarea>'
+      +'<p class="err" id="ansErr" role="alert" hidden>Hãy viết vài câu trước khi nộp.</p>'
+      +'<div class="subrow"><button class="btn primary" data-act="submit">Nộp câu trả lời</button>'
+      +'<span class="muted">Lượt '+(q.attempts.length+1)+'/3</span><span class="keyhint">Ctrl+Enter để nộp</span></div></div>';
+  }else{
+    h+='<div class="sample"><b>Đáp án mẫu</b>'+esc(Q.sample)+'</div>'+deltaHTML(q,S.qi);
+    if(S.qi<QS.length-1) h+='<button class="btn primary big" data-act="qsel" data-i="'+(S.qi+1)+'">Sang câu ② →</button>';
+  }
+  if(res){
+    var info = res==='done' ? unlockInfo(id) : [];
+    h+='<div class="result '+res+'" role="status">'
+      +(res==='done'
+        ? '<h3>✓ Đã xong bài “'+esc(SLICES[id].vi)+'”</h3><p>Cả 2 câu đều đạt.</p>'
+        : '<h3>✗ Chưa đạt bài “'+esc(SLICES[id].vi)+'”</h3><p>Có câu chưa đạt. Bạn có thể học lại từ đầu.</p>')
+      +(info.length?'<ul>'+info.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul>':'')
+      +(res==='fail'?'<div class="subrow"><button class="btn primary" data-act="relearn">Học lại</button></div>':'')+'</div>';
+  }
+  return h+'</div>';
+}
+
+/* ============ chấm giả ============ */
+function evaluate(qi, text){
+  var t=text.toLowerCase().normalize('NFC');
+  if(qi===0){
+    var g=[/listproducts|service/.test(t), /vòng|từng sản phẩm|\bfor\b/.test(t), /findbyid|database|\bdb\b/.test(t)];
+    var n=g.filter(Boolean).length;
+    if(n>=2) return {pass:true, fb:"Đạt! Bạn đã nêu được các bước yêu cầu đi qua và việc mỗi bước làm."};
+    if(g[0]) return {pass:false, fb:"Bạn đã nhắc đến tầng xử lý nghiệp vụ — đúng hướng, nhưng còn thiếu các bước còn lại."};
+    if(g[1]) return {pass:false, fb:"Bạn đã để ý việc lặp qua từng sản phẩm — đúng ý, nhưng chưa đủ luồng đi."};
+    if(g[2]) return {pass:false, fb:"Bạn đã nhắc đến việc hỏi database — đúng ý, nhưng chưa rõ yêu cầu đi qua những bước nào."};
+    return {pass:false, fb:"Chưa thấy ý chính. Hãy thử kể theo thứ tự từ lúc yêu cầu vào đến lúc có dữ liệu."};
+  }
+  if(/(^|[^\d])201([^\d]|$)/.test(t)) return {pass:true, fb:"Chính xác! Bạn đã đếm đúng số lần hỏi database."};
+  if(/\d/.test(t)) return {pass:false, fb:"Bạn đã tính ra một con số, nhưng chưa khớp với những gì code làm."};
+  if(/findbyid|vòng|từng|mỗi|database|\bdb\b/.test(t)) return {pass:false, fb:"Bạn đã nhận ra việc hỏi database lặp lại — đúng ý, nhưng hãy tính ra con số cụ thể."};
+  return {pass:false, fb:"Chưa thấy con số cụ thể. Hãy thử đếm số lần hỏi database."};
+}
+
+/* ============ hành động ============ */
+function setHl(file, list){ S.fileIdx=file; S.hl=list; }
+function stepRange(i){ var s=LESSON.steps[i]; return {file:s.file, from:s.from, to:s.to, cls:'step'}; }
+function goRole(){ S.stage='role'; S.fileIdx=0; S.hl=[]; wantPanelFocus=true; render({resetRight:true}); }
+function goStep(i, fromHint){
+  S.rightTab='xray'; S.stage='tour'; S.step=i;
+  setHl(LESSON.steps[i].file, [stepRange(i)]);
+  if(fromHint) S.returnQ=true;
+  wantPanelFocus=true;
+  render({resetRight:true});
+}
+function goSummary(){ S.stage='summary'; S.hl=[]; wantPanelFocus=true; render({resetRight:true}); }
+function nav(dir){
+  if(S.stage==='role'){ if(dir>0) goStep(0); return; }
+  if(S.stage==='tour'){
+    if(dir>0){ S.step<LESSON.steps.length-1 ? goStep(S.step+1) : goSummary(); }
+    else { S.step>0 ? goStep(S.step-1) : goRole(); }
+    return;
+  }
+  if(dir<0) goStep(LESSON.steps.length-1);
+}
+function openSlice(id){
+  var st=status(id);
+  if(st==='locked'){ toast('Cần xong: '+names(missing(id))); return; }
+  if(id!==PID){ toast('Bản vẽ chỉ có dữ liệu cho bài Xem danh sách sản phẩm'); return; }
+  if(S.selected!==id){
+    S.selected=id; S.rightTab='xray'; S.stage='role'; S.step=0; S.fileIdx=0; S.hl=[]; S.returnQ=false;
+    wantPanelFocus=true;
+    render({resetRight:true});
+  }
+}
+function finishCheck(){
+  if(S.q.every(function(q){ return q.done; }) && !S.results[S.selected]){
+    var ok=S.q.every(function(q){ return q.passed; });
+    S.results[S.selected]= ok ? 'done' : 'fail';
+    S.fx[S.selected]=true;
+    if(ok){
+      var info=unlockInfo(S.selected);
+      toast('Bài đã xong! '+info.join(' · '));
+    }else toast('Bài chưa đạt. Bạn có thể bấm “Học lại”.');
+  }
+}
+function submit(){
+  var q=S.q[S.qi]; if(q.done) return;
+  var ta=$('#ans'); if(!ta) return;
+  var text=ta.value.trim(); q.draft=ta.value;
+  if(!text){ var e=$('#ansErr'); if(e) e.hidden=false; ta.focus(); return; }
+  var ev=evaluate(S.qi, text), n=q.attempts.length+1;
+  var att={text:text, pass:ev.pass, fb:ev.fb, hint:null};
+  if(ev.pass){ q.done=true; q.passed=true; }
+  else if(n>=3){ q.done=true; q.passed=false; }
+  else att.hint=HINTS[S.level][n-1];
+  q.attempts.push(att); q.draft='';
+  finishCheck();
+  wantAnsFocus=!q.done;
+  render();
+}
+
+var HANDLERS = {
+  'toggle-left':function(){ S.leftOpen=!S.leftOpen; render(); },
+  'toggle-right':function(){ S.rightOpen=!S.rightOpen; render(); },
+  'theme':function(){ S.theme = S.theme==='dark' ? 'light' : 'dark'; try{ localStorage.setItem('sf-theme', S.theme); }catch(e){} render(); },
+  'overview':function(t){ openModal(t); },
+  'modal-close':function(){ closeModal(); },
+  'modal-bg':function(t,e){ if(e.target===t) closeModal(); },
+  'start-with':function(){ if(S.modal) closeModal(); S.openGroups.buy=true; openSlice(PID); },
+  'grp':function(t){ S.openGroups[t.dataset.id]=!S.openGroups[t.dataset.id]; render(); },
+  'slice':function(t){ openSlice(t.dataset.id); },
+  'tab':function(t){ S.rightTab=t.dataset.id; if(S.rightTab==='feynman') S.returnQ=false; render({resetRight:true}); },
+  'file':function(t){
+    var i=+t.dataset.i;
+    var si=LESSON.steps.findIndex(function(s){ return s.file===i; });
+    if(S.rightTab==='xray') goStep(si);
+    else { setHl(i, [stepRange(si)]); render(); }
+  },
+  'next':function(){ nav(1); },
+  'prev':function(){ nav(-1); },
+  'skill':function(t){
+    if(S.popover===t.dataset.skill){ closePopover(true); return; }
+    openPopover(t.dataset.skill, t);
+  },
+  'pop-close':function(){ closePopover(true); },
+  'see-line':function(){
+    var k=S.popover; if(!k) return;
+    var sk=SKILLS[k];
+    setHl(LESSON.steps[sk.step].file, [stepRange(sk.step), {file:LESSON.steps[sk.step].file, from:sk.line, to:sk.line, cls:'focus'}]);
+    closePopover(false); render();
+  },
+  'sum':function(t){
+    var it=LESSON[t.dataset.id];
+    setHl(it.file, [{file:it.file, from:it.from, to:it.to, cls:t.dataset.id}]);
+    render();
+  },
+  'more-bad':function(){ S.expandBad=!S.expandBad; render(); },
+  'to-feynman':function(){ S.rightTab='feynman'; S.returnQ=false; wantAnsFocus=!S.q[S.qi].done; wantPanelFocus=true; render({resetRight:true}); },
+  'level':function(t){ S.level=t.dataset.id; render(); },
+  'qsel':function(t){ S.qi=+t.dataset.i; wantAnsFocus=!S.q[S.qi].done; wantPanelFocus=true; render({resetRight:true}); },
+  'submit':function(){ submit(); },
+  'open-step':function(t){ goStep(+t.dataset.i, true); },
+  'back-q':function(){ S.rightTab='feynman'; S.returnQ=false; wantAnsFocus=!S.q[S.qi].done; wantPanelFocus=true; render({resetRight:true}); },
+  'relearn':function(){
+    delete S.results[S.selected]; S.q=[newQ(), newQ()]; S.qi=0;
+    S.rightTab='xray'; S.stage='role'; S.step=0; S.fileIdx=0; S.hl=[]; S.returnQ=false; S.expandBad=false;
+    wantPanelFocus=true; render({resetRight:true}); toast('Đã đặt lại bài, bạn học lại từ đầu.');
+  }
+};
+
+/* ============ popover ============ */
+function openPopover(key, anchor){
+  closePopover(false);
+  var sk=SKILLS[key]; S.popover=key; lastAnchor=anchor;
+  var el=document.createElement('div');
+  el.className='pop'; el.id='pop'; el.setAttribute('role','dialog'); el.tabIndex=-1;
+  el.setAttribute('aria-label','Thẻ khái niệm: '+sk.title);
+  el.innerHTML='<button class="xbtn" data-act="pop-close" aria-label="Đóng thẻ khái niệm">✕</button>'
+    +'<h3>'+esc(sk.title)+' <code>'+key+'</code></h3>'
+    +'<dl><dt>Là gì</dt><dd>'+md(sk.what)+'</dd><dt>Ví dụ đời thường</dt><dd>'+md(sk.eg)+'</dd><dt>Vì sao quan trọng</dt><dd>'+md(sk.why)+'</dd></dl>'
+    +'<hr><div class="ai"><b>Trong repo này (AI):</b> '+md(sk.repo)
+    +'<div class="hint-act"><button class="btn small" data-act="see-line">Xem dòng</button></div></div>';
+  document.body.appendChild(el);
+  var r=anchor.getBoundingClientRect(), w=el.offsetWidth, hgt=el.offsetHeight;
+  var left=Math.min(Math.max(12, r.left), window.innerWidth-w-12);
+  var top=r.bottom+8;
+  if(top+hgt > window.innerHeight-12) top = (r.top-hgt-8 >= 12) ? r.top-hgt-8 : Math.max(12, window.innerHeight-hgt-12);
+  el.style.left=left+'px'; el.style.top=top+'px';
+  el.focus({preventScroll:true});
+}
+function closePopover(refocus){
+  var el=document.getElementById('pop');
+  if(el) el.remove();
+  S.popover=null;
+  if(refocus && lastAnchor && document.body.contains(lastAnchor)) lastAnchor.focus({preventScroll:true});
+}
+
+/* ============ cửa sổ nổi ============ */
+function openModal(opener){
+  if(S.modal) return;
+  S.modal=true; modalPrev=opener||document.activeElement;
+  $('#modalRoot').innerHTML='<div class="overlay" data-act="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" tabindex="-1">'
+    +'<button class="xbtn" data-act="modal-close" aria-label="Đóng cửa sổ tổng quan">✕</button>'+overviewInner('mTitle')+'</div></div>';
+  $('#modalRoot .modal').focus();
+}
+function closeModal(){
+  S.modal=false; $('#modalRoot').innerHTML='';
+  if(modalPrev && document.body.contains(modalPrev)) modalPrev.focus({preventScroll:true});
+}
+
+/* ============ sự kiện ============ */
+document.addEventListener('click', function(e){
+  var pop=document.getElementById('pop');
+  if(pop && !pop.contains(e.target) && !e.target.closest('[data-act="skill"]')) closePopover(false);
+  var t=e.target.closest('[data-act]'); if(!t) return;
+  var h=HANDLERS[t.dataset.act]; if(h) h(t, e);
+});
+document.addEventListener('input', function(e){
+  if(e.target.id==='ans'){ S.q[S.qi].draft=e.target.value; var er=$('#ansErr'); if(er) er.hidden=true; }
+});
+window.addEventListener('scroll', function(e){
+  var pop=document.getElementById('pop');
+  if(pop && !(e.target.nodeType===1 && pop.contains(e.target))) closePopover(false);
+}, true);
+window.addEventListener('resize', function(){ closePopover(false); });
+
+document.addEventListener('keydown', function(e){
+  var t=e.target;
+  if(e.key==='Escape'){
+    if(S.popover){ closePopover(true); e.preventDefault(); return; }
+    if(S.modal){ closeModal(); e.preventDefault(); return; }
+  }
+  if(e.key==='Tab' && S.modal){
+    var f=[].slice.call(document.querySelectorAll('#modalRoot button, #modalRoot [href], #modalRoot [tabindex]:not([tabindex="-1"])'));
+    if(!f.length) return;
+    var first=f[0], last=f[f.length-1];
+    if(e.shiftKey && (t===first || t.classList.contains('modal'))){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && t===last){ e.preventDefault(); first.focus(); }
+    return;
+  }
+  if(e.key==='Enter' && (e.ctrlKey||e.metaKey) && t.id==='ans'){ e.preventDefault(); submit(); return; }
+  if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
+  var grp = t.closest && t.closest('[role="tablist"],[role="radiogroup"]');
+  if(grp && /^(tab|radio)$/.test(t.getAttribute('role')||'')){
+    var items=[].slice.call(grp.querySelectorAll('[role="'+t.getAttribute('role')+'"]:not(:disabled)'));
+    var idx=items.indexOf(t); if(idx<0) return;
+    var nx=items[(idx+(e.key==='ArrowRight'?1:-1)+items.length)%items.length];
+    e.preventDefault(); nx.focus(); nx.click();
+    return;
+  }
+  if(S.selected && S.rightTab==='xray' && !S.modal){
+    if(t.matches && t.matches('input,textarea,select,[contenteditable="true"]')) return;
+    e.preventDefault(); nav(e.key==='ArrowRight' ? 1 : -1);
+  }
+});
+
+/* ============ khởi động ============ */
+try{ var saved=localStorage.getItem('sf-theme'); if(saved==='light'||saved==='dark') S.theme=saved; }catch(e){}
+render();
+})();
+</script>
+</body>
+</html>
