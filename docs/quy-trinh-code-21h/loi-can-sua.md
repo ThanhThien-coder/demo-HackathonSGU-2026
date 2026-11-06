@@ -488,7 +488,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
 - **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
-- **Trạng thái:** làm dở. Câu `ARCHITECTURE`, `CHANGE` đã hỏi suy luận (luật 9 từ C-08). Lỗi còn ở câu `FLOW`, nay luôn là câu 1 (BKT-50): hỏi "đi qua những bước / hàm nào", chép X-Ray là trả lời được. Đã sửa luật `FLOW` chế độ A (`20` AI-25): đặt tình huống code xử lý thấy được, cấm dạng câu đó. Chạy thật 2 lượt: `Auth Login` có tình huống cụ thể, `Update Order Status` vẫn hỏi chung (1/2). Bước sau: chặn bằng code (mẫu câu "đi qua những … nào" ⇒ gọi lại câu đó), cần thêm mã Q mới ở `21` và `GuardCode`.
+- **Trạng thái:** chờ kiểm. Luật `FLOW` chế độ A (AI-25) đặt tình huống cụ thể; thêm cổng gác GUARD-12 `Q9` (`FLOW_GENERIC_RE`): câu `FLOW` dạng "đi qua những bước / hàm nào" ⇒ gọi lại riêng câu đó. Test xanh. Chạy thật câu 1 của `Update Order Status`, `Auth Login`: lần này AI không viết mẫu hỏi chung nên `Q9` chưa bật; `Auth Login` vẫn có câu "được chuyển tiếp như thế nào" (chép được một phần) — regex chỉ bắt đúng mẫu chữ, phần nghĩa vẫn phải duyệt tay (GUARD-21).
 
 ### C-05 · Vừa · Tổng quan AI không ra sau khi phân tích hết bài
 
