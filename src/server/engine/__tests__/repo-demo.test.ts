@@ -527,7 +527,7 @@ describe("ENG / X-01 / X-07: Repo demo shop-api trong RAM và kiểm thử xuyê
     const fns = (title: string) => res.nodes.find((n) => n.title === title)?.trace_steps.map((s) => s.function_name) ?? [];
     expect(fns("List Products")).toEqual(["router.get('/products')", "ProductService.listProducts", "CategoryRepo.findById"]);
     expect(fns("Order Checkout")).toContain("OrderService.checkout");
-    expect(fns("Create Register")).toContain("AuthService.register");
+    expect(fns("Register")).toContain("AuthService.register");
     expect(res.nodes.find((n) => n.is_capstone)?.title).toBe("Order Checkout");
   });
 
