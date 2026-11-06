@@ -197,17 +197,7 @@ function maybeRequestOverview(
     return;
   }
 
-  const allReady = state.result.nodes.every((n) => {
-    const a = state.analyses[n.id];
-    const isObject = typeof a === "object" && a !== null;
-    const isFailed = Boolean(state.progress?.nodes?.[n.id]?.analysis_failed);
-    return isObject || isFailed;
-  });
-
-  if (!allReady) {
-    return;
-  }
-
+  // D-83: tổng quan gọi đầu phiên, không chờ analyze-node
   overviewRequested = true;
   const sid = state.session_id;
 
@@ -524,8 +514,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       },
     }));
 
+    maybeRequestOverview(get); // D-46, D-83: tổng quan trước, rồi mới tải trước node
     pump(get, set);
-    maybeRequestOverview(get);
   },
 
   loadRun: async (nodeId: string) => {

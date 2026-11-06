@@ -886,7 +886,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-83: `analyze-overview` gọi ngay sau khi quét, đầu vào gói ngữ cảnh, ra `RepoOverviewRaw` mới; cổng gác mới; câu dự phòng do code dựng. Sửa `20`, `21`, `src/server/ai/*`.
 - **Kiểm tra:** quét `shop-api` và BrewLite, tổng quan có trước khi phân tích bài nào; mỗi bài đúng 1 tên, không trùng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Gói ngữ cảnh, prompt, schema mới; `checkOverview` theo GUARD-11 (O5, O6); `analyzeOverview(session, graph)` không cần bản phân tích; route bỏ đoạn chờ hết node; store gọi tổng quan trước khi tải trước node; `PROMPT_VERSION` `1.2.0`. Nhóm, thực thể, README đọc kiểu "có thì dùng" tới khi có B-40, B-41. Chạy AI thật, chưa có bản phân tích nào: `shop-api` 7/7 tên, BrewLite 13/13 tên, không trùng, 1 request mỗi repo. Trần `LLM_MAX_OUTPUT_TOKENS.OVERVIEW` 600 làm BrewLite bị cắt (`NOT_STOP`) nên nâng lên 1500 (13 bài ra 635 token). `shop-api` với nhóm giả: AI đặt "Tài khoản", "Sản phẩm", "Đơn hàng", "Báo cáo". Bundle offline `public/demo/mock_bundle.json` còn tổng quan kiểu cũ, cần ghi lại.
 
 ### A-08 · Nặng · Contract và endpoint cho quy trình mới
 
