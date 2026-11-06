@@ -9,6 +9,7 @@ import {
   CodeSnippetViewer,
   FeynmanQuestionSection,
   RepoOverviewModal,
+  RepoOverview,
   SubmitEvaluationDialog,
   SkipConfirmDialog,
   ReportWrongDialog,
@@ -175,8 +176,6 @@ function LearnCockpitContent() {
 
         if (targetNode && !isLocked) {
           void useWorkbenchStore.getState().openNode(targetNode.id);
-        } else {
-          setIsOverviewModalOpen(true);
         }
 
         if (res.data.resumed && !isOfflineMode()) {
@@ -580,38 +579,42 @@ function LearnCockpitContent() {
           />
 
           {/* Left Column: Code Snippet Viewer (Figma node 5:64) - Step 8 POST /api/analyze-node */}
-          <CodeSnippetViewer
-            fileName={
-              currentNode?.files?.[0]
-                ? currentNode.files[0].split("/").pop()
-                : ""
-            }
-            scope={
-              currentNode?.entry_symbol
-                ? `Scope: ${currentNode.entry_symbol}`
-                : currentNode?.title
-                ? `Lát cắt: ${currentNode.title}`
-                : ""
-            }
-            node={currentNode}
-            analysis={analysis}
-            isLoading={isLoadingAnalysis}
-            errorMessage={analysisError}
-            onRetry={() => {
-              if (active_node_id) {
-                useWorkbenchStore.getState().requestAnalysis(active_node_id, true);
+          {active_node_id ? (
+            <CodeSnippetViewer
+              fileName={
+                currentNode?.files?.[0]
+                  ? currentNode.files[0].split("/").pop()
+                  : ""
               }
-            }}
-            onOpenFullFile={() => setIsFullFileModalOpen(true)}
-            highlightedStep={hint_step}
-            activeStep={active_step}
-            onSelectStep={(step) => useWorkbenchStore.getState().setActiveStep(step)}
-            isPresentationMode={presentation_pane}
-            onTogglePresentationMode={() =>
-              useWorkbenchStore.getState().setPresentationPane(!presentation_pane)
-            }
-            allNodes={result?.nodes}
-          />
+              scope={
+                currentNode?.entry_symbol
+                  ? `Scope: ${currentNode.entry_symbol}`
+                  : currentNode?.title
+                  ? `Lát cắt: ${currentNode.title}`
+                  : ""
+              }
+              node={currentNode}
+              analysis={analysis}
+              isLoading={isLoadingAnalysis}
+              errorMessage={analysisError}
+              onRetry={() => {
+                if (active_node_id) {
+                  useWorkbenchStore.getState().requestAnalysis(active_node_id, true);
+                }
+              }}
+              onOpenFullFile={() => setIsFullFileModalOpen(true)}
+              highlightedStep={hint_step}
+              activeStep={active_step}
+              onSelectStep={(step) => useWorkbenchStore.getState().setActiveStep(step)}
+              isPresentationMode={presentation_pane}
+              onTogglePresentationMode={() =>
+                useWorkbenchStore.getState().setPresentationPane(!presentation_pane)
+              }
+              allNodes={result?.nodes}
+            />
+          ) : (
+            <RepoOverview />
+          )}
 
           {/* Right Column: Feynman Question & Form (Figma node 5:170) - Steps 10, 11, 12, 13 */}
           {active_node_id ? (
@@ -643,7 +646,16 @@ function LearnCockpitContent() {
               nodeState={active_node_id && progress?.nodes ? (progress.nodes[active_node_id] ?? null) : null}
               unlockedNodeIds={evaluationResult?.unlocked_node_ids ?? []}
             />
-          ) : null}
+          ) : (
+            <div className="flex-1 w-full p-6 text-center text-[#625e56] bg-white rounded-2xl border border-[#eaedff]">
+              <h2 className="text-base font-bold text-[#131b2e] mb-1.5" tabIndex={-1}>
+                Chưa chọn bài
+              </h2>
+              <p className="text-xs">
+                Chọn một bài ở bản đồ bên trái, hoặc bấm nút bắt đầu ở Tổng quan.
+              </p>
+            </div>
+          )}
         </main>
       </div>
 
@@ -675,8 +687,6 @@ function LearnCockpitContent() {
         isOpen={isOverviewModalOpen}
         onClose={() => setIsOverviewModalOpen(false)}
         overview={typeof overview === "object" && overview !== null ? overview : null}
-        isLoading={false}
-        errorMessage={ui_errors["overview"] ?? null}
       />
 
       {/* 9. Skip Question Confirmation Dialog - Step 12 POST /api/reveal */}
