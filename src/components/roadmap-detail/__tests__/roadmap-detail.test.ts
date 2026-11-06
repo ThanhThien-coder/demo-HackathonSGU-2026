@@ -54,6 +54,8 @@ describe("Roadmap Session Detail Data Transformation", () => {
       },
       trace_steps: [],
       dto_snippet: "",
+      group_id: "",
+      entities: [],
     },
     {
       id: "node-payment-gateway",
@@ -80,6 +82,8 @@ describe("Roadmap Session Detail Data Transformation", () => {
       },
       trace_steps: [],
       dto_snippet: "",
+      group_id: "",
+      entities: [],
     },
     {
       id: "node-auth-jwt",
@@ -106,6 +110,8 @@ describe("Roadmap Session Detail Data Transformation", () => {
       },
       trace_steps: [],
       dto_snippet: "",
+      group_id: "",
+      entities: [],
     },
     {
       id: "node-inventory-sync",
@@ -132,6 +138,8 @@ describe("Roadmap Session Detail Data Transformation", () => {
       },
       trace_steps: [],
       dto_snippet: "",
+      group_id: "",
+      entities: [],
     },
   ];
 

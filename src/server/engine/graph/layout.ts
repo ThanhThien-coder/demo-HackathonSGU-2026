@@ -23,8 +23,15 @@ export function layoutGraph(
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Sắp xếp node theo id tăng dần (ENG-01)
-  const sortedNodes = nodes.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // Sắp xếp node theo id tăng dần (ENG-01). Chỉ node có cạnh vào Dagre (Mục 14 ý 1).
+  const linked = new Set<string>();
+  for (const e of edges) {
+    linked.add(e.source);
+    linked.add(e.target);
+  }
+  const allSorted = nodes.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const sortedNodes = allSorted.filter((n) => linked.has(n.id));
+  const loneNodes = allSorted.filter((n) => !linked.has(n.id));
   for (const n of sortedNodes) {
     g.setNode(n.id, {
       width: CONFIG.NODE_BOX_WIDTH,
@@ -51,10 +58,10 @@ export function layoutGraph(
   }
 
   // Chạy Dagre layout
-  dagreInstance.layout(g);
+  if (sortedNodes.length > 0) dagreInstance.layout(g);
 
   // Gán tọa độ cho các node thật
-  for (const n of nodes) {
+  for (const n of sortedNodes) {
     const pos = g.node(n.id);
     if (pos) {
       n.position = {
@@ -63,4 +70,17 @@ export function layoutGraph(
       };
     }
   }
+
+  // Cột Học riêng (Mục 14 ý 4)
+  const hasLinked = sortedNodes.length > 0;
+  const columnX = hasLinked
+    ? Math.max(...sortedNodes.map((n) => n.position.x)) + CONFIG.NODE_BOX_WIDTH + CONFIG.DAGRE_NODESEP
+    : 0;
+  const columnY = hasLinked ? Math.min(...sortedNodes.map((n) => n.position.y)) : 0;
+  loneNodes.forEach((n, i) => {
+    n.position = {
+      x: columnX,
+      y: columnY + i * (CONFIG.NODE_BOX_HEIGHT + CONFIG.DAGRE_NODESEP),
+    };
+  });
 }

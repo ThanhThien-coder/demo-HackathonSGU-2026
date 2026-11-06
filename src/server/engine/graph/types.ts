@@ -105,4 +105,5 @@ export interface EngineContext {
   tech_stack: string[];
   rank: Map<string, number>;
   source_map: Map<string, VirtualFileOrigin>;
+  manifests?: Map<string, string>;
 }

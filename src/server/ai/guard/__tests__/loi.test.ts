@@ -58,6 +58,8 @@ const mockN3: HybridArchitecturalNode = {
     is_exempt: false,
   },
   dto_snippet: "",
+  group_id: "",
+  entities: [],
   trace_steps: [
     {
       step_number: 1,
@@ -123,6 +125,8 @@ const mockN2: HybridArchitecturalNode = {
     is_exempt: false,
   },
   dto_snippet: "",
+  group_id: "",
+  entities: [],
   trace_steps: [
     {
       step_number: 1,
@@ -186,6 +190,7 @@ const mockGraph: StaticEngineResult = {
   total_files: 6,
   nodes: [mockN3, mockN2],
   edges: [],
+  groups: [],
   symbol_whitelist: [
     "authMiddleware",
     "categoryRepo",

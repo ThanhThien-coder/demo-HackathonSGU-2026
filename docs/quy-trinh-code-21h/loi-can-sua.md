@@ -25,7 +25,7 @@ Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D
 - **Nguyên nhân:** ghi nếu đã biết, chưa chắc thì ghi "nghi".
 - **Cần sửa:** sửa gì, ở file nào.
 - **Kiểm tra:** làm gì để biết đã hết lỗi.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `entities`, `group_id`, `via_entities`, `groups` vào `src/contracts/engine.ts` đúng `spec/02`, `toClientResult` trả đủ. `shop-api` ra 4 nhóm theo T-ENG-48, BrewLite có nhóm theo thực thể, chạy 2 lần cùng kết quả.
 ```
 
 Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác minh` · `chờ quyết Q-x` · `đang làm` · `chờ kiểm` · `xong`. Chỉ người kiểm mới được ghi `xong`.
@@ -133,7 +133,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** quyết định D-07 chỉ nối bài gọi chung hàm, nên nhiều bài không có bài cha.
 - **Cần sửa:** thêm `addTreeEdges` trong `nodes.ts`, nối bài theo module thành cây, cạnh thêm là `INFERRED` và có khóa bài (đề xuất D-73).
 - **Kiểm tra:** BrewLite mở lúc đầu không quá 6 bài.
-- **Trạng thái:** đã xác nhận trên site, chưa làm. Làm theo B-39, không nối theo module. Đổi cách khóa bài nên cần thử kỹ trước khi demo.
+- **Trạng thái:** chờ kiểm. Làm theo B-39. BrewLite mở lúc đầu 6 bài: 4 điểm bắt đầu, 2 học riêng.
 
 ### B-05 · Vừa · Node tách rời, bản đồ quá dài
 
@@ -141,7 +141,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** như B-04, cộng quyết định D-55 đưa mọi bài không có cha lên hàng đầu.
 - **Cần sửa:** làm cùng B-04, rồi đo lại. Bản đồ chỉ đọc được khi đã sửa thêm lỗi D-01.
 - **Kiểm tra:** BrewLite hết node lẻ, còn khoảng 3 cây (theo mô phỏng).
-- **Trạng thái:** đã xác nhận trên site, chưa làm. Làm theo B-39.
+- **Trạng thái:** chờ kiểm. Làm theo B-39. BrewLite còn 2 bài lẻ đúng nghĩa học riêng (`App Hello`, `List Healths`), 15 cạnh.
 
 ### B-06 · Vừa · Không có luồng tới tầng dữ liệu
 
@@ -820,7 +820,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   BrewLite ra `Auth Register` và `List Products` cùng dẫn tới `Create Order`, rồi tới các bài thanh toán, còn `List Healths` học riêng. Realworld ra `Create User → Create Article → Create Article Comments`. Bài tạo có thể có nhiều bài con, như `Create Article` có 9 bài con. `Auth Register` đang mất lệnh `create` do B-37, nên phải nhờ luật ở bước 3.
 - **Kiểm tra:** BrewLite ra đúng các nhóm trên, không còn `Auth Me → Login → Register`. Repo demo Java ra sơ đồ theo nghiệp vụ. Bài học riêng mở được ngay, bài có cha vẫn khóa đúng.
 - **Ảnh hưởng demo:** có, ban giám khảo thấy bản đồ ngay từ đầu.
-- **Trạng thái:** đã thử bản tạm trên 2 repo, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `graph/data-deps.ts` theo ENG-116 … ENG-119, cột Học riêng ở `layout.ts`, đọc `schema.prisma` (`prune.ts`, `fingerprint.ts`). `shop-api` ra đúng T-ENG-48. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: `Auth Register → Create Order`, hết `Auth Me → Login → Register`, `List Healths` học riêng, chạy 2 lần cùng kết quả. **Lệch T-ENG-49:** điểm bắt đầu là `Get Product`, không phải `List Products`, vì `Get Product` dễ hơn theo luật "bài dễ nhất". `Create Order Cancel`, `Update Order Status` vào nhóm `User` vì thực thể ghi đầu tiên là `User`. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.8.0`.
 
 ## Việc mới theo quy trình học mới
 

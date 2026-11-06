@@ -113,12 +113,21 @@ export function toClientResult(
         origin_note: st.origin_note,
       })),
       dto_snippet: n.dto_snippet,
+      group_id: n.group_id,
+      entities: n.entities.map((e) => ({ name: e.name, ops: e.ops.slice() })),
     })),
     edges: r.edges.map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,
       confidence: e.confidence,
+      via_entities: e.via_entities.slice(),
+    })),
+    groups: r.groups.map((g) => ({
+      group_id: g.group_id,
+      key: g.key,
+      key_kind: g.key_kind,
+      node_ids: g.node_ids.slice(),
     })),
     file_index: r.file_index.slice(),
     ingestion_report: {

@@ -82,7 +82,7 @@ const DATA_SINK_RECEIVER_REGEX =
   /(repository|repo|model|dao|entity|db|database|prisma|knex|pool|conn|connection|client|session|cursor|collection|datasource|manager|tx|trx|jdbcTemplate)$/i;
 
 // ENG-82 ý 4 (a): chuỗi receiver, sau khi bỏ `this.`, có đoạn `prisma`, `tx`, `trx`.
-const PRISMA_RECEIVER_SEGMENTS = new Set(["prisma", "tx", "trx"]);
+export const PRISMA_RECEIVER_SEGMENTS = new Set(["prisma", "tx", "trx"]);
 
 const DATA_SINK_IMPORT_SOURCES = new Set([
   "pg",
@@ -117,7 +117,7 @@ const NON_VAR_TOKENS = new Set([
 ]);
 
 // Kiểm tra ExternalCall có phải là DATA_SINK không (ENG-82 ý 4)
-function isDataSinkCall(call: ExternalCall, techStack: string[]): boolean {
+export function isDataSinkCall(call: ExternalCall, techStack: string[]): boolean {
   const method = call.method;
   const receiverLast = call.receiver_chain[call.receiver_chain.length - 1] ?? "";
   const receiverSegments =
@@ -194,7 +194,7 @@ function getCommentPrefix(file?: ParsedFile): string {
 }
 
 // Xác định xem file có thuộc tầng DATA_ACCESS không (ENG-82)
-function isDataAccessFile(filePath: string): boolean {
+export function isDataAccessFile(filePath: string): boolean {
   const norm = filePath.replace(/\\/g, "/");
   const segments = norm.split("/");
   const fileName = segments[segments.length - 1] ?? "";

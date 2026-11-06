@@ -117,6 +117,7 @@ export async function buildGraph(
     edges: callGraphRes.edges,
     external: callGraphRes.external,
     tech_stack: input.fingerprint.tech_stack,
+    manifests: input.manifests,
     rank,
     source_map: input.source_map,
   };
@@ -206,7 +207,7 @@ export async function buildGraph(
   }
 
   // G9: ASSEMBLE (ENG-110, ENG-111, ENG-112, ENG-114, D-12)
-  const { nodes, edges } = assembleGraph(candidates, ctx, input.report);
+  const { nodes, edges, groups } = assembleGraph(candidates, ctx, input.report);
 
   // G10: UNCLE_BOB (ENG-120)
   for (const node of nodes) {
@@ -250,6 +251,7 @@ export async function buildGraph(
     total_files: input.report.code_file_count,
     nodes: nodes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     edges: edges.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    groups,
     symbol_whitelist,
     file_index,
     ingestion_report: input.report,

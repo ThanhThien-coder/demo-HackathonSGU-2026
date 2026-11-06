@@ -121,6 +121,8 @@ function createDummyNode(data: Partial<HybridArchitecturalNode> & { id: string }
     },
     trace_steps: data.trace_steps ?? [],
     dto_snippet: data.dto_snippet ?? "",
+    group_id: "",
+    entities: [],
   };
 }
 
@@ -257,9 +259,9 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
 
     const fg1 = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
     // order -> other1 (Ce = 1)
-    fg1.set("src/order.ts", new Map([["src/other1.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg1.set("src/order.ts", new Map([["src/other1.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
     // in1 -> order (Ca = 1)
-    fg1.set("src/in1.ts", new Map([["src/order.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg1.set("src/in1.ts", new Map([["src/order.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
 
     const ub1 = diagnoseUncleBob(node1, fg1, ctx);
     expect(ub1.is_exempt).toBe(false);
@@ -281,9 +283,9 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
     ctx.idx.symbols.set("src/pain.ts#P2", { key: "src/pain.ts#P2", kind: "CLASS", name: "P2", file_path: "src/pain.ts", line_start: 1, line_end: 1, is_exported: true });
 
     const fg2 = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
-    fg2.set("src/in1.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
-    fg2.set("src/in2.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
-    fg2.set("src/in3.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg2.set("src/in1.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
+    fg2.set("src/in2.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
+    fg2.set("src/in3.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
 
     const ub2 = diagnoseUncleBob(node2, fg2, ctx);
     expect(ub2.is_exempt).toBe(false);
@@ -776,6 +778,7 @@ app.get("/ping", (req, res) => res.send("pong"));
       total_files: 1,
       nodes: [],
       edges: [],
+      groups: [],
       symbol_whitelist: ["secretSymbol", "leakCheck"],
       file_index: ["src/index.ts"],
       ingestion_report: {
@@ -845,11 +848,12 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
         createDummyNode({ id: "n-d", prerequisites: ["n-b", "n-c"] }),
       ],
       edges: [
-        { id: "n-a->n-b", source: "n-a", target: "n-b", confidence: "RESOLVED" },
-        { id: "n-b->n-d", source: "n-b", target: "n-d", confidence: "RESOLVED" },
-        { id: "n-a->n-c", source: "n-a", target: "n-c", confidence: "RESOLVED" },
-        { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED" },
+        { id: "n-a->n-b", source: "n-a", target: "n-b", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-b->n-d", source: "n-b", target: "n-d", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-a->n-c", source: "n-a", target: "n-c", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED", via_entities: [] },
       ],
+      groups: [],
       symbol_whitelist: [],
       file_index: [],
       ingestion_report: createEmptyReport(),
@@ -939,10 +943,10 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
 
     const nodes = [nodeA, nodeB, nodeC, nodeD, nodeE, nodeF];
     const edges = [
-      { id: "node-A->node-B", source: "node-A", target: "node-B", confidence: "RESOLVED" as const },
-      { id: "node-B->node-C", source: "node-B", target: "node-C", confidence: "RESOLVED" as const },
-      { id: "node-C->node-D", source: "node-C", target: "node-D", confidence: "RESOLVED" as const },
-      { id: "node-E->node-D", source: "node-E", target: "node-D", confidence: "RESOLVED" as const },
+      { id: "node-A->node-B", source: "node-A", target: "node-B", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-B->node-C", source: "node-B", target: "node-C", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-C->node-D", source: "node-C", target: "node-D", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-E->node-D", source: "node-E", target: "node-D", confidence: "RESOLVED" as const, via_entities: [] },
     ];
 
     layoutGraph(nodes, edges);

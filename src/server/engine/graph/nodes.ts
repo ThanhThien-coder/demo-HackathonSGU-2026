@@ -6,6 +6,7 @@ import {
   type GraphEdge,
   type HybridArchitecturalNode,
   type IngestionReport,
+  type StaticEngineResult,
 } from "@/contracts";
 import { IngestionError } from "../ingest/types";
 import { getAdapter } from "./registry";
@@ -18,6 +19,14 @@ import type {
   EngineContext,
   FunctionInfo,
 } from "./types";
+import {
+  buildDataEdges,
+  buildGroups,
+  readForeignKeys,
+  readLessonData,
+  toNodeEntities,
+  type LessonData,
+} from "./data-deps";
 
 // ENG-91: bước không có câu lệnh, chỉ còn dòng trống hoặc ngoặc đóng.
 const EMPTY_STEP_REGEX = /^[\s})\];,]*$/;
@@ -385,7 +394,7 @@ export function transitiveReduction(
 export function computeEdgesOnKept(
   keptIds: string[],
   g0Adj: Map<string, Set<string>>,
-  rawEdges?: { source: { id: string }; target: { id: string }; isVnodeSequential?: boolean }[]
+  edgeInfo?: (source: string, target: string) => Pick<GraphEdge, "confidence" | "via_entities">
 ): GraphEdge[] {
   const keptIdSet = new Set(keptIds);
   const kAdj = new Map<string, Set<string>>();
@@ -413,20 +422,13 @@ export function computeEdgesOnKept(
   const finalEdges: GraphEdge[] = [];
   for (const [src, tgts] of kReducedAdj) {
     for (const tgt of tgts) {
-      const edgeId = `${src}->${tgt}`;
-      let confidence: "RESOLVED" | "INFERRED" = "RESOLVED";
-      const edgeObj = rawEdges?.find((e) => e.source.id === src && e.target.id === tgt);
-      if (edgeObj && edgeObj.isVnodeSequential) {
-        confidence = "RESOLVED";
-      } else {
-        confidence = "RESOLVED";
-      }
-
+      const info = edgeInfo?.(src, tgt) ?? { confidence: "RESOLVED" as const, via_entities: [] };
       finalEdges.push({
-        id: edgeId,
+        id: `${src}->${tgt}`,
         source: src,
         target: tgt,
-        confidence,
+        confidence: info.confidence,
+        via_entities: info.via_entities,
       });
     }
   }
@@ -465,7 +467,7 @@ export function assembleGraph(
   candidates: Candidate[],
   ctx: EngineContext,
   report: IngestionReport
-): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[] } {
+): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[]; groups: StaticEngineResult["groups"] } {
   // ENG-40 / B07: Bỏ candidate có trace_steps rỗng trước bước gộp ENG-110 (không cộng vào omitted_node_count)
   const validCandidates = dropTestCandidates(
     candidates.filter((c) => c.trace_steps && c.trace_steps.length > 0)
@@ -513,7 +515,37 @@ export function assembleGraph(
     }
   }
 
-  // 3. ENG-112 Dựng cạnh D-07, D-56
+  // 3. ENG-112, ENG-118 Dựng G0: cạnh dữ liệu, rồi D-07, D-56
+  const candidateById = new Map(mergedCandidates.map((c) => [c.id, c]));
+  const isEasier = (aId: string, bId: string): boolean => {
+    const a = candidateById.get(aId);
+    const b = candidateById.get(bId);
+    if (!a || !b) return false;
+    if (a.cognitive_complexity !== b.cognitive_complexity) {
+      return a.cognitive_complexity < b.cognitive_complexity;
+    }
+    if (a.rank_score !== b.rank_score) return a.rank_score > b.rank_score;
+    return a.id < b.id;
+  };
+
+  const lessonData = new Map<string, LessonData>(
+    mergedCandidates.map((c) => [c.id, readLessonData(c, ctx)])
+  );
+  const dataEdges = buildDataEdges(
+    mergedCandidates.map((c) => ({ id: c.id, data: lessonData.get(c.id)! })),
+    readForeignKeys(ctx),
+    isEasier
+  );
+  const hasDataEdge = new Set<string>();
+  for (const edge of dataEdges.values()) {
+    hasDataEdge.add(edge.source);
+    hasDataEdge.add(edge.target);
+  }
+  // ENG-118 (3): bài không có thực thể từ code, chưa có cạnh ⇒ nhận cặp D-07
+  const wantsSharedEdge = (c: Candidate): boolean =>
+    !hasDataEdge.has(c.id) &&
+    !Array.from(lessonData.get(c.id)?.entities.values() ?? []).some((e) => e.fromCode);
+
   const callGraphAdj = new Map<string, Set<string>>();
   for (const edge of ctx.edges) {
     let targets = callGraphAdj.get(edge.caller);
@@ -582,8 +614,12 @@ export function assembleGraph(
 
       let hasRelation = false;
 
-      // D-07: hàm chung
-      if (a.functions.length > 0 && b.functions.length > 0) {
+      // D-07: hàm chung, chỉ cho bài theo ENG-118 (3)
+      if (
+        a.functions.length > 0 &&
+        b.functions.length > 0 &&
+        (wantsSharedEdge(a) || wantsSharedEdge(b))
+      ) {
         const common = a.functions.some((fa) => b.functions.includes(fa));
         if (common) hasRelation = true;
       }
@@ -601,16 +637,7 @@ export function assembleGraph(
 
       if (hasRelation) {
         // Chiều cạnh: A -> B nếu A "dễ hơn" B (ENG-112)
-        let aIsEasier = false;
-        if (a.cognitive_complexity !== b.cognitive_complexity) {
-          aIsEasier = a.cognitive_complexity < b.cognitive_complexity;
-        } else if (a.rank_score !== b.rank_score) {
-          aIsEasier = a.rank_score > b.rank_score;
-        } else {
-          aIsEasier = a.id < b.id;
-        }
-
-        if (aIsEasier) {
+        if (isEasier(a.id, b.id)) {
           rawEdges.push({ source: a, target: b });
         } else {
           rawEdges.push({ source: b, target: a });
@@ -627,22 +654,19 @@ export function assembleGraph(
   for (const re of rawEdges) {
     g0Adj.get(re.source.id)?.add(re.target.id);
   }
+  for (const edge of dataEdges.values()) {
+    g0Adj.get(edge.source)?.add(edge.target);
+  }
 
-  // Kiểm tra G0 không chu trình bằng Tarjan (assert)
+  // ENG-118 (5): G0 không chu trình
   const candidateIds = mergedCandidates.map((c) => c.id);
   const sccs = tarjanScc(candidateIds, g0Adj);
   for (const scc of sccs) {
     if (scc.length > 1) {
-      // Phá chu trình nếu có bằng cách chỉ giữ cạnh theo thứ tự dễ hơn
+      // Trong SCC chỉ giữ cạnh từ bài dễ tới bài khó
       for (const u of scc) {
         for (const v of scc) {
-          if (u !== v) {
-            const candU = mergedCandidates.find((c) => c.id === u);
-            const candV = mergedCandidates.find((c) => c.id === v);
-            if (candU && candV && candU.cognitive_complexity >= candV.cognitive_complexity) {
-              g0Adj.get(u)?.delete(v);
-            }
-          }
+          if (u !== v && !isEasier(u, v)) g0Adj.get(u)?.delete(v);
         }
       }
     }
@@ -775,11 +799,29 @@ export function assembleGraph(
 
   // 6. Cạnh trên tập giữ K = rút gọn bắc cầu của {(u,v) in K^2 : v đến được từ u trong G0}
   const keptIdSet = new Set(keptCandidates.map((c) => c.id));
-  const finalEdges = computeEdgesOnKept(
-    Array.from(keptIdSet),
-    g0Adj,
-    rawEdges
-  );
+  // ENG-112 ý 6: thực thể và độ tin cậy của cạnh
+  const codeEntities = (id: string): Set<string> =>
+    new Set(
+      Array.from(lessonData.get(id)?.entities ?? [])
+        .filter(([, entity]) => entity.fromCode)
+        .map(([name]) => name)
+    );
+  const edgeInfo = (source: string, target: string): Pick<GraphEdge, "confidence" | "via_entities"> => {
+    const inCode = (name: string) => codeEntities(source).has(name) && codeEntities(target).has(name);
+    const direct = dataEdges.get(`${source}->${target}`);
+    if (direct && g0Adj.get(source)?.has(target)) {
+      const via = Array.from(direct.via).sort();
+      return { confidence: via.some(inCode) ? "RESOLVED" : "INFERRED", via_entities: via };
+    }
+    if (g0Adj.get(source)?.has(target)) return { confidence: "RESOLVED", via_entities: [] };
+    const targetNames = lessonData.get(target)?.entities;
+    const shared = Array.from(lessonData.get(source)?.entities.keys() ?? [])
+      .filter((name) => targetNames?.has(name))
+      .sort();
+    return { confidence: shared.some(inCode) || shared.length === 0 ? "RESOLVED" : "INFERRED", via_entities: shared };
+  };
+
+  const finalEdges = computeEdgesOnKept(Array.from(keptIdSet), g0Adj, edgeInfo);
 
   const inDegreeMap = new Map<string, string[]>();
   for (const id of keptIdSet) inDegreeMap.set(id, []);
@@ -862,6 +904,8 @@ export function assembleGraph(
       },
       trace_steps: c.trace_steps,
       dto_snippet: c.dto_snippet,
+      group_id: "",
+      entities: toNodeEntities(lessonData.get(c.id)),
     };
 
     finalNodes.push(node);
@@ -874,5 +918,7 @@ export function assembleGraph(
     throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
   }
 
-  return { nodes: finalNodes, edges: finalEdges };
+  const groups = buildGroups(finalNodes, finalEdges, lessonData);
+
+  return { nodes: finalNodes, edges: finalEdges, groups };
 }

@@ -105,6 +105,8 @@ describe("Offline Mode (D08a & spec/30_UI.md Section 8)", () => {
             },
             trace_steps: [],
             dto_snippet: "",
+            group_id: "",
+            entities: [],
           },
           {
             id: "node-2",
@@ -131,14 +133,18 @@ describe("Offline Mode (D08a & spec/30_UI.md Section 8)", () => {
             },
             trace_steps: [],
             dto_snippet: "",
+            group_id: "",
+            entities: [],
           },
         ],
+        groups: [],
         edges: [
           {
             id: "node-1->node-2",
             source: "node-1",
             target: "node-2",
             confidence: "RESOLVED",
+            via_entities: [],
           },
         ],
       },
