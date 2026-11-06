@@ -273,6 +273,50 @@ describe("T-ING-27", () => {
 });
 
 // ---------------------------------------------------------------------------
+// ING-110 (lỗi B-22): mẫu secret phổ biến trước đây bị bỏ sót
+// Token giả được ghép chuỗi để hook quét khóa không nhận nhầm là khóa thật.
+// ---------------------------------------------------------------------------
+describe("ING-110: B-22 mẫu secret bổ sung", () => {
+  const MASK = "<REDACTED_SECRET>";
+  const cases: Array<[string, string, string]> = [
+    ["SECRET_KEY của Django", "SECRET_KEY = 'abcdef123456xyz'", `SECRET_KEY = '${MASK}'`],
+    ["Flask app.secret_key", "app.secret_key = 'abcdef123456xyz'", `app.secret_key = '${MASK}'`],
+    ["JWT_SECRET_KEY", 'JWT_SECRET_KEY = "abcdef123456xyz"', `JWT_SECRET_KEY = "${MASK}"`],
+    ['JSON "password"', '{"password": "abcdef123456"}', `{"password": "${MASK}"}`],
+    ["apiKey có nháy", "{'apiKey': 'abcdef123456'}", `{'apiKey': '${MASK}'}`],
+    ["DB_PASSWORD_PROD", 'DB_PASSWORD_PROD = "abcdef123456"', `DB_PASSWORD_PROD = "${MASK}"`],
+    ["Stripe", "const k = '" + "sk_" + "live_" + "A1b2C3d4E5f6G7h8I9j0';", `const k = '${MASK}';`],
+    ["Slack", "const t = '" + "xo" + "xb-" + "1234567890-abcdefghij';", `const t = '${MASK}';`],
+    [
+      "URL https có user:pass",
+      "const u = 'https://user:hunter2pw@example.com/x';",
+      `const u = 'https://user:${MASK}@example.com/x';`,
+    ],
+  ];
+
+  it.each(cases)("%s được che", (_name, input, expected) => {
+    const res = redactSecrets(input);
+    expect(res.code).toBe(expected);
+    expect(res.count).toBe(1);
+  });
+
+  it("private key viết trong 1 dòng (\\n dạng chữ) được che, số \\n thật không đổi", () => {
+    const input =
+      'const k = "-----BEGIN ' +
+      'PRIVATE KEY-----\\nMIIEvQIBADANBg\\n-----END ' +
+      'PRIVATE KEY-----";\nnext();';
+    const res = redactSecrets(input);
+    expect(res.code).toBe(`const k = "${MASK}";\nnext();`);
+    expect(res.count).toBe(1);
+  });
+
+  it("tên thường không chứa từ khóa thì không bị che", () => {
+    const input = "const name = 'abcdef123456';";
+    expect(redactSecrets(input)).toEqual({ code: input, count: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // T-ING-28: Gắn cờ injection instruction
 // ---------------------------------------------------------------------------
 describe("T-ING-28", () => {

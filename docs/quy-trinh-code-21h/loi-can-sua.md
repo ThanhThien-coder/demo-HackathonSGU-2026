@@ -260,7 +260,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** mở rộng ING-110 và `secrets.ts`: tên khóa có hậu tố (`SECRET_KEY`, `*_PASSWORD_*`), khóa có nháy, thêm các dạng token trên. Đổi `ENGINE_VERSION` vì code đã lưu trong cache vẫn chưa được che.
 - **Cần sửa thêm:** `RESET_PASSWORD: 'resetPassword'` đang bị che dù chỉ là hằng, chuỗi hex `'0...'` bị coi là số điện thoại. "Khóa bí mật đã che" ở `CockpitHeader.tsx` đếm cả email: `miguelgrinberg/microblog` báo 9 nhưng cả 9 đều là email.
 - **Kiểm tra:** thêm các mẫu trên vào test, repo Django trên không còn `SECRET_KEY` thật.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b22-secrets`. `secrets.ts` che thêm: `SECRET_KEY`, `app.secret_key`, `JWT_SECRET_KEY`, `"password":`, `'apiKey':`, `DB_PASSWORD_PROD`, Stripe, Slack, URL `https` có `user:pass`, private key viết trong một dòng. Có test cho từng mẫu. Typecheck sạch, lint 0 lỗi, 758 test qua. Đã quét repo thật `gothinkster/django-realworld-example-app` (ngày 06/11): `SECRET_KEY` trong `conduit/settings.py` giờ thành `<REDACTED_SECRET>`, chỉ 1 chỗ bị che, không che nhầm chỗ khác. Repo này chỉ có mẫu `SECRET_KEY`, các mẫu còn lại mới có test, chưa thử repo thật. Chưa làm: `RESET_PASSWORD: 'resetPassword'` vẫn bị che (spec chưa có luật loại hằng), chuỗi hex bị coi là số điện thoại (ở `maskSensitive`), đếm email ở `CockpitHeader.tsx` (file Vai D). Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-23 · Nhẹ · Đọc thiếu gói trong Pipfile, Cargo.toml, pubspec.yaml
 
