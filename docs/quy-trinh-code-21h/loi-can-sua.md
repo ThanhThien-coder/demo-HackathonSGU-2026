@@ -220,7 +220,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-80 trường hợp (a) có client và server thì luôn chọn server, không xét server lớn bao nhiêu và không có đường lùi khi scope không dựng được bài.
 - **Cần sửa:** khi scope tự chọn gây `ERR_NO_ARCHITECTURAL_SLICE`, thử ứng viên kế tiếp rồi tới toàn repo. Cần thêm client vào ứng viên và sửa spec.
 - **Kiểm tra:** `create-t3-turbo` ra được bản đồ, BrewLite vẫn chọn `backend/`.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `b/fix-b17-monorepo`. Phần Ingest xong: `detectScope` trả `candidates` gồm cả client (server rồi client, `bytes` giảm dần); `ingest/rescope.ts` có `getScopeFallbacks(out)` (các offset còn lại, cuối cùng `""`) và `rescopeIngest(out, offset)` dựng lại vân tay từ code đã tải, không tải lại zip. Có test trong `rescope.test.ts`. **Chưa nối vào `runEngine`** (`engine/index.ts` không thuộc file luồng Ingest): khi `buildGraph` ném `ERR_NO_ARCHITECTURAL_SLICE` với scope tự chọn thì lặp `getScopeFallbacks` + `rescopeIngest`. Chưa chạy `create-t3-turbo` thật. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-18 · Nhẹ · Chống zip bomb chưa dừng giải nén thật
 
