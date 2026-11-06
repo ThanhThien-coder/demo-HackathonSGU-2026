@@ -1,6 +1,6 @@
 # D07 — Trả lời Feynman
 
-Làm xong phiếu này, người học có thể thực hành trả lời các câu hỏi kỹ năng bằng kỹ thuật Feynman, nhận gợi ý tương tác, xem điểm số và kết quả chấm bài chi tiết kèm đáp án mở khóa.
+Làm xong phiếu này, tab Feynman ở cột phải cho người học trả lời câu hỏi kỹ năng, nhận gợi ý, xem điểm số và kết quả chấm chi tiết kèm đáp án mở khóa.
 
 | Mục | Nội dung |
 | :-- | :-- |
@@ -27,38 +27,37 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 6.2, Test bắt buộc T6, T8, T9, T10, T11, T16, T25
+- `docs/spec/30_UI.md` Mục 6, 6.2
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T6, T8, T9, T10, T11, T16, T25, T36, T40
 - `docs/spec/02_CONTRACTS.md` Mục 1, 6, 8, 10
-- `docs/spec/00_QUYET_DINH.md` D-36
+- `docs/spec/00_QUYET_DINH.md` D-36, D-74, D-78
 - `package.json`
 - `src/`
 
 ## Được ghi
-- `src/app/learn/components/FeynmanQuestionSection.tsx`
-- `src/app/learn/components/SubmitEvaluationDialog.tsx`
-- `src/app/learn/components/SkipConfirmDialog.tsx`
-- `src/app/learn/components/RunSummary.tsx`
+- `src/components/learn/FeynmanQuestionSection.tsx`
+- `src/components/learn/LearnSidePanel.tsx`
 - `src/store/workbench.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết khu vực câu hỏi Feynman `src/app/learn/components/FeynmanQuestionSection.tsx` gồm danh sách thẻ câu hỏi, ô nhập câu trả lời kiểm tra độ dài (`CONFIG.ANSWER_MIN_CHARS`, `CONFIG.ANSWER_MAX_CHARS`), kiểm trùng câu qua `similarity` (`CONFIG.ANSWER_DUPLICATE_SIMILARITY`), debounce nút nộp theo `CONFIG.SUBMIT_DEBOUNCE_MS`, phím tắt `Ctrl+Enter` (`docs/spec/30_UI.md` Mục 6.2, UI-52).
-3. Viết hộp thoại hiển thị kết quả chấm bài `src/app/learn/components/SubmitEvaluationDialog.tsx` hiển thị kết quả chấm, thẻ gợi ý (`CODE_POINTER` cuộn Monaco), đáp án khi câu xong (UI-54), và chip điểm kỹ năng. Tuyệt đối không có `reference_answer` trong store hay request trước khi câu xong (T10).
-4. Viết hộp thoại xác nhận bỏ qua câu hỏi `src/app/learn/components/SkipConfirmDialog.tsx` yêu cầu người dùng xác nhận trước khi gửi request bỏ qua (T11).
-5. Viết tổng kết lượt học `src/app/learn/components/RunSummary.tsx` (UI-57) và giao diện node đã hoàn thành trong `FeynmanQuestionSection.tsx` (UI-58).
+2. Viết tab Feynman `src/components/learn/FeynmanQuestionSection.tsx` và gắn vào `LearnSidePanel.tsx` (có số câu chưa xong, chờ `enrich-node` thì xoay): hàng chip câu, bong bóng "AI hỏi", ô nhập câu trả lời kiểm tra độ dài (`CONFIG.ANSWER_MIN_CHARS`, `CONFIG.ANSWER_MAX_CHARS`), kiểm trùng câu qua `similarity` (`CONFIG.ANSWER_DUPLICATE_SIMILARITY`), debounce nút nộp theo `CONFIG.SUBMIT_DEBOUNCE_MS`, phím tắt `Ctrl+Enter` (`docs/spec/30_UI.md` Mục 6.2, UI-52).
+3. Viết `Eval` và `Reveal` ngay trong `FeynmanQuestionSection.tsx`, hiện ngay dưới ô trả lời, không mở cửa sổ: kết quả chấm, gợi ý (`CODE_POINTER` cuộn Monaco), đáp án khi câu xong (UI-54), chip điểm kỹ năng. Tuyệt đối không có `reference_answer` trong store hay request trước khi câu xong (T10).
+4. Viết hộp thoại xác nhận bỏ qua trong `FeynmanQuestionSection.tsx` bằng `Modal`, yêu cầu người dùng xác nhận trước khi gửi request bỏ qua (T11).
+5. Viết tổng kết run (UI-57) và `RunReadOnly` cho node đã xong (UI-58) trong `FeynmanQuestionSection.tsx`.
 6. Xử lý các ca kiểm thử: T16 (hai tab cùng câu: tab sau báo toast "Câu này vừa được nộp ở tab khác", cập nhật lượt, giữ nội dung ô), T25 (khi `progress.tokens_used ≥ CONFIG.SESSION_TOKEN_QUOTA` thì ô và nút Nộp bị khóa, nút "Bỏ qua câu này" vẫn bấm được).
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
-- **Lộ đáp án (lỗi D-12, `30` Mục 6.2):** đang trả lời thì thu gọn giải thích từng bước ở X-Ray, vẫn hiện code; nộp xong mở lại.
-- **Cửa sổ kết quả (lỗi D-05):** tách nút thành chân cửa sổ, thân cuộn.
+- **Đang trả lời (lỗi D-12, `30` Mục 6.2):** tab Feynman thay X-Ray trong cột phải, code vẫn hiện; bấm tab X-Ray để đọc lại, nháp giữ nguyên (T40).
+- **Kết quả dài (lỗi D-05):** cột phải cuộn được, thấy đủ nút (T36).
 - **Giống 100% (lỗi D-13):** sửa hẳn câu trả lời rồi nộp lại, % phải giảm.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
 - Không có `reference_answer` trong store hay Network trước khi hoàn thành câu hỏi (T10).
-- Nút "Bỏ qua câu này" bật modal xác nhận `SkipConfirmDialog` trước khi gửi request (T11).
+- Nút "Bỏ qua câu này" bật hộp thoại xác nhận trước khi gửi request (T11).
 - Kiểm tra độ dài câu trả lời và trùng lặp báo lỗi ngay tại client không gửi request (T6). Khóa nút nộp chống bấm đúp (T8).
 - Xử lý đúng token quota T25 và đồng bộ hai tab T16.
 
@@ -87,10 +86,10 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Thử nghiệm T6: nộp câu trả lời quá ngắn (dưới `CONFIG.ANSWER_MIN_CHARS`) hoặc trùng câu cũ, lỗi báo ngay dưới ô và không phát sinh request mạng nào.
 - [ ] Thử nghiệm T8: click nút Nộp 2 lần nhanh chỉ sinh ra đúng 1 request `evaluate-feynman`.
-- [ ] Thử nghiệm T9: trượt lượt 2 (gợi ý `CODE_POINTER`) thì Monaco cuộn tới đúng bước, có vạch tím.
-- [ ] Thử T16 (mở 2 tab cùng câu, nộp lần lượt) và T25 (hết hạn mức token) của `docs/spec/30_UI.md`.
-- [ ] Đang trả lời không chép được Luồng thực thi; nộp xong xem lại được.
-- [ ] Ở 1366×768, cửa sổ kết quả thấy đủ tiêu đề và nút (T36).
+- [ ] Thử nghiệm T9: `NOVICE` trượt thì cả 2 lượt có gợi ý `CODE_POINTER`, Monaco cuộn tới đúng bước, có vạch tím. `PRACTITIONER` lượt 1 `CONCEPT` không tô bước, lượt 2 mới tô (D-74).
+- [ ] Thử T16 (mở 2 tab cùng câu, nộp lần lượt) và T25 (hết hạn mức token) ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6.
+- [ ] Bấm "Bắt đầu trả lời" sang tab Feynman; bấm node khác về tab X-Ray; node chưa có bản phân tích thì tab Feynman tắt, có tooltip (T40).
+- [ ] Ở 1366×768, kết quả chấm dài vẫn cuộn được trong cột phải, thấy đủ nút (T36).
 
 ```text
 Task "D07 — Trả lời Feynman" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -101,12 +100,10 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/app/learn/components/FeynmanQuestionSection.tsx
-git commit -m "feat(ui): khu vực câu hỏi feynman và kiểm tra đầu vào"
-git add src/app/learn/components/SubmitEvaluationDialog.tsx src/app/learn/components/SkipConfirmDialog.tsx
-git commit -m "feat(ui): hộp thoại kết quả chấm và xác nhận bỏ qua"
-git add src/app/learn/components/RunSummary.tsx src/store/workbench.ts
-git commit -m "feat(ui): tổng kết lượt học feynman"
+git add src/components/learn/FeynmanQuestionSection.tsx src/components/learn/LearnSidePanel.tsx
+git commit -m "feat(ui): tab feynman, kết quả chấm và tổng kết run"
+git add src/store/workbench.ts
+git commit -m "feat(ui): store cho lượt trả lời feynman"
 git pull --rebase origin main
 git push -u origin d/D07-feynman
 gh pr create --base main --title "D07 — Trả lời Feynman" --body "Closes #<số Issue>"

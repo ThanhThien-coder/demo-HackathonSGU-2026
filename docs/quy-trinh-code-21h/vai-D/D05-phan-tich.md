@@ -1,6 +1,6 @@
 # D05 — Phân tích AI, Tổng quan
 
-Làm xong phiếu này, người học đọc được khối phân tích X-Ray giải thích luồng chạy của bài học, xem danh sách điểm dở do AI nhận định (không lộ cách sửa), và xem modal Tổng quan repo đủ 3 giai đoạn.
+Làm xong phiếu này, cột phải có tab X-Ray giải thích luồng chạy của bài học và điểm dở do AI nhận định (không lộ cách sửa), cột giữa có bảng dưới, và cửa sổ Tổng quan repo đủ 3 giai đoạn.
 
 | Mục | Nội dung |
 | :-- | :-- |
@@ -27,30 +27,33 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 6.1, 6.3, Test bắt buộc T23, T33, T34
+- `docs/spec/30_UI.md` Mục 2.2, 6, 6.1, 6.3
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T23, T33, T34, T36, T39
 - `docs/spec/01_KIEN_TRUC_VA_LUONG.md` Mục 2
 - `docs/spec/02_CONTRACTS.md` Mục 1, 5, 6, 10
 - `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.1, 4
 - `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.1
-- `docs/spec/00_QUYET_DINH.md` D-35, D-71
+- `docs/spec/00_QUYET_DINH.md` D-35, D-71, D-78
 - `package.json`
 - `src/`
 
 ## Được ghi
-- `src/app/learn/components/CodeSnippetViewer.tsx`
-- `src/app/learn/components/SkillChips.tsx`
-- `src/app/learn/components/RepoOverviewModal.tsx`
-- `src/lib/overview-view.ts`
-- `src/lib/__tests__/overview-view.test.ts`
+- `src/components/learn/LearnSidePanel.tsx`
+- `src/components/learn/XRayPanel.tsx`
+- `src/components/learn/ProblemsPanel.tsx`
+- `src/components/learn/RepoOverviewModal.tsx`
+- `src/lib/graph.ts`
+- `src/lib/__tests__/graph.test.ts`
 - `src/app/dev/page.tsx`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết khối X-Ray trong `src/app/learn/components/CodeSnippetViewer.tsx` hiển thị giải thích luồng chạy theo từng bước, danh sách kỹ năng, điểm hay và điểm dở. Gắn tiêu đề "Điểm dở — Nhận định của AI", tuyệt đối không hiện cách sửa hay con số tình huống (INV-06, T23). Văn bản AI là chữ thuần, chỉ cho phép định dạng khối mã nội dòng trong ký tự backtick.
-3. Viết `src/app/learn/components/SkillChips.tsx` thể hiện chip kỹ năng có mài mòn chỉ hiển thị (`docs/spec/30_UI.md` Mục 6.1, BKT-24, D-35) kèm nhãn "đang mài mòn" khi decay, và nút "Bắt đầu trả lời (n câu) →" ở cuối (UI-47).
-4. Viết modal Tổng quan repo `src/app/learn/components/RepoOverviewModal.tsx` và hàm xử lý `src/lib/overview-view.ts` (kèm test `src/lib/__tests__/overview-view.test.ts`) đủ 3 giai đoạn theo D-71: (1) Lúc đầu tính facts từ result qua `mainPath` và bản đồ tầng; (2) Trong lúc học gom từ các bản phân tích đã có; (3) Học hết mới hiện nhận định của AI (T33, T34). `lib/overview-view.ts` gọi `mainPath` của `src/server/engine/graph/whitelist.ts` bằng ép kiểu vì hàm chỉ đọc `nodes`, `edges`; không sửa file đó, không chép lại thuật toán.
-5. Cập nhật trang nháp `src/app/dev/page.tsx` nạp fixture AI N3 từ `src/server/ai/__fixtures__/` của Vai E để hiển thị và kiểm tra.
-6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+2. Viết cột phải `src/components/learn/LearnSidePanel.tsx` có 2 tab X-Ray / Feynman theo `active_tab`; tab Feynman tắt kèm tooltip theo `docs/spec/30_UI.md` Mục 6, nội dung thêm ở D07. Viết `src/components/learn/XRayPanel.tsx` hiển thị giải thích luồng chạy theo từng bước, danh sách kỹ năng, điểm hay và điểm dở. Gắn tiêu đề "Điểm dở — Nhận định của AI", tuyệt đối không hiện cách sửa hay con số tình huống (INV-06, T23). Văn bản AI là chữ thuần, chỉ cho phép định dạng khối mã nội dòng trong ký tự backtick.
+3. Viết `SkillChips` trong `XRayPanel.tsx` thể hiện chip kỹ năng có mài mòn chỉ hiển thị (`docs/spec/30_UI.md` Mục 6.1, BKT-24, D-35) kèm nhãn "đang mài mòn" khi decay, và nút ghim ở đáy cột "Bắt đầu trả lời (n) →" (UI-47): chưa có run thì không có số.
+4. Viết cửa sổ Tổng quan `src/components/learn/RepoOverviewModal.tsx` đủ 3 giai đoạn theo D-71: (1) Lúc đầu tính facts từ `result`; (2) Trong lúc học gom từ các bản phân tích đã có; (3) Học hết mới hiện nhận định của AI (T33, T34). Viết `mainPath` chạy trên client trong `src/lib/graph.ts`, kèm test `src/lib/__tests__/graph.test.ts`, đúng thuật toán ENG-155 của `docs/spec/11_ENGINE_DO_THI.md`. Mở từ nút "Tổng quan kiến trúc" ở thanh trên, đóng bằng ✕, `Esc`, bấm nền hoặc bấm chip node.
+5. Viết bảng dưới `src/components/learn/ProblemsPanel.tsx` theo `docs/spec/30_UI.md` Mục 2.2: mặc định ẩn, tab "Điểm dở — Nhận định của AI" và "Luồng", bấm dòng ⇒ `active_step`, không hiện cách sửa (T39).
+6. Cập nhật trang nháp `src/app/dev/page.tsx` nạp fixture AI N3 từ `src/server/ai/__fixtures__/` của Vai E để hiển thị và kiểm tra.
+7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
@@ -62,9 +65,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
 - Điểm dở gắn nhãn "Điểm dở — Nhận định của AI", không hiện cách sửa hay con số tình huống (INV-06, T23).
-- Chip kỹ năng có nhãn "đang mài mòn" khi bị decay (D-35). Nút chuyển "Bắt đầu trả lời (n câu) →" (UI-47).
-- Modal Tổng quan hiển thị đúng 3 giai đoạn theo D-71 (T33, T34).
-- Không sửa `src/server/engine/graph/whitelist.ts`, gọi `mainPath` bằng ép kiểu.
+- Chip kỹ năng có nhãn "đang mài mòn" khi bị decay (D-35). Nút "Bắt đầu trả lời (n) →" ghim ở đáy cột (UI-47).
+- Cửa sổ Tổng quan hiển thị đúng 3 giai đoạn theo D-71 (T33, T34).
+- `mainPath` ở `src/lib/graph.ts` cho cùng kết quả ca T-ENG-35 của `docs/spec/11_ENGINE_DO_THI.md`.
+- Bảng dưới mặc định ẩn, không có cách sửa (T39).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -91,8 +95,9 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Người chạy tay: mở `/dev`, chọn N3 thấy phân tích X-Ray nạp dữ liệu từ fixture `docs/spec/50_TEST_VA_FIXTURE.md` Mục 2.1.
 - [ ] Phần Điểm dở có tiêu đề "Điểm dở — Nhận định của AI" và không để lộ cách sửa hay con số tình huống (INV-06, T23).
-- [ ] Modal Tổng quan hiển thị đủ 3 giai đoạn theo D-71 (T33, T34).
-- [ ] Ở 1366×768, cửa sổ Tổng quan thấy đủ tiêu đề và nút, tên tầng tiếng Việt.
+- [ ] Cửa sổ Tổng quan hiển thị đủ 3 giai đoạn theo D-71 (T33, T34).
+- [ ] Ở 1366×768, cửa sổ Tổng quan thấy đủ tiêu đề và nút, thân cuộn được, tên tầng tiếng Việt (T36).
+- [ ] Bảng dưới có 2 tab, bấm dòng thì code cuộn tới bước, không có cách sửa (T39).
 
 ```text
 Task "D05 — Phân tích AI, Tổng quan" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -103,14 +108,14 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/lib/overview-view.ts src/lib/__tests__/overview-view.test.ts
-git commit -m "feat(ui): hàm xử lý view tổng quan 3 giai đoạn"
-git add src/app/learn/components/CodeSnippetViewer.tsx
-git commit -m "feat(ui): khối phân tích X-Ray và điểm dở AI"
-git add src/app/learn/components/SkillChips.tsx
-git commit -m "feat(ui): chip kỹ năng mài mòn và nút chuyển câu hỏi"
-git add src/app/learn/components/RepoOverviewModal.tsx src/app/dev/page.tsx
-git commit -m "feat(ui): modal tổng quan repo và trang nháp fixture N3"
+git add src/lib/graph.ts src/lib/__tests__/graph.test.ts
+git commit -m "feat(ui): mainPath trên client"
+git add src/components/learn/LearnSidePanel.tsx src/components/learn/XRayPanel.tsx
+git commit -m "feat(ui): cột phải và tab X-Ray"
+git add src/components/learn/ProblemsPanel.tsx
+git commit -m "feat(ui): bảng dưới điểm dở và luồng"
+git add src/components/learn/RepoOverviewModal.tsx src/app/dev/page.tsx
+git commit -m "feat(ui): cửa sổ tổng quan repo và trang nháp fixture N3"
 git pull --rebase origin main
 git push -u origin d/D05-phan-tich
 gh pr create --base main --title "D05 — Phân tích AI, Tổng quan" --body "Closes #<số Issue>"

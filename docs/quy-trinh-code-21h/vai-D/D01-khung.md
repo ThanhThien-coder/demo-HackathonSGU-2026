@@ -1,6 +1,6 @@
 # D01 — Khung website, bộ UI dùng chung
 
-Làm xong phiếu này, người dùng sẽ thấy bộ khung giao diện website cơ bản với thanh điều hướng (Navbar), hệ thống màu sắc token, font chữ và các thành phần UI dùng chung như nút bấm, thẻ bài, hộp thoại và ngăn kéo.
+Làm xong phiếu này, người dùng sẽ thấy bộ khung giao diện website với thanh điều hướng (Navbar), token màu cho 2 chủ đề sáng / tối, font chữ và các thành phần UI dùng chung như nút bấm, chip và hộp thoại.
 
 | Mục | Nội dung |
 | :-- | :-- |
@@ -27,7 +27,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 2, 11
+- `docs/spec/30_UI.md` Mục 2, 3, 11
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T36, T38
+- `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` bảng gói
+- `docs/spec/00_QUYET_DINH.md` D-67, D-79
 - `docs/spec/02_CONTRACTS.md` Mục 1
 - `package.json`
 - `src/`
@@ -40,30 +43,28 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/app/page.tsx`
 - `src/components/ui/`
 - `src/components/layout/Navbar.tsx`
-- `src/components/layout/index.ts`
-- `src/lib/utils.ts`
-- `src/lib/utils.test.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Thêm đúng 5 gói phụ thuộc bằng `--save-exact`: `lucide-react`, `lottie-react`, `clsx`, `tailwind-merge`, `class-variance-authority` vào `package.json` và `package-lock.json`; không tự ý thêm hoặc đổi gói khác.
-3. Khai báo bộ màu của giao diện mới trong khối `@theme` của `src/app/globals.css`: nhóm `--color-brand-*`, `--color-surface-*`, `--color-text-*`, `--color-border-*`, `--color-status-*` (repo dùng Tailwind 4, không tạo `tailwind.config.ts`). Không dùng bộ token `--bg`, `--amber`... của `docs/spec/30_UI.md` Mục 11. Cấu hình font Plus Jakarta Sans và JetBrains Mono qua `next/font/google` trong `src/app/layout.tsx`.
-4. Viết các hàm tiện ích CSS trong `src/lib/utils.ts` (`cn`) và kiểm thử trong `src/lib/utils.test.ts`.
-5. Xây dựng các component UI cơ bản dùng chung trong `src/components/ui/`: chỉ làm Button, Card, Dialog, Drawer (các component khác sẽ thêm ở phiếu đầu tiên cần tới).
-6. Xây dựng thanh điều hướng `src/components/layout/Navbar.tsx`, export qua `src/components/layout/index.ts`, và dựng khung tĩnh trang chủ ban đầu trong `src/app/page.tsx`.
+2. Thêm đúng 3 gói phụ thuộc bằng `--save-exact`: `lucide-react`, `clsx`, `tailwind-merge` vào `package.json` và `package-lock.json`; không tự ý thêm hoặc đổi gói khác.
+3. Khai báo token 2 chủ đề trong `src/app/globals.css` đúng bảng `docs/spec/30_UI.md` Mục 11: CSS var theo `html[data-theme]`, mặc định `dark`, map vào `@theme inline` (repo dùng Tailwind 4, không tạo `tailwind.config.ts`). Đủ `--bg`, `--panel`, `--text`, 4 màu trạng thái, `--accent`, `--st-*`, `--ink`, `--on-amber`. Cấu hình font Plus Jakarta Sans và JetBrains Mono qua `next/font/google` trong `src/app/layout.tsx`.
+4. Viết `src/components/ui/theme.ts` (store `useTheme`, lưu `sf.prefs.theme`) và `src/components/ui/theme-script.ts` gán chủ đề trước khi vẽ để không nháy màu; gắn script vào `src/app/layout.tsx`.
+5. Viết `src/components/ui/common.tsx` gồm `cn`, `Button`, `Chip`, `Modal`, `PlainText`, và `src/components/ui/Toasts.tsx`. Các component khác thêm ở phiếu đầu tiên cần tới.
+6. Viết thanh điều hướng `src/components/layout/Navbar.tsx` có nút ☀/☾, và dựng khung tĩnh trang chủ ban đầu trong `src/app/page.tsx`.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
-- **Cửa sổ (lỗi D-05, `30` Mục 11):** `Dialog` cao tối đa màn hình trừ lề, tiêu đề và nút luôn thấy, thân cuộn. Bản cũ ẩn phần dư nên cửa sổ dài bị cắt, không cuộn được.
+- **Cửa sổ (lỗi D-05, `30` Mục 11):** `Modal` cao tối đa màn hình trừ lề, tiêu đề và nút luôn thấy, thân cuộn, để cửa sổ dài không bị cắt.
 
 ## Tiêu chí xong
-- Lệnh kiểm: `npm run build && npx vitest run src/lib/utils.test.ts`
-- Thêm đúng 5 gói chỉ định bằng `--save-exact`, không thừa thiếu gói nào khác.
-- Bộ màu brand, surface, text, border, status có đủ trong khối `@theme` của `globals.css`. Font tải qua `next/font/google`.
-- Có đầy đủ 4 component UI cơ bản: Button, Card, Dialog, Drawer.
+- Lệnh kiểm: `npm run build`
+- Thêm đúng 3 gói chỉ định bằng `--save-exact`, không thừa thiếu gói nào khác.
+- `globals.css` có đủ token 2 chủ đề theo `docs/spec/30_UI.md` Mục 11. Font tải qua `next/font/google`.
+- Có đủ `Button`, `Chip`, `Modal`, `PlainText`, `Toasts`.
 - Navbar hiển thị đúng vị trí trên nền giao diện chung.
-- Test `Dialog` có giới hạn chiều cao và thân `overflow-y-auto`.
+- `Modal` có giới hạn chiều cao và thân `overflow-y-auto`.
+- Bấm ☀/☾ rồi tải lại vẫn giữ chủ đề, không nháy màu (T38).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -86,11 +87,11 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 ## Bước 3 — Bạn kiểm: thế nào là xong
 
-- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npm run build && npx vitest run src/lib/utils.test.ts` cũng xanh.
+- [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npm run build` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Chạy tay `npm run dev`, mở trình duyệt thấy thanh điều hướng và khung trang chủ hiển thị đúng bộ màu mới.
-- [ ] Khối `@theme` trong `src/app/globals.css` có đủ nhóm màu brand, surface, text, border, status.
-- [ ] `package.json` chỉ thêm đúng 5 gói chỉ định bằng phiên bản chính xác (`--save-exact`).
+- [ ] Chạy tay `npm run dev`, mở trình duyệt thấy thanh điều hướng và khung trang chủ ở chủ đề tối mặc định.
+- [ ] Bấm ☀/☾ đổi được chủ đề, tải lại vẫn giữ, không nháy màu (T38).
+- [ ] `package.json` chỉ thêm đúng 3 gói chỉ định bằng phiên bản chính xác (`--save-exact`).
 - [ ] Ở 1366×768, cửa sổ nội dung dài thấy đủ tiêu đề và nút (T36).
 
 ```text
@@ -104,10 +105,8 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ```powershell
 git add package.json package-lock.json
 git commit -m "chore(ui): thêm gói phụ thuộc ui bằng save-exact"
-git add src/lib/utils.ts src/lib/utils.test.ts
-git commit -m "feat(ui): tiện ích css cn"
 git add src/app/layout.tsx src/app/globals.css
-git commit -m "feat(ui): token thiết kế, font"
+git commit -m "feat(ui): token 2 chủ đề, font"
 git add src/components/ui/ src/components/layout/
 git commit -m "feat(ui): navbar và component ui cơ bản"
 git add src/app/page.tsx

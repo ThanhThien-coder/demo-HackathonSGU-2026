@@ -27,7 +27,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 7.5, 8, Test bắt buộc T2, T4, T17, T18, T19
+- `docs/spec/30_UI.md` Mục 7.5, 8
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T2, T4, T17, T18, T19
 - `docs/spec/02_CONTRACTS.md` Mục 1, 8, 10
 - `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Mục 1.1, 4
 - `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-06
@@ -41,14 +42,15 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/lib/__tests__/offline.test.ts`
 - `src/lib/api.ts`
 - `src/components/layout/Navbar.tsx`
-- `src/app/learn/components/FeynmanQuestionSection.tsx`
+- `src/components/layout/Boot.tsx`
+- `src/components/learn/FeynmanQuestionSection.tsx`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. Viết logic áp response trong `src/store/workbench.ts`, cập nhật trạng thái node, gọi `GET /api/sessions/{id}/progress` khi mở khóa hoặc đổi màu (UI-76), xử lý lỗi nộp bài (UI-77) theo `docs/spec/30_UI.md` Mục 7.5.
 3. Viết `src/lib/offline.ts` có cùng chữ ký hàm với `api.ts`, dùng kiểu `OfflineMockBundle` (`docs/spec/30_UI.md` Mục 8, `docs/spec/02_CONTRACTS.md` Mục 10), tự cập nhật BKT và trạng thái node tại chỗ trên client. Viết unit test trong `src/lib/__tests__/offline.test.ts`: test tự dựng bundle nhỏ từ fixture của Vai E; tuyệt đối không tạo `public/demo/mock_bundle.json` (đây là việc của C10).
-4. Viết cơ chế bật tắt Offline bằng phím tắt `Ctrl+Shift+D` hoặc tham số URL `?offline=1`, hiển thị nhãn cảnh báo Offline cố định trên thanh điều hướng `src/components/layout/Navbar.tsx` (UI-60), hỗ trợ persona offline (UI-62) theo `docs/spec/30_UI.md` Mục 8.
-5. Xử lý ca T17 của `docs/spec/30_UI.md`: nộp bài gặp `ERR_PERSISTENCE_UNAVAILABLE` thì `FeynmanQuestionSection.tsx` hiện nút "Thử lại", số lượt không đổi, `localStorage` không lưu biên nhận thừa.
+4. Viết cơ chế bật tắt Offline bằng phím tắt `Ctrl+Shift+D` (gắn ở `src/components/layout/Boot.tsx`), tham số URL `?offline=1` hoặc nút "Mở bản demo Offline", hiển thị nhãn cảnh báo Offline cố định trên thanh điều hướng `src/components/layout/Navbar.tsx` (UI-60), hỗ trợ persona offline (UI-62) theo `docs/spec/30_UI.md` Mục 8.
+5. Xử lý ca T17 ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: nộp bài gặp `ERR_PERSISTENCE_UNAVAILABLE` thì `FeynmanQuestionSection.tsx` hiện nút "Thử lại", số lượt không đổi, `localStorage` không lưu biên nhận thừa.
 6. Offline phải tự nạp gói dữ liệu cả khi mở thẳng `?offline=1`, và chấm, xem đáp án theo đúng node đang học, không cố định một node.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
@@ -84,7 +86,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Bạn nhấn `Ctrl+Shift+D` thấy nhãn Offline cố định trên thanh điều hướng; tab Network của DevTools không có request `/api/` hay Supabase.
 - [ ] Thử nghiệm T2 và T4: node đổi màu chính xác và mở khóa các node tiếp theo sau khi nộp bài đạt.
-- [ ] Thử T17 của `docs/spec/30_UI.md`: giả lập DB lỗi khi nộp thấy nút "Thử lại", lượt không đổi.
+- [ ] Thử T17 ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: giả lập DB lỗi khi nộp thấy nút "Thử lại", lượt không đổi.
 
 ```text
 Task "D08 — Áp response, đổi màu, mở khóa, Offline" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -99,7 +101,7 @@ git add src/store/workbench.ts
 git commit -m "feat(ui): áp kết quả chấm, đổi màu và mở khóa node"
 git add src/lib/offline.ts src/lib/__tests__/offline.test.ts
 git commit -m "feat(ui): chế độ offline độc lập"
-git add src/lib/api.ts src/components/layout/Navbar.tsx src/app/learn/components/FeynmanQuestionSection.tsx
+git add src/lib/api.ts src/components/layout/Navbar.tsx src/components/layout/Boot.tsx src/components/learn/FeynmanQuestionSection.tsx
 git commit -m "feat(ui): phím tắt bật tắt offline và nhãn navbar"
 git pull --rebase origin main
 git push -u origin d/D08-offline
