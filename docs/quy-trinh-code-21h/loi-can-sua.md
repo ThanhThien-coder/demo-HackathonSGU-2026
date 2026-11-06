@@ -197,7 +197,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần gọi đầu tới mỗi repo thường lâu hơn. Việc này xảy ra với từng repo mới trong cùng một tiến trình, nên không chỉ do server khởi động lạnh. Chưa rõ phần chậm nằm ở đâu phía GitHub.
 - **Cần sửa:** đo trên Vercel rồi tăng trần, ví dụ 1000–1500ms. Đây là `src/contracts/config.ts`, cần báo Vai A và sửa spec.
 - **Kiểm tra:** dán repo chưa dùng lần nào, không phải chờ thử lại và không báo `ERR_NETWORK_TIMEOUT`.
-- **Trạng thái:** đã đo ở máy local, chưa đo trên Vercel. Vercel cũng bị thì nâng lên Nặng.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b14-ingest`. `probeRepo` gọi `archive/HEAD.zip` trước (trần `PREFLIGHT_TIMEOUT_MS` = 1500), chỉ khi 404 mới gọi trang repo với `PREFLIGHT_PAGE_TIMEOUT_MS`; 301 sang repo khác thì gọi lại 1 lần. `resolveRef` nhận `head_zip` từ probe, không gọi lại HEAD.zip. Đổi `probe.ts`, `refs.ts`, `index.ts`, test `tai.test.ts`, `van-tay.test.ts`. Typecheck sạch, lint 0 lỗi (6 cảnh báo cũ), 744 test qua. Chưa dán repo mới trên mạng thật, chưa đo Vercel (A12 còn ô đo). Chưa đổi `ENGINE_VERSION`. `ref_label` là SHA vẫn thuộc B-16.
 
 ### B-15 · Nhẹ · Link viết hoa bị từ chối
 
