@@ -393,6 +393,8 @@ function tryNameFromEntrySymbol(
   if (!entrySym) return null;
 
   const rawName = entrySym.includes("#") ? entrySym.split("#")[1]! : entrySym;
+  // Khóa tổng hợp của engine (`<anon@L12>`, `<GET /x>`, `<module>`) không phải tên do người viết: bỏ bậc (lỗi B-34)
+  if (rawName.startsWith("<")) return null;
   const parts = rawName.split(".");
   const fnPart = parts[parts.length - 1] ?? rawName;
   const classPart = parts.length > 1 ? parts[0] ?? "" : "";
@@ -543,7 +545,26 @@ function nameFromFileBasename(
 /**
  * Đặt tên tất định cho Candidate qua 5 bậc thang (Mục 13).
  */
+/**
+ * Giới hạn ký tự của tên bài (Mục 13 ý 8): chữ, số, khoảng trắng và `/ & : - ( ) #`.
+ * Bỏ ký tự khác như `<`, `>`, `@` (lỗi B-34).
+ */
+export function sanitizeTitle(title: string): string {
+  return title
+    .replace(/[^\p{L}\p{N}\s/&:\-()#]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function nameCandidate(
+  c: Candidate,
+  ctx: EngineContext
+): { base_title: string; title_source: NodeTitleSource; title_evidence: string } {
+  const named = nameCandidateRaw(c, ctx);
+  return { ...named, base_title: sanitizeTitle(named.base_title) };
+}
+
+function nameCandidateRaw(
   c: Candidate,
   ctx: EngineContext
 ): { base_title: string; title_source: NodeTitleSource; title_evidence: string } {

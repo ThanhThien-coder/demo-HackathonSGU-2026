@@ -360,7 +360,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** kiểm nguồn gốc của `R`, làm cùng B-03. Bỏ file mock theo ING-87 (`mocks`, `__mocks__`), và không cho tên bài chứa `<`, `>`.
 - **Kiểm tra:** repo trên không còn route từ `msw`.
 - **Ảnh hưởng demo:** không có với BrewLite.
-- **Trạng thái:** đang làm. Nhánh `b/fix-route-file-test` đã xong nhận route và cờ `mocks`: `bulletproof-react` từ 13 bài mock về 0. Còn 2 phần ở Luồng 2: repo vẫn báo framework Express, và `fastify-example-todo` còn 6 tên bài có `<`, `>`.
+- **Trạng thái:** chờ kiểm. Phần trước đã xong ở nhánh `b/fix-route-file-test` (nhận route theo receiver, cờ `mocks`: `bulletproof-react` từ 13 bài mock về 0). Phần còn lại ở nhánh `b/fix-b34-con-lai`: (1) spec 10 Mục 12 ý 3 thêm luật gói chỉ có ở `devDependencies` không tính cho `WEB_BACKEND` và nhãn `@nestjs/core`, `express`, `fastify`, `koa`; `fingerprint.ts` thêm `dev_only_packages` và `runtimePackagesSet`; `tech_stack` giữ đủ gói; thêm ca vào T-ING-29; (2) `naming.ts`: Bậc 2 bỏ khóa tổng hợp bắt đầu bằng `<`, thêm `sanitizeTitle` giữ đúng bộ ký tự của Mục 13 ý 8, áp cho mọi tên bài. Chạy thật: `bulletproof-react` hết Express, thành `WEB_FRONTEND`, framework Next.js; `fastify/fastify-example-todo` hết tên chứa `<`, `>`, `@` (còn `:name / Get #2`… do Bậc 3, không thuộc B-34); BrewLite không đổi (13 bài, NestJS). Test: `dev-deps.test.ts` (8 ca), T-ENG-22c trong `node.test.ts`. Chỉ xử lý backend JS; devDependencies của framework khác (Django, Flask…) chưa xét. `spec/10` 43 929 byte (trần 44 000). Chưa đổi `ENGINE_VERSION`: đổi tên bài là đổi id, vào mốc `1.8.0`. Typecheck sạch, lint 0 lỗi, 925 test qua.
 
 ---
 
