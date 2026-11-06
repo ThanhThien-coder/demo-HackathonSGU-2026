@@ -16,7 +16,7 @@ File này là nơi duy nhất ghi lỗi và việc sửa lỗi. Không tạo fil
 
 ### Mẫu thêm lỗi
 
-Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-40`, `D-19`, `C-10`, `A-08`.
+Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-42`, `D-24`, `C-13`, `A-09`.
 
 ```markdown
 ### B-40 · Nặng | Vừa | Nhẹ · Tên ngắn
@@ -34,13 +34,13 @@ Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác min
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 6 | 17 | 15 | 38 |
-| D — Giao diện | 2 | 7 | 8 | 17 |
-| C — AI | 0 | 9 | 0 | 9 |
-| A — Tích hợp, deploy | 0 | 4 | 2 | 6 |
-| **Tổng** | **8** | **37** | **25** | **70** |
+| B — Engine | 6 | 18 | 16 | 40 |
+| D — Giao diện | 4 | 10 | 8 | 22 |
+| C — AI | 1 | 11 | 0 | 12 |
+| A — Tích hợp, deploy | 1 | 4 | 2 | 7 |
+| **Tổng** | **12** | **43** | **26** | **81** |
 
-Bảng trên đã tính 12 lỗi ở mục [Lỗi mới ngày 06/11/2026](#lỗi-mới-ngày-06112026).
+Bảng trên đã tính 12 lỗi ở mục [Lỗi mới ngày 06/11/2026](#lỗi-mới-ngày-06112026) và 11 việc ở mục [Việc mới theo quy trình học mới](#việc-mới-theo-quy-trình-học-mới).
 
 Vai B có 38 mã: 33 mã gộp thành 23 nhóm sửa, xem mục **Vai B theo phiếu**, 5 mã mới chưa xếp nhóm.
 
@@ -496,6 +496,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** gọi ngay sau loạt `analyze-node` nên gặp 429/503. `retryDelay` trong `gemini.ts` chỉ chờ `CONFIG.LLM_RETRY_DELAY_MS` cộng ngẫu nhiên, trong khi Google trả `retryDelay` khoảng 57 giây.
 - **Cần sửa:** code theo luật gọi lại mới trong quyết định D-74 (`20` AI-12), ở `retryDelay` và `callLLMOnce` của `src/server/ai/gemini.ts`.
 - **Kiểm tra:** test AI-12 mới xanh; chạy lại probe, tổng quan có kết quả.
+- **Ghi chú 06/11:** quyết định D-83 chuyển tổng quan lên đầu phiên, trước loạt `analyze-node`, nên bớt gặp 429. Vẫn phải sửa `retryDelay` như trên. Phần tổng quan mới là C-12.
 - **Trạng thái:** chưa làm.
 
 ### C-06 · Vừa · Điểm dở luôn rỗng
@@ -550,7 +551,7 @@ Làm từ trên xuống. Đang là bản tập dượt, nên mọi luật trong 
 
 1. Đọc toàn bộ file này, kể cả lỗi mới được thêm.
 2. Chạy `git status` và `git pull`. Commit `1066d4d` ở nhánh `b/fix-nest-buoc-dau` có bản sửa B-01. PR #129 đã đóng, nên lấy commit này vào nhánh sửa, không làm lại.
-3. Chọn lỗi theo [Thứ tự nên sửa](#thứ-tự-nên-sửa). Lỗi mới chưa có trong danh sách đó thì làm Nặng, rồi Vừa, rồi Nhẹ.
+3. Chọn lỗi theo cột **Code** của mình trong [Lộ trình mới ngày 06/11/2026 (chiều)](#lộ-trình-mới-ngày-06112026-chiều). Lỗi không có trong lộ trình thì làm Nặng, rồi Vừa, rồi Nhẹ.
 
 ### 2. Lỗi nào được làm
 
@@ -742,6 +743,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Nguyên nhân:** `src/server/ai/prompts/analyze.ts` và `20` đều ghi `summary = tối đa 2 câu: các bước chia việc ra sao`.
 - **Cần sửa:** đổi thành câu 1 nói phần này giúp người dùng làm gì, câu 2 nói các bước chia việc. Sửa `20`, prompt, đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`. Không đổi contract. Sau đó Vai D đưa câu 1 lên đầu tab X-Ray.
 - **Kiểm tra:** chạy AI thật trên repo demo, duyệt tay ít nhất 3 bài, câu đầu nói đúng việc của người dùng.
+- **Ghi chú 06/11:** quyết định D-84 dùng câu 1 này làm dòng "Vai trò" của thẻ vai trò (D-22). Sửa thêm `steps[].text` cho người mới đọc, vì tour (D-19) hiện từng câu này.
 - **Trạng thái:** đã kiểm prompt, chưa chạy AI thật, chưa làm.
 
 ### C-08 · Vừa · Code AI chưa theo quyết định D-74
@@ -820,9 +822,162 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Ảnh hưởng demo:** có, ban giám khảo thấy bản đồ ngay từ đầu.
 - **Trạng thái:** đã thử bản tạm trên 2 repo, chưa làm. Cần quyết định mới.
 
+## Việc mới theo quy trình học mới
+
+Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.html`](../../prototype.html). Hướng dẫn sửa doc cho từng người: [`sua-doc-quy-trinh-moi.md`](sua-doc-quy-trinh-moi.md). Tên kiểu, hằng số dùng chung ở Mục 3 của file đó.
+
+### B-40 · Vừa · Bài chưa có thực thể và nhóm chức năng
+
+- **Hiện tượng:** bản đồ là một danh sách bài ngang hàng, không biết bài nào thuộc chức năng nào, đọc ghi dữ liệu gì.
+- **Cần sửa:** theo D-84, cùng đợt với B-39: mỗi bài có `entities`, cạnh có `via_entities`, `StaticEngineResult.groups` gom tất định. Sửa `11`, `graph/nodes.ts`, `graph/index.ts`.
+- **Kiểm tra:** `shop-api` ra 3 nhóm như `prototype.html`; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
+- **Trạng thái:** chưa làm.
+
+### B-41 · Nhẹ · Bước nạp repo bỏ README
+
+- **Hiện tượng:** tổng quan mới (D-83) cần biết sản phẩm làm gì, nhưng bước nạp repo không giữ README hay mô tả manifest.
+- **Cần sửa:** giữ `readme_excerpt` (đã che secret, cắt theo `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description`. Sửa `10`, `src/server/engine/ingest/*`.
+- **Kiểm tra:** repo có README ra đoạn đầu; repo không có ra `null`; secret trong README bị che.
+- **Trạng thái:** chưa làm.
+
+### D-19 · Nặng · X-Ray chưa là tour
+
+- **Cần sửa:** theo D-81: thẻ vai trò ⇒ từng bước (lời giải thích, chip kỹ năng, Trước/Sau, phím ← →) ⇒ tóm tắt ⇒ nút sang Feynman. Bấm bước nào thì khung code mở đúng tab file đó (D-16).
+- **Kiểm tra:** đi hết tour bài "Xem danh sách sản phẩm" giống `prototype.html`.
+- **Trạng thái:** chưa làm.
+
+### D-20 · Vừa · Chưa có thẻ khái niệm
+
+- **Cần sửa:** popover cho 16 kỹ năng: phần viết tay (`vai-D/the-khai-niem.md`) + câu `skills[].reason` của AI + nút xem dòng. 0 token.
+- **Kiểm tra:** bấm chip ở bước 2 ra thẻ; nút xem dòng tô đúng dòng; Esc đóng thẻ.
+- **Trạng thái:** chưa làm.
+
+### D-21 · Nặng · Tổng quan và bản đồ chưa theo nhóm
+
+- **Cần sửa:** theo D-71, D-83, D-84: bản đồ chia nhóm, tên AI kèm nhãn "AI đặt tên" và tên code ở dòng nhỏ; Tổng quan 2 nhịp, phần tất định hiện ngay, phần AI hiện khi có; nút bắt đầu ở bài gốc của đường chính.
+- **Kiểm tra:** tắt AI vẫn có nhóm, tên engine và câu dự phòng; bật AI thì tên và bức tranh chung hiện thêm.
+- **Trạng thái:** chưa làm.
+
+### D-22 · Vừa · Chưa có thẻ vai trò
+
+- **Cần sửa:** theo D-84: tên và route, "Vai trò", "Cần trước", "Mở ra cho", "Dữ liệu"; thiếu dữ liệu thì ẩn dòng.
+- **Kiểm tra:** bài "Xem danh sách sản phẩm" ra đủ 4 dòng như `prototype.html`.
+- **Trạng thái:** chưa làm.
+
+### D-23 · Vừa · Chưa có giải thích đoạn chọn
+
+- **Cần sửa:** theo D-82: bôi đen trong khung code hiện nút "Giải thích"; popover hiện tiêu đề, "Là gì", "Ở đây", "Ví dụ đời thường", kỹ năng liên quan, "Còn dùng ở"; trạng thái chờ, lỗi, hết lượt, bị chặn; nhớ kết quả trên trình duyệt.
+- **Kiểm tra:** bôi đen `await` ra giải thích; bôi lại đúng chỗ đó hiện liền, không gửi request.
+- **Trạng thái:** chưa làm.
+
+### C-10 · Vừa · Câu đầu chưa là câu kể luồng
+
+- **Cần sửa:** theo D-81: câu đầu của mỗi run có `focus` = `FLOW`. Sửa `22` Mục 6, `src/lib/plan.ts`, test T-PLAN.
+- **Kiểm tra:** mọi run có câu 1 là `FLOW`; các luật D-34 vẫn đúng.
+- **Trạng thái:** chưa làm.
+
+### C-11 · Vừa · Chưa có lời gọi giải thích đoạn chọn
+
+- **Cần sửa:** theo D-82: prompt, schema, cổng gác, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION`. Sửa `20`, `21`, `src/server/ai/*`. Endpoint ở A-08.
+- **Kiểm tra:** chạy AI thật 3 vùng chọn (từ khóa, tên, đoạn code); tên bịa bị chặn; vùng chọn sai ra `ERR_SELECTION_INVALID`.
+- **Trạng thái:** chưa làm.
+
+### C-12 · Nặng · Tổng quan chờ hết node, chưa đặt tên
+
+- **Cần sửa:** theo D-83: `analyze-overview` gọi ngay sau khi quét, đầu vào gói ngữ cảnh, ra `RepoOverviewRaw` mới; cổng gác mới; câu dự phòng do code dựng. Sửa `20`, `21`, `src/server/ai/*`.
+- **Kiểm tra:** quét `shop-api` và BrewLite, tổng quan có trước khi phân tích bài nào; mỗi bài đúng 1 tên, không trùng.
+- **Trạng thái:** chưa làm.
+
+### A-08 · Nặng · Contract và endpoint cho quy trình mới
+
+- **Cần sửa:** `02` theo Mục 3 của `sua-doc-quy-trinh-moi.md`; endpoint `POST /api/explain-selection`; bỏ `ERR_OVERVIEW_NOT_READY`; mang frontend `feat/giao-dien-ide` về `main` làm nền cho luồng 6.
+- **Kiểm tra:** `npm run typecheck` xanh; gọi endpoint với vùng chọn sai ra 400.
+- **Trạng thái:** chưa làm.
+
+---
+
+## Lộ trình mới ngày 06/11/2026 (chiều)
+
+Thay các bảng **Chia luồng**, **Mốc trong ngày**, **Nếu trễ thì bỏ trước** của lộ trình bên dưới. Các bảng **Thứ tự trong từng luồng** 1 … 5 bên dưới vẫn dùng, cộng thêm việc mới ở đây. Luật tránh đụng nhau giữ nguyên.
+
+**Bước 1, sửa doc:** mỗi người làm phần mình theo [`sua-doc-quy-trinh-moi.md`](sua-doc-quy-trinh-moi.md), mở PR xong thì sang code.
+
+| Người | Sửa doc | Code, làm từ trái sang phải |
+| :-- | :-- | :-- |
+| Minh | `spec/11`, dòng D-85 | Luồng 1 như cũ; B-40 làm cùng B-39 ở bước 7 |
+| Phat107 | `spec/30`, `spec/10`, `vai-D/`, `prototype.html` | B-14, B-22, B-41 ⇒ **luồng 6**: D-16, D-19, D-20, D-17, D-18 ⇒ D-21, D-22, D-23 |
+| Lê Ngọc Quý | không | Java tới 19:00 ⇒ B-29, B-30 ⇒ phụ luồng 6 |
+| Huynh Nhan | `spec/20`, `21`, `22`, `vai-C/` | C-01, C-05 ⇒ C-12 ⇒ C-06, C-09 ⇒ C-08 ⇒ C-07, C-10 ⇒ C-11 ⇒ C-03, C-04, C-02 nếu còn giờ |
+| Thiện | `spec/02` (làm trước), `03`, `01` | A-08 ⇒ luồng 5 như cũ; duyệt và merge |
+| Người quay lại sau | `vai-D/the-khai-niem.md` | Phụ D-20 |
+
+**Luồng 6 · Giao diện** giữ `src/components/*`, các trang trong `src/app/` (trừ `src/app/api/*` của Thiện), `src/store/*`, file dữ liệu thẻ khái niệm.
+
+**Việc nào chờ việc nào.** Cột **Trong lúc chờ** là việc làm trước được, để không ai ngồi không.
+
+| Mã | Người | Chờ | Trong lúc chờ | Xong trước |
+| :-- | :-- | :-- | :-- | :-- |
+| Doc của mọi người | Cả nhóm | PR mở đợt này (D-81 … D-84, file hướng dẫn) đã merge | — | 18:00 |
+| `spec/02` | Thiện | PR mở đợt này | — | **17:30**, làm đầu tiên vì mọi việc có kiểu mới đều chờ nó |
+| A-08 phần mang frontend về `main` | Thiện | không | — | 18:00 |
+| A-08 phần endpoint `explain-selection` | Thiện | `spec/02`; hàm server của C-11 | Viết route trả lỗi đúng mã, gọi hàm C-11 khi có | 22:00 |
+| B-41 | Phat107 | `spec/02` (trường `readme_excerpt`) | B-14, B-22 | 18:30 |
+| B-40 | Minh | `spec/02` (`groups`, `entities`); B-39 (bước 7 luồng 1) | Bước 1–6 luồng 1 | 21:00 |
+| C-01, C-05, C-06, C-09, C-08, C-07 | Huynh Nhan | không (PR nền đã merge) | — | 20:00 |
+| C-10 | Huynh Nhan | `spec/22` của chính mình | — | 21:00 |
+| C-12 | Huynh Nhan | `spec/02` (`RepoOverviewRaw` mới) | Viết prompt, cổng gác. Chưa có B-41 thì chạy không README; chưa có B-40 thì chưa đặt tên nhóm | 21:00 |
+| C-11 | Huynh Nhan | `spec/02` (kiểu `ExplainSelection*`) | Viết prompt và hàm server, test bằng dữ liệu giả | 22:00 |
+| D-16, D-19, D-17, D-18 | Phat107 | A-08 phần mang frontend về `main` | Đọc `prototype.html`, chuẩn bị component | 19:00 |
+| D-20 | Phat107 | `vai-D/the-khai-niem.md` | Dùng 3 thẻ mẫu trong `prototype.html` | 19:00 |
+| D-21 | Phat107 | C-12, B-40 | Làm phần tất định (nhóm theo đầu route, tên engine, câu dự phòng) với dữ liệu giả | Sau 22:00 |
+| D-22 | Phat107 | C-07, B-40 | Làm với các dòng đã có ("Cần trước", "Mở ra cho"), ẩn dòng thiếu | Sau 22:00 |
+| D-23 | Phat107 | C-11, A-08 endpoint | Làm popover với dữ liệu giả | Sau 22:00 |
+| `vai-D/the-khai-niem.md` | Người quay lại sau | không | — | 19:00 |
+| Sửa pitch | Người lo pitch | D-19 … D-23 chạy được | — | Trước khi ngủ |
+
+```mermaid
+flowchart LR
+  PR0["PR mở đợt<br/>D-81 … D-84"] --> S02["spec/02<br/>Thiện · 17:30"]
+  PR0 --> DOC["Doc của từng người<br/>18:00"]
+  FE["A-08: frontend về main<br/>18:00"] --> UI1["D-16, D-19, D-20,<br/>D-17, D-18 · 19:00"]
+  CARDS["16 thẻ khái niệm"] --> UI1
+  S02 --> B41["B-41 README<br/>18:30"]
+  S02 --> B40["B-40 nhóm, thực thể<br/>21:00"]
+  B39["B-39 luồng 1"] --> B40
+  S02 --> C12["C-12 tổng quan<br/>21:00"]
+  B41 -.-> C12
+  B40 -.-> C12
+  S02 --> C11["C-11 giải thích<br/>22:00"]
+  C11 --> EP["A-08 endpoint<br/>22:00"]
+  C12 --> D21["D-21 tổng quan,<br/>bản đồ nhóm"]
+  B40 --> D21
+  C07["C-07 câu vai trò"] --> D22["D-22 thẻ vai trò"]
+  B40 --> D22
+  EP --> D23["D-23 popover"]
+```
+
+Mũi tên nét đứt: không chờ được thì chạy thiếu phần đó.
+
+**Mốc trong ngày.**
+
+| Giờ | Mốc | Đạt khi |
+| :-- | :-- | :-- |
+| 16:30 | Mốc 1, engine `1.7.0` | Như cũ |
+| 18:00 | Xong doc | PR doc của mọi người đã merge, `02` đã có tên ở Mục 3 của `sua-doc-quy-trinh-moi.md` |
+| 19:00 | Mốc Java, giao diện 1 | Java như cũ. Luồng 6 xong D-16, D-19, D-20, D-17, D-18, chạy với gói Offline |
+| 21:00 | Mốc 2, engine `1.8.0` | Như cũ, thêm B-40. C-12, C-10 xong |
+| 22:00 | Đóng băng backend | Như cũ, thêm C-11 và A-08. Chạy online trọn 1 bài theo quy trình mới |
+| Sau 22:00 | Giao diện 2 | D-21, D-22, D-23; sửa `pitch/KICH_BAN_DEMO.md`, `pitch/PHAN_BIEN_BGK.md` theo quy trình mới |
+
+**Nếu trễ thì bỏ trước:** C-11 và D-23, rồi dòng "Dữ liệu" của D-22, rồi B-41 (tổng quan chạy không có README). Sau đó bỏ tiếp theo danh sách cũ bên dưới.
+
+**Không bỏ:** D-16, D-17, D-18, D-19, D-20, D-21 (ít nhất phần tất định), C-10, C-12, A-08, cùng danh sách "Không bỏ" cũ.
+
 ---
 
 ## Lộ trình sửa backend ngày 06/11/2026
+
+> Các bảng **Chia luồng**, **Mốc trong ngày**, **Nếu trễ thì bỏ trước** và dòng **Để sang đợt giao diện** dưới đây đã được thay bằng [Lộ trình mới ngày 06/11/2026 (chiều)](#lộ-trình-mới-ngày-06112026-chiều).
 
 Lộ trình này thay mục [Thứ tự nên sửa](#thứ-tự-nên-sửa) trong đợt này. Làm trên `main` commit `15f7fa7`, code `main` chưa đổi từ lúc lập danh sách nên mọi trạng thái ở trên vẫn đúng.
 
