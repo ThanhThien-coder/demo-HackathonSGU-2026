@@ -16,7 +16,7 @@ File này là nơi duy nhất ghi lỗi và việc sửa lỗi. Không tạo fil
 
 ### Mẫu thêm lỗi
 
-Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-42`, `D-24`, `C-13`, `A-09`.
+Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-43`, `D-24`, `C-13`, `A-09`.
 
 ```markdown
 ### B-40 · Nặng | Vừa | Nhẹ · Tên ngắn
@@ -34,11 +34,11 @@ Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác min
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 6 | 18 | 16 | 40 |
+| B — Engine | 6 | 19 | 16 | 41 |
 | D — Giao diện | 4 | 10 | 8 | 22 |
 | C — AI | 1 | 11 | 0 | 12 |
 | A — Tích hợp, deploy | 1 | 4 | 2 | 7 |
-| **Tổng** | **12** | **43** | **26** | **81** |
+| **Tổng** | **12** | **44** | **26** | **82** |
 
 Bảng trên đã tính 12 lỗi ở mục [Lỗi mới ngày 06/11/2026](#lỗi-mới-ngày-06112026) và 11 việc ở mục [Việc mới theo quy trình học mới](#việc-mới-theo-quy-trình-học-mới).
 
@@ -795,7 +795,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   7. Chốt một repo Java làm repo demo, rồi dựng lại gói Offline và kịch bản demo theo repo đó.
 - **Kiểm tra:** quét `spring-petclinic` và `SGU-quan-ly-nha-hang`: `primary_language` là Java, tier `RESOLVED`, tên bài theo route đúng, có bài đi đủ controller, service, repository và tới `DATA_ACCESS`. Chạy AI thật trọn một bài trên repo demo Java.
 - **Ảnh hưởng demo:** có, đổi repo demo và kịch bản vấn đáp.
-- **Trạng thái:** đang làm. Nhánh `b/b38-java-nen` xong bước 2–3: grammar, `queries/java.scm`, adapter `JAVA`, đọc class, method, field, import. Quét thật `spring-petclinic`, `SGU-quan-ly-nha-hang`: `JAVA`, tier `RESOLVED`, không lỗi cú pháp, engine ra 7 và 20 node. Chưa có route Spring, tầng, `DATA_ACCESS`, nên tên bài chưa theo route. Bước 4 chờ luật Spring trong `11` và mốc 1.
+- **Trạng thái:** đang làm. Bước 2–3 đã vào `main`. Nhánh `b/b38-spring` xong bước 4–5 theo `12` Mục 4: route, lời gọi Java, tầng, JPA. Quét thật: `spring-petclinic` 17 bài, 14 theo route, 6 bài đủ `ENTRY_POINT`, `BUSINESS_LOGIC`, `DATA_ACCESS`; `spring-boot-realworld-example-app` 19 bài, 19 theo route, 6 bài đủ tầng. BrewLite giữ nguyên kết quả so với `main`. Còn bước 6–7, repo mẫu trong test, `ENGINE_VERSION`, chốt repo demo, chạy AI thật.
 
 ### B-39 · Nặng · Bản đồ không nối các chức năng với nhau
 
@@ -840,6 +840,14 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 - **Cần sửa:** giữ `readme_excerpt` (đã che secret, cắt theo `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description`. Sửa `10`, `src/server/engine/ingest/*`.
 - **Kiểm tra:** repo có README ra đoạn đầu; repo không có ra `null`; secret trong README bị che.
 - **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42` (tên nhánh lỡ đặt, nội dung là B-41). Theo ING-123: `pickReadmeEntry` (README ở offset, không có thì ở gốc, path nhỏ nhất, bỏ nếu quá `MAX_MANIFEST_BYTES`), `buildProjectText` (che secret rồi cắt `OVERVIEW_README_MAX_CHARS`, `manifest_description` từ `package.json`, `pyproject.toml`, `pom.xml`), nối vào `runIngest`. README giải nén riêng, không vào `code` hay `manifests`, không tính số file. Thêm 2 trường vào `IngestOutput` (`src/contracts/engine-internal.ts`, theo `spec/02` đã merge). Quét thật: BrewLite có README 2000 ký tự và mô tả `BrewLite - Backend NestJS + Prisma + PostgreSQL`; `nestjs/nest` có cả hai; Django có README, mô tả `null`. Test `mo-ta.test.ts` (T-ING-35, T-ING-36). Typecheck sạch, lint 0 lỗi, test xanh. Chưa làm: chép hai trường vào `StaticEngineResult` (`graph/index.ts`, thuộc Minh, cùng B-40); đường tải chọn lọc (`selective.ts`) trả `null` vì README nằm ngoài phần đã tải; chưa sửa `spec/10` Mục 8 vì đã có ING-123.
+
+### B-42 · Vừa · Package `com.example.demo` bị coi là file test
+
+- **Hiện tượng:** chưa đo trên repo thật. `com/example/demo` là package mặc định của Spring Initializr, nên `src/main/java/com/example/demo/**` có cờ test.
+- **Nguyên nhân:** `example`, `demo` nằm trong danh sách segment của ING-87, áp cho cả package Java. `isTestPath` ở `priority.ts` được dùng ở chấm điểm file, chọn file, và lọc candidate ở `nodes.ts`.
+- **Cần sửa:** đường dẫn trong `src/main/` không xét segment ING-87. Sửa `10` ING-87 và `priority.ts`. `spring.ts` đã dùng riêng luật ENT-44 nên không vướng lỗi này.
+- **Kiểm tra:** quét 1 repo Spring dùng `com.example.demo`, ra đủ bài theo route.
+- **Trạng thái:** cần xác minh, chờ Phat107.
 
 ### D-19 · Nặng · X-Ray chưa là tour
 

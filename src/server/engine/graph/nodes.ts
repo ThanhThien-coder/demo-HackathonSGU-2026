@@ -32,11 +32,13 @@ function calculateStmtComplexity(n: Node): number {
     const isControl =
       type === "if_statement" ||
       type === "for_statement" ||
+      type === "enhanced_for_statement" ||
       type === "for_in_statement" ||
       type === "for_of_statement" ||
       type === "while_statement" ||
       type === "do_statement" ||
       type === "switch_statement" ||
+      type === "switch_expression" ||
       type === "match_statement" ||
       type === "catch_clause" ||
       type === "except_clause" ||
@@ -108,11 +110,18 @@ export function buildAlgoCandidates(
           n.type === "function_declaration" ||
           n.type === "function_expression" ||
           n.type === "arrow_function" ||
-          n.type === "method_definition";
+          n.type === "method_definition" ||
+          n.type === "method_declaration" ||
+          n.type === "constructor_declaration" ||
+          n.type === "compact_constructor_declaration";
         if (isFn) {
           const s = n.startPosition.row + 1;
           const e = n.endPosition.row + 1;
-          if (s <= fn.line_start && e >= fn.line_end) {
+          const isMatch =
+            pf.language === "JAVA"
+              ? e === fn.line_end || (s <= fn.line_start && e >= fn.line_end)
+              : s <= fn.line_start && e >= fn.line_end;
+          if (isMatch) {
             const span = e - s;
             if (span < minSpan) {
               minSpan = span;
@@ -143,6 +152,7 @@ export function buildAlgoCandidates(
 
       const isLoop =
         child.type === "for_statement" ||
+        child.type === "enhanced_for_statement" ||
         child.type === "for_in_statement" ||
         child.type === "for_of_statement" ||
         child.type === "while_statement" ||
