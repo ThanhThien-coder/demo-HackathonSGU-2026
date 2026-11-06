@@ -539,7 +539,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `src/app/api/ingest/route.ts` còn `analyses: {}`.
 - **Cần sửa:** trả phân tích có sẵn khi mở lại phiên theo `03` Mục 6.6.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a05-analyses`: `ingest` đọc `ai_cache` theo khóa `NODE_ANALYSIS`, trả `NodeAnalysisView`, dòng hỏng thì bỏ. Typecheck, lint, 767 test, build xanh. Test dùng DB mock, chưa chạy với Postgres thật.
 
 ---
 
