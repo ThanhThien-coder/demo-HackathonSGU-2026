@@ -16,6 +16,7 @@ import {
   shortSelection,
 } from "@/lib/selection-explain";
 import { overviewNodeTitle } from "@/lib/overview-view";
+import { SKILL_METADATA } from "@/app/report/components/RadarChart"; // tạm; D13 có CONCEPT_CARDS thì đổi
 import { AiText } from "@/app/learn/components/XRayPanel";
 
 export interface SelectionPopoverProps {
@@ -288,7 +289,7 @@ export function SelectionPopover({
               </span>
               {/* TODO D13: mở ConceptPopover */}
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-[#eaedff] text-[#004cff] border border-[#d8e0ff]">
-                {explanation.skill}
+                {SKILL_METADATA[explanation.skill]?.label ?? explanation.skill}
               </span>
             </div>
           )}
