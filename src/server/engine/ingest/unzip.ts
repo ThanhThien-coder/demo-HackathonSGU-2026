@@ -21,6 +21,15 @@ interface RawParsedEntry {
 const archiveCommonPrefixMap = new WeakMap<Uint8Array, string>();
 
 /**
+ * Entry rác của macOS: thư mục `__MACOSX/` và file `._*` (ING-60.3, lỗi B-19)
+ */
+function isMacJunk(rawPath: string): boolean {
+  const n = rawPath.replace(/\\/g, "/");
+  if (n === "__MACOSX" || n.startsWith("__MACOSX/")) return true;
+  return n.slice(n.lastIndexOf("/") + 1).startsWith("._");
+}
+
+/**
  * Tìm tiền tố thư mục chung cho mọi entry trong zip (ING-60.3)
  */
 function findCommonPrefix(rawPaths: string[]): string {
@@ -77,11 +86,14 @@ function normalizeEntries(
   report?: IngestionReport,
   archiveBytes?: Uint8Array
 ): ZipEntryMeta[] {
+  // (3) Bỏ __MACOSX/ và file ._* trước khi tìm segment đầu chung, nếu không zip nén trên macOS
+  // (proj/... và __MACOSX/proj/...) không còn segment chung và giữ nguyên tiền tố proj/ (lỗi B-19)
+  rawList = rawList.filter((e) => !isMacJunk(e.rawPath));
   if (rawList.length === 0) {
     return [];
   }
 
-  // (3) Kiểm tra segment đầu chung (như zip GitHub có <repo>-<ref>/)
+  // Kiểm tra segment đầu chung (như zip GitHub có <repo>-<ref>/)
   const commonPrefix = findCommonPrefix(rawList.map((e) => e.rawPath));
   if (archiveBytes) {
     archiveCommonPrefixMap.set(archiveBytes, commonPrefix);
