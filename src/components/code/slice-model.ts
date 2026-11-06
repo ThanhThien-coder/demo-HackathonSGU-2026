@@ -1,107 +1,148 @@
-import type { HybridArchitecturalNode } from "@/contracts";
+import type {
+  ExecutionTraceStep,
+  ExplainSelectionRequest,
+  HybridArchitecturalNode,
+  NodeAnalysisView,
+} from "@/contracts";
 
-export interface StepRange {
-  step: number;
-  startLine: number; // 1-based line number trong toàn bộ văn bản text
-  endLine: number;   // 1-based line number kết thúc bước
+export interface StepModel {
+  text: string;
+  lineMap: number[]; // lineMap[i] = số dòng gốc của dòng 0-based i trong text (0 nếu marker hoặc DTO)
 }
 
-export interface SliceModel {
-  text: string;
-  lineMap: number[]; // lineMap[i] = số dòng gốc của dòng 0-based i trong text (0 nếu tiêu đề/trống/marker)
-  stepRanges: Record<number, StepRange>;
+export interface FileTab {
+  path: string;
+  name: string; // basename
+  weak: boolean; // file có bước nằm trong analysis.weak_points
+  firstStep: number | null; // bước đầu thuộc file, null nếu file không có bước nào
+}
+
+export interface OriginalSelection {
+  range: ExplainSelectionRequest["range"];
+  selected_text: string;
+}
+
+/** Thỏa thuận với D19: bôi đen trong code của bước, bỏ chọn ⇒ `onSelect(null)`. */
+export interface CodeSelection extends OriginalSelection {
+  step_number: number;
+  rect: DOMRect;
+}
+
+// Chỉ các trường cần đọc, trùng hình với Selection của Monaco (dòng, cột tính từ 1).
+export interface ModelSelection {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+}
+
+const EMPTY_MODEL: StepModel = { text: "", lineMap: [] };
+
+function splitLines(text: string): string[] {
+  return text.replace(/\r\n/g, "\n").split("\n");
+}
+
+/** Bước đang xem: đúng `activeStep`, không có thì rơi về bước đầu. */
+export function findStep(
+  node: HybridArchitecturalNode | null | undefined,
+  activeStep: number | null | undefined
+): ExecutionTraceStep | null {
+  const steps = node?.trace_steps;
+  if (!steps || steps.length === 0) return null;
+  return steps.find((s) => s.step_number === activeStep) ?? steps[0];
 }
 
 /**
- * Xây dựng mô hình lát cắt (Slice Model) cho Monaco Editor và Code Viewer
- * Tuân thủ quy chuẩn spec/30_UI.md Mục 5 & Test UI-31 / T22:
- * - Mỗi bước bắt đầu bằng tiêu đề chuẩn: `// ── Bước {k} · {layer} · {file_path} · {function_name}`
- * - Số dòng gốc (lineNumbers): tiêu đề bước, dòng trống, marker (0) và DTO không hiện số dòng (lineMap = 0).
- * - Đầu snippet bước 2 của node N3 shop-api có số dòng là 14.
+ * Model của 1 bước (spec/30 Mục 5): chỉ `snippet` của bước đang xem, không nối các bước.
+ * Số dòng gốc lấy từ `snippet_line_map`, marker không có số (UI-31).
  */
-export function buildSliceModel(node: HybridArchitecturalNode | null | undefined): SliceModel {
-  if (!node || !node.trace_steps || node.trace_steps.length === 0) {
-    return {
-      text: "",
-      lineMap: [],
-      stepRanges: {},
-    };
-  }
+export function buildStepModel(
+  node: HybridArchitecturalNode | null | undefined,
+  activeStep: number | null | undefined
+): StepModel {
+  const step = findStep(node, activeStep);
+  if (!step) return EMPTY_MODEL;
 
-  const isPython = node.languages?.includes("PYTHON") || node.files?.[0]?.endsWith(".py");
-  const commentPrefix = isPython ? "#" : "//";
-
-  const allLines: string[] = [];
-  const lineMap: number[] = [];
-  const stepRanges: Record<number, StepRange> = {};
-
-  node.trace_steps.forEach((step, idx) => {
-    // 1-based start line của bước
-    const stepStartLine = allLines.length + 1;
-
-    // 1. Tiêu đề bước (không có số dòng -> lineMap = 0)
-    const originPart = step.origin_note ? ` · ${step.origin_note}` : "";
-    const headerLine = `${commentPrefix} ── Bước ${step.step_number} · ${step.layer} · ${step.file_path} · ${step.function_name}${originPart}`;
-    allLines.push(headerLine);
-    lineMap.push(0);
-
-    // 2. Từng dòng trong snippet
-    const snippetLines = (step.snippet || "").split("\n");
-    snippetLines.forEach((codeLine, lineIdx) => {
-      allLines.push(codeLine);
-
-      // Lấy số dòng gốc từ snippet_line_map
-      const origLine = step.snippet_line_map?.[lineIdx] ?? 0;
-      // Dòng marker hoặc dòng rỗng được gán 0
-      const isMarker = codeLine.trim().startsWith("// ...") || codeLine.trim().startsWith("# ...");
-      lineMap.push(isMarker ? 0 : origLine);
-    });
-
-    const stepEndLine = allLines.length;
-    stepRanges[step.step_number] = {
-      step: step.step_number,
-      startLine: stepStartLine,
-      endLine: stepEndLine,
-    };
-
-    // Dòng trống phân cách giữa các bước (lineMap = 0)
-    if (idx < node.trace_steps.length - 1) {
-      allLines.push("");
-      lineMap.push(0);
-    }
-  });
-
-  // 3. Khối kiểu dữ liệu liên quan (dto_snippet) nếu có
-  if (node.dto_snippet && node.dto_snippet.trim().length > 0) {
-    allLines.push("");
-    lineMap.push(0);
-
-    allLines.push(`${commentPrefix} ── Kiểu dữ liệu liên quan (DTO / Interface)`);
-    lineMap.push(0);
-
-    const dtoLines = node.dto_snippet.split("\n");
-    dtoLines.forEach((dtoLine) => {
-      allLines.push(dtoLine);
-      lineMap.push(0); // DTO không mang số dòng gốc của file
-    });
-  }
-
+  const lines = splitLines(step.snippet || "");
   return {
-    text: allLines.join("\n"),
-    lineMap,
-    stepRanges,
+    text: lines.join("\n"),
+    lineMap: lines.map((_, i) => step.snippet_line_map?.[i] ?? 0),
   };
 }
 
+/** Model của tab "Kiểu dữ liệu": không có số dòng. */
+export function buildDtoModel(node: HybridArchitecturalNode | null | undefined): StepModel {
+  if (!node?.dto_snippet) return EMPTY_MODEL;
+  const lines = splitLines(node.dto_snippet);
+  return { text: lines.join("\n"), lineMap: lines.map(() => 0) };
+}
+
+/** Mỗi file 1 tab, thêm file của bước nếu thiếu trong `node.files` để tab đang mở luôn tồn tại. */
+export function buildFileTabs(
+  node: HybridArchitecturalNode | null | undefined,
+  analysis: NodeAnalysisView | null | undefined
+): FileTab[] {
+  if (!node) return [];
+  const steps = node.trace_steps ?? [];
+  const weakSteps = new Set(analysis?.weak_points?.map((wp) => wp.step));
+  const paths = new Set([...(node.files ?? []), ...steps.map((s) => s.file_path)]);
+
+  return [...paths].map((path) => {
+    const fileSteps = steps.filter((s) => s.file_path === path);
+    return {
+      path,
+      name: path.split("/").pop() ?? path,
+      weak: fileSteps.some((s) => weakSteps.has(s.step_number)),
+      firstStep: fileSteps[0]?.step_number ?? null,
+    };
+  });
+}
+
+/** Dòng phía trên code, bỏ khi hàm bắt đầu ở dòng 1. */
+export function stepGapAbove(step: ExecutionTraceStep | null | undefined): string | null {
+  if (!step || step.line_start <= 1) return null;
+  return `⋯ dòng 1–${step.line_start - 1} không thuộc bài học`;
+}
+
 /**
- * Tìm số thứ tự bước (step) chứa dòng line (1-based), trả về null nếu nằm ngoài các bước.
+ * Đổi vùng chọn trong model sang số dòng gốc, cùng luật với `POST /api/explain-selection`:
+ * mọi dòng phải có số gốc liền nhau. Vùng rỗng, chỉ khoảng trắng, chạm marker hoặc ở tab
+ * "Kiểu dữ liệu" ⇒ null. Riêng trần `CONFIG.EXPLAIN_SELECTION_MAX_CHARS` không chặn ở đây:
+ * UI-34 cần giữ vùng chọn để hiện nút tắt.
  */
-export function stepAtLine(model: SliceModel, line: number): number | null {
-  if (!model?.stepRanges) return null;
-  for (const range of Object.values(model.stepRanges)) {
-    if (line >= range.startLine && line <= range.endLine) {
-      return range.step;
-    }
+export function toOriginalSelection(
+  model: StepModel,
+  selection: ModelSelection
+): OriginalSelection | null {
+  const lines = model.text.split("\n");
+  const { startLineNumber, startColumn } = selection;
+  let { endLineNumber, endColumn } = selection;
+
+  // Kéo chọn hết dòng làm vùng dừng ở cột 1 của dòng sau; dòng đó không có ký tự nào được chọn.
+  if (endColumn === 1 && endLineNumber > startLineNumber) {
+    endLineNumber -= 1;
+    endColumn = (lines[endLineNumber - 1]?.length ?? 0) + 1;
   }
-  return null;
+
+  const firstOriginal = model.lineMap[startLineNumber - 1];
+  for (let line = startLineNumber; line <= endLineNumber; line++) {
+    const original = model.lineMap[line - 1];
+    if (!original || original !== firstOriginal + (line - startLineNumber)) return null;
+  }
+
+  const picked = lines.slice(startLineNumber - 1, endLineNumber);
+  picked[picked.length - 1] = picked[picked.length - 1].slice(0, endColumn - 1);
+  picked[0] = picked[0].slice(startColumn - 1);
+  const selected_text = picked.join("\n");
+  if (selected_text.trim().length === 0) return null;
+
+  return {
+    range: {
+      line_start: firstOriginal,
+      col_start: startColumn,
+      line_end: firstOriginal + (endLineNumber - startLineNumber),
+      col_end: endColumn,
+    },
+    selected_text,
+  };
 }
