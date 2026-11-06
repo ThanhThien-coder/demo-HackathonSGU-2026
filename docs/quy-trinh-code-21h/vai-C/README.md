@@ -33,6 +33,7 @@ Máy không có Antigravity (agy) hoặc không có ai-kit: làm cùng phiếu n
 | 22:00–00:00 | [C08](C08-cham.md) · **Lát dọc 2 (00:00)** | Chấm Feynman `evaluate-feynman`, gợi ý theo lượt, cổng gác gợi ý |
 | 00:00–03:00 | [C09](C09-tong-quan.md) · **Mốc H+16** | Tổng quan repo, cổng gác tổng quan, route `/api/analyze-overview` |
 | 03:00–05:00 | [C10](C10-duyet-bundle.md) · **Mốc H+17** | Duyệt tay output AI repo demo với người thứ 2, ghi `mock_bundle.json` |
+| Nếu kịp | [C11](C11-giai-thich-doan-chon.md) | Giải thích đoạn chọn `explain-selection` (D-82). Bỏ trước nếu trễ |
 | 05:00–06:30 | 💤 Ngủ | Nghỉ ngơi sau mốc đóng băng tính năng |
 | 06:30–09:00 | Về đích (xem bên dưới) | Sửa lỗi có Issue nhãn bug, giữ nguyên prompt và bundle |
 
