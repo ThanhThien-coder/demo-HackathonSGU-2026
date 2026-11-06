@@ -23,7 +23,9 @@ function report(): IngestionReport {
 }
 
 const BOMB_BYTES = 64 * 1024 * 1024;
-const MAX_MS = 100;
+// Chạy riêng mỗi đường khoảng 30–75 ms. Bản chưa sửa mất 400–800 ms với 64 MB, nên 250 ms vẫn bắt được lỗi
+// mà không đỏ oan khi cả bộ test chạy song song trên máy chậm.
+const MAX_MS = 250;
 
 /** Đặt lại trường `size` trong Central Directory về `fake` để mô phỏng zip khai gian. */
 function lieAboutSize(zip: Uint8Array, fake: number): void {
