@@ -272,7 +272,7 @@ export function checkQuestions(raw: { questions: GeneratedQuestionRaw[] }, items
   graph: StaticEngineResult, analysis: NodeAnalysis): QuestionCheck[];
 ```
 
-Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi trong `issues` theo bảng Q1–Q8; tên từ `checkNames`, `findForbidden` đưa vào `name`. Câu qua khi mọi mục sau đúng:
+Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi trong `issues` theo bảng Q1–Q9; tên từ `checkNames`, `findForbidden` đưa vào `name`. Câu qua khi mọi mục sau đúng:
 
 | # | Kiểm |
 | :-: | :-- |
@@ -284,8 +284,10 @@ Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi tr
 | Q6 | `WEAKNESS`: lấy điểm dở cùng `skill`; từ cuối của `symbol` (sau `norm`) ∈ `identWords(feynman_question + reference_answer)` (câu hỏi **hoặc** đáp án). Không có điểm dở cùng kỹ năng ⇒ hỏng |
 | Q7 | `FLOW`: `flowSteps(reference_answer) ≥ min(CONFIG.FLOW_ANSWER_MIN_STEPS, item.step_indices.length)` |
 | Q8 | `CHANGE`: ≥ 1 chuỗi backtick trong `reference_answer` là file của node (`f === b` hoặc `f.endsWith("/" + b)`, `f ∈ node.files`) |
+| Q9 | `FLOW`: `feynman_question` không khớp `FLOW_GENERIC_RE` (hỏi chung "đi qua những bước / hàm nào", chép phần giải thích bước là trả lời được — C-04) |
 
 `flowSteps`: `common` = từ có trong code **mọi** bước của `step_indices` (khi có ≥ 2 bước). Bước `s` được tính khi có chuỗi backtick `b` trong `reference_answer` sao cho `b` là file của bước `s`, **hoặc** một từ dạng tên (không thuộc `LANGUAGE_WORDS`) của `b` nằm trong `identWords(function_name + snippet của s) \ common`.
+`FLOW_GENERIC_RE = /(?:những|các)\s+(?:bước|hàm|tầng|lớp|thành phần)(?:\s+[^\s?.,]+){0,6}\s+nào/iu` (không cờ `g`).
 
 `ARCHITECTURE` không có kiểm riêng ngoài Q1–Q5. Code không kiểm: câu có đúng trọng tâm, có lộ đáp án, có lặp phần X-Ray, đáp án có đúng (GUARD-21 ⇒ duyệt tay).
 
@@ -520,6 +522,7 @@ Fixture `50` Mục 1–2; `tech_stack = ["express","typeorm","pg","zod","jsonweb
 | GUARD-12 | `50` 2.3 (Q1 `FLOW` bước `[1,2,3]`, Q2 `WEAKNESS` bước `[2]`) ⇒ cả 2 qua |
 | GUARD-12 | Q1 `reference_answer` có "Redis" ⇒ Q1 hỏng (Q5). Q1 không có `findById` ở câu hỏi lẫn đáp án ⇒ hỏng (Q6). Q1 có "dòng 9" (bước 1, ngoài `[2]`) hoặc "dòng 30" ⇒ hỏng (Q4); "dòng 16–18" ⇒ qua |
 | GUARD-12 | Q2 đáp án chỉ có `` `findOne` `` ⇒ 1 bước < 2 ⇒ hỏng (Q7). Câu `CHANGE` không nêu file ⇒ hỏng; nêu `` `product.controller.ts` `` ⇒ qua. 1 ý bắt buộc ⇒ hỏng |
+| GUARD-12 | Câu `FLOW` "Luồng xử lý đi qua những hàm nào trước khi trả danh sách?" ⇒ hỏng (Q9); "Khi danh sách có 2 sản phẩm, loại hàng được gắn vào từng sản phẩm ở bước nào?" ⇒ không hỏng vì Q9 |
 | GUARD-04 | Phạm vi N3 / N2: `findOne`, `jwt.verify`, `JWT_SECRET`, `user_id` (code `userId`), `'Hết hàng'`, `201`, `for` ⇒ hợp lệ; `redisClient`, `verifyToken` ⇒ không |
 | GUARD-05 | `` `userService.fooBar` ``: node `STRUCTURAL` ⇒ hợp lệ; node `RESOLVED` ⇒ không. `symbolInStep("fooBar")` ở node `STRUCTURAL` ⇒ vẫn `false` |
 | GUARD-06 | Stack trên ⇒ cấm đủ 12 công nghệ. Thêm `ioredis` ⇒ redis hết cấm; `@aws-sdk/client-s3` ⇒ aws hết cấm; `mongoose` ⇒ mongodb hết cấm. Code bước có chú thích "dùng redis" ⇒ redis hết cấm cho node đó |

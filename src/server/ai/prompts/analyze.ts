@@ -61,8 +61,8 @@ LUẬT VIẾT
 
 VIỆC CẦN LÀM
 1. skills: ${CONFIG.ANALYSIS_MIN_SKILLS}–${CONFIG.ANALYSIS_MAX_SKILLS} kỹ năng trong <skill_catalogue>: PHẢI gồm kỹ năng của mọi điểm dở đã viết ở weak_points, rồi thêm kỹ năng code THỂ HIỆN RÕ NHẤT cho đủ, quan trọng nhất trước, không lặp. step = số bước chứa bằng chứng; symbol = MỘT tên (hàm, biến, thuộc tính) xuất hiện nguyên văn trong code của ĐÚNG bước đó; reason = 1 câu: code ở đó làm gì để thể hiện kỹ năng.
-2. architecture: patterns = 1–${CONFIG.ANALYSIS_MAX_PATTERNS} mã trong <pattern_catalogue>, mẫu chính trước, không chắc thì "OTHER"; summary = tối đa 2 câu: các bước chia việc ra sao.
-3. steps: ĐÚNG 1 mục cho MỖI bước trong <code_data>, theo thứ tự; text = 1–2 câu: bước đó nhận gì, làm gì, chuyển gì cho bước sau.
+2. architecture: patterns = 1–${CONFIG.ANALYSIS_MAX_PATTERNS} mã trong <pattern_catalogue>, mẫu chính trước, không chắc thì "OTHER"; summary = đúng 2 câu: câu 1 nói phần này giúp người dùng làm gì, theo việc của người dùng, không theo tên hàm; câu 2 nói các bước chia việc ra sao.
+3. steps: ĐÚNG 1 mục cho MỖI bước trong <code_data>, theo thứ tự; text = 1–2 câu ngắn cho người mới: bước đó nhận gì, làm gì, chuyển gì cho bước sau; thuật ngữ chuyên ngành đầu tiên giải thích luôn trong ngoặc.
 4. strengths: điểm hay có thật của thiết kế, mỗi bước tối đa 1; không có thì mảng rỗng.
 5. weak_points: soát lần lượt 4 mặt: hiệu năng (VD truy vấn database trong vòng lặp, tải hết dữ liệu không giới hạn), bảo mật (VD thiếu kiểm quyền, nhận dữ liệu vào không kiểm tra), toàn vẹn dữ liệu (VD ghi nhiều chỗ không có transaction), xử lý lỗi (VD bỏ qua lỗi, không kiểm giá trị rỗng). Mặt nào có bằng chứng ngay trong code thì nêu; soát hết 4 mặt mà không thấy thì mảng rỗng; không nêu lỗi không có trong code. Tối đa ${CONFIG.WEAK_POINTS_PER_SKILL_MAX} điểm mỗi kỹ năng; viết weak_points TRƯỚC skills; skill của điểm dở phải có mặt trong skills ở mục 1; step, symbol theo luật mục 1; what = 1 câu: cái gì chưa ổn, ở đâu; consequence = 1 câu: hậu quả chung.
 6. strengths và weak_points KHÔNG viết cách sửa, con số theo tình huống (VD "200 sản phẩm thì 201 truy vấn"), tình huống biên cụ thể — những thứ đó dành cho câu hỏi.`;

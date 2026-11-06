@@ -318,6 +318,25 @@ function isRouteReceiver(obj: Node, filePath: string, idx: SymbolIndex, scope: R
   return ROUTER_NAME.test(name);
 }
 
+// Chuỗi router.route('/p').get(a).post(b): trả về receiver (router) và path của route() (lỗi B-29)
+function resolveRouteChain(obj: Node): { receiver: Node; pathStr: string | null } | null {
+  let r: Node = obj;
+  while (r.type === "call_expression") {
+    const fn: Node | null = r.childForFieldName("function");
+    if (!fn || fn.type !== "member_expression") return null;
+    const prop = fn.childForFieldName("property")?.text ?? "";
+    const base = fn.childForFieldName("object");
+    if (!base) return null;
+    if (prop === "route") {
+      const args = r.childForFieldName("arguments");
+      return { receiver: base, pathStr: extractStaticString(args?.namedChild(0) ?? null) };
+    }
+    if (!HTTP_VERBS.has(prop)) return null;
+    r = base;
+  }
+  return null;
+}
+
 function isHandlerArg(arg: Node, scope: RouteScope): boolean {
   if (FIXED_VALUE_TYPES.has(arg.type)) return false;
   return !(arg.type === "identifier" && scope.fixedValues.has(arg.text));
@@ -629,9 +648,12 @@ export function buildCallGraph(
             const verb = prop.text.toLowerCase();
             if (HTTP_VERBS.has(verb)) {
               const argsNode = node.childForFieldName("arguments");
-              if (argsNode && argsNode.namedChildCount >= 2) {
+              // R.route('/p').get(h): path nằm ở route(), lời gọi động từ có thể chỉ có 1 đối số (B-29)
+              const chain = obj.type === "call_expression" ? resolveRouteChain(obj) : null;
+              const firstMw = chain ? 0 : 1;
+              if (argsNode && argsNode.namedChildCount >= firstMw + 1) {
                 const firstArg = argsNode.namedChild(0);
-                const pathStr = extractStaticString(firstArg);
+                const pathStr = chain ? chain.pathStr : extractStaticString(firstArg);
 
                 // Handler là arg cuối cùng, middlewares là các arg ở giữa
                 const argCount = argsNode.namedChildCount;
@@ -649,7 +671,7 @@ export function buildCallGraph(
 
                   if (handlerKey) {
                     const middlewares: string[] = [];
-                    for (let i = 1; i < argCount - 1; i++) {
+                    for (let i = firstMw; i < argCount - 1; i++) {
                       const mwArg = argsNode.namedChild(i);
                       if (mwArg) {
                         const mwText =
@@ -660,7 +682,7 @@ export function buildCallGraph(
                       }
                     }
 
-                    const displayName = `${obj.text}.${verb}('${pathStr ?? ""}')`;
+                    const displayName = `${(chain ? chain.receiver : obj).text}.${verb}('${pathStr ?? ""}')`;
 
                     const binding: RouteBinding = {
                       file_path: filePath,
@@ -694,7 +716,7 @@ export function buildCallGraph(
                       const mwKey = idx.symbols.has(mwDirectKey)
                         ? mwDirectKey
                         : resolveHandlerKey(
-                            argsNode.namedChild(1)!,
+                            argsNode.namedChild(firstMw)!,
                             filePath,
                             verb,
                             null,

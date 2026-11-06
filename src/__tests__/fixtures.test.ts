@@ -207,47 +207,24 @@ describe("Kiểm tra khớp kiểu contracts spec/02 Mục 3, 5 bằng satisfies
     });
   });
 
-  it("overview.json khớp kiểu RepoOverviewRaw (spec/02 Mục 5.2)", () => {
-    // 1. Kiểm tra runtime các trường enum trước khi ép kiểu
-    expect(ARCHITECTURE_PATTERNS).toContain(overviewFixture.architecture_style);
-    for (const l of overviewFixture.layers) {
-      expect(ARCHITECTURAL_LAYERS).toContain(l.layer);
-    }
+  it("overview.json khớp kiểu RepoOverviewRaw (spec/02 Mục 5.2, D-83)", () => {
+    const data = overviewFixture satisfies RepoOverviewRaw;
 
-    // 2. Ép kiểu qua biến có kiểu rõ ràng và kiểm satisfies
-    const typed = overviewFixture as RepoOverviewRaw;
-    const data = typed satisfies RepoOverviewRaw;
-
-    expect(data.architecture_style).toBe("LAYERED");
     expect(data.summary).toBe(
-      "Web bán hàng chia 3 tầng. Các trang cần đăng nhập đi qua `authMiddleware` kiểm tra JWT."
+      "Web bán hàng cho khách mua sản phẩm trực tuyến. Khách đăng ký, xem sản phẩm, thêm vào giỏ rồi thanh toán."
     );
-
-    expect(Array.isArray(data.layers)).toBe(true);
-    expect(data.layers.length).toBe(1);
-    expect(data.layers[0]).toEqual({
-      layer: "MIDDLEWARE",
-      role: "Kiểm tra token trước khi vào trang cần đăng nhập",
-      nodes: ["<id N2>", "<id N5>"],
-    });
-
-    expect(data.main_flow).toBe(
-      "Đăng ký, xem hồ sơ, thêm vào giỏ rồi thanh toán; thanh toán xong gửi email xác nhận."
-    );
-
-    expect(Array.isArray(data.notes)).toBe(true);
-    expect(data.notes.length).toBe(2);
-
-    expect(data.notes[0]).toEqual({
-      text: "Hai chỗ truy vấn database trong vòng lặp, sẽ chậm khi dữ liệu lớn.",
-      nodes: ["<id N3>", "<id N5>"],
-    });
-
-    // Chỗ cố ý sai theo spec/50 Mục 2.2: nhận xét không căn cứ về báo cáo doanh thu N7
-    expect(data.notes[1]).toEqual({
-      text: "Báo cáo doanh thu cũng truy vấn trong vòng lặp.",
-      nodes: ["<id N7>"],
-    });
+    expect(data.groups.map((g) => g.group_id)).toEqual([
+      "group-entity-user",
+      "group-entity-product",
+      "group-entity-order",
+      "group-route-reports",
+      "group-entity-coupon",
+    ]);
+    // Chỗ cố ý sai: nhóm "group-entity-coupon" không có trong engine ⇒ cổng gác bỏ (GUARD-11)
+    expect(data.node_titles.map((t) => t.node_id)).toEqual([
+      "<id N1>", "<id N2>", "<id N3>", "<id N4>", "<id N5>", "<id N6>", "<id N7>",
+    ]);
+    expect(new Set(data.node_titles.map((t) => t.title)).size).toBe(7);
   });
 
   it("questions-n3.json khớp kiểu GeneratedQuestionRaw[] (spec/02 Mục 5.3)", () => {

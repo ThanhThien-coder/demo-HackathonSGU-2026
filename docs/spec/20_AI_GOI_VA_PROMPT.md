@@ -158,7 +158,7 @@ export function withGuardFeedback<T>(req: LlmRequest<T>, issues: GuardIssue[]): 
 ```text
 [GUARD_RETRY_RULE]
 LẦN TRƯỚC BỊ TỪ CHỐI: <guard_feedback> là dữ liệu do hệ thống dựng, mỗi dòng một lỗi. Viết lại toàn bộ JSON, giữ phần đúng, tránh các lỗi đó.
-A1 kỹ năng sai · A3 điểm dở sai · A5 steps phải đúng 1 mục mỗi bước · A6 chữ rỗng, tên không có trong code, công nghệ cấm hoặc số dòng sai · O1 summary hoặc main_flow rỗng · O2 tên không có trong repo · O3 công nghệ cấm · O4 có số dòng · Q1 sai kỹ năng · Q2 thiếu trường hoặc sai số ý · Q3 tên không có trong code · Q4 số dòng ngoài bước · Q5 công nghệ cấm · Q6 thiếu ký hiệu của điểm dở · Q7 đáp án nhắc quá ít bước · Q8 đáp án thiếu tên file.
+A1 kỹ năng sai · A3 điểm dở sai · A5 steps phải đúng 1 mục mỗi bước · A6 chữ rỗng, tên không có trong code, công nghệ cấm hoặc số dòng sai · O1 chữ rỗng · O2 tên không có trong repo · O3 công nghệ cấm · O4 có số dòng · O5 thiếu hoặc trùng nhóm, bài · O6 tên sai số từ · Q1 sai kỹ năng · Q2 thiếu trường hoặc sai số ý · Q3 tên không có trong code · Q4 số dòng ngoài bước · Q5 công nghệ cấm · Q6 thiếu ký hiệu của điểm dở · Q7 đáp án nhắc quá ít bước · Q8 đáp án thiếu tên file · Q9 câu FLOW hỏi chung, phải đặt tình huống cụ thể.
 ```
 
 ---
@@ -331,7 +331,7 @@ export const OVERVIEW_SCHEMA = obj({                               // = RepoOver
 
 ### View
 
-`facts` do code tính: `archetype`, `framework` = `detected_framework`, `tech_stack`, `root_node_ids` (không có `prerequisites`, sort `id`), `main_path_node_ids` = `mainPath(graph)` (`11` ENG-155). `ai` = bản đã kiểm (`21` GUARD-11) hoặc `null`. Tên AI chỉ để hiện; `node.id` và `title` của engine không đổi (D-08). `ai = null` ⇒ client giữ tên engine và câu dự phòng dựng từ `facts` (`30`).
+`facts` do code tính: `archetype`, `framework` = `detected_framework`, `tech_stack`, `root_node_ids` (không có `prerequisites`, sort `id`), `main_path_node_ids` = `mainPath(graph)` (`11` ENG-155). `ai` = bản đã kiểm (`21` GUARD-11) hoặc `null`. `ai = null` ⇒ client giữ tên engine và câu dự phòng dựng từ `facts` (`30`).
 
 ---
 
@@ -379,7 +379,7 @@ LUẬT CHO MỖI CÂU
 [FOCUS_GUIDE_A]
 GÓC HỎI (focus)
 - WEAKNESS (dựa vào diem_do cùng skill): NOVICE — nêu tình huống có con số hoặc hậu quả cụ thể, hỏi vì sao vấn đề xảy ra; người học giải thích nguyên nhân, không cần đếm hay chỉ dòng. PRACTITIONER — hậu quả trong tình huống cụ thể và cách sửa; 1 ý bắt buộc là cách sửa. ARCHITECT — tình huống biên / đồng thời / dữ liệu rất lớn; ý bắt buộc gồm cơ chế hỏng và hướng sửa ở mức thiết kế. Tên chỗ dở phải có trong câu hỏi hoặc reference_answer (không cần có trong câu hỏi).
-- FLOW: hỏi một dữ liệu từ đâu mà có; người học kể đường đi và nơi dữ liệu được tạo / đổi / gắn thêm, không cần thuộc tên hàm. reference_answer nhắc tên ở ít nhất {{FLOW_MIN}} bước khác nhau (lát cắt ít bước hơn thì mọi bước). PRACTITIONER thêm nhánh lỗi / điều kiện rẽ; ARCHITECT thêm chỗ có thể hỏng giữa các bước.
+- FLOW: đặt 1 tình huống cụ thể mà code xử lý thấy được (giá trị vào đi vào một nhánh `if`, một lỗi được ném, một giá trị được trả về) rồi hỏi với đúng tình huống đó: dữ liệu được tạo / đổi / gắn thêm ở đâu, dừng hoặc rẽ ở bước nào, vì sao. Câu hỏi KHÔNG có dạng "đi qua những bước / hàm nào" (chép phần giải thích bước là trả lời được — C-04); đáp án chỉ nêu xử lý có trong <code_data>. Không cần thuộc tên hàm. reference_answer nhắc tên ở ít nhất {{FLOW_MIN}} bước khác nhau (lát cắt ít bước hơn thì mọi bước). PRACTITIONER thêm nhánh lỗi / điều kiện rẽ; ARCHITECT thêm chỗ có thể hỏng giữa các bước.
 - ARCHITECTURE (dựa vào kien_truc, diem_hay): đưa 1 yêu cầu mới (VD thêm route có cùng ràng buộc; gọi cùng nghiệp vụ từ tác vụ chạy ngầm không qua HTTP): dùng lại được gì, viết thêm gì, vì sao.
 - CHANGE: đưa 1 thay đổi cụ thể (đổi đường dẫn route, đổi nguồn dữ liệu, thêm trường): sửa file nào, file nào không phải sửa, vì sao. reference_answer nêu ít nhất 1 tên file của node trong backtick.
 
@@ -640,7 +640,7 @@ export const injectionGrading = (t: Pick<RunQuestion, "must_have_points">): Grad
 
 ### Luồng (AI-38, D-82)
 
-`explainSelection(session, graph, req): Promise<ExplainSelectionResponse>`, gọi từ `POST /api/explain-selection` (`03`).
+`explainSelection(session, graph, req): Promise<ExplainSelectionResponse>`, gọi từ `POST /api/explain-selection` (`03`). Route làm bước 1, hàm làm bước 2–6.
 
 1. Lấy node `req.node_id` và bước `req.step_number` từ kết quả engine của phiên. Cắt vùng `req.range` trong `snippet` theo `snippet_line_map` (số dòng gốc, cột tính từ 1). Vùng ra ngoài bước, rỗng, khác `req.selected_text` (so sau khi bỏ khoảng trắng 2 đầu) hoặc dài hơn `CONFIG.EXPLAIN_SELECTION_MAX_CHARS` ký tự ⇒ `ERR_SELECTION_INVALID`, 0 token.
 2. `references` do code tính, 0 token: các bước của node khác có phần cuối `function_name` (sau dấu `.` cuối) trùng một tên khớp `IDENT_RE` trong vùng chọn; sort theo `node_id` rồi `step_number`; tối đa `CONFIG.GRADE_REFERENCED_MAX` mục.

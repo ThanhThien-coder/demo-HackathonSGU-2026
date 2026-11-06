@@ -123,7 +123,7 @@ export const CONFIG = {
   LLM_RETRY_JITTER_MS: 100,           // Cộng ngẫu nhiên [0, JITTER)
   GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
   GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
-  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 600, QUESTIONS: 900, GRADE: 500, EXPLAIN: 400 },
+  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 1400, OVERVIEW: 1500, QUESTIONS: 900, GRADE: 500, EXPLAIN: 400 },   // Đo thật: OVERVIEW 13 bài vượt 600 (C-12); ANALYZE bài 5 bước vượt 900 (C-02)
   LLM_PRICE_INPUT_USD_PER_M: 0.30,    // USD / 1 triệu token vào (D-69)
   LLM_PRICE_OUTPUT_USD_PER_M: 2.50,   // USD / 1 triệu token ra, gồm token suy nghĩ (D-69)
   ANALYZE_CONCURRENCY: 3,             // Số lời gọi analyze-node chạy cùng lúc / phiên
@@ -553,10 +553,10 @@ export interface GradingRaw {           // = responseSchema của lời gọi ch
 // Đầu vào chấm đọc từ node_runs.questions (03), không có code_context (D-36)
 
 export type GuardCall = "analyze" | "overview" | "questions" | "grade" | "explain";
-export type GuardCode =                                  // 21: A1–A7, O1–O6, Q1–Q8, E1–E4, G1–G2
+export type GuardCode =                                  // 21: A1–A7, O1–O6, Q1–Q9, E1–E4, G1–G2
   | "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7"
   | "O1" | "O2" | "O3" | "O4" | "O5" | "O6"
-  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8"
+  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8" | "Q9"
   | "E1" | "E2" | "E3" | "E4"
   | "G1" | "G2";
 export interface GuardIssue {                            // Lý do cổng gác, do code dựng (GUARD-22)

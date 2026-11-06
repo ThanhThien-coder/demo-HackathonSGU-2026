@@ -29,6 +29,11 @@ export const DATA_TAGS = [
   "previous_points",
   "learner_history",
   "referenced_steps",
+  "node_info",
+  "step_info",
+  "flow",
+  "selection",
+  "references",
 ] as const;
 
 export type DataTag = (typeof DATA_TAGS)[number];
@@ -79,7 +84,7 @@ export const MODE_B = `CHẾ ĐỘ B — THUẬT TOÁN / CODE TUẦN TỰ: lát 
 export const LOW_CONFIDENCE = `ĐỘ TIN CẬY THẤP: thứ tự gọi giữa các bước do hệ thống suy luận, có thể sai. Khi nói bước này gọi bước kia, viết "có thể gọi" hoặc "nhiều khả năng chuyển sang"; không khẳng định chắc chắn.`;
 
 export const GUARD_RETRY_RULE = `LẦN TRƯỚC BỊ TỪ CHỐI: <guard_feedback> là dữ liệu do hệ thống dựng, mỗi dòng một lỗi. Viết lại toàn bộ JSON, giữ phần đúng, tránh các lỗi đó.
-A1 kỹ năng sai · A3 điểm dở sai · A5 steps phải đúng 1 mục mỗi bước · A6 chữ rỗng, tên không có trong code, công nghệ cấm hoặc số dòng sai · O1 summary hoặc main_flow rỗng · O2 tên không có trong repo · O3 công nghệ cấm · O4 có số dòng · Q1 sai kỹ năng · Q2 thiếu trường hoặc sai số ý · Q3 tên không có trong code · Q4 số dòng ngoài bước · Q5 công nghệ cấm · Q6 thiếu ký hiệu của điểm dở · Q7 đáp án nhắc quá ít bước · Q8 đáp án thiếu tên file.`;
+A1 kỹ năng sai · A3 điểm dở sai · A5 steps phải đúng 1 mục mỗi bước · A6 chữ rỗng, tên không có trong code, công nghệ cấm hoặc số dòng sai · O1 chữ rỗng · O2 tên không có trong repo · O3 công nghệ cấm · O4 có số dòng · O5 thiếu hoặc trùng nhóm, bài · O6 tên sai số từ · Q1 sai kỹ năng · Q2 thiếu trường hoặc sai số ý · Q3 tên không có trong code · Q4 số dòng ngoài bước · Q5 công nghệ cấm · Q6 thiếu ký hiệu của điểm dở · Q7 đáp án nhắc quá ít bước · Q8 đáp án thiếu tên file · Q9 câu FLOW hỏi chung, phải đặt tình huống cụ thể.`;
 
 /** Dựng khối cảnh báo cho tin nhắn người dùng khi phát hiện file khả nghi (AI-14). */
 export function renderWarning(files: string[] | string): string {

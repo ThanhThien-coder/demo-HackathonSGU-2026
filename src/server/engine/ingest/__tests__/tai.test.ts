@@ -215,6 +215,36 @@ describe("T-ING-07: Thăm dò repo (probeRepo)", () => {
     });
   });
 
+  it("B-16 (ING-32): HEAD.zip 302 tới SHA 40 hex => giữ ref, ref_label = null", async () => {
+    const sha = "5da6ad13f8be8e571a9fc2eb4d9b421adfa53a78";
+    mockByUrl({
+      [HEAD_ZIP]: () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: `https://codeload.github.com/a/b/zip/${sha}` },
+        }),
+    });
+    const res = await probeRepo(repoInfo);
+    expect(res.head_zip).toEqual({
+      download_url: `https://codeload.github.com/a/b/zip/${sha}`,
+      ref: sha,
+      ref_label: null,
+    });
+  });
+
+  it("B-16 (ING-32): tên nhánh 40 ký tự không phải hex vẫn là nhãn", async () => {
+    const name = "feature-" + "x".repeat(32);
+    mockByUrl({
+      [HEAD_ZIP]: () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: `https://codeload.github.com/a/b/zip/refs/heads/${name}` },
+        }),
+    });
+    const res = await probeRepo(repoInfo);
+    expect(res.head_zip?.ref_label).toBe(name);
+  });
+
   it("B-14: HEAD.zip 404 nhưng trang repo 200 => OK, head_zip = null", async () => {
     mockByUrl({ [PAGE]: () => new Response(null, { status: 200 }) });
     const res = await probeRepo(repoInfo);

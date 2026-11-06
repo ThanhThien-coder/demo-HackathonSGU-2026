@@ -344,6 +344,30 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
   });
 
   // ---------------------------------------------------------------------------
+  // T-ENG-22b: Đoạn cuối là hành động, tách - và _ (lỗi B-30)
+  // ---------------------------------------------------------------------------
+  it.each([
+    ["POST", "/orders/:id/cancel", "Cancel Order"],
+    ["POST", "/auth/login", "Login"],
+    ["GET", "/health", "Health"],
+    ["DELETE", "/articles/:slug/comments/:id", "Delete Article Comment"],
+    ["POST", "/auth/register", "Register"],
+    ["POST", "/users/register", "Register User"],
+    ["GET", "/search", "Search"],
+    ["GET", "/login", "Login"],
+    ["GET", "/reset_password_requests", "List Reset Password Requests"],
+    ["POST", "/reset-password", "Create Reset Password"],
+    ["POST", "/orders/:id/items", "Create Order Item"],
+    ["GET", "/users/:id/orders/:orderId", "Get User Order"],
+    ["PATCH", "/users/:id/orders", "Update User Order"],
+  ])("T-ENG-22b: %s %s => %s", (method, path, expected) => {
+    const ctx = createDummyContext();
+    const c = createDummyCandidate({ id: `cand-${method}-${path}`, base_title: "" });
+    c.binding = { file_path: "r.ts", line_start: 1, line_end: 1, kind: "HTTP", method, path, handler: "h", middlewares: [], display_name: "" };
+    expect(nameCandidate(c, ctx).base_title).toBe(expected);
+  });
+
+  // ---------------------------------------------------------------------------
   // T-ENG-23: DOMAIN_TERMS và Khử trùng tên
   // ---------------------------------------------------------------------------
   it("T-ENG-23: DOMAIN_TERMS crawler/run.py main() => Crawler / Page; dedupe hai Checkout ở cart/ và payment/ => Checkout (cart), Checkout (payment), id không đổi", async () => {

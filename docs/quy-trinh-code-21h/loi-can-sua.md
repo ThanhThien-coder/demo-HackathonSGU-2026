@@ -212,7 +212,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-32 giả định link chuyển hướng của `archive/HEAD.zip` chứa tên nhánh, nhưng GitHub hiện trả commit SHA. `refs.ts` gán `ref_label = ref` nên SHA đi vào chỗ của tên nhánh.
 - **Cần sửa:** trong `resolveRef`, `ref` là SHA 40 ký tự thì đặt `ref_label = null`, giữ nguyên `ref`. Sửa ING-32 theo. Muốn hiện tên nhánh thật thì phải lấy thêm từ nguồn khác.
 - **Kiểm tra:** nạp BrewLite, thanh trên chỉ còn `@ 5da6ad1`.
-- **Trạng thái:** đã thấy trên site, chưa làm. Làm cùng D-14.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b16-ref-label`. `headZipToResolvedRef` trong `refs.ts`: `ref` là SHA 40 hex thì `ref_label = null`, giữ nguyên `ref`; tên nhánh dài 40 ký tự không phải hex vẫn là nhãn. Spec ING-32 đã có luật này. Có 2 test trong `tai.test.ts`. Chạy thật BrewLite: `ref_label = null`, `snapshot_id` bắt đầu `6cd0cf1`. `CockpitHeader.tsx` đã hiện `· @ <sha7>` khi nhãn là `null`, nên không sửa file Vai D; phần bố cục thanh trên vẫn là D-14. Typecheck sạch, lint 0 lỗi, 837 test qua. Chưa đổi `ENGINE_VERSION`.
 
 ### B-17 · Vừa · Monorepo chọn nhầm gói nhỏ rồi báo lỗi
 
@@ -267,14 +267,15 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** Pipfile chỉ có `[packages]` cho danh sách rỗng. Pipfile có `pytz` trước `fastapi` cũng rỗng, nên không nhận ra framework. `Cargo.toml` và `pubspec.yaml` có mục gói nằm cuối file cũng rỗng.
 - **Nguyên nhân:** `fingerprint.ts` dùng `\z` trong regex. JavaScript không có `\z`, ký hiệu này khớp chữ `z` thường, nên regex không nhận ra cuối file và dừng ở chữ `z` đầu tiên.
 - **Cần sửa:** đổi `\z` thành `$(?![\s\S])` như nhánh poetry, thêm test.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. Đổi 3 chỗ `\z` (Pipfile, pubspec, Cargo) thành `$(?![\s\S])`. Tìm thêm: regex pubspec dùng `\s*` nuốt luôn dấu thụt đầu của gói đầu tiên nên gói đầu bị mất, đã đổi thành `[ 	]*?
+`. Test trong `goi-ngon-ngu.test.ts` (Pipfile có `pytz` trước `fastapi`, Cargo, pubspec, tên gói chứa chữ `z`). Chạy thật `flutter/samples`: nhận framework Flutter, 68 gói trong `tech_stack`. Typecheck sạch, lint 0 lỗi, 876 test qua.
 
 ### B-24 · Nhẹ · Repo Vue JavaScript bị báo TypeScript
 
 - **Hiện tượng:** `gothinkster/vue-realworld-example-app` có 19 file `.vue` đều là JavaScript, nhưng `primary_language` là `TYPESCRIPT`.
 - **Nguyên nhân:** `buildFingerprint` cộng mọi `.vue`, `.svelte` vào `TYPESCRIPT`, không dùng ngôn ngữ ING-101 đã tìm được.
 - **Cần sửa:** tính phần `.vue`, `.svelte` theo `file_language` sau khi trích xuất. File không được giữ thì mới dùng giá trị mặc định.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. `buildFingerprint` nhận thêm tham số tùy chọn `fileLanguage` (từ `runIngest` và `rescopeIngest`): `.vue`, `.svelte` tính theo file ảo `.js` hoặc `.ts` của ING-101; file không được giữ thì mặc định `TYPESCRIPT`. 3 test trong `goi-ngon-ngu.test.ts`. Chạy thật `gothinkster/vue-realworld-example-app`: `primary_language` thành `JAVASCRIPT` (58 949 byte, kèm 868 byte `TYPESCRIPT` từ file `.ts`). Chưa đổi `ENGINE_VERSION`. Hàm `buildFingerprint` có thêm tham số so với chữ ký trong spec 10 Mục 12 (đã có thêm `registry` từ trước); chưa sửa spec.
 
 ### B-25 · Nhẹ · Báo nhầm tsconfig hợp lệ là hỏng
 
@@ -314,7 +315,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `callgraph.ts` lấy nguyên text receiver làm `display_name`.
 - **Cần sửa:** dựng tên gọn như `router.delete('/:userId')`.
 - **Kiểm tra:** chạy `hagopj13/node-express-boilerplate`, tên bước nằm trên 1 dòng và có path.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b29-route-name`. `callgraph.ts` thêm `resolveRouteChain`: với `R.route(path).get(a).post(b)`, mỗi động từ thành 1 binding có `path` lấy từ `route()`, `display_name` 1 dòng `router.delete('/:userId')`, nhận cả động từ chỉ có 1 đối số; cú pháp thường và `cache.get('k')` không đổi. Có 4 test trong `route-chain.test.ts`. Chạy thật `hagopj13/node-express-boilerplate`: bước route nằm 1 dòng và có path (`router.get('/:userId')`, `router.delete('/:userId')`, `router.post('/')`). Tên bài vẫn còn `Get User` và `Get User #2` (cho `GET /` và `GET /:userId`): đó là luật đặt tên của B-30, chưa sửa ở đây. `callgraph.ts` thuộc luồng Minh, cần báo để tránh xung đột. Typecheck sạch, lint 0 lỗi, test xanh. Chưa đổi `ENGINE_VERSION`.
 
 ### B-30 · Vừa · Tên bài tự sinh khó hiểu hoặc sai nghĩa
 
@@ -324,7 +325,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Lưu ý:** id node có `slug(base_title)`, đổi tên là đổi id. Phải đổi `ENGINE_VERSION`, và tiến độ của phiên cũ không dùng lại được.
 - **Kiểm tra:** cập nhật bảng T-ENG-22, tên 6 repo trên đọc được thành câu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b30-ten-bai`. `naming.ts` làm theo spec 11 Mục 13 Bậc 1 đã sửa: `ACTION_SEGMENTS` dùng thẳng (`Cancel Order`, `Login`, `Health`; bỏ `auth`), `DELETE` nhiều đoạn giữ động từ (`Delete Article Comment`), tách `-` và `_`, có tham số xen thì chèn tài nguyên (`List User Orders`). Thêm bảng T-ENG-22b trong `node.test.ts` (13 ca). Sửa 2 test cũ theo luật mới (`User Register` → `Register User`, `Create Register` → `Register`). Chạy thật: BrewLite ra `Health`, `Login`, `Register`; microblog ra `Search`, `List Reset Password Requests`, không còn `List Logins`, `List Searchs`; boilerplate ra `Create Forgot Password`. Còn lại ngoài luật đã chốt: `Get User` và `Get User #2` (GET `/` và `GET /:userId` cùng đoạn `users`, vì path `/` không có đoạn tĩnh), `List Explores`, `Order Me`. Đổi tên là đổi `id` nên phải đổi `ENGINE_VERSION` (vào mốc `1.8.0`), chưa đổi; tiến độ của phiên cũ không dùng lại được. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-31 · Vừa · Test và bản offline không theo repo demo thật
 
@@ -476,19 +477,19 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `ANALYZE` chỉ có 900 token đầu ra, tiếng Việt có thể bị cắt.
 - **Cần sửa:** phân tích hết repo demo trên AI thật, đếm bài lỗi rồi chỉnh `LLM_MAX_OUTPUT_TOKENS` nếu cần.
-- **Trạng thái:** cần đo trên AI thật.
+- **Trạng thái:** chờ kiểm. Phân tích thật 13 bài BrewLite: `Create Order` (5 bước) bị cắt ở 900 (`NOT_STOP`) lần đầu, gọi lại vừa đủ (~754); bài 2–4 bước ra 309–669 token. Ước ~150 + 150/bước ⇒ bài 7 bước ~1 200. Nâng `ANALYZE` lên 1400 (`02`, `config.ts`); chạy lại `Create Order`: 1 request, 729 token.
 
 ### C-03 · Vừa · Câu hỏi gắn sai dòng code
 
 - **Hiện tượng:** bài `Order` nói `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 "thay vì viết thủ công". Thực tế dòng 21–25 chính là ca viết tay, biến `ALL` chỉ dùng ở dòng 44 và 49. Đáp án tham khảo cũng sai theo.
 - **Cần sửa:** sửa prompt và thêm ca này vào `review/loi_da_gap.md`, rồi kiểm bằng duyệt tay. Không viết kiểm tra bằng code cho lỗi này, vì cổng gác không kiểm được nghĩa đúng sai (GUARD-21).
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật câu hỏi 8 (quan hệ phải đúng như `<code_data>`) đã thêm ở C-08. Chạy thật BrewLite `Update Order Status` và `Auth Login` (6 câu, 3 lượt): mọi quan hệ và số dòng khớp code. Bản BrewLite hiện tại không còn `canTransition` nên chưa dựng lại đúng ca cũ.
 
 ### C-04 · Vừa · Câu hỏi chỉ lặp lại phần giải thích
 
 - **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
 - **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật `FLOW` chế độ A (AI-25) đặt tình huống cụ thể; thêm cổng gác GUARD-12 `Q9` (`FLOW_GENERIC_RE`): câu `FLOW` dạng "đi qua những bước / hàm nào" ⇒ gọi lại riêng câu đó. Test xanh. Chạy thật câu 1 của `Update Order Status`, `Auth Login`: lần này AI không viết mẫu hỏi chung nên `Q9` chưa bật; `Auth Login` vẫn có câu "được chuyển tiếp như thế nào" (chép được một phần) — regex chỉ bắt đúng mẫu chữ, phần nghĩa vẫn phải duyệt tay (GUARD-21).
 
 ### C-05 · Vừa · Tổng quan AI không ra sau khi phân tích hết bài
 
@@ -744,7 +745,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đổi thành câu 1 nói phần này giúp người dùng làm gì, câu 2 nói các bước chia việc. Sửa `20`, prompt, đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`. Không đổi contract. Sau đó Vai D đưa câu 1 lên đầu tab X-Ray.
 - **Kiểm tra:** chạy AI thật trên repo demo, duyệt tay ít nhất 3 bài, câu đầu nói đúng việc của người dùng.
 - **Ghi chú 06/11:** quyết định D-84 dùng câu 1 này làm dòng "Vai trò" của thẻ vai trò (D-22). Sửa thêm `steps[].text` cho người mới đọc, vì tour (D-19) hiện từng câu này.
-- **Trạng thái:** đã kiểm prompt, chưa chạy AI thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật 2, 3 của prompt phân tích chép đúng `20` AI-16; gộp vào PR C-12 để dùng chung `PROMPT_VERSION` `1.2.0`. Chạy AI thật 4 bài BrewLite (`Create Order`, `Auth Register`, `List Products`, `Payment Create-url`), duyệt tay: 4/4 câu 1 nói việc của người dùng, bước có giải thích thuật ngữ trong ngoặc. `Create Order` 5 bước ra 739 token, gần trần 900 (xem C-02).
 
 ### C-08 · Vừa · Code AI chưa theo quyết định D-74
 
@@ -838,7 +839,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 - **Hiện tượng:** tổng quan mới (D-83) cần biết sản phẩm làm gì, nhưng bước nạp repo không giữ README hay mô tả manifest.
 - **Cần sửa:** giữ `readme_excerpt` (đã che secret, cắt theo `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description`. Sửa `10`, `src/server/engine/ingest/*`.
 - **Kiểm tra:** repo có README ra đoạn đầu; repo không có ra `null`; secret trong README bị che.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42` (tên nhánh lỡ đặt, nội dung là B-41). Theo ING-123: `pickReadmeEntry` (README ở offset, không có thì ở gốc, path nhỏ nhất, bỏ nếu quá `MAX_MANIFEST_BYTES`), `buildProjectText` (che secret rồi cắt `OVERVIEW_README_MAX_CHARS`, `manifest_description` từ `package.json`, `pyproject.toml`, `pom.xml`), nối vào `runIngest`. README giải nén riêng, không vào `code` hay `manifests`, không tính số file. Thêm 2 trường vào `IngestOutput` (`src/contracts/engine-internal.ts`, theo `spec/02` đã merge). Quét thật: BrewLite có README 2000 ký tự và mô tả `BrewLite - Backend NestJS + Prisma + PostgreSQL`; `nestjs/nest` có cả hai; Django có README, mô tả `null`. Test `mo-ta.test.ts` (T-ING-35, T-ING-36). Typecheck sạch, lint 0 lỗi, test xanh. Chưa làm: chép hai trường vào `StaticEngineResult` (`graph/index.ts`, thuộc Minh, cùng B-40); đường tải chọn lọc (`selective.ts`) trả `null` vì README nằm ngoài phần đã tải; chưa sửa `spec/10` Mục 8 vì đã có ING-123.
 
 ### B-42 · Vừa · Package `com.example.demo` bị coi là file test
 
@@ -882,19 +883,19 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-81: câu đầu của mỗi run có `focus` = `FLOW`. Sửa `22` Mục 6, `src/lib/plan.ts`, test T-PLAN.
 - **Kiểm tra:** mọi run có câu 1 là `FLOW`; các luật D-34 vẫn đúng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. BKT-50 trong `planNodeQuestions`, áp sau BKT-46, BKT-49. 8 ca T-PLAN khớp bảng `22` Mục 6, phủ 3 nhánh: đưa câu `FLOW` lên đầu (P-A, P-G1, P-H), đổi câu thành `FLOW` (P-B, P-D2), thêm câu `FLOW` (P-C, P-D); kế hoạch 1 câu của D-34 thành 2 câu (P-D). 6 ca trong `src/__tests__/kich-ban-ham.test.ts` (A3, B1, C4, C6, C7, E2) sửa phần kế hoạch theo BKT-50. `spec/50` Mục 3 chưa cập nhật: C6, C7 giờ có thêm câu `FLOW` cùng kỹ năng, số BKT của kịch bản cần tính lại.
 
 ### C-11 · Vừa · Chưa có lời gọi giải thích đoạn chọn
 
 - **Cần sửa:** theo D-82: prompt, schema, cổng gác, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION`. Sửa `20`, `21`, `src/server/ai/*`. Endpoint ở A-08.
 - **Kiểm tra:** chạy AI thật 3 vùng chọn (từ khóa, tên, đoạn code); tên bịa bị chặn; vùng chọn sai ra `ERR_SELECTION_INVALID`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `prompts/explain.ts`, `explain.ts` (tên xuyên bài, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION` đếm ở `ai_usage`, quota, gọi AI, cổng gác), `guard/explain.ts` (GUARD-23), `explainScope`; route của Thiện gọi hàm này thay chỗ chờ; thêm migration `0002_explain_selection.sql` (chưa chạy lên Supabase). Chạy AI thật N3 bước 2: `await` ⇒ `KEYWORD`, `findById` ⇒ `NAME`, vòng `for` ⇒ `CODE`, cả 3 qua cổng gác, ~1 300 token vào, ~130 ra. Tên bịa (`verifyToken`) bị chặn ở test GUARD-23; vùng chọn sai ra 400 ở test route.
 
 ### C-12 · Nặng · Tổng quan chờ hết node, chưa đặt tên
 
 - **Cần sửa:** theo D-83: `analyze-overview` gọi ngay sau khi quét, đầu vào gói ngữ cảnh, ra `RepoOverviewRaw` mới; cổng gác mới; câu dự phòng do code dựng. Sửa `20`, `21`, `src/server/ai/*`.
 - **Kiểm tra:** quét `shop-api` và BrewLite, tổng quan có trước khi phân tích bài nào; mỗi bài đúng 1 tên, không trùng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Gói ngữ cảnh, prompt, schema mới; `checkOverview` theo GUARD-11 (O5, O6); `analyzeOverview(session, graph)` không cần bản phân tích; route bỏ đoạn chờ hết node; store gọi tổng quan trước khi tải trước node; `PROMPT_VERSION` `1.2.0`. Nhóm, thực thể, README đọc kiểu "có thì dùng" tới khi có B-40, B-41. Chạy AI thật, chưa có bản phân tích nào: `shop-api` 7/7 tên, BrewLite 13/13 tên, không trùng, 1 request mỗi repo. Trần `LLM_MAX_OUTPUT_TOKENS.OVERVIEW` 600 làm BrewLite bị cắt (`NOT_STOP`) nên nâng lên 1500 (13 bài ra 635 token). `shop-api` với nhóm giả: AI đặt "Tài khoản", "Sản phẩm", "Đơn hàng", "Báo cáo". Bundle offline `public/demo/mock_bundle.json` còn tổng quan kiểu cũ, cần ghi lại.
 
 ### A-08 · Nặng · Contract và endpoint cho quy trình mới
 
