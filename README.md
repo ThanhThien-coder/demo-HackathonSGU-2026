@@ -52,7 +52,7 @@ Mô hình BKT ghi nhận năng lực kỹ năng: luôn hỏi ít nhất 1 câu c
 
 ## Tự cài đặt
 
-Cần Node.js 20 trở lên và npm.
+Cần Node.js 22 (D-68) và npm.
 
 ```bash
 git clone <url-repo-này>
