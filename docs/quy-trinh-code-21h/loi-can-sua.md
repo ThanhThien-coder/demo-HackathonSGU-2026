@@ -905,13 +905,13 @@ Thay các bảng **Chia luồng**, **Mốc trong ngày**, **Nếu trễ thì b�
 | Người | Sửa doc | Code, làm từ trái sang phải |
 | :-- | :-- | :-- |
 | Minh | `spec/11`, dòng D-85 | Luồng 1 như cũ; B-40 làm cùng B-39 ở bước 7 |
-| Phat107 | `spec/30`, `spec/10`, `vai-D/`, `prototype.html` | B-14, B-22, B-41 ⇒ **luồng 6**: D-16, D-19, D-20, D-17, D-18 ⇒ D-21, D-22, D-23 |
-| Lê Ngọc Quý | không | Java tới 19:00 ⇒ B-29, B-30 ⇒ phụ luồng 6 |
+| Phat107 | `spec/30`, `spec/10`, `vai-D/`, `prototype.html` | B-14, B-22, B-41 ⇒ B-16, B-29, B-30 ⇒ phụ luồng 6 (nhắn Quý trước khi sửa file) |
+| Lê Ngọc Quý | không (đọc `spec/30` của Phat107) | **Luồng 6 Giao diện** theo `prototype.html`: D-16, D-19, D-20, D-17, D-18 ⇒ D-21, D-22, D-23 |
 | Huynh Nhan | `spec/20`, `21`, `22`, `vai-C/` | C-01, C-05 ⇒ C-12 ⇒ C-06, C-09 ⇒ C-08 ⇒ C-07, C-10 ⇒ C-11 ⇒ C-03, C-04, C-02 nếu còn giờ |
-| Thiện | `spec/02` (làm trước), `03`, `01` | A-08 ⇒ luồng 5 như cũ; duyệt và merge |
+| Thiện | `spec/02` (làm trước), `03`, `01`, `04` | A-08 ⇒ **luồng 3 Java** (nhận từ Quý) ⇒ luồng 5 như cũ; duyệt và merge |
 | Người quay lại sau | `vai-D/the-khai-niem.md` | Phụ D-20 |
 
-**Luồng 6 · Giao diện** giữ `src/components/*`, các trang trong `src/app/` (trừ `src/app/api/*` của Thiện), `src/store/*`, file dữ liệu thẻ khái niệm.
+**Luồng 6 · Giao diện** (Lê Ngọc Quý) giữ `src/components/*`, các trang trong `src/app/` (trừ `src/app/api/*` của Thiện), `src/store/*`, file dữ liệu thẻ khái niệm.
 
 **Việc nào chờ việc nào.** Cột **Trong lúc chờ** là việc làm trước được, để không ai ngồi không.
 
@@ -927,11 +927,11 @@ Thay các bảng **Chia luồng**, **Mốc trong ngày**, **Nếu trễ thì b�
 | C-10 | Huynh Nhan | `spec/22` của chính mình | — | 21:00 |
 | C-12 | Huynh Nhan | `spec/02` (`RepoOverviewRaw` mới) | Viết prompt, cổng gác. Chưa có B-41 thì chạy không README; chưa có B-40 thì chưa đặt tên nhóm | 21:00 |
 | C-11 | Huynh Nhan | `spec/02` (kiểu `ExplainSelection*`) | Viết prompt và hàm server, test bằng dữ liệu giả | 22:00 |
-| D-16, D-19, D-17, D-18 | Phat107 | A-08 phần mang frontend về `main` | Đọc `prototype.html`, chuẩn bị component | 19:00 |
-| D-20 | Phat107 | `vai-D/the-khai-niem.md` | Dùng 3 thẻ mẫu trong `prototype.html` | 19:00 |
-| D-21 | Phat107 | C-12, B-40 | Làm phần tất định (nhóm theo đầu route, tên engine, câu dự phòng) với dữ liệu giả | Sau 22:00 |
-| D-22 | Phat107 | C-07, B-40 | Làm với các dòng đã có ("Cần trước", "Mở ra cho"), ẩn dòng thiếu | Sau 22:00 |
-| D-23 | Phat107 | C-11, A-08 endpoint | Làm popover với dữ liệu giả | Sau 22:00 |
+| D-16, D-19, D-17, D-18 | Lê Ngọc Quý | A-08 phần mang frontend về `main` | Đọc `prototype.html`, chuẩn bị component | 19:00 |
+| D-20 | Lê Ngọc Quý | `vai-D/the-khai-niem.md` | Dùng 3 thẻ mẫu trong `prototype.html` | 19:00 |
+| D-21 | Lê Ngọc Quý | C-12, B-40 | Làm phần tất định (nhóm theo đầu route, tên engine, câu dự phòng) với dữ liệu giả | Sau 22:00 |
+| D-22 | Lê Ngọc Quý | C-07, B-40 | Làm với các dòng đã có ("Cần trước", "Mở ra cho"), ẩn dòng thiếu | Sau 22:00 |
+| D-23 | Lê Ngọc Quý | C-11, A-08 endpoint | Làm popover với dữ liệu giả | Sau 22:00 |
 | `vai-D/the-khai-niem.md` | Người quay lại sau | không | — | 19:00 |
 | Sửa pitch | Người lo pitch | D-19 … D-23 chạy được | — | Trước khi ngủ |
 

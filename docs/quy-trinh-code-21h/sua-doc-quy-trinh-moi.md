@@ -92,7 +92,7 @@ Thiện chốt cuối cùng trong `spec/02`. Đổi tên nào thì báo cả nh�
 
 ### Thiện (vai A)
 
-**Giữ file:** `spec/02`, `spec/03`, `spec/01`, `spec/04`. **Làm `02` trước**, vì mọi người cần kiểu dữ liệu để code.
+**Giữ file:** `spec/02`, `spec/03`, `spec/01`, `spec/04`. **Làm `02` trước**, vì mọi người cần kiểu dữ liệu để code. Phần code nhận thêm luồng 3 Java từ Quý.
 
 - `02`: thêm và sửa kiểu ở Mục 3 của file này; thêm `CONFIG`; thêm mã lỗi và mã HTTP; bỏ `ERR_OVERVIEW_NOT_READY`.
 - `03`: thêm endpoint `explain-selection` vào bảng endpoint và luồng ghi (kiểm vùng chọn từ snapshot ⇒ cache ⇒ gọi AI ⇒ cổng gác ⇒ ghi cache); thêm khóa cache `SELECTION_EXPLAIN` ở Mục 3.3; Mục 6.6: `analyze-overview` không còn chờ node; đếm lượt `explain` mỗi phiên.
@@ -128,9 +128,9 @@ Thiện chốt cuối cùng trong `spec/02`. Đổi tên nào thì báo cả nh�
 - `00`: thêm D-85 cho luật nối bài theo phụ thuộc dữ liệu (B-39, thay D-07, D-73, sửa D-55), giữ trần 50 000.
 - Xong khi: `11` ≤ 46 000; có test cho gom nhóm trên `shop-api` và BrewLite.
 
-### Lê Ngọc Quý (vai B, Java)
+### Lê Ngọc Quý (luồng 6, giao diện)
 
-Không sửa doc đợt này. Tiếp tục Java theo lộ trình, giữ mốc 19:00.
+Không sửa doc đợt này. Đọc Mục 1, Mục 3 và `spec/30` (Phat107 viết), rồi code luồng 6 theo `prototype.html`. Java chuyển cho Thiện.
 
 ### Người quay lại sau
 
