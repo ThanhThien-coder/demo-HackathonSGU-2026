@@ -107,7 +107,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `getStartLineWithDecorators` trong `symbols.ts` quét mọi decorator trong class.
 - **Cần sửa:** method chỉ lấy decorator của chính nó.
 - **Kiểm tra:** quét repo NestJS chưa từng quét, mở `Get Order`, bước đầu chỉ có `findOne`.
-- **Trạng thái:** đã xác nhận trên site. Bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, đã qua test, chưa vào `main`.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-nest-buoc-dau-2` lấy commit `1066d4d`, thêm ca comment giữa decorator và method. `npm test` 685 qua. Quét `kuuhakubee/CNPM_BrewLite` và `lujakob/nestjs-realworld-example-app`: bước 1 không còn lẫn method khác, số bài, số cạnh, `id` không đổi. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-02 · Nặng · Capstone lấy từ file test
 

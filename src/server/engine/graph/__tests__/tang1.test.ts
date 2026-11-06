@@ -796,4 +796,34 @@ describe("ENG-20: line_start với decorator trong NestJS controller và export 
     expect(classSym?.line_start).toBe(1);
     expect(classSym?.line_end).toBe(4);
   });
+
+  it("ENG-20: Comment giữa decorator và method ⇒ line_start vẫn là decorator của method", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const nestCode = [
+      "export class OrderController {",
+      "  @Get()",
+      "  list() {}",
+      "",
+      "  @Post()",
+      "  // tạo đơn mới",
+      "  create() {}",
+      "",
+      "  @Get(':id')",
+      "  /** lấy một đơn */",
+      "  findOne() {}",
+      "}",
+    ].join("\n");
+
+    code.set("src/order.controller.ts", nestCode);
+    langs.set("src/order.controller.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+
+    expect(idx.functions.get("src/order.controller.ts#OrderController.create")?.line_start).toBe(5);
+    expect(idx.functions.get("src/order.controller.ts#OrderController.findOne")?.line_start).toBe(9);
+  });
 });
