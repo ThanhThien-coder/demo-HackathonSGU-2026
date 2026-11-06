@@ -203,6 +203,19 @@ export function work() { if (help2() > 0) { return orderRepo.create(1); } return
     expect(lone.prerequisites).toEqual([]);
   });
 
+  it("D-83: readme_excerpt, manifest_description đi tới kết quả engine, không gửi trình duyệt", async () => {
+    const res = await scan({
+      ...shop,
+      "README.md": "# Shop\nBán đồ uống online.\n",
+      "package.json": JSON.stringify({ name: "shop", description: "Cửa hàng đồ uống" }),
+    });
+
+    expect(res.readme_excerpt).toContain("Bán đồ uống online.");
+    expect(res.manifest_description).toBe("Cửa hàng đồ uống");
+    expect(toClientResult(res)).not.toHaveProperty("readme_excerpt");
+    expect(toClientResult(res)).not.toHaveProperty("manifest_description");
+  });
+
   it("toClientResult giữ entities, via_entities, groups", async () => {
     const client = toClientResult(await scan(shop));
 

@@ -254,6 +254,8 @@ export async function buildGraph(
     groups,
     symbol_whitelist,
     file_index,
+    readme_excerpt: input.readme_excerpt,
+    manifest_description: input.manifest_description,
     ingestion_report: input.report,
   };
 }

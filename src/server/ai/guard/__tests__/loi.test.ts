@@ -191,6 +191,8 @@ const mockGraph: StaticEngineResult = {
   nodes: [mockN3, mockN2],
   edges: [],
   groups: [],
+  readme_excerpt: null,
+  manifest_description: null,
   symbol_whitelist: [
     "authMiddleware",
     "categoryRepo",

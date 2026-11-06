@@ -140,6 +140,8 @@ const mockStaticResult: StaticEngineResult = {
   ],
   edges: [],
   groups: [],
+  readme_excerpt: null,
+  manifest_description: null,
   symbol_whitelist: ["main"],
   file_index: ["src/index.ts"],
   ingestion_report: mockIngestionReport,

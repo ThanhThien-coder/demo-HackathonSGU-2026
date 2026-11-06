@@ -803,6 +803,8 @@ app.get("/ping", (req, res) => res.send("pong"));
       nodes: [],
       edges: [],
       groups: [],
+      readme_excerpt: null,
+      manifest_description: null,
       symbol_whitelist: ["secretSymbol", "leakCheck"],
       file_index: ["src/index.ts"],
       ingestion_report: {
@@ -878,6 +880,8 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
         { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED", via_entities: [] },
       ],
       groups: [],
+      readme_excerpt: null,
+      manifest_description: null,
       symbol_whitelist: [],
       file_index: [],
       ingestion_report: createEmptyReport(),

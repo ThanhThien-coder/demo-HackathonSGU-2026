@@ -769,6 +769,8 @@
     "src/services/report.service.ts",
     "src/services/user.service.ts"
   ],
+  "readme_excerpt": null,
+  "manifest_description": null,
   "ingestion_report": {
     "truncated": false,
     "selective_fetch": false,

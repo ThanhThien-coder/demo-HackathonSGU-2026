@@ -128,11 +128,13 @@ export interface StaticEngineResult {
   }>;
   symbol_whitelist: string[];          // Phạm vi repo, đã sort (D-19)
   file_index: string[];                // Mọi file code đã nạp, đã sort
+  readme_excerpt: string | null;       // Chép từ IngestOutput để analyze-overview đọc từ snapshot (D-83)
+  manifest_description: string | null; // Chép từ IngestOutput (D-83)
   ingestion_report: IngestionReport;
 }
 
 // Bản gửi trình duyệt — server dựng bằng toClientResult() theo danh sách trường cho phép
 export type ClientStaticEngineResult =
-  Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report"> & {
+  Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report" | "readme_excerpt" | "manifest_description"> & {
     ingestion_report: Omit<IngestionReport, "suspicious_instruction_files">;
   };
