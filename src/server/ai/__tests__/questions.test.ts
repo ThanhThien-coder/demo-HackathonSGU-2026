@@ -25,6 +25,10 @@ vi.mock("../guard/log", () => ({
   logGuardBlock: vi.fn(),
 }));
 
+vi.mock("../history", () => ({
+  loadMissedPoints: vi.fn(async () => ({})),
+}));
+
 vi.mock("@/server/quota", () => ({
   checkTokenQuota: vi.fn(),
 }));
@@ -35,6 +39,8 @@ import { checkAnalysis } from "../guard/analysis";
 import { logGuardBlock } from "../guard/log";
 import { checkQuestions } from "../guard/questions";
 import { generateQuestions, type QuestionsUsage } from "../questions";
+import { loadMissedPoints } from "../history";
+import { questionsRequest } from "../prompts/questions";
 
 const shopApiFixturePath = resolve(
   __dirname,
@@ -563,5 +569,29 @@ describe("questions (C07 / AI-22, AI-23, AI-25, AI-37, GUARD-12)", () => {
       expect(usage.tokens_out).toBe(180 + 90);
       expect(usage.requests).toBe(2);
     });
+  });
+});
+
+describe("C-08 — D-74 trong lời gọi đặt câu hỏi", () => {
+  it("AI-25 (A5b): có ý hụt ⇒ khối <learner_history> nằm trước <code_data>; không có ⇒ không có khối", () => {
+    const withHist = questionsRequest(session, graph, nodeN3, analysisN3, planN3, { DB_OPTIMIZATION: ["Mỗi sản phẩm tốn thêm 1 truy vấn"] });
+    expect(withHist.user).toContain("<learner_history>\n- [DB_OPTIMIZATION] Mỗi sản phẩm tốn thêm 1 truy vấn\n</learner_history>");
+    expect(withHist.user.indexOf("<learner_history>")).toBeLessThan(withHist.user.indexOf("<code_data>"));
+    const noHist = questionsRequest(session, graph, nodeN3, analysisN3, planN3, {});
+    expect(noHist.user).not.toContain("<learner_history>");
+  });
+
+  it("S-09, A5b: prompt có luật 8, 9, 10", () => {
+    const req = questionsRequest(session, graph, nodeN3, analysisN3, planN3);
+    expect(req.system).toContain("8. Khi câu hỏi hoặc đáp án mẫu nói về quan hệ");
+    expect(req.system).toContain("9. Câu hỏi phải bắt suy luận");
+    expect(req.system).toContain("10. Khối <learner_history>");
+  });
+
+  it("A5b: generateQuestions đọc ý hụt theo user_id và kỹ năng trong kế hoạch", async () => {
+    vi.mocked(loadMissedPoints).mockResolvedValueOnce({});
+    vi.mocked(callLLMOnce).mockResolvedValue({ ok: false, kind: "FATAL", tokens_in: 0, tokens_out: 0 });
+    await generateQuestions(session, graph, nodeN3, analysisN3, planN3).catch(() => undefined);
+    expect(loadMissedPoints).toHaveBeenCalledWith(session.user_id, [...new Set(planN3.map((p) => p.skill))]);
   });
 });

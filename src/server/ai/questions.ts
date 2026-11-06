@@ -20,6 +20,7 @@ import { callLLMOnce, retryDelay } from "./gemini";
 import { logGuardBlock } from "./guard/log";
 import { checkQuestions, type QuestionCheck } from "./guard/questions";
 import { withGuardFeedback } from "./prompts/common";
+import { loadMissedPoints } from "./history";
 import { questionsRequest } from "./prompts/questions";
 
 // nội bộ — thống kê token và số lượt request của generateQuestions
@@ -50,8 +51,11 @@ export async function generateQuestions(
 
   const questionResults = new Map<number, GeneratedQuestionRaw | null>();
 
+  // A5b (D-74): ý người học đã hụt ở các kỹ năng trong kế hoạch; DB lỗi ⇒ {} (bỏ khối)
+  const missed = await loadMissedPoints(session.user_id, [...new Set(plan.map((p) => p.skill))]);
+
   // Request 1: gửi mọi item
-  const req1 = questionsRequest(session, graph, node, analysis, plan);
+  const req1 = questionsRequest(session, graph, node, analysis, plan, missed);
   const r1 = await callLLMOnce(req1);
 
   if (usage) {
@@ -69,7 +73,7 @@ export async function generateQuestions(
     if (!(await retryDelay(r1))) {
       throw new ApiHttpError("ERR_AI_UNAVAILABLE"); // Google bắt chờ quá CONFIG.LLM_RETRY_DELAY_MAX_MS (D-74 R1)
     }
-    const req2 = questionsRequest(session, graph, node, analysis, plan);
+    const req2 = questionsRequest(session, graph, node, analysis, plan, missed);
     const r2 = await callLLMOnce(req2);
 
     if (usage) {
@@ -127,6 +131,7 @@ export async function generateQuestions(
         node,
         analysis,
         retryItems,
+        missed,
       );
       const req2 = withGuardFeedback(req2Base, retryIssues);
       const r2 = await callLLMOnce(req2);
