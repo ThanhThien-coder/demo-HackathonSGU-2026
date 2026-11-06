@@ -22,6 +22,11 @@ import {
   getSessionProgressSafe,
 } from "@/lib/api";
 import { ERROR_MESSAGES } from "@/lib/messages";
+import {
+  tourForward,
+  tourBackward,
+  type XrayStage,
+} from "@/app/learn/components/xray-tour";
 
 export interface WorkbenchUiSlice {
   pending: Record<string, boolean>;
@@ -32,6 +37,8 @@ export interface WorkbenchUiSlice {
   presentation_pane: boolean;
   hint_step: number | null;
   offline_persona: PersonaMode;
+  // D12 — tour X-Ray: ROLE ⇒ TOUR ⇒ SUMMARY
+  xray_stage: XrayStage;
 }
 
 export interface WorkbenchStoreState extends ClientWorkbenchState {
@@ -74,6 +81,12 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   setPresentationPane: (enabled: boolean) => void;
   setHintStep: (step: number | null) => void;
   setOfflinePersona: (persona: PersonaMode) => void;
+
+  // D12 — tour X-Ray
+  setXrayStage: (stage: XrayStage) => void;
+  goToStep: (step: number) => void;
+  tourNext: (stepNumbers: number[]) => void;
+  tourPrev: (stepNumbers: number[]) => void;
 }
 
 const initialUiSlice: WorkbenchUiSlice = {
@@ -85,6 +98,7 @@ const initialUiSlice: WorkbenchUiSlice = {
   presentation_pane: false,
   hint_step: null,
   offline_persona: "NEWBIE",
+  xray_stage: "ROLE",
 };
 
 /**
@@ -382,6 +396,7 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       ui: {
         ...state.ui,
         hint_step: null,
+        xray_stage: "ROLE",
       },
     })),
 
@@ -701,4 +716,48 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         offline_persona,
       },
     })),
+
+  // ===== D12 — tour X-Ray =====
+  setXrayStage: (xray_stage) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        xray_stage,
+      },
+    })),
+
+  // Mở lại bước n trong tour (D12; D15 gọi hàm này cho gợi ý CODE_POINTER)
+  goToStep: (step) =>
+    set((state) => ({
+      active_tab: "XRAY",
+      active_step: step,
+      ui: {
+        ...state.ui,
+        xray_stage: "TOUR",
+      },
+    })),
+
+  tourNext: (stepNumbers) =>
+    set((state) => {
+      const next = tourForward(
+        { stage: state.ui.xray_stage, step: state.active_step ?? stepNumbers[0] },
+        stepNumbers
+      );
+      return {
+        active_step: next.step,
+        ui: { ...state.ui, xray_stage: next.stage },
+      };
+    }),
+
+  tourPrev: (stepNumbers) =>
+    set((state) => {
+      const prev = tourBackward(
+        { stage: state.ui.xray_stage, step: state.active_step ?? stepNumbers[0] },
+        stepNumbers
+      );
+      return {
+        active_step: prev.step,
+        ui: { ...state.ui, xray_stage: prev.stage },
+      };
+    }),
 }));
