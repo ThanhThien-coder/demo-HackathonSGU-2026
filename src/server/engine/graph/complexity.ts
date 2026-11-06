@@ -51,7 +51,10 @@ function findFunctionNode(root: Node, fn: SymbolDefinition): Node | null {
       n.type === "function_expression" ||
       n.type === "arrow_function" ||
       n.type === "method_definition" ||
-      n.type === "function_definition";
+      n.type === "function_definition" ||
+      n.type === "method_declaration" ||
+      n.type === "constructor_declaration" ||
+      n.type === "compact_constructor_declaration";
 
     if (isFnType) {
       const endLine = n.endPosition.row + 1;
@@ -92,9 +95,15 @@ function checkDirectRecursion(fnNode: Node, fnName: string): boolean {
   let found = false;
   function walk(n: Node): void {
     if (found) return;
-    if (n.type === "call_expression" || n.type === "call") {
+    if (
+      n.type === "call_expression" ||
+      n.type === "call" ||
+      n.type === "method_invocation"
+    ) {
       const funcNode =
-        n.childForFieldName("function") ?? n.child(0);
+        n.childForFieldName("function") ??
+        n.childForFieldName("name") ??
+        n.child(0);
       if (funcNode) {
         if (
           funcNode.type === "identifier" &&
@@ -150,7 +159,10 @@ export function cognitiveComplexity(
         n.type === "function_declaration" ||
         n.type === "class_declaration" ||
         n.type === "method_definition" ||
-        n.type === "function_definition"
+        n.type === "function_definition" ||
+        n.type === "method_declaration" ||
+        n.type === "constructor_declaration" ||
+        n.type === "compact_constructor_declaration"
       ) {
         return;
       }
@@ -164,8 +176,10 @@ export function cognitiveComplexity(
       type === "ternary_expression" ||
       type === "conditional_expression" ||
       type === "switch_statement" ||
+      type === "switch_expression" ||
       type === "match_statement" ||
       type === "for_statement" ||
+      type === "enhanced_for_statement" ||
       type === "for_in_statement" ||
       type === "for_of_statement" ||
       type === "while_statement" ||
@@ -185,6 +199,7 @@ export function cognitiveComplexity(
           child.type === "statement_block" ||
           child.type === "block" ||
           child.type === "switch_body" ||
+          child.type === "switch_block" ||
           child.type === "match_block" ||
           n.childForFieldName("consequence")?.id === child.id ||
           n.childForFieldName("body")?.id === child.id;
@@ -288,6 +303,7 @@ export function cognitiveComplexity(
         type === "function_expression" ||
         type === "function_declaration" ||
         type === "lambda" ||
+        type === "lambda_expression" ||
         type === "function_definition");
 
     const nextNesting = isNestedFunction ? nesting + 1 : nesting;
@@ -319,6 +335,9 @@ const FUNCTION_NODE_TYPES = new Set([
   "arrow_function",
   "method_definition",
   "function_definition",
+  "method_declaration",
+  "constructor_declaration",
+  "compact_constructor_declaration",
 ]);
 
 function hasJsx(n: Node): boolean {

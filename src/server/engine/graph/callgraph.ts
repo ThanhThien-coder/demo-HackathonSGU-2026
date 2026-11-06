@@ -10,6 +10,7 @@ import type {
   SymbolIndex,
   ImportedSymbol,
 } from "./types";
+import { buildJavaCallGraph } from "./spring";
 
 const HTTP_VERBS = new Set([
   "get",
@@ -375,6 +376,7 @@ export function buildCallGraph(
   }
 
   for (const file of files) {
+    if (file.language === "JAVA") continue;
     const filePath = file.path;
     const lang = file.language;
     const root = file.tree.rootNode;
@@ -1622,6 +1624,11 @@ export function buildCallGraph(
 
     visit(root);
   }
+
+  const javaResult = buildJavaCallGraph(files, idx);
+  rawEdges.push(...javaResult.edges);
+  external.push(...javaResult.external);
+  bindings.push(...javaResult.bindings);
 
   // ENG-33: Gộp cạnh theo (caller, callee), loại bỏ self-loop và cạnh tới CLASS (ENG-30, ENG-60)
   const edgeMap = new Map<string, FunctionCallEdge>();
