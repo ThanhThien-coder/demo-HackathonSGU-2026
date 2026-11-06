@@ -4,8 +4,11 @@ import {
   buildFileTabs,
   buildStepModel,
   findStep,
+  hlToModelRanges,
   stepGapAbove,
+  stepHl,
   toOriginalSelection,
+  weakPointHl,
 } from "../slice-model";
 import shopApiFixture from "@/server/engine/__fixtures__/shop-api.json";
 import type { ExecutionTraceStep, HybridArchitecturalNode, NodeAnalysisView } from "@/contracts";
@@ -136,6 +139,70 @@ describe("UI-31 — Số dòng gốc", () => {
   it("node rỗng trả model rỗng", () => {
     expect(buildStepModel(null, 1)).toEqual({ text: "", lineMap: [] });
     expect(buildDtoModel(null)).toEqual({ text: "", lineMap: [] });
+  });
+});
+
+describe("T-UI-06, T-UI-07 — Tô đúng dòng (UI-32, UI-44)", () => {
+  const nodes = shopApiFixture.nodes as unknown as HybridArchitecturalNode[];
+  const n3 = nodes.find((n) => n.id === "slice-product-list");
+  const step2 = findStep(n3, 2);
+  const n3Model = buildStepModel(n3, 2);
+
+  it("T-UI-06: kỹ năng symbol findById ở bước 2 ⇒ FOCUS tô dòng 17", () => {
+    expect(hlToModelRanges(n3Model, [{ line_start: 17, line_end: 17, kind: "FOCUS" }])).toEqual([
+      { startLine: 4, endLine: 4, kind: "FOCUS" },
+    ]);
+  });
+
+  it("T-UI-07: điểm dở ⇒ BAD đúng dòng symbol", () => {
+    expect(weakPointHl(step2, "findById")).toEqual([{ line_start: 17, line_end: 17, kind: "BAD" }]);
+  });
+
+  it("T-UI-07: so symbol như AI-18, bỏ gạch nối và hoa thường", () => {
+    expect(weakPointHl(step2, "category_repo.find_by_id")).toEqual([
+      { line_start: 17, line_end: 17, kind: "BAD" },
+    ]);
+  });
+
+  it("T-UI-07: symbol không có trong snippet ⇒ BAD cả bước", () => {
+    expect(weakPointHl(step2, "khongCoTrongBuoc")).toEqual([
+      { line_start: 14, line_end: 20, kind: "BAD" },
+    ]);
+  });
+
+  it("T-UI-07: điểm hay ⇒ GOOD cả bước", () => {
+    const hl = stepHl(step2, "GOOD");
+    expect(hl).toEqual([{ line_start: 14, line_end: 20, kind: "GOOD" }]);
+    expect(hlToModelRanges(n3Model, hl)).toEqual([{ startLine: 1, endLine: 7, kind: "GOOD" }]);
+  });
+
+  it("symbol nằm ngay dòng marker thì bỏ qua marker, lấy dòng code", () => {
+    const node = {
+      ...threeFileNode,
+      trace_steps: [makeStep(1, "src/a.ts", 10, "// … save (2 dòng)\nsave();", [0, 13])],
+    } as unknown as HybridArchitecturalNode;
+    expect(weakPointHl(findStep(node, 1), "save")).toEqual([
+      { line_start: 13, line_end: 13, kind: "BAD" },
+    ]);
+  });
+
+  it("dải có marker xen giữa vẫn phủ liền từ dòng đầu tới dòng cuối", () => {
+    expect(
+      hlToModelRanges(buildStepModel(threeFileNode, 2), [{ line_start: 10, line_end: 14, kind: "BAD" }])
+    ).toEqual([{ startLine: 1, endLine: 3, kind: "BAD" }]);
+  });
+
+  it("dải nằm ngoài code đang xem hoặc tab Kiểu dữ liệu ⇒ không tô", () => {
+    const hl = [{ line_start: 999, line_end: 999, kind: "FOCUS" as const }];
+    expect(hlToModelRanges(n3Model, hl)).toEqual([]);
+    expect(
+      hlToModelRanges(buildDtoModel(n3), [{ line_start: 1, line_end: 5, kind: "FOCUS" }])
+    ).toEqual([]);
+  });
+
+  it("bước không tồn tại ⇒ hl rỗng", () => {
+    expect(weakPointHl(null, "findById")).toEqual([]);
+    expect(stepHl(null, "GOOD")).toEqual([]);
   });
 });
 

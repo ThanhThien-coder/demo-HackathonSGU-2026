@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { NodeAnalysisView, HybridArchitecturalNode } from "@/contracts";
 import { CONFIG } from "@/contracts";
+import { useWorkbenchStore } from "@/store/workbench";
 import {
   buildDtoModel,
   buildFileTabs,
@@ -108,6 +109,13 @@ export function CodeSnippetViewer({
   const dtoKey = `${node?.id}:${currentStepNum}`;
   // Xóa ngay khi đổi bước, nếu không quay lại bước cũ sẽ tự mở lại tab "Kiểu dữ liệu".
   if (dtoOpenAt !== null && dtoOpenAt !== dtoKey) setDtoOpenAt(null);
+  // Tô dòng hoặc gợi ý đến từ ngoài khung mà vẫn cùng bước: phải về code thì mới thấy.
+  const hl = useWorkbenchStore((s) => s.ui.hl);
+  const [seenPointer, setSeenPointer] = useState({ hl, step: highlightedStep });
+  if (seenPointer.hl !== hl || seenPointer.step !== highlightedStep) {
+    setSeenPointer({ hl, step: highlightedStep });
+    if (hl.length > 0 || highlightedStep === currentStepNum) setDtoOpenAt(null);
+  }
   const showDto = hasDto && dtoOpenAt === dtoKey;
   const gapAbove = showDto ? null : stepGapAbove(currentStep);
 
@@ -450,6 +458,7 @@ export function CodeSnippetViewer({
                 analysis={analysis}
                 activeStep={currentStepNum}
                 hintStep={highlightedStep}
+                hl={hl}
                 showDto={showDto}
                 onSelect={onSelect}
                 fontSize={fontSize}
