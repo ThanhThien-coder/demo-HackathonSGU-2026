@@ -36,13 +36,6 @@ export interface HlRange {
   kind: "FOCUS" | "GOOD" | "BAD";
 }
 
-// D13 — dải dòng tô sáng theo SỐ DÒNG GỐC (UI-32). Renderer tô là việc của D14.
-export interface HlRange {
-  line_start: number;
-  line_end: number;
-  kind: "FOCUS" | "GOOD" | "BAD";
-}
-
 export interface WorkbenchUiSlice {
   pending: Record<string, boolean>;
   errors: Record<string, string | null>;
@@ -107,7 +100,6 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   // D12 — tour X-Ray
   setXrayStage: (stage: XrayStage) => void;
   goToStep: (step: number) => void;
-  setHl: (hl: HlRange[]) => void;
   tourNext: (stepNumbers: number[]) => void;
   tourPrev: (stepNumbers: number[]) => void;
 }
@@ -759,15 +751,6 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       ui: {
         ...state.ui,
         xray_stage: "TOUR",
-      },
-    })),
-
-  // ===== D13 — thẻ khái niệm =====
-  setHl: (hl) =>
-    set((state) => ({
-      ui: {
-        ...state.ui,
-        hl,
       },
     })),
 
