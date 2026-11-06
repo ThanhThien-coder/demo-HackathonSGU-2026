@@ -159,7 +159,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** spec 11 Mục 1 có 7 ngôn ngữ `RESOLVED` và 9 `STRUCTURAL`, nhưng `LANGUAGE_REGISTRY` chỉ có 4. `.java`, `.go`, `.dart` cũng không nằm trong `KNOWN_NO_GRAMMAR`, nên engine coi như không có code và `ERR_UNSUPPORTED_LANGUAGE` không chạy. Điểm 10 trong README Vai B ghi việc này từ trước nhưng chưa ai chốt.
 - **Cần sửa:** tối thiểu, nhận các đuôi spec có nhưng chưa có grammar: repo chủ yếu ngôn ngữ đó thì trả `ERR_UNSUPPORTED_LANGUAGE`, repo trộn thì cảnh báo chỉ phân tích một phần. Muốn hỗ trợ thật thì thêm phiếu B11 cho grammar và resolver. Sửa spec cho khớp phạm vi đã chốt, theo việc S-05.
 - **Kiểm tra:** 4 repo trên báo đúng ngôn ngữ, không còn `no_code`, không gọi repo Go là `JAVASCRIPT`.
-- **Trạng thái:** đã chạy thật trên engine, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `b/fix-b12-b07-ngon-ngu`: Go, Dart, tầng `STRUCTURAL` đã vào `KNOWN_NO_GRAMMAR`. Chạy thật ngày 06/11: `gin-gonic/examples` vẫn 13 node `JAVASCRIPT`, `flutter/samples` vẫn 2 node `PYTHON`, vì `assertNotEmpty` trong `fingerprint.ts` thoát ngay khi còn file code, trái ING-131. Repo trộn cũng chưa có cảnh báo. Cần Phat107 sửa file này. Hai repo Java chờ B-38.
 
 ### B-09 · Nhẹ · Danh sách thư viện lẫn đồ dev
 
@@ -183,7 +183,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `catch` trong `loadAll` ở `parser.ts` nuốt lỗi khi nạp file `.scm`. Nếu query hỏng, engine vẫn chạy nhưng có thể mất symbol mà không báo gì. Hiện 4 query đều nạp được.
 - **Cần sửa:** ngôn ngữ `RESOLVED` thiếu query thì báo lỗi, thêm test `getQuery` khác `null`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b12-b07-ngon-ngu`: `loadAll` báo lỗi kèm tên ngôn ngữ, có test. Typecheck, lint, 741 test xanh.
 
 ### B-13 · Nhẹ · Grammar chưa nạp lúc khởi động
 
@@ -197,7 +197,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần gọi đầu tới mỗi repo thường lâu hơn. Việc này xảy ra với từng repo mới trong cùng một tiến trình, nên không chỉ do server khởi động lạnh. Chưa rõ phần chậm nằm ở đâu phía GitHub.
 - **Cần sửa:** đo trên Vercel rồi tăng trần, ví dụ 1000–1500ms. Đây là `src/contracts/config.ts`, cần báo Vai A và sửa spec.
 - **Kiểm tra:** dán repo chưa dùng lần nào, không phải chờ thử lại và không báo `ERR_NETWORK_TIMEOUT`.
-- **Trạng thái:** đã đo ở máy local, chưa đo trên Vercel. Vercel cũng bị thì nâng lên Nặng.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b14-ingest`. `probeRepo` gọi `archive/HEAD.zip` trước (trần `PREFLIGHT_TIMEOUT_MS` = 1500), chỉ khi 404 mới gọi trang repo với `PREFLIGHT_PAGE_TIMEOUT_MS`; 301 sang repo khác thì gọi lại 1 lần. `resolveRef` nhận `head_zip` từ probe, không gọi lại HEAD.zip. Đổi `probe.ts`, `refs.ts`, `index.ts`, test `tai.test.ts`, `van-tay.test.ts`. Typecheck sạch, lint 0 lỗi (6 cảnh báo cũ), 744 test qua. Chưa dán repo mới trên mạng thật, chưa đo Vercel (A12 còn ô đo). Chưa đổi `ENGINE_VERSION`. `ref_label` là SHA vẫn thuộc B-16.
 
 ### B-15 · Nhẹ · Link viết hoa bị từ chối
 
@@ -260,7 +260,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** mở rộng ING-110 và `secrets.ts`: tên khóa có hậu tố (`SECRET_KEY`, `*_PASSWORD_*`), khóa có nháy, thêm các dạng token trên. Đổi `ENGINE_VERSION` vì code đã lưu trong cache vẫn chưa được che.
 - **Cần sửa thêm:** `RESET_PASSWORD: 'resetPassword'` đang bị che dù chỉ là hằng, chuỗi hex `'0...'` bị coi là số điện thoại. "Khóa bí mật đã che" ở `CockpitHeader.tsx` đếm cả email: `miguelgrinberg/microblog` báo 9 nhưng cả 9 đều là email.
 - **Kiểm tra:** thêm các mẫu trên vào test, repo Django trên không còn `SECRET_KEY` thật.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b22-secrets`. `secrets.ts` che thêm: `SECRET_KEY`, `app.secret_key`, `JWT_SECRET_KEY`, `"password":`, `'apiKey':`, `DB_PASSWORD_PROD`, Stripe, Slack, URL `https` có `user:pass`, private key viết trong một dòng. Có test cho từng mẫu. Typecheck sạch, lint 0 lỗi, 758 test qua. Đã quét repo thật `gothinkster/django-realworld-example-app` (ngày 06/11): `SECRET_KEY` trong `conduit/settings.py` giờ thành `<REDACTED_SECRET>`, chỉ 1 chỗ bị che, không che nhầm chỗ khác. Repo này chỉ có mẫu `SECRET_KEY`, các mẫu còn lại mới có test, chưa thử repo thật. Chưa làm: `RESET_PASSWORD: 'resetPassword'` vẫn bị che (spec chưa có luật loại hằng), chuỗi hex bị coi là số điện thoại (ở `maskSensitive`), đếm email ở `CockpitHeader.tsx` (file Vai D). Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-23 · Nhẹ · Đọc thiếu gói trong Pipfile, Cargo.toml, pubspec.yaml
 
@@ -794,7 +794,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   7. Chốt một repo Java làm repo demo, rồi dựng lại gói Offline và kịch bản demo theo repo đó.
 - **Kiểm tra:** quét `spring-petclinic` và `SGU-quan-ly-nha-hang`: `primary_language` là Java, tier `RESOLVED`, tên bài theo route đúng, có bài đi đủ controller, service, repository và tới `DATA_ACCESS`. Chạy AI thật trọn một bài trên repo demo Java.
 - **Ảnh hưởng demo:** có, đổi repo demo và kịch bản vấn đáp.
-- **Trạng thái:** chưa làm. Phải sửa quyết định D-76 trước khi code.
+- **Trạng thái:** đang làm. Nhánh `b/b38-java-nen` xong bước 2–3: grammar, `queries/java.scm`, adapter `JAVA`, đọc class, method, field, import. Quét thật `spring-petclinic`, `SGU-quan-ly-nha-hang`: `JAVA`, tier `RESOLVED`, không lỗi cú pháp, engine ra 7 và 20 node. Chưa có route Spring, tầng, `DATA_ACCESS`, nên tên bài chưa theo route. Bước 4 chờ luật Spring trong `11` và mốc 1.
 
 ### B-39 · Nặng · Bản đồ không nối các chức năng với nhau
 
