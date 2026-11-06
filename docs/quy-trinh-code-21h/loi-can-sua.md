@@ -212,7 +212,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-32 giả định link chuyển hướng của `archive/HEAD.zip` chứa tên nhánh, nhưng GitHub hiện trả commit SHA. `refs.ts` gán `ref_label = ref` nên SHA đi vào chỗ của tên nhánh.
 - **Cần sửa:** trong `resolveRef`, `ref` là SHA 40 ký tự thì đặt `ref_label = null`, giữ nguyên `ref`. Sửa ING-32 theo. Muốn hiện tên nhánh thật thì phải lấy thêm từ nguồn khác.
 - **Kiểm tra:** nạp BrewLite, thanh trên chỉ còn `@ 5da6ad1`.
-- **Trạng thái:** đã thấy trên site, chưa làm. Làm cùng D-14.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b16-ref-label`. `headZipToResolvedRef` trong `refs.ts`: `ref` là SHA 40 hex thì `ref_label = null`, giữ nguyên `ref`; tên nhánh dài 40 ký tự không phải hex vẫn là nhãn. Spec ING-32 đã có luật này. Có 2 test trong `tai.test.ts`. Chạy thật BrewLite: `ref_label = null`, `snapshot_id` bắt đầu `6cd0cf1`. `CockpitHeader.tsx` đã hiện `· @ <sha7>` khi nhãn là `null`, nên không sửa file Vai D; phần bố cục thanh trên vẫn là D-14. Typecheck sạch, lint 0 lỗi, 837 test qua. Chưa đổi `ENGINE_VERSION`.
 
 ### B-17 · Vừa · Monorepo chọn nhầm gói nhỏ rồi báo lỗi
 
