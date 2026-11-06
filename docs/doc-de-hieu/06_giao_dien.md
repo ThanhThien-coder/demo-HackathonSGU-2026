@@ -3,9 +3,9 @@
 Trong các đồ án công nghệ thông tin mà sinh viên chúng ta thường làm, khi tiếp cận một kho mã nguồn lớn hoặc mới lạ trên mạng, cách làm bản năng nhất là mở VS Code hoặc duyệt từng file trên GitHub. Bạn bấm vào một controller, thấy nó gọi sang một service, service lại gọi một repository, rồi từ repository nhảy qua model và middleware. Chỉ sau năm phút mở hàng chục tab file khác nhau, chúng ta thường rơi vào trạng thái mất phương hướng: không còn nhớ mình bắt đầu từ đâu, không thấy được bức tranh toàn cảnh các tầng kiến trúc đang giao tiếp với nhau thế nào, và càng không biết đoạn code này được viết theo chuẩn tốt hay đang tiềm ẩn lỗi nghiêm trọng.
 
 Giao diện SimpliFey gom việc học vào trang `/learn` để giảm sự rối rắm đó. Thay vì bắt bạn tự lần mò từng file riêng lẻ, trang này đặt code, phần giải thích và câu hỏi cạnh nhau:
-- **Đồ thị bài học:** Nằm trong ngăn kéo mở từ cạnh trái. Đây là chiếc la bàn định vị toàn cục, hiển thị các luồng nghiệp vụ dưới dạng đồ thị có hướng, chỉ rõ bài nào đã học xong, bài nào đang mở, bài nào còn khóa.
-- **Cột trái, code và X-Ray:** Hiển thị một lát cắt nghiệp vụ trích xuất xuyên file, ghép các bước từ điểm đón yêu cầu tới tầng lưu dữ liệu. Ngay dưới code là phần X-Ray phân tích cấu trúc, mẫu thiết kế, điểm hay và điểm dở.
-- **Cột phải, Feynman:** Nơi bạn trả lời câu hỏi để củng cố kiến thức. Tổng quan kiến trúc của cả repo nằm trong một cửa sổ riêng, mở từ thanh trên.
+- **Cột trái, Bản đồ bài học:** Luôn hiện. Đây là chiếc la bàn định vị toàn cục, hiển thị các luồng nghiệp vụ dưới dạng đồ thị có hướng, chỉ rõ bài nào đã học xong, bài nào đang mở, bài nào còn khóa.
+- **Cột giữa, Code:** Hiển thị một lát cắt nghiệp vụ trích xuất xuyên file, ghép các bước từ điểm đón yêu cầu tới tầng lưu dữ liệu. Bên dưới có thể mở thêm bảng tóm tắt điểm dở và luồng.
+- **Cột phải, 2 tab X-Ray và Feynman:** X-Ray phân tích cấu trúc, mẫu thiết kế, điểm hay và điểm dở; Feynman là nơi bạn trả lời câu hỏi để củng cố kiến thức. Tổng quan kiến trúc của cả repo nằm trong một cửa sổ riêng, mở từ thanh trên.
 
 Tài liệu này sẽ cùng bạn đi qua toàn bộ giao diện từ màn hình đăng nhập đầu tiên cho đến khi hoàn thành các nút màu xanh trên bản đồ, lấy ví dụ thực tế xuyên suốt bằng kho mã nguồn `shop-api` quen thuộc.
 
@@ -49,7 +49,7 @@ Nhằm hỗ trợ tốt nhất cho mọi người dùng, bao gồm cả những 
 - Màu xám viền nét đứt luôn đi kèm biểu tượng ổ khóa (🔒) và nhãn chữ "Chưa mở".
 
 ### Lưu trữ cục bộ tối thiểu và phòng ngừa lỗi
-Bộ nhớ cục bộ của trình duyệt (localStorage) chỉ được phép lưu hai mục nhỏ: khóa định danh phiên làm việc gần nhất và tùy chọn giao diện cá nhân. Mọi thao tác đọc và ghi bộ nhớ cục bộ đều được bọc trong khối kiểm tra an toàn (try/catch) để trang web không bị sập nếu người dùng tắt quyền lưu trữ hoặc duyệt web ở chế độ ẩn danh bị chặn ghi đĩa.
+Bộ nhớ cục bộ của trình duyệt (localStorage) chỉ được phép lưu hai mục nhỏ: khóa định danh phiên làm việc gần nhất và tùy chọn giao diện cá nhân (chủ đề sáng/tối, bố cục trang học). Mọi thao tác đọc và ghi bộ nhớ cục bộ đều được bọc trong khối kiểm tra an toàn (try/catch) để trang web không bị sập nếu người dùng tắt quyền lưu trữ hoặc duyệt web ở chế độ ẩn danh bị chặn ghi đĩa.
 
 Tra chi tiết: spec/30_UI.md Mục 1.
 
@@ -76,53 +76,55 @@ flowchart TD
     RESUME --> WORKBENCH
 ```
 
-- **Xác thực người dùng:** Nếu chưa đăng nhập, giao diện hiển thị nút "Đăng nhập GitHub". Khi nhấn nút, hệ thống chuyển hướng người dùng qua luồng đăng nhập an toàn của Supabase để lấy thông tin tài khoản rồi quay lại ứng dụng. Riêng chế độ demo Offline dùng dữ liệu ghi sẵn có thể mở trực tiếp bằng tham số trên đường dẫn trình duyệt mà không cần đăng nhập.
+- **Xác thực người dùng:** Nếu chưa đăng nhập, giao diện hiển thị nút "Đăng nhập GitHub" cùng thẻ "Bản demo Offline". Khi nhấn nút đăng nhập, hệ thống chuyển hướng người dùng qua luồng đăng nhập an toàn của Supabase để lấy thông tin tài khoản rồi quay lại ứng dụng. Chế độ demo Offline dùng dữ liệu ghi sẵn nên mở được ngay từ thẻ này, từ phím tắt hoặc tham số trên đường dẫn mà không cần đăng nhập.
 - **Ô nhập liên kết GitHub:** Nơi bạn dán đường dẫn của kho mã nguồn công khai (Public) và bấm nút "Quét repo". Hệ thống chỉ kiểm tra chặn nếu ô nhập bị bỏ trống. Bên dưới ô nhập luôn có dòng nhắc nhở: "Chỉ hỗ trợ nhánh mặc định". Nếu bạn vô tình dán một liên kết trỏ sâu vào nhánh hoặc file cụ thể (chẳng hạn chứa đoạn `/tree/main/src` hay `/blob/main/README.md`), giao diện sẽ tự nhận diện và tô màu chữ ghi chú sang màu vàng hổ phách để cảnh báo, đồng thời máy chủ sẽ tự động chuẩn hóa và cắt phần thừa về đúng địa chỉ gốc của kho mã nguồn. Nếu dán đường dẫn sai cấu trúc, hệ thống sẽ báo lỗi `ERR_INVALID_GITHUB_URL`.
 - **Vùng kéo thả file nén (.zip):** Dành cho trường hợp kho mã nguồn nằm trên máy tính của bạn. Bản thi gọi Gemini qua Vertex AI (D-66) và đã che secret, thông tin cá nhân trước khi gửi (D-65), nhưng vẫn không nên đưa code bí mật lên. Vùng này chỉ chấp nhận file có dung lượng tối đa 4.5 MB (`CONFIG.MAX_UPLOAD_BYTES` — trần upload an toàn chung, đồng thời tương thích với bản dự phòng Vercel, D-27). Trình duyệt sẽ kiểm tra định dạng đuôi file và dung lượng ngay trên máy khách trước khi đẩy lên mạng; nếu file không hợp lệ hoặc quá nặng, hệ thống lập tức thông báo lỗi `ERR_UPLOAD_INVALID` hoặc `ERR_STREAM_QUOTA_EXCEEDED` mà không tốn công gửi dữ liệu vô ích.
-- **Bảng "Tiếp tục học":** Liệt kê các phiên học mà bạn đã thực hiện trước đây, sắp xếp phiên gần nhất lên đầu trang. Mỗi dòng tóm tắt thông tin gồm: tên repo, nhánh, 7 ký tự mã commit (nếu nạp từ file zip sẽ có thêm nhãn định danh "zip"), thư mục con nếu là dự án monorepo, số lượng node đã hoàn thành trên tổng số node và số node chưa đạt (ví dụ: `shop-api · main @ 5be1c2a · 3/7 node (1 ✗) · 2h`). Nút "Lịch sử" bên cạnh cho phép bạn xem lại chi tiết các câu trả lời mà mình từng nộp trước đây.
+- **Bảng "Tiếp tục học":** Liệt kê các phiên học mà bạn đã thực hiện trước đây, sắp xếp phiên gần nhất lên đầu trang. Mỗi phiên có 2 hàng: hàng trên là tên repo, nhánh, 7 ký tự mã commit (nếu nạp từ file zip sẽ có thêm nhãn "zip") và thư mục con nếu có (ví dụ: `shop-api · main @ 5be1c2a`); hàng dưới là số node đã hoàn thành trên tổng số node, số node chưa đạt và thời gian (ví dụ: `3/7 node (1 ✗) · 2 giờ trước`). Nút "Lịch sử" bên cạnh cho phép bạn xem lại chi tiết các câu trả lời mà mình từng nộp trước đây.
 - **Xử lý các tình huống mở lại phiên:**
   - *Phiên bình thường:* Nút "Học tiếp" sẽ mở lại chính xác trạng thái của phiên học cũ. Ngoài ra còn có nút "Học lại từ đầu"; khi bấm nút này, một hộp thoại sẽ hiện lên để bạn xác nhận: "Mở phiên mới cho repo này: tiến độ node làm lại, điểm kỹ năng giữ nguyên, câu hỏi sinh mới." Khi đồng ý, bạn sẽ được học lại từ con số 0 trên cùng một mã nguồn mà không bị mất đi điểm số kỹ năng đã tích lũy trong hồ sơ cá nhân.
   - *Phiên nạp từ file zip:* Nhờ kết quả engine của phiên đã được lưu trong bảng `session_snapshots` ở Postgres (D-59), phiên nạp từ file `.zip` vẫn mở lại được bình thường như phiên GitHub mà không bắt buộc người học phải upload lại file.
-  - *Phiên học tạo bởi phiên bản engine cũ:* Nếu mã nguồn của hệ thống phân tích vừa được nâng cấp lên bản mới hơn, phiên cũ chỉ cho phép "Xem lịch sử" để tránh sai lệch cấu trúc bản đồ.
+  - *Phiên học tạo bởi phiên bản engine cũ:* Nếu mã nguồn của hệ thống phân tích vừa được nâng cấp lên bản mới hơn, phiên cũ mang nhãn "Engine đã cập nhật" và chỉ cho phép "Xem lịch sử" để tránh sai lệch cấu trúc bản đồ.
 - **Lớp phủ chờ quét:** Trong suốt thời gian máy chủ tải và dựng bản đồ, một lớp phủ mờ sẽ xuất hiện cùng vòng xoay tiến trình và đồng hồ đếm giây thực tế, đồng thời khóa toàn bộ ô nhập và vùng kéo thả. Khi hoàn tất, giao diện tự động chuyển bạn vào trang học và mở cửa sổ Tổng quan. Nếu bạn mở lại một phiên cũ thành công, một thông báo nổi sẽ chào đón: "Đã mở lại {repo_name} — {completed}/{total} node".
 
 ### 2.2. Bố cục trang học `/learn` và Chế độ trình chiếu
 
-Ngoài trang học, ứng dụng còn có: trang chủ `/`, đăng nhập `/login`, `/register`, lộ trình `/roadmap` (danh sách phiên học và bài của từng phiên), lịch sử nộp bài `/history`, báo cáo `/report`, giới thiệu `/how-it-works`.
+Ngoài trang học, ứng dụng còn có: trang chủ `/`, đăng nhập `/login` (`/register` chuyển về đây), lộ trình `/roadmap` (danh sách phiên học và bài của từng phiên), lịch sử nộp bài `/history`, báo cáo `/report`, giới thiệu `/how-it-works`. Menu trên cùng có Trang chủ, Trang học, Lộ trình, Lịch sử, Cách học; Báo cáo mở từ thanh trên của trang học.
 
-Sau khi quét xong, bạn vào trang học:
+Sau khi quét xong, bạn vào trang học. Trang này bố trí như một IDE, từ màn hình rộng (`lg`) trở lên có 3 cột:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ MENU: Trang chủ · Lộ trình học tập · Lịch sử nộp bài · Cách học      │
+│ MENU: Trang chủ · Trang học · Lộ trình · Lịch sử · Cách học   ☀/☾ · Tài khoản │
 ├──────────────────────────────────────────────────────────────────────┤
-│ THANH TRÊN: shop-api @ 5be1c2a │ [Express] │ Tổng quan │ Lịch sử │ Báo cáo │
-├────┬──────────────────────────────────┬──────────────────────────────┤
-│ Đồ │ CỘT TRÁI                         │ CỘT PHẢI                     │
-│ thị│ // Bước 1 · ENTRY_POINT          │ Feynman                      │
-│ bài│ router.get('/products', ...)     │ Câu 1/2 · DB_OPTIMIZATION    │
-│ học│ // Bước 2 · BUSINESS_LOGIC       │ [ô trả lời ................] │
-│    │ async listProducts() { ... }     │ [Nộp]  [Bỏ qua câu này]      │
-│    │ ── X-Ray ─────────────────       │                              │
-│    │ Kỹ năng · Kiến trúc · Luồng      │                              │
-│    │ Điểm hay · Điểm dở               │                              │
-└────┴──────────────────────────────────┴──────────────────────────────┘
+│ THANH TRÊN: shop-api @ 5be1c2a │ Bản đồ … ms │ Tổng quan │ Lịch sử │ Báo cáo │ ▣▣▣▣ │
+├───────────────┬──────────────────────────────┬───────────────────────┤
+│ CỘT TRÁI      │ CỘT GIỮA                     │ CỘT PHẢI              │
+│ Bản đồ bài học│ [1 Điểm vào] [2 ⚠ Nghiệp vụ] │ [1 X-Ray] [2 Feynman] │
+│ (đồ thị)      │ // Bước 1 · ENTRY_POINT      │ Kỹ năng · Kiến trúc   │
+│               │ router.get('/products', ...) │ Luồng · Điểm hay      │
+│               │ ── bảng dưới (mặc định ẩn) ──│ Điểm dở               │
+│ Chú giải      │ Điểm dở · Luồng              │ [Bắt đầu trả lời →]   │
+└───────────────┴──────────────────────────────┴───────────────────────┘
 ```
 
 Hình trên chỉ là minh họa.
 
-- **Đồ thị bài học:** Bấm nút ở cạnh trái để mở ngăn kéo. Bấm một bài đang mở thì vào bài đó và ngăn kéo tự đóng.
+- **Bản đồ bài học:** Luôn hiện ở cột trái. Bấm một bài đang mở thì vào bài đó, bản đồ đưa bài ấy vào giữa khung.
+- **X-Ray và Feynman:** Là 2 tab của cột phải. Bấm "Bắt đầu trả lời" ở cuối X-Ray thì chuyển sang tab Feynman; mở bài khác thì quay về tab X-Ray.
+- **Bảng dưới:** Nằm dưới khung code, mặc định ẩn. Tab "Điểm dở — Nhận định của AI" và tab "Luồng" liệt kê nhanh, bấm một dòng thì code nhảy tới bước đó. Bảng này không hiện cách sửa.
+- **Tùy chỉnh bố cục:** Cuối thanh trên có 4 nút giống VS Code. Bạn ẩn/hiện Bản đồ (`Ctrl+B`), Bảng dưới (`Ctrl+Alt+J`), X-Ray/Feynman (`Ctrl+Alt+B`), và kéo vạch giữa các khung để đổi tỉ lệ. Bấm đúp vào vạch hoặc chọn "Đặt lại bố cục" để trả về mặc định. Bố cục được nhớ cho lần sau.
+- **Màn hình nhỏ:** Dưới `lg` các khung xếp thành 1 cột theo thứ tự bản đồ, code, bảng dưới, X-Ray/Feynman.
 - **Tổng quan:** Bấm "Tổng quan kiến trúc" ở thanh trên để mở cửa sổ. Khi vừa vào trang mà chưa chọn bài, cửa sổ này tự mở.
-- **Chế độ trình chiếu phóng to:** Ở góc trên khung code có nút hai mũi tên hướng ra ngoài (⤢). Khi báo cáo đồ án, bấm nút này để khung code rộng hơn và toàn bộ chữ phóng to gấp 1.25 lần. Bấm lại hoặc nhấn `Esc` để trở về.
+- **Chế độ trình chiếu phóng to:** Nút "Trình chiếu" nằm ở đầu khung code, và có trong menu bố cục. Khi báo cáo đồ án, bấm nút này để cột code chiếm 60% bề rộng, 2 cột còn lại chia đều, chữ trong khung code phóng to gấp 1.25 lần. Bấm "Thoát trình chiếu" hoặc nhấn `Esc` để trở về.
 
 ### 2.3. Thanh đầu trang (Header)
 
 Thanh đầu trang là nơi cung cấp các thông số tổng quát về phiên làm việc hiện tại:
 - **Thông tin kho mã nguồn:** Hiển thị tên dự án, tên nhánh và 7 ký tự viết tắt của mã commit (ví dụ: `shop-api · main @ 5be1c2a`). Nút "Repo khác" cho phép bạn thoát khỏi phiên làm việc hiện tại để phân tích một dự án mới, nhưng vẫn giữ nguyên toàn bộ hồ sơ kỹ năng mà bạn đã tích lũy. GitHub có thể chỉ trả về mã commit, khi đó thanh trên chỉ hiện `@ 5be1c2a`, không có tên nhánh.
-- **Thẻ nhận diện công nghệ (vân tay):** Các thẻ nhỏ thể hiện phong cách kiến trúc và framework chính mà máy chủ nhận diện được từ repo (chẳng hạn Express). Nếu phát hiện đây là một dự án monorepo chứa nhiều dự án con, hệ thống sẽ hiện nhãn "Monorepo · {thư mục}" cùng nút "Đổi thư mục" để bạn dễ dàng chuyển vùng phân tích sang thư mục con khác. Repo quá lớn thì hiện nhãn "Repo lớn · {thư mục}" cùng nút "Đổi thư mục" (D-63).
-- **Thời gian xử lý không tốn token:** Đồng hồ hiển thị thời gian máy chủ tiếp nhận và dựng đồ thị (ví dụ giả định: "Bản đồ 850 ms · 0 token"). Khi nhấp vào con số này, một bảng chi tiết các số đo hiệu năng sẽ mở ra. Con số 0 token khẳng định việc dựng bản đồ hoàn toàn do thuật toán máy tính thực hiện mà không cần tiêu tốn tài nguyên gọi AI.
+- **Thẻ nhận diện công nghệ (vân tay):** Thẻ nhỏ thể hiện phong cách kiến trúc mà máy chủ nhận diện được từ repo; framework (chẳng hạn Express) nằm ở đầu cột Bản đồ. Nếu phát hiện đây là một dự án monorepo chứa nhiều dự án con, hệ thống sẽ hiện nhãn "Monorepo · {thư mục}" cùng nút "Đổi thư mục" để bạn chuyển vùng phân tích sang thư mục con khác. Repo quá lớn thì hiện nhãn "Repo lớn · {thư mục}" cùng nút "Đổi thư mục" (D-63). Nút này mở một hộp thoại nhập thư mục rồi quét lại.
+- **Thời gian xử lý không tốn token:** Đồng hồ hiển thị thời gian máy chủ tiếp nhận và dựng đồ thị (ví dụ giả định: "Bản đồ 850 ms · 0 token"). Khi nhấp vào con số này, một dòng chi tiết sẽ mở ra: thời gian tải và lọc, thời gian dựng đồ thị, số file code. Con số 0 token khẳng định việc dựng bản đồ hoàn toàn do thuật toán máy tính thực hiện mà không cần tiêu tốn tài nguyên gọi AI.
 - **Thước đo hạn mức token của phiên:** Mỗi phiên học được cấp một hạn mức tối đa là 200.000 token AI phục vụ cho các tác vụ phân tích, tổng quan, đặt câu hỏi và chấm bài (ví dụ giả định: "12,400 / 200,000"). Khi số lượng token đã dùng chạm hoặc vượt mức 200.000, thước đo sẽ chuyển sang màu đỏ. Trong chế độ demo Offline, thanh này luôn hiện cố định "0 token".
-- **Quản lý tài khoản cá nhân:** Hiển thị ảnh đại diện và tên người dùng GitHub của bạn. Menu thả xuống gồm 2 mục:
+- **Quản lý tài khoản cá nhân:** Hiển thị ảnh đại diện, tên người dùng GitHub và bậc tổng của bạn. Cạnh đó là nút ☀/☾ đổi chủ đề sáng/tối. Menu thả xuống gồm mục mở demo Offline và 2 mục:
   - "Đăng xuất": Thoát khỏi tài khoản hiện tại qua hàm đăng xuất của Supabase và đưa bạn trở về màn hình đăng nhập ban đầu.
   - "Xóa tài khoản và dữ liệu": Dành cho trường hợp bạn muốn xóa sạch toàn bộ lịch sử để làm lại từ đầu. Một cảnh báo nghiêm ngặt sẽ xuất hiện: "Xóa toàn bộ điểm kỹ năng, phiên học, câu trả lời. Không hoàn tác." Khi xác nhận, hệ thống sẽ gửi yêu cầu xóa toàn bộ dữ liệu người dùng trên máy chủ, dọn sạch bộ nhớ cục bộ, tự động đăng xuất và tải lại trang web hoàn toàn mới.
 
@@ -131,39 +133,40 @@ Tra chi tiết: spec/30_UI.md Mục 2.
 ---
 ## 3. Cây Component và kiến trúc giao diện
 
-Mỗi trang là một file trong `src/app/`. Riêng trang học có các component nằm ở `src/app/learn/components/`, dùng chung kho dữ liệu Zustand để không phải truyền dữ liệu qua nhiều tầng.
+Mỗi trang là một file trong `src/app/`. Component của trang học nằm ở `src/components/learn/`, dùng chung kho dữ liệu Zustand để không phải truyền dữ liệu qua nhiều tầng.
 
 ```mermaid
 flowchart TD
-    LEARN["app/learn/page.tsx"] --> NAV["layout/Navbar"]
+    LEARN["app/learn/page.tsx → LearnShell"] --> NAV["layout/Navbar"]
     LEARN --> HEAD["CockpitHeader (Thanh trên)"]
-    LEARN --> BTN["GraphSidebarButton"]
-    BTN --> DRAWER["LessonGraphDrawer (Ngăn kéo)"]
+    HEAD --> LAY["LayoutControls"]
+    LEARN --> DRAWER["LessonGraphPanel (Cột trái)"]
     DRAWER --> DAG["canvas/DagCanvas"]
     DAG --> CARD["GraphNodeCard"]
-    DAG --> BAR["CanvasToolbar"]
-    LEARN --> LEFT["CodeSnippetViewer (Cột trái)"]
-    LEFT --> CODE["code/CodePane"]
-    LEFT --> XRAY["XRayPanel"]
-    XRAY --> SKILL["SkillChips"]
-    LEARN --> RIGHT["FeynmanQuestionSection (Cột phải)"]
-    RIGHT --> SUM["RunSummary"]
+    DAG --> EDGE["FlowEdge"]
+    LEARN --> MID["CodeSnippetViewer (Cột giữa)"]
+    MID --> CODE["code/MonacoPane"]
+    LEARN --> BOT["ProblemsPanel (Bảng dưới)"]
+    LEARN --> SIDE["LearnSidePanel (Cột phải, 2 tab)"]
+    SIDE --> XRAY["XRayPanel"]
+    SIDE --> FEY["FeynmanQuestionSection"]
     LEARN --> OV["RepoOverviewModal (Cửa sổ Tổng quan)"]
-    LEARN --> EVAL["SubmitEvaluationDialog"]
-    LEARN --> REP["ReportWrongDialog"]
-    LEARN --> FILE["FullFileModal"]
+    LEARN --> SPLIT["Splitter (Vạch kéo)"]
 ```
 
 ### Bảng phân tích chi tiết các component cốt lõi
 
 | Component | Trách nhiệm |
 | :-- | :-- |
-| `layout/Navbar`, `SettingsDropdown` | Menu trang, tài khoản, persona, chế độ Offline |
+| `layout/Navbar`, `layout/Boot` | Menu trang, tài khoản, persona, chủ đề, chế độ Offline; khởi động ứng dụng |
+| `LearnShell`, `layout.ts`, `LayoutControls`, `Splitter` | Khung 3 cột, ẩn/hiện, kéo tỉ lệ, phím tắt |
 | `CockpitHeader` | Tên repo, vân tay công nghệ, đồng hồ, hạn mức token, nút Tổng quan, Lịch sử, Báo cáo |
-| `LessonGraphDrawer`, `canvas/*` | Ngăn kéo chứa đồ thị bài học |
-| `CodeSnippetViewer`, `code/CodePane`, `FullFileModal` | Đọc lát cắt, xem cả file |
-| `XRayPanel`, `SkillChips` | Kỹ năng, kiến trúc, luồng, điểm hay, điểm dở |
-| `FeynmanQuestionSection`, `SubmitEvaluationDialog`, `SkipConfirmDialog`, `ReportWrongDialog`, `RunSummary` | Trả lời câu hỏi, xem kết quả, bỏ qua, báo sai, tổng kết |
+| `LessonGraphPanel`, `canvas/*` | Cột trái chứa đồ thị bài học, chip thông tin, cảnh báo, chú giải |
+| `CodeSnippetViewer`, `code/MonacoPane`, `code/slice-model` | Đọc lát cắt |
+| `ProblemsPanel` | Bảng dưới: điểm dở, luồng |
+| `LearnSidePanel` | 2 tab X-Ray / Feynman ở cột phải |
+| `XRayPanel` | Kỹ năng, kiến trúc, luồng, điểm hay, điểm dở |
+| `FeynmanQuestionSection` | Trả lời câu hỏi, xem kết quả, bỏ qua, báo sai, tổng kết |
 | `RepoOverviewModal` | Tổng quan kiến trúc của repo |
 
 Triết lý thiết kế ở đây rất rõ ràng: component nhỏ nhận dữ liệu thuần qua props, component lớn đọc từ kho dữ liệu chung.
@@ -173,7 +176,7 @@ Tra chi tiết: spec/30_UI.md Mục 3.
 ---
 ## 4. Đồ thị bài học — Bản đồ kiến trúc tương tác
 
-Đồ thị bài học là chiếc la bàn định vị toàn cục của bạn, nằm trong ngăn kéo mở từ cạnh trái. Thay vì nhìn vào một danh sách file phẳng lì, bạn sẽ thấy toàn bộ các luồng nghiệp vụ của dự án được sắp xếp theo một đồ thị có hướng rõ ràng từ trên xuống dưới.
+Đồ thị bài học là chiếc la bàn định vị toàn cục của bạn, luôn hiện ở cột trái. Thay vì nhìn vào một danh sách file phẳng lì, bạn sẽ thấy toàn bộ các luồng nghiệp vụ của dự án được sắp xếp theo một đồ thị có hướng rõ ràng từ trên xuống dưới.
 
 ```mermaid
 flowchart TD
@@ -187,8 +190,8 @@ flowchart TD
 
 ### 4.1. Dựng đồ thị cố định và chống xáo trộn vị trí
 Bản đồ sử dụng thư viện ReactFlow để vẽ các thẻ node và đường nối. Điểm đặc biệt là tọa độ hiển thị của từng node hoàn toàn do máy chủ tính toán và định vị sẵn ngay từ đầu bằng thuật toán sắp xếp đồ thị tự động:
-- Khi mở, đồ thị hiện ở cỡ đọc được quanh bài đang học. Bạn kéo để xem phần còn lại.
-- Bấm một bài đang mở thì vào bài đó và ngăn kéo tự đóng. Bài bị khóa thì không vào được.
+- Khi mở, đồ thị vừa khung nếu đọc được; repo nhiều node thì phóng quanh bài đang học hoặc bài sẵn sàng đầu tiên. Bạn kéo để xem phần còn lại, hoặc kéo rộng cột trái.
+- Bấm một bài đang mở thì vào bài đó và bản đồ đưa bài ấy vào giữa khung. Bài bị khóa thì không vào được.
 - Các node bị khóa vị trí cố định, bạn không thể dùng chuột kéo rê làm lệch bố cục, cũng không thể tự vẽ đường nối thủ công giữa các node.
 - Bản đồ có sẵn bộ công cụ điều khiển thu phóng (Controls) giúp bạn dễ dàng phóng to, thu nhỏ hoặc đưa đồ thị về giữa màn hình khi dự án có nhiều node.
 
@@ -207,30 +210,31 @@ Trên từng thẻ node còn được trang bị các ký hiệu đặc biệt g
 - **Trạng thái đang phân tích:** Khi máy chủ đang chạy tác vụ phân tích mã nguồn cho node, thẻ sẽ hiện biểu tượng xoay tiến trình cùng dòng chữ "đang phân tích…". Nếu phân tích gặp sự cố bất khả kháng, thẻ sẽ báo "Chưa phân tích được" kèm nút bấm "Thử lại phân tích".
 - **Huy hiệu Capstone (★):** Gắn cho node có độ phức tạp cao nhất trong toàn bộ hệ thống (như node N5 Thanh toán trong `shop-api`), đóng vai trò là cột mốc thử thách tổng hợp kiến trúc quan trọng nhất.
 - **Huy hiệu Thuật toán:** Các node chứa thuật toán cốt lõi sẽ mang nhãn "Thuật toán" màu tím nổi bật.
-- **Viền trắng sáng:** Node bạn đang mở có đường viền ngoài màu trắng.
+- **Viền ngoài nổi bật:** Node bạn đang mở có đường viền ngoài, màu trắng ở chủ đề tối và màu mực đậm ở chủ đề sáng.
 
 ### 4.4. Quy tắc đặt tên node và tiền tố dấu ngã `~`
 Động cơ phân tích luôn cố gắng đặt tên cho node bằng tên hàm điểm đón (entry point) hoặc tên miền nghiệp vụ chính. Tuy nhiên, nếu tên gọi này được suy đoán gián tiếp từ tên thư mục, từ khóa lặp lại hoặc tên file, giao diện sẽ tự động thêm tiền tố dấu ngã `~` ở phía trước tên (ví dụ: `~products`).
 - Nếu tên node dài quá 32 ký tự, giao diện sẽ cắt bớt và thêm dấu ba chấm "…".
 - Khi bạn rê chuột vào thẻ node, tooltip sẽ hiện đầy đủ tên gốc trọn vẹn, căn cứ mà hệ thống dùng để đặt tên đó, cùng dòng lưu ý minh bạch: "Tên suy ra — gần đúng".
 - Nếu đây là một node ảo, tooltip sẽ ghi rõ: "Chặng tách từ hàm dài — code thật, engine chia theo vai trò câu lệnh".
-- Ngay dưới tên node là dòng thông tin phụ tóm tắt quy mô: "{số lượng} file · {ngôn ngữ}" (ví dụ: "3 file · TypeScript").
+- Cuối thẻ node là nhãn trạng thái và dòng tóm tắt quy mô: "{số lượng} file · {ngôn ngữ}" (ví dụ: "3 file · typescript").
 
 ### 4.5. Phân loại cạnh nối và độ tin cậy
 Các đường nối giữa các node thể hiện sự phụ thuộc và luồng dữ liệu giữa các lát cắt nghiệp vụ:
 - **Cạnh nét liền (`RESOLVED`):** Đại diện cho liên kết đã được phân tích cú pháp xác thực (chẳng hạn N4 và N5 cùng dùng chung hàm `cartService.getCart`).
-- **Cạnh nét đứt:** Thể hiện mối liên kết được hệ thống suy luận gián tiếp, kèm theo tooltip cảnh báo khi rê chuột: "Cạnh suy luận — chưa bảo đảm 100%". Cạnh nét đứt còn là thứ tự học do engine nối thêm để các bài thành cây (D-73).
-- **Màu sắc đường nối:** Khi node nguồn đã Hoàn thành, đường nối sẽ mang màu xanh lá; khi node nguồn Chưa đạt, đường nối mang màu đỏ; các trường hợp còn lại đường nối mang màu xám trung tính tĩnh, hoàn toàn không dùng hiệu ứng chạy chuyển động để bảo đảm sự tập trung tối đa cho người học.
+- **Cạnh nét đứt:** Thể hiện mối liên kết được hệ thống suy luận gián tiếp, chưa bảo đảm 100%; chú giải cuối cột giải thích điều này. Cạnh nét đứt còn là thứ tự học do engine nối thêm để các bài thành cây (D-73).
+- **Màu sắc đường nối:** Khi node nguồn đã Hoàn thành, đường nối mang màu xanh lá; khi node nguồn Chưa đạt, đường nối mang màu đỏ; các trường hợp còn lại đường nối màu xám.
+- **Chuyển động:** Trên nét gốc có một lớp phủ riêng: vệt sáng và chấm chạy theo hướng học. Nguồn chưa mở chỉ có chấm mờ chạy chậm, cạnh nối bài đang mở có quầng sáng. Lớp này tách khỏi nét gốc nên nét đứt vẫn chỉ mang nghĩa "suy luận", và tắt hẳn khi bật giảm chuyển động.
 
-### 4.6. Thanh công cụ phía dưới bản đồ (CanvasToolbar)
-Thanh thông tin tổng hợp của đồ thị cho bạn cái nhìn bao quát về đồ thị:
-- Mức độ tin cậy của đồ thị (xanh lá cây biểu thị độ tin cậy cao, vàng trung bình, đỏ thấp).
-- Các thẻ phân bổ ngôn ngữ lập trình theo tỉ lệ phần trăm dung lượng code (ví dụ: `TypeScript 85%`).
+### 4.6. Đầu cột và chú giải của bản đồ
+Đầu cột Bản đồ cho bạn cái nhìn bao quát về đồ thị:
+- Chip "Độ tin cậy đồ thị: Cao / Vừa / Thấp" (xanh lá, vàng, đỏ).
+- Các thẻ phân bổ ngôn ngữ lập trình theo tỉ lệ phần trăm dung lượng code (ví dụ: `typescript 85%`) và framework nhận diện được.
 - Tổng số lượng node trong bản đồ (ví dụ: "7 node").
 - Thông báo chế độ suy thoái nếu repo viết theo kiểu tuần tự đơn giản.
-- Thông báo bảo mật: "Đã che {số lượng} bí mật" (cho biết các chuỗi mật khẩu, private key hay token nhạy cảm trong code đã được che đi).
-- Cảnh báo khi kết quả bị cắt bớt (`truncated`) hoặc có `warnings`; cảnh báo độ tin cậy `LOW` không đóng được. Có popover liệt kê các file bị bỏ qua (`skipped`).
-- Hộp chú giải tóm tắt ý nghĩa của 4 màu sắc, dấu cảnh báo và đường nét đứt.
+- Thông báo bảo mật: "Đã che {số lượng} nội dung nhạy cảm" (cho biết các chuỗi mật khẩu, private key hay token nhạy cảm trong code đã được che đi).
+- Dải cảnh báo khi kết quả bị cắt bớt (`truncated`) hoặc có `warnings`, mỗi dòng có nút ẩn; cảnh báo độ tin cậy `LOW` không đóng được. Chip "Bỏ qua {n} file ▾" mở danh sách các file bị bỏ qua (`skipped`).
+- Cuối cột là chú giải 4 trạng thái, dấu cảnh báo và đường nét đứt.
 
 Tra chi tiết: spec/30_UI.md Mục 4.
 
@@ -308,8 +312,9 @@ Khung code và X-Ray luôn hoạt động như hai người bạn đồng hành 
 Trình đọc code Monaco được tinh chỉnh tối đa cho mục đích học tập:
 - Chế độ chỉ đọc (read-only), khóa sửa mã nguồn, tắt bản đồ thu nhỏ bên phải (minimap) và menu chuột phải để không gây xao nhãng.
 - Tự động nhận diện ngôn ngữ lập trình của node (TypeScript, JavaScript, Python...).
-- Đầu khung code luôn có thanh thông tin hiển thị rõ: "Bước {k}/{n} · {tầng kiến trúc} · {đường dẫn file} · {tên hàm}".
-- Ngay phía dưới là dãy các chip bước nhỏ để bạn nhấp chuyển nhanh giữa các bước.
+- Đầu khung code là dãy chip bước (số bước, tầng kiến trúc, tên file, ⚠ nếu bước có điểm dở) để bạn nhấp chuyển nhanh.
+- Ngay dưới là dòng đường dẫn file, tên hàm, "dòng {đầu}–{cuối} · Bước {k}/{n} · {tầng kiến trúc}" và nút "Trình chiếu".
+- Cuối khung là chú giải 3 màu tô sáng và ghi chú "Số dòng = dòng gốc trong file". Khung code đổi màu theo chủ đề sáng/tối.
 - Nếu bạn chưa chọn node nào trên bản đồ, khung code sẽ hiển thị dòng hướng dẫn: "Chọn một node — mỗi node là một lát cắt xuyên file".
 
 Tra chi tiết: spec/30_UI.md Mục 5.
@@ -317,10 +322,10 @@ Tra chi tiết: spec/30_UI.md Mục 5.
 ---
 ## 6. X-Ray, Feynman và Tổng quan
 
-Đây là trung tâm phân tích và thử thách tư duy của bạn, gồm 3 phần: **X-Ray** dưới khung code, **Feynman** ở cột phải, và cửa sổ **Tổng quan**.
-- Khi bạn chưa chọn bài: cửa sổ Tổng quan tự mở để bạn nắm bức tranh toàn cảnh dự án.
-- Ngay khi bạn chọn một bài: code và X-Ray của bài đó hiện ra.
-- Phần Feynman chỉ bật khi node đã có bản phân tích mã nguồn. Nếu máy chủ đang chuẩn bị câu hỏi, phần này hiện vòng xoay chờ; nếu chưa có bản phân tích, phần này tạm khóa kèm dòng nhắc nhở: "Cần bản phân tích trước khi đặt câu hỏi".
+Đây là trung tâm phân tích và thử thách tư duy của bạn, gồm 3 phần: 2 tab **X-Ray** và **Feynman** ở cột phải, và cửa sổ **Tổng quan**.
+- Vừa nạp phiên mà chưa chọn bài: cửa sổ Tổng quan tự mở để bạn nắm bức tranh toàn cảnh dự án. Đóng cửa sổ thì cột giữa và cột phải nhắc bạn chọn một node.
+- Ngay khi bạn chọn một bài: code hiện ở cột giữa, tab X-Ray của bài đó hiện ở cột phải.
+- Tab Feynman chỉ bật khi node đã có bản phân tích mã nguồn, kèm số câu chưa xong. Nếu máy chủ đang chuẩn bị câu hỏi, tab này hiện vòng xoay chờ; nếu chưa có bản phân tích, tab tạm khóa kèm dòng nhắc nhở: "Cần bản phân tích trước khi đặt câu hỏi".
 
 ---
 
@@ -396,9 +401,9 @@ Nếu đây là một node thuộc nhóm lõi giải thuật (`ALGORITHMIC_CORE`
 - Khi đang chờ phân tích, phần X-Ray hiện khung lấy từ các bước code kèm shimmer "đang phân tích…". Khi phân tích thất bại, tab hiện "Chưa phân tích được" và nút "Thử lại phân tích".
 
 #### 8. Nút chuyển sang thử thách Feynman
-Ở dưới cùng của phần X-Ray:
-- Nếu node đang ở trạng thái Sẵn sàng (`AVAILABLE`) và chưa xong phiên học, giao diện có nút: "Bắt đầu trả lời ({số câu chưa xong, trừ câu `DROPPED`})". Khi bấm nút, bạn được đưa sang phần Feynman. Lúc đang chờ câu hỏi, nút hiện "Đang chuẩn bị câu hỏi…"; nếu lỗi thì hiện "Thử lại".
-- Nếu node đã Hoàn thành (`COMPLETED`) hoặc Chưa đạt (`FAILED`), hệ thống hoàn toàn không hiển thị nút này vì phiên học không hỗ trợ ôn tập hay làm lại.
+Ghim ở đáy cột, phía dưới phần X-Ray:
+- Nếu node đang ở trạng thái Sẵn sàng (`AVAILABLE`) và chưa xong phiên học, giao diện có nút: "Bắt đầu trả lời ({số câu chưa xong, trừ câu `DROPPED`}) →". Khi bấm nút, cột phải chuyển sang tab Feynman. Lúc đang chờ câu hỏi, nút hiện "Đang chuẩn bị câu hỏi…"; nếu lỗi thì hiện "Thử lại".
+- Nếu node đã Hoàn thành (`COMPLETED`) hoặc Chưa đạt (`FAILED`), hệ thống không hiển thị nút này vì phiên học không hỗ trợ ôn tập hay làm lại; thay vào đó là một dòng nhắc xem lại câu hỏi ở tab Feynman.
 
 ---
 
@@ -407,8 +412,12 @@ Nếu đây là một node thuộc nhóm lõi giải thuật (`ALGORITHMIC_CORE`
 Phần Feynman là nơi bạn thực sự biến kiến thức vừa đọc thành năng lực của bản thân thông qua phương pháp Feynman: giải thích lại bản chất kỹ thuật bằng ngôn từ của chính mình.
 
 ```
-Câu 1/2 · DB_OPTIMIZATION · NOVICE  lượt ●●○ ✍  │ Độ chính xác ██████░░│  Ý bắt buộc ● ○  │ 💡 Gợi ý: "…"
-[ô trả lời …………………………… 33/2000]  [Nộp]  [Bỏ qua câu này]        Câu 2/2 · LAYERED_SEPARATION ⏳
+✍ Câu 1/2 · DB_OPTIMIZATION   ⏳ Câu 2/2 · LAYERED_SEPARATION
+(AI hỏi) Câu 1/2 · DB_OPTIMIZATION · NOVICE · WEAKNESS   lượt ●○○
+         Cửa hàng có 200 sản phẩm…
+[Câu trả lời của bạn …………………………………………… 37/2000]
+[Nộp] Ctrl+Enter                                  [Bỏ qua câu này]
+Độ chính xác ██████░░│ 35 · Ý bắt buộc ○ ○ · 💡 Gợi ý: "…"
 ```
 
 #### 1. Danh sách câu hỏi và trạng thái
@@ -455,8 +464,8 @@ Nếu bạn cảm thấy câu hỏi quá khó hoặc tài khoản đã hết h�
 Khác với nhiều hệ thống cần người kiểm duyệt thủ công, Báo sai ở SimpliFey được máy chủ xử lý ngay:
 - Nút "Báo sai" chỉ xuất hiện với câu `FAILED` kết thúc bằng nộp bài (`ended_by = "ANSWER"`) và chưa từng Báo sai. Câu bấm "Bỏ qua" không có nút này.
 - Khi bấm nút, bạn nhập ghi chú tối đa 500 ký tự (ví dụ giải thích vì sao câu trả lời của bạn đúng dù AI chấm trượt).
-- **Máy chủ xử lý ngay:** Câu được gắn lá cờ (🚩). Nếu điểm kỹ năng chưa bị câu nào khác đổi, điểm được hoàn lại và giao diện báo "Đã hoàn lại điểm {skill}: {p_before} → {p_after}". Máy chủ tính lại trạng thái node, nên node có thể đổi từ đỏ sang xanh. Giao diện hiện toast: "Đã ghi nhận — nhóm sẽ xem lại câu này".
-- Trong chế độ demo Offline, nút Báo sai sẽ bị vô hiệu hóa.
+- **Máy chủ xử lý ngay:** Câu được gắn lá cờ (🚩) kèm dòng "Đã báo sai — điểm kỹ năng được hoàn lại nếu chưa có cập nhật khác." Nếu điểm kỹ năng chưa bị câu nào khác đổi, điểm được hoàn lại và chip điểm hiện giá trị mới. Máy chủ tính lại trạng thái node, nên node có thể đổi từ đỏ sang xanh. Giao diện hiện toast: "Đã ghi nhận — nhóm sẽ xem lại câu này".
+- Trong chế độ demo Offline, nút Báo sai vẫn hiện nhưng bị tắt.
 
 #### 8. Băng tổng kết đợt chạy của node
 Khi bạn trả lời xong toàn bộ các câu hỏi của node, một bảng tổng kết sẽ hiện ra: "✅ {kỹ năng đạt} · ❌ {kỹ năng chưa đạt} · 🚩 {kỹ năng đã Báo sai}" (bỏ các câu DROPPED).
@@ -464,7 +473,7 @@ Phía dưới là dải băng thông báo lớn theo kết quả:
 - Nếu Hoàn thành: dải băng màu xanh lá "Hoàn thành node. Vừa mở: {danh sách các node con vừa mở khóa}".
 - Nếu Chưa đạt: dải băng màu đỏ "Chưa đạt — các node sau vẫn mở, kèm ⚠".
 
-Node đã xong thì phần Feynman chỉ đọc: vẫn xem được câu hỏi, kết quả, đáp án và nút "Báo sai" của lần học cuối.
+Node đã xong mà lần học vẫn còn trong trình duyệt thì phần Feynman giữ nguyên câu hỏi, kết quả, đáp án và nút "Báo sai". Sau khi tải lại trang, tab Feynman hiện bản chỉ đọc của lần học cuối: câu hỏi, kết quả, đáp án và cách sửa.
 
 ---
 
@@ -504,7 +513,7 @@ sequenceDiagram
 ### 7.1. Cấu trúc kho lưu trữ Zustand và phân tách dữ liệu tạm
 Giao diện quản lý toàn bộ trạng thái trong kho lưu trữ Zustand. Dữ liệu được chia thành hai nhóm riêng biệt:
 - **Dữ liệu phiên làm việc cốt lõi:** Chứa mã phiên, kết quả phân tích cấu trúc đồ thị, trạng thái tiến độ các node, từ điển bản phân tích của các node, danh sách các đợt trả lời câu hỏi và bản tổng quan dự án. Khi bạn chuyển sang phân tích một repo khác, toàn bộ dữ liệu này sẽ được dọn sạch hoàn toàn để tránh rò rỉ thông tin giữa các dự án.
-- **Dữ liệu giao diện tạm thời (`ui` slice):** Quản lý những trạng thái mang tính nhất thời của trình duyệt như: danh sách tác vụ đang chờ mạng, các thông báo lỗi hiện tại, kết quả chấm bài gần nhất, các đoạn văn bản nháp bạn đang gõ dở, thông số hiệu năng đo đạc, và bước code đang được gợi ý sáng đèn.
+- **Dữ liệu giao diện tạm thời (`ui` slice):** Quản lý những trạng thái mang tính nhất thời của trình duyệt như: danh sách tác vụ đang chờ mạng, các thông báo lỗi hiện tại, kết quả chấm bài gần nhất, các đoạn văn bản nháp bạn đang gõ dở, thông số hiệu năng đo đạc, và bước code đang được gợi ý sáng đèn. Bố cục và chủ đề nằm ở 2 kho nhỏ riêng (`useLayout`, `useTheme`).
 - **Độ lệch đồng hồ máy chủ:** Được tính bằng `server_now − Date.now()` mỗi khi gọi API lấy hồ sơ. Nhờ vậy việc tính mài mòn dùng đúng giờ của máy chủ, kể cả khi đồng hồ máy người dùng bị chỉnh sai.
 - **Quy tắc an toàn chống lệch phiên:** Mọi gói dữ liệu phản hồi từ máy chủ gửi về đều phải mang đúng mã phiên hiện tại. Nếu bạn vừa bấm chuyển sang repo khác mà một phản hồi cũ của repo trước mới bay về, hệ thống sẽ tự động vứt bỏ gói dữ liệu đó để tránh ghi đè làm hỏng trạng thái mới.
 
@@ -514,8 +523,8 @@ Khi bạn mở trang web SimpliFey lên, ứng dụng sẽ thực hiện tuần 
 2. **Kiểm tra đăng nhập:** Gọi thư viện Supabase để kiểm tra phiên đăng nhập của người dùng. Nếu chưa có tài khoản, ứng dụng dừng lại và hiển thị màn hình "Đăng nhập GitHub".
 3. **Lấy hồ sơ năng lực:** Gửi yêu cầu `GET /api/me` để lấy hồ sơ điểm số kỹ năng của bạn và đồng bộ độ lệch thời gian với máy chủ.
 4. **Lấy lịch sử học tập:** Gửi yêu cầu `GET /api/sessions` để lấy danh sách các dự án bạn đã từng học phục vụ cho bảng "Tiếp tục học".
-5. **Tự động mở lại phiên gần nhất:** Nếu `sf.last_session` có và phiên đó `can_resume`, hệ thống gửi yêu cầu mở lại. Nếu lỗi thì xóa `sf.last_session`, về màn hình tiếp nhận và báo lỗi.
-- Nếu xảy ra sự cố mất kết nối mạng ở Bước 2 hoặc 3, giao diện sẽ hiển thị bảng thông báo: "Không kết nối được máy chủ" kèm nút "Thử lại" và nút "Mở bản demo Offline".
+5. **Tự động mở lại phiên gần nhất:** Nếu `sf.last_session` có và phiên đó `can_resume`, hệ thống gửi yêu cầu mở lại. Nếu lỗi thì báo lỗi; riêng lỗi không tìm thấy phiên thì xóa `sf.last_session`.
+- Nếu lấy hồ sơ ở Bước 3 lỗi, trang chủ hiển thị thông báo lỗi kèm nút "Thử lại" và nút "Mở bản demo Offline".
 
 ### 7.3. Hàng đợi phân tích thông minh và tổng quan dự án
 Khi một dự án có nhiều node, việc phân tích mã nguồn được điều phối qua một hàng đợi thông minh theo nguyên tắc tải trước có giới hạn:
@@ -564,10 +573,10 @@ flowchart TD
 ```
 
 ### 8.1. Cách kích hoạt và nhận diện chế độ Offline
-Bạn có thể bật hoặc tắt chế độ demo Offline theo 3 cách:
+Bạn có thể bật hoặc tắt chế độ demo Offline theo các cách sau:
 - Nhấn tổ hợp phím tắt `Ctrl+Shift+D` trên bàn phím (giao diện sẽ chặn thao tác bookmark mặc định của trình duyệt để chuyển chế độ).
 - Thêm tham số `?offline=1` vào thanh địa chỉ của trình duyệt web.
-- Bấm vào nút "Mở bản demo Offline" khi hệ thống phát hiện mất kết nối mạng ở màn hình khởi động.
+- Bấm nút "Mở bản demo Offline" ở thẻ trên trang chủ, màn hình đăng nhập, thông báo lỗi khởi động, hoặc trong menu tài khoản. Nút ở trang chủ đưa bạn thẳng vào trang học; phím tắt thì giữ nguyên trang đang xem.
 
 Khi chế độ này được kích hoạt, thanh tiêu đề trên cùng sẽ luôn xuất hiện một nhãn thông báo cố định: **"Chế độ Offline — dữ liệu ghi lại, không lưu tiến độ"**. Rê chuột vào nhãn này bạn sẽ thấy xuất xứ của dữ liệu mẫu đã được ghi lại từ đâu.
 
@@ -609,10 +618,10 @@ flowchart LR
 ```
 
 ### 9.1. Điều kiện hiển thị và các đối tượng giả lập
-Menu chọn Persona nằm trên thanh đầu trang, chỉ xuất hiện khi `NEXT_PUBLIC_DEMO_MODE = "true"` hoặc khi đang ở chế độ demo Offline. Menu có 3 mục, hiện theo nhãn trong spec:
+Ô chọn Persona nằm trên thanh đầu trang, chỉ xuất hiện khi `NEXT_PUBLIC_DEMO_MODE = "true"` hoặc khi đang ở chế độ demo Offline. Ô có 3 mục, hiện theo nhãn trong code:
 - "Sinh viên năm 2" (`NEWBIE`): mọi kỹ năng 0.25.
 - "Mid-level dev" (`MID_LEVEL`): mọi kỹ năng 0.65.
-- "Senior nghỉ 30 ngày" (`SENIOR_RUSTY`): điểm gốc 0.95, đã 30 ngày không luyện nên điểm suy giảm còn 0.4085.
+- "Senior nghỉ 30 ngày (demo mài mòn, D-35)" (`SENIOR_RUSTY`): điểm gốc 0.95, đã 30 ngày không luyện nên điểm suy giảm còn 0.4085.
 
 ### 9.2. Hành vi khi chạy trực tuyến (Online)
 - Khi bạn chọn một persona trong menu, giao diện sẽ gửi yêu cầu `POST /api/demo/persona` lên máy chủ.
@@ -620,11 +629,11 @@ Menu chọn Persona nằm trên thanh đầu trang, chỉ xuất hiện khi `NEX
 - **Không xáo trộn đồ thị:** Trạng thái Hoàn thành hay Chưa đạt của các node trên bản đồ không bị thay đổi, và hệ thống không quét lại kho mã nguồn từ đầu.
 - **Cập nhật mài mòn tức thì:** Toàn bộ chip kỹ năng của node bạn đang xem ở phần X-Ray sẽ được tính toán và vẽ lại ngay lập tức. Nếu bạn chuyển từ một persona đang có kỹ năng vững sang `SENIOR_RUSTY`, bạn sẽ thấy ngay thanh tiến độ kỹ năng nhạt màu đi và nhãn "đang mài mòn" xuất hiện ngay trước mắt.
 - Tiến độ các bài đã học của bạn vẫn được giữ nguyên. Nếu bạn muốn xóa sạch mọi dấu vết để học lại hoàn toàn từ đầu như một người mới, bạn chỉ cần chọn mục "Xóa tài khoản và dữ liệu" trong menu tài khoản.
-- Nếu máy chủ trả lỗi `ERR_DEMO_MODE_DISABLED`, menu Persona được ẩn.
+- Nếu máy chủ trả lỗi `ERR_DEMO_MODE_DISABLED`, giao diện hiện thông báo nổi.
 
 ### 9.3. Hành vi khi chạy demo (Offline)
 - Khi đang ở chế độ Offline, việc đổi persona hoàn toàn không gửi yêu cầu qua mạng. Trình duyệt sẽ tự động cập nhật biến trạng thái, tái tạo lại hồ sơ năng lực 16 kỹ năng trong bộ nhớ RAM, tự tính toán lại trạng thái các node và dọn sạch các đợt làm bài dở dang để sẵn sàng cho một kịch bản demo mới.
-- Menu Offline được lập trình thông minh: chỉ hiển thị những persona nào thực sự có kịch bản câu hỏi ghi sẵn trong gói dữ liệu tĩnh để bảo đảm người xem không bao giờ gặp phải tình huống bấm vào mà không có dữ liệu.
+- Ô chọn liệt kê đủ 3 persona, nên gói dữ liệu Offline phải có kịch bản câu hỏi cho cả 3. Thiếu thì bấm vào node sẽ gặp thông báo "Kịch bản offline không có câu hỏi cho node / persona này".
 
 Tra chi tiết: spec/30_UI.md Mục 9.
 
@@ -688,39 +697,42 @@ Một giao diện hiện đại không chỉ cần đẹp mắt mà còn phải 
 
 ```mermaid
 flowchart TD
-    CONFIG["Hệ thống Token Thiết kế<br/>(Tailwind CSS + CSS Variables)"] --> THEME["Bảng màu nền tối sâu: --bg #0F172A<br/>Phông chữ: Plus Jakarta Sans & JetBrains Mono"]
+    CONFIG["Hệ thống Token Thiết kế<br/>(Tailwind CSS + CSS Variables)"] --> THEME["2 chủ đề sáng / tối theo html[data-theme]<br/>Phông chữ: Plus Jakarta Sans & JetBrains Mono"]
     CONFIG --> A11Y["Khả năng tiếp cận<br/>(WCAG AA · Điều khiển bằng bàn phím · aria-live)"]
-    CONFIG --> RESPONSIVE["Thích ứng màn hình linh hoạt<br/>(lg: 2 cột · Nhỏ: 1 cột)"]
+    CONFIG --> RESPONSIVE["Thích ứng màn hình linh hoạt<br/>(lg: 3 cột · Nhỏ: 1 cột)"]
     CONFIG --> MOTION["Hiệu ứng chuyển động có kiểm soát<br/>(Tự tắt khi bật prefers-reduced-motion)"]
 ```
 
 ### 11.1. Hệ thống Token thiết kế và thẩm mỹ công nghệ
-Toàn bộ giao diện được xây dựng trên một bảng biến màu sắc (CSS Variables) chuẩn mực, được tích hợp chặt chẽ vào cấu hình của Tailwind CSS:
-- **Màu nền tối:** Màu nền tổng thể (`--bg`) dùng mã `#0F172A`, kết hợp với màu nền các cột (`--panel #111B31` và `--panel-2 #0D1629`).
-- **Màu sắc trạng thái trực quan:**
-  - Màu vàng hổ phách (`--amber #F59E0B`): dành cho trạng thái Sẵn sàng và các cảnh báo quan trọng.
-  - Màu xanh lá cây (`--green #10B981`): dành cho trạng thái Hoàn thành và các điểm mạnh kiến trúc.
-  - Màu đỏ (`--red #EF4444`): dành cho trạng thái Chưa đạt, các cảnh báo điểm dở và hành động nguy hiểm.
-  - Màu xám đá (`--locked #475569`): dành cho các node chưa đủ điều kiện mở khóa.
-  - Màu tím (`--violet #A78BFA`): dành cho huy hiệu thuật toán và gợi ý chỉ điểm code.
-  - Màu xanh da trời (`--blue #38BDF8`): màu phụ trong bảng token.
+Toàn bộ giao diện được xây dựng trên một bảng biến màu sắc (CSS Variables), được tích hợp vào Tailwind CSS. Bảng biến có 2 bộ giá trị, chọn theo thuộc tính `data-theme` của thẻ `<html>`. Mặc định là chủ đề tối; nút ☀/☾ đổi chủ đề, lựa chọn được lưu lại và được gán trước khi vẽ trang nên tải lại không bị nháy màu.
+- **Chủ đề tối:** Nền gần đen ánh tím (`--bg #09080f`, khung `--panel #12101a`), quầng sáng tím, hồng, xanh ở mép.
+- **Chủ đề sáng:** Nền `--bg #f8fafc`, thẻ và khung trắng, viền xám nhạt, kiểu công cụ cho lập trình viên.
+- **Màu nhấn (`--accent`):** Tím, dùng cho nút chính, tab, viền focus và thanh kỹ năng. Màu này không mang nghĩa trạng thái.
+- **Màu sắc trạng thái:** Giữ nguyên nghĩa ở cả 2 chủ đề, chỉ đổi giá trị để đủ tương phản (tối / sáng):
+  - Màu vàng hổ phách (`--amber #f5b942` / `#b45309`): dành cho trạng thái Sẵn sàng và các cảnh báo quan trọng.
+  - Màu xanh lá cây (`--green #34d399` / `#15803d`): dành cho trạng thái Hoàn thành và các điểm mạnh kiến trúc.
+  - Màu đỏ (`--red #fb6185` / `#b91c1c`): dành cho trạng thái Chưa đạt, các cảnh báo điểm dở và hành động nguy hiểm.
+  - Màu xám (`--locked #6a6580` / `#64748b`): dành cho các node chưa đủ điều kiện mở khóa.
+  - Màu tím (`--violet #b69cff` / `#7c3aed`): dành cho huy hiệu thuật toán và gợi ý chỉ điểm code.
+  - Màu xanh da trời (`--blue #6ea8ff` / `#1d4ed8`): màu phụ, dùng cho chip thông tin và liên kết.
 - **Kiểu chữ chuyên nghiệp:** Giao diện sử dụng phông chữ **Plus Jakarta Sans** hiện đại cho toàn bộ các văn bản giao diện, và phông chữ **JetBrains Mono** sắc nét cho trình đọc code Monaco và các đoạn mã nguồn. Cả hai phông chữ đều được tối ưu hóa tải trang thông qua thư viện font của Next.js.
 - **Hiệu ứng kính mờ:** Dùng `--panel` kết hợp `backdrop-blur` cho toast, popover và hộp thoại. Các cột và thẻ giữ nền đặc.
 
 ### 11.2. Điều khiển hoàn toàn bằng bàn phím và Hỗ trợ công cụ đọc màn hình
 Các thao tác chính làm được bằng bàn phím:
-- Tiêu điểm bàn phím đi qua các node theo thứ tự tô-pô. Nhấn `Enter` hoặc phím cách (`Space`) để mở một node.
+- Tiêu điểm bàn phím đi qua các node theo thứ tự danh sách node. Nhấn `Enter` hoặc phím cách (`Space`) để mở một node.
 - Nhấn tổ hợp phím `Ctrl+Enter` để nộp bài làm trong phần Feynman một cách nhanh chóng.
 - Nhấn phím `Esc` để đóng các hộp thoại xác nhận hoặc thoát khỏi chế độ trình chiếu phóng to.
-- Mọi thành phần đang nhận tiêu điểm bàn phím đều được bao quanh bởi một đường viền màu vàng hổ phách sắc nét, không bị hiện tượng mất dấu tiêu điểm.
+- `Ctrl+B`, `Ctrl+Alt+B`, `Ctrl+Alt+J` ẩn/hiện các khung; vạch kéo nhận phím mũi tên, `Home` hoặc `Enter` để đặt lại.
+- Mọi thành phần đang nhận tiêu điểm bàn phím đều được bao quanh bởi một đường viền màu nhấn tím, không bị hiện tượng mất dấu tiêu điểm.
 - **Tiêu chuẩn trợ năng WCAG AA:** Mọi thẻ node đều có nhãn phụ trợ mô tả đầy đủ: "{tên node} — {trạng thái}[, có cảnh báo][, đang phân tích]". Kết quả chấm bài của AI và các thông báo lỗi được đặt trong vùng lắng nghe trực tiếp (`aria-live="polite"`), giúp phần mềm đọc màn hình của người khiếm thị có thể phát âm thanh thông báo ngay khi có kết quả mới.
 
 ### 11.3. Thích ứng linh hoạt trên thiết bị di động
-- Trên màn hình từ chuẩn `lg` trở lên, trang học hiển thị 2 cột song song.
-- Trên màn hình hẹp hơn, trang học xếp thành 1 cột, không có cuộn ngang.
+- Trên màn hình từ chuẩn `lg` trở lên, trang học hiển thị 3 cột, ẩn/hiện và kéo tỉ lệ được.
+- Trên màn hình hẹp hơn, trang học xếp thành 1 cột, không có cuộn ngang, không có nút bố cục và vạch kéo.
 
 ### 11.4. Hiệu ứng chuyển động mượt mà và Chế độ bảo vệ thị giác
-Các hiệu ứng trên giao diện dùng CSS thuần: nhịp sáng cho node Sẵn sàng, chuyển màu khi đổi trạng thái, phóng nhẹ một lần cho node vừa mở khóa, shimmer khi chờ phân tích, thanh điểm chạy chiều rộng, toast trượt vào, và ô nhập rung nhẹ khi chưa đạt.
+Các hiệu ứng trên giao diện dùng CSS thuần: nhịp sáng cho node Sẵn sàng, chuyển màu khi đổi trạng thái hoặc đổi chủ đề, phóng nhẹ một lần cho node vừa mở khóa, chuyển động trên cạnh nối, shimmer khi chờ phân tích, thanh điểm chạy chiều rộng, toast trượt vào, khung và hộp thoại hiện mềm, và ô nhập rung nhẹ khi có lỗi.
 - **Tôn trọng tùy chọn giảm chuyển động (`prefers-reduced-motion: reduce`):** Khi bật tùy chọn này, mọi hiệu ứng được tắt, giao diện chỉ đổi màu.
 
-Tra chi tiết: spec/30_UI.md Mục 11. Danh sách kiểm tra T1 đến T27 nằm ở mục Test bắt buộc của spec/30.
+Tra chi tiết: spec/30_UI.md Mục 11. Danh sách kiểm tra T1 đến T41 nằm ở spec/50_TEST_VA_FIXTURE.md Mục 6.

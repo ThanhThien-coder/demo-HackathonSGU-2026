@@ -245,7 +245,7 @@ Bảng dưới đây tổng hợp toàn bộ các loại dữ liệu trong hệ 
 | **Câu hỏi, đáp án mẫu, ý bắt buộc** | Cơ sở dữ liệu Supabase Postgres (`node_runs`) | Lâu dài theo phiên học | Máy chủ dùng khóa quản trị | Máy chủ nội bộ; chỉ gửi đáp án về trình duyệt khi câu hỏi đã kết thúc |
 | **Lịch sử trả lời, biên bản Báo sai** | Cơ sở dữ liệu Supabase Postgres | Lâu dài theo tài khoản | Máy chủ dùng khóa quản trị | Người học xem lại lịch sử của chính mình |
 | **Bản phân tích node và tổng quan kiến trúc** | Cơ sở dữ liệu Supabase Postgres (`ai_cache`) | Lâu dài theo phiên bản repo | Máy chủ dùng khóa quản trị | Máy chủ nội bộ dùng chung cho mọi người học (Trình duyệt cấm đọc trực tiếp) |
-| **Cấu hình giao diện (cỡ chữ, vị trí tab)** | Bộ nhớ cục bộ trình duyệt (`localStorage`) | Vĩnh viễn trên trình duyệt của người dùng | Trình duyệt người học | Trình duyệt người học |
+| **Cấu hình giao diện (chủ đề sáng/tối, bố cục trang học)** | Bộ nhớ cục bộ trình duyệt (`localStorage`) | Vĩnh viễn trên trình duyệt của người dùng | Trình duyệt người học | Trình duyệt người học |
 
 Tra chi tiết: spec/01_KIEN_TRUC_VA_LUONG.md Mục 8.
 

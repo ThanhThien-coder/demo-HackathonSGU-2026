@@ -49,9 +49,9 @@
 
 **Thao tác (Vai B):** bấm vào ô link → `Ctrl+V` link repo demo (đã copy sẵn) → bấm "Quét repo".
 **Màn hình phải thấy:**
-- Lớp phủ đang quét có đồng hồ chạy thật; quét xong thì cửa sổ Tổng quan tự mở, phần do code biết hiện ngay. Chưa nói tới cửa sổ này; quay lại ở phút 4:20. Đóng cửa sổ, bấm **Đồ thị bài học** ở cạnh trái để mở bản đồ: bài mở đầu màu vàng, các bài còn lại xám, viền đứt, bài Capstone có dấu ★.
+- Lớp phủ đang quét có đồng hồ chạy thật; quét xong thì cửa sổ Tổng quan tự mở, phần do code biết hiện ngay. Chưa nói tới cửa sổ này; quay lại ở phút 4:20. Đóng cửa sổ, bản đồ đã hiện sẵn ở cột trái: bài mở đầu màu vàng, các bài còn lại xám, viền đứt, bài Capstone có dấu ★.
 - Header hiện "Bản đồ … ms · 0 token" (số đo ở máy chủ, `ingest_ms + engine_ms`).
-- Bản đồ nằm trong ngăn kéo, kéo để xem hết.
+- Bản đồ nằm ở cột trái, kéo để xem hết; chữ nhỏ thì kéo rộng vạch chia hoặc bấm phóng to.
 
 > "Bước này máy đọc code bằng thuật toán, không gọi AI, nên không tốn token. Đồng hồ trên đầu trang đang hiện **[Vai B đọc số thật, đổi ra giây]**. Mục tiêu của nhóm là dưới 1,5 giây với repo cỡ đồ án.
 > Mỗi ô là một **luồng nghiệp vụ đi xuyên nhiều file**. Ví dụ 'Danh sách sản phẩm' đi từ route, qua service, xuống repository; một ô không phải là một file. Mũi tên là thứ tự học: ô vàng học được ngay, ô xám phải chờ các ô đứng trước."
@@ -66,7 +66,7 @@
 
 ### ⏱ 1:20 – 2:05 · phần X-Ray — Vai A
 
-**Thao tác:** bấm node **Danh sách sản phẩm** (N3) → ngăn kéo đóng, code và X-Ray hiện ở cột trái → trong "Luồng thực thi" bấm **Bước 2** → khung code nhảy sang `product.service.ts`, tô dòng 14–20 → trỏ chuột vào khối ⚠️.
+**Thao tác:** bấm node **Danh sách sản phẩm** (N3) → code hiện ở cột giữa, X-Ray hiện ở cột phải → trong "Luồng" bấm **Bước 2** → khung code nhảy sang `product.service.ts`, tô dòng 14–20 → trỏ chuột vào khối ⚠️.
 **Màn hình phải thấy:**
 - Kỹ năng: `DB_OPTIMIZATION` · `LAYERED_SEPARATION`.
 - Kiến trúc: Tách tầng + Repository.
@@ -82,13 +82,13 @@
 
 *Lưu ý khi demo: Mỗi lần AI chấm có thể mất vài giây tới hơn 10 giây; người nói cần có câu dẫn trong lúc chờ, không để khoảng lặng trên sân khấu.*
 
-**Thao tác 1:** cuối phần X-Ray bấm **"Bắt đầu trả lời (2 câu) →"** → cột phải hiện "Câu 1/2 · DB_OPTIMIZATION · NOVICE". Vai B gõ câu **A** (Mục 3) → bấm "Nộp" (hoặc `Ctrl+Enter`).
+**Thao tác 1:** cuối tab X-Ray bấm **"Bắt đầu trả lời (2) →"** → cột phải chuyển sang tab Feynman, hiện "Câu 1/2 · DB_OPTIMIZATION · NOVICE". Vai B gõ câu **A** (Mục 3) → bấm "Nộp" (hoặc `Ctrl+Enter`).
 **Màn hình:**
 - Kết quả: chưa đạt.
-- Gợi ý nấc 1 (`CONCEPT`), hỏi lại về chỗ hiểu sai và chưa chỉ vị trí.
+- Gợi ý `CODE_POINTER` (người mới được chỉ thẳng bước, D-74): khung code cuộn tới bước có vấn đề, vạch tím 💡, chưa lộ đáp án.
 - Node vẫn vàng; điểm kỹ năng chưa đổi.
 
-> "AI không đưa đáp án. Nó hỏi ngược đúng vào chỗ em chưa nghĩ tới: *sau khi có danh sách, trang còn lấy thêm gì cho từng sản phẩm?*"
+> "AI không đưa đáp án. Nó chỉ em tới đúng bước cần đọc lại và hỏi ngược chỗ em chưa nghĩ tới."
 
 **Thao tác 2:** gõ câu **B** → "Nộp".
 **Màn hình:**
@@ -158,7 +158,7 @@ Câu hỏi online do AI sinh mới mỗi lần mở phần Feynman (không cache
 
 | # | Node · câu · lượt | Câu gõ | Kỳ vọng | Lần thử 1 · 2 · 3 |
 | :-: | :-- | :-- | :-- | :-: |
-| **A** | N3 · Câu 1 (`DB_OPTIMIZATION`, `WEAKNESS`) · lượt 1 | `Vì có 200 sản phẩm nên dữ liệu nhiều.` | Chưa đạt; gợi ý `CONCEPT` không chứa "201"; điểm không đổi | ☐ ☐ ☐ |
+| **A** | N3 · Câu 1 (`DB_OPTIMIZATION`, `WEAKNESS`) · lượt 1 | `Vì có 200 sản phẩm nên dữ liệu nhiều.` | Chưa đạt; gợi ý `CODE_POINTER` tô bước có vấn đề, không chứa "201"; điểm không đổi | ☐ ☐ ☐ |
 | **B** | N3 · Câu 1 · lượt 2 | `Vì lấy danh sách xong, code còn hỏi database thêm một lần cho mỗi sản phẩm để lấy loại hàng. 200 sản phẩm là 201 lần hỏi, càng nhiều sản phẩm càng nhiều lần hỏi.` | Đạt, `PASS_AFTER_HINT`; 0,25 → 0,4202; hiện đáp án + cách sửa | ☐ ☐ ☐ |
 | **C** | N3 · Câu 2 (`LAYERED_SEPARATION`, `FLOW`) · lượt 1 | `Route gọi listProducts ở service; vòng for gọi categoryRepo.findById(p.categoryId) ở category.repo.ts, lấy loại hàng bằng findOne, gán vào p.category ở dòng 17 rồi trả về.` | Đạt, `PASS_FIRST`; 0,25 → 0,5767; N3 xanh; không mở thêm node | ☐ ☐ ☐ |
 | D | Cổng gác (phút 3:20) | Không gõ — chạy `npx vitest run -t "GUARD-04"` | `verifyToken` bị chặn, `findOne` giữ; test xanh | ☐ ☐ ☐ |
@@ -183,6 +183,8 @@ Câu hỏi online do AI sinh mới mỗi lần mở phần Feynman (không cache
 | Máy treo | — | Mở video dự phòng ở máy thứ hai | "Đây là video quay màn hình bản chạy thật lúc [giờ] sáng nay." |
 
 *Thời gian chờ AI: Mỗi lần AI chấm có thể mất vài giây tới hơn 10 giây; người nói cần chuẩn bị câu dẫn trong lúc chờ, không để khoảng lặng trên sân khấu.*
+
+> ⚠️ **Kiểm trước khi dùng câu dưới:** `public/demo/mock_bundle.json` hiện là bản viết tay (3 node List Products, User Profile, Order Checkout; `recorded_from.model` = "viết tay — chưa ghi từ Gemini"), không phải lần chạy thật và không khớp bản đồ 7 node ở trên. Chưa ghi lại bundle thật thì đổi câu dưới thành "dữ liệu mẫu do nhóm viết tay".
 
 **Câu bắt buộc khi chuyển Offline** (nói nguyên văn, không lướt):
 > "Mạng đang có vấn đề nên em chuyển sang chế độ Offline. Từ đây là **dữ liệu ghi lại** từ một lần chạy thật của chính hệ thống trên repo này, đã được nhóm duyệt tay. Nhãn Offline luôn hiện ở đầu trang, và ở chế độ này tiến độ không được lưu."

@@ -172,7 +172,7 @@ export const CONFIG = {
   REPORT_NOTE_MAX_CHARS: 500,         // = check char_length(note) của dispute_reports
 
   // ---------- Giao diện (30_UI) ----------
-  UI_PRESENTATION_FOCUS_PCT: 60,      // Cột đang chọn ở chế độ trình chiếu; 2 cột còn lại chia phần còn lại
+  UI_PRESENTATION_FOCUS_PCT: 60,      // Cột code ở chế độ trình chiếu; 2 cột còn lại chia đều phần còn lại
   UI_PRESENTATION_FONT_SCALE: 1.25,
 
   // ---------- Đơn vị ----------
@@ -885,7 +885,7 @@ export interface ClientWorkbenchState {          // Zustand — bản sao CHỈ 
   overview: RepoOverviewView | "PENDING" | null;
   runs: Record<string, EnrichNodeResponse>;      // Theo node_id — run đang mở gần nhất
   active_node_id: string | null;
-  active_tab: "XRAY" | "FEYNMAN" | "OVERVIEW";
+  active_tab: "XRAY" | "FEYNMAN" | "OVERVIEW";   // tab cột phải; "OVERVIEW" không dùng (Tổng quan là cửa sổ, D-78)
   active_question_index: number | null;
   active_step: number | null;                     // Bước đang tô ở Monaco
   last_failed_answers: Record<string, string>;    // `${run_id}:${question_index}` ⇒ câu vừa trượt (kiểm trùng ở client)

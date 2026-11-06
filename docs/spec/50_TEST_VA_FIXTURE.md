@@ -16,6 +16,7 @@
 | 3 | Kịch bản A–E (3.1–3.5), persona (3.6) | `__tests__/*.test.ts` |
 | 4 | Kiểm thử xuyên module X-01 … X-13 | `__tests__/*.test.ts` |
 | 5 | Definition of Done toàn sản phẩm | `npx vitest run` |
+| 6 | Test giao diện T1 … T41 (`30`) | Vitest + DevTools |
 
 ---
 
@@ -204,7 +205,7 @@ Kỳ vọng phía server:
 - `is_passed = false`.
 - Response **không** có `misconception` và `quote`.
 - `points_covered = [false, false]`.
-- `follow_up.type = "CONCEPT"`.
+- `follow_up` theo tier (D-74, `20` AI-31): `PRACTITIONER` ⇒ `CONCEPT` giữ câu AI; `NOVICE` ⇒ `CODE_POINTER`, AI trả sai loại nên dùng mẫu tĩnh.
 
 Lượt 2 — câu trả lời: *"Vì lấy danh sách xong, code còn hỏi database thêm một lần cho mỗi sản phẩm để lấy loại hàng. 200 sản phẩm là 201 lần hỏi, càng nhiều sản phẩm càng nhiều lần hỏi."*
 ```json
@@ -237,7 +238,7 @@ Chung cho mọi kịch bản:
 | A1 | `ingest` repo mẫu | 7 node; N1, N3 `AVAILABLE`; còn lại `LOCKED` |
 | A2 | `analyze-node` N3 | Bản phân tích như 2.1 sau kiểm; N3 vẫn `AVAILABLE` |
 | A3 | `enrich-node` N3 `LEARN` | Kế hoạch: Q1 `DB_OPTIMIZATION` · NOVICE · `WEAKNESS`; Q2 `LAYERED_SEPARATION` · NOVICE · `FLOW`; tạo 1 run; câu hỏi + đáp án mẫu + ý bắt buộc lưu ở `node_runs`, response không có đáp án (D-36) |
-| A4 | Nộp Q1 lượt 1 (2.4) | Chưa đạt; gợi ý `CONCEPT`; `attempts_used = 1`; BKT chưa đổi |
+| A4 | Nộp Q1 lượt 1 (2.4) | Chưa đạt; gợi ý `CODE_POINTER` (`NOVICE`, D-74); `attempts_used = 1`; BKT chưa đổi |
 | A5 | Nộp Q1 lượt 2 | Đạt, PAH; `DB_OPTIMIZATION` 0.25 → **0.4202**; Q1 có `reveal` |
 | A6 | Nộp Q2 lượt 1 (đúng) | PF; `LAYERED_SEPARATION` 0.25 → **0.5767**; run xong ⇒ N3 `COMPLETED`; `unlocked_node_ids` = [] (N5 còn chờ N4) |
 | A7 | Đọc lại trạng thái | Kỹ năng của node đang mở: `DB_OPTIMIZATION` 0.4202, `LAYERED_SEPARATION` 0.5767; **chưa** có nhãn "đang mài mòn" (Δt = 0 ⇒ không rớt bậc, BKT-24) |
@@ -249,7 +250,7 @@ Trước đó: N1 đạt PF ở `HTTP_ROUTING` ⇒ 0.5767.
 | # | Thao tác | Kỳ vọng |
 | :-: | :-- | :-- |
 | B1 | `enrich-node` N2 `LEARN` | Q1 `AUTH_SECURITY` · NOVICE · `WEAKNESS`; Q2 `HTTP_ROUTING` · PRACTITIONER · `ARCHITECTURE` (N2 có điểm hay + mẫu `MIDDLEWARE_CHAIN`) |
-| B2 | Q1 lượt 1: *"getProfile lấy user từ database rồi trả về."* | Chưa đạt; gợi ý `CONCEPT` |
+| B2 | Q1 lượt 1: *"getProfile lấy user từ database rồi trả về."* | Chưa đạt; gợi ý `CODE_POINTER` (`NOVICE`, D-74) |
 | B3 | Q1 lượt 2: *"Hàm getProfile kiểm tra mật khẩu người dùng."* | Chưa đạt; gợi ý `CODE_POINTER`, `step_index = 2` |
 | B4 | Q1 lượt 3: *"Middleware kiểm tra user có tồn tại không."* | F; `AUTH_SECURITY` 0.25 → **0.0791**; `reveal` |
 | B5 | Q2 lượt 1 (đúng) | PF; `HTTP_ROUTING` 0.5767 → **0.8413**; run xong ⇒ N2 `FAILED`; N4 `AVAILABLE` với `has_warning = true` |
@@ -293,7 +294,7 @@ Minh gọi AI đặt câu hỏi ở cả 5 node đã học (N1–N5); node mà m
 | D5 | Đáp án AI có chữ "Redis" (repo không có gói redis/ioredis) | Câu đó bị chặn ⇒ gọi lại riêng câu đó |
 | D6 | AI lỗi 503 khi chấm | `ERR_AI_UNAVAILABLE`; `attempts_used` không đổi |
 | D7 | `tokens_used ≥ SESSION_TOKEN_QUOTA` | Mọi lời gọi AI mới ⇒ `ERR_TOKEN_QUOTA_EXCEEDED`; trúng cache vẫn chạy |
-| D8 | Gợi ý AI có từ cấm | `verifyFollowUp` sai ⇒ dùng mẫu tĩnh **cùng loại** (lượt 1 ⇒ mẫu `CONCEPT`, không lộ vị trí) |
+| D8 | Gợi ý AI có từ cấm | `verifyFollowUp` sai ⇒ dùng mẫu tĩnh **cùng loại** (loại `CONCEPT` ⇒ mẫu `CONCEPT`, không lộ vị trí) |
 | D9 | Bấm "Bỏ qua câu này" ở Q1/2 | Q1 F (`ended_by = SKIP`), BKT F, có `reveal`; chuyển sang Q2 |
 | D10 | Gõ *"chịu"* | `intent = GIVE_UP` ⇒ tính 1 lượt trượt, vẫn có gợi ý nấc kế |
 | D11 | Bình (mới) học N3 sau Lan | Trúng cache phân tích; câu hỏi sinh mới (không cache, D-37); tốn token đặt câu hỏi + chấm |
@@ -371,7 +372,7 @@ Trạng thái ban đầu của Huy: N3 `COMPLETED`.
 - [ ] Repo private / sai link / repo rỗng / quá lớn ⇒ đúng mã lỗi và thông điệp của `30`.
 - [ ] Dán link `tiangolo/fastapi` ⇒ bản đồ dựng từ thư mục `fastapi/`, có cảnh báo repo lớn (X-08, D-63).
 - [ ] Mở từng node của repo demo ⇒ node nào cũng có bản phân tích (D-46); phần X-Ray có điểm hay + điểm dở "Nhận định của AI"; không có tên bịa (kiểm tay 3 node).
-- [ ] Persona `NEWBIE`: chạy đúng kịch bản A của `50` (A3 → A7): sai ⇒ gợi ý `CONCEPT` ⇒ đúng ⇒ `PASS_AFTER_HINT`, điểm kỹ năng khớp bảng; node xanh, node con mở.
+- [ ] Persona `NEWBIE`: chạy đúng kịch bản A của `50` (A3 → A7): sai ⇒ gợi ý `CODE_POINTER` ⇒ đúng ⇒ `PASS_AFTER_HINT`, điểm kỹ năng khớp bảng; node xanh, node con mở.
 - [ ] "Bỏ qua câu này" ⇒ câu ❌, hiện đáp án; node đỏ khi run xong, node con mở kèm tam giác.
 - [ ] Mọi kỹ năng của node đã thạo ⇒ vẫn hỏi 1 câu cho kỹ năng điểm thấp nhất (D-34).
 - [ ] Persona `SENIOR_RUSTY` ⇒ kỹ năng của node đang mở hiện thanh nhạt dần + nhãn "đang mài mòn"; không có nút ôn, màu node không đổi (D-35).
@@ -379,6 +380,7 @@ Trạng thái ban đầu của Huy: N3 `COMPLETED`.
 - [ ] DevTools: response không chứa `misconception`, `reference_answer` của câu chưa xong, `suspicious_instruction_files`, `symbol_whitelist`.
 - [ ] Sửa `attempt_number` trong request ⇒ `ERR_ATTEMPT_OUT_OF_SYNC`, không lộ đáp án.
 - [ ] `Ctrl+Shift+D` ⇒ chế độ offline chạy hết kịch bản demo, nhãn offline luôn hiện.
+- [ ] Bố cục 3 cột, bảng dưới, 2 chủ đề, trình chiếu đạt T37–T41 ở 1366×768 (D-78, D-79).
 - [ ] Repo demo có bài tới `DATA_ACCESS`, Capstone không từ file test, không có bài `<module>`.
 - [ ] Chạy thêm 1 repo NestJS nghiệp vụ, đọc nội dung 3 bài, học trọn 1 vòng trên site thật, thử ở 1366×768.
 - [ ] Mọi test `50` xanh (`npx vitest run`).
@@ -386,3 +388,48 @@ Trạng thái ban đầu của Huy: N3 `COMPLETED`.
 - [ ] Bộ lọc an toàn: che đúng email, SĐT, CCCD, secret trong code và bài làm; từ xấu ở câu trả lời trả `ERR_ANSWER_INAPPROPRIATE` không mất lượt; câu kỹ thuật không bị chặn nhầm; chữ AI có từ xấu bị guard bắt (D-65).
 - [ ] deploy.yml chạy hết staging ⇒ smoke test đạt ⇒ production sau duyệt (D-30).
 - [ ] `AI_DISABLED`, `/api/health`, `ai_usage` chạy đúng các test trên (D-64, D-66).
+
+---
+
+## 6. Test giao diện T1 … T41
+
+Repo `shop-api` (Mục 1). Hàm thuần / component: vitest, tên bắt đầu bằng mã luật (VD `UI-31 số dòng gốc`); còn lại kiểm qua DevTools (Network).
+
+| # | Thao tác | Kỳ vọng |
+| :-: | :-- | :-- |
+| T1 | Bấm / Enter trên node `LOCKED` (N5 khi N4 chưa xong) | 0 request; không mở bài; tooltip "Hoàn thành trước: Giỏ hàng" |
+| T2 | NEWBIE, N2: Q1 trượt 3 lần, Q2 đạt | N2 đỏ ✗; N4 vàng + ⚠ (tooltip nêu "Xem hồ sơ"); tổng kết "❌ AUTH_SECURITY · ✅ HTTP_ROUTING"; Q1 có "Báo sai" |
+| T4 | NEWBIE, N3: Q1 sai ⇒ gợi ý ⇒ đúng; Q2 đúng ngay | Chip "DB_OPTIMIZATION: 0.2500 → 0.4202", "LAYERED_SEPARATION: 0.2500 → 0.5767"; N3 xanh; 2 kỹ năng **không** "đang mài mòn" (Δt = 0 ⇒ không rớt bậc) |
+| T5 | Học xong N3 bằng `MID_LEVEL` ⇒ đổi sang `SENIOR_RUSTY` | `POST /api/demo/persona`, không gọi `ingest`; N3 vẫn xanh, không nút ôn; X-Ray N3: thanh kỹ năng nhạt + "đang mài mòn" (0.95 sau 30 ngày ⇒ 0.4085, `ARCHITECT` ⇒ `NOVICE`) |
+| T6 | N3 Q1 nộp "Vì có 200 sản phẩm nên dữ liệu nhiều." (trượt) ⇒ nộp "Vì có 200 sản phẩm nên dữ liệu nhiều"; nộp "ok" | Lần lượt `ERR_ANSWER_DUPLICATE`, `ERR_ANSWER_TOO_SHORT`; 0 request; lượt vẫn ●○○ |
+| T8 | Bấm Nộp 2 lần liền | Đúng 1 request `evaluate-feynman` |
+| T9 | Lượt 1 trượt ⇒ lượt 2 trượt | `NOVICE`: cả 2 lượt `CODE_POINTER`, Monaco cuộn tới `step_index`, vạch tím. `PRACTITIONER`: lượt 1 `CONCEPT` không tô bước, lượt 2 tô (D-74) |
+| T10 | Tìm `reference_answer` trong store / Network trước khi câu xong | Không có; xong ⇒ khung đáp án đủ 3 phần |
+| T11 | "Bỏ qua câu này" ở Q1/2 | Xác nhận ⇒ `POST /api/reveal` ⇒ Q1 ❌ + đáp án + chip điểm; Q2 làm tiếp; Q1 không có "Báo sai" |
+| T12 | "Báo sai" Q1 của T2 | Q1 🚩; `AUTH_SECURITY` về 0.2500; N2 xanh; có `GET …/progress`; N4 hết ⚠ |
+| T13 | Tải trang, bấm ngay 1 node chưa phân tích | X-Ray khung chờ, Feynman tắt; chỉ gọi `analyze-node` cho node đó và 1–2 node kế tiếp (D-46); số lời gọi đồng thời ≤ `CONFIG.ANALYZE_CONCURRENCY` |
+| T14 | Fixture D2 của `50` (phân tích N6 lỗi) | N6 vàng + "Thử lại phân tích"; node con kèm ⚠; tổng quan vẫn gọi |
+| T16 | Hai tab cùng câu: nộp tab A rồi tab B | Tab B toast "Câu này vừa được nộp ở tab khác", cập nhật lượt, giữ nội dung ô |
+| T17 | Giả lập DB lỗi bước ghi | `ERR_PERSISTENCE_UNAVAILABLE` + "Thử lại"; lượt không đổi; `localStorage` không có biên nhận. Khôi phục DB, "Thử lại" ⇒ chấm bình thường |
+| T18 | `Ctrl+Shift+D` ở trang chủ, trang học, trình chiếu | Nhãn Offline luôn hiện; 0 request `/api/*`, Supabase; "0 token"; chạy hết kịch bản demo (X-06 của `50`) |
+| T19 | Offline: gõ câu ngoài kịch bản | "Chế độ offline chỉ chấm được câu trả lời trong kịch bản"; lượt giữ nguyên |
+| T20 | Node `title_source = DIRECTORY`, tên dài hơn `CONFIG.TITLE_MAX_CHARS`; cạnh `INFERRED` | "~…" cắt "…", tooltip tên đủ + `title_evidence` + "Tên suy ra — gần đúng"; cạnh `INFERRED` đứt, `RESOLVED` liền |
+| T22 | `buildSliceModel` với N3 | Đầu snippet bước 2 có số 14; tiêu đề / marker không số; bấm dòng 16 ⇒ X-Ray tô bước 2 |
+| T23 | X-Ray của N3; fixture `overview.ai = null` | Có "Điểm dở — Nhận định của AI · product.service.ts dòng 14–20", không cách sửa ("relations") hay con số tình huống. Tổng quan không có khung AI, giữ "Đã phát hiện" |
+| T25 | `progress.tokens_used ≥ CONFIG.SESSION_TOKEN_QUOTA` | Thanh đỏ; ô + Nộp tắt; "Bỏ qua câu này" vẫn chạy |
+| T26 | Link private / sai cú pháp / repo rỗng / zip > `CONFIG.MAX_UPLOAD_BYTES`; link `…/tree/main/src` | Đúng thông điệp Mục 10; zip quá cỡ chặn trước upload, thông điệp "Upload"; không thông điệp nào khuyên dán `/tree/…`; link `/tree/…` vẫn quét, ghi chú "Chỉ hỗ trợ nhánh mặc định" tô vàng |
+| T27 | Biên dịch `ERROR_MESSAGES` | Đủ mã `02` Mục 9 + `ERR_CLIENT_NETWORK` |
+| T28 | Tải lại trang khi N3 Q1 đã trượt 1 lần | Tự mở lại phiên; bấm N3 ⇒ `enrich-node` trả cùng `run_id`; Q1 hiện ●○○, có văn bản |
+| T29 | Chỉ dùng bàn phím: chọn node, đọc X-Ray, trả lời, nộp; bật `prefers-reduced-motion` | Làm được hết, viền focus luôn thấy; không còn nhịp sáng / rung |
+| T30 | Sau T2, "Học lại từ đầu" ở "Tiếp tục học" | `POST /api/ingest { session_id, restart: true }`; `session_id` mới; mọi node về `LOCKED` / `AVAILABLE`; `AUTH_SECURITY` giữ điểm; N2 hỏi câu mới (D-42) |
+| T31 | Chưa đăng nhập, mở `/`; đăng nhập rồi bấm "Đăng xuất"; chưa đăng nhập, mở `?offline=1` | Hiện màn hình "Đăng nhập GitHub", đăng nhập xong vào app; Đăng xuất ⇒ về màn hình đó; Offline chạy không cần đăng nhập |
+| T32 | Tối đa 20 node ở 1366×768 | Mở đọc được tên bài, kéo xem đủ 20 node, không chồng nhau (D-53) |
+| T33 | Vừa ingest `shop-api` | Tổng quan có "Bắt đầu từ" N1 + N3, "Lộ trình học chính", "Bản đồ tầng" (`MIDDLEWARE`: N2, N4, N5); 0 lời gọi `analyze-overview` (D-71) |
+| T34 | Đã phân tích N2, N3 | "Đã phát hiện (2/7 node)": điểm dở N2 `AUTH_SECURITY`, N3 `DB_OPTIMIZATION`; phân tích thêm node ⇒ tự tăng |
+| T35 | Bấm node mở trên bản đồ; bấm node `LOCKED`; bấm "Thử lại phân tích" | Vào được bài, node vào giữa khung; không vào được; gọi lại phân tích |
+| T36 | Mở cửa sổ Tổng quan và kết quả chấm dài ở 1366×768 | Thấy đủ tiêu đề và nút, thân cuộn được |
+| T37 | `Ctrl+B`, `Ctrl+Alt+J`, `Ctrl+Alt+B`; kéo vạch; bấm đúp vạch; tải lại trang | Khung ẩn/hiện đúng; tỉ lệ đổi, cột giữa không hẹp quá `LAYOUT_LIMIT`; bấm đúp đặt lại; tải lại giữ bố cục |
+| T38 | Bấm ☀/☾ rồi tải lại | Giữ chủ đề, không nháy màu; Monaco, đồ thị đổi theo; 4 màu trạng thái giữ nghĩa, đủ tương phản |
+| T39 | Bật bảng dưới ở N3 | Có tab "Điểm dở — Nhận định của AI", "Luồng"; bấm dòng ⇒ code cuộn tới bước; không có cách sửa |
+| T40 | "Bắt đầu trả lời"; rồi bấm node khác; node chưa có bản phân tích | Sang tab Feynman; về tab X-Ray; tab Feynman tắt, có tooltip |
+| T41 | Trình chiếu ở 1366×768, có và không có bảng dưới | Cột code rộng đúng `CONFIG.UI_PRESENTATION_FOCUS_PCT`, 2 cột còn lại đều nhau, không nội dung nào bị cắt; `Esc` trả lại tỉ lệ cũ |
