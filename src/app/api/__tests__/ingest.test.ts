@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CONFIG,
   type IngestResponse,
+  type NodeAnalysis,
   type StaticEngineResult,
 } from "@/contracts";
 import shopApiFixture from "@/server/engine/__fixtures__/shop-api.json";
 import { IngestionError } from "@/server/engine/ingest/types";
+import { logger } from "@/server/log";
 import { clearEngineCache } from "@/server/cache";
 import {
   ingestionSemaphore,
@@ -272,7 +274,7 @@ describe("POST /api/ingest (TASK_07 — A06)", () => {
       expect(insertedSnapshot).toBe(false);
     });
 
-    it("trả analyses rỗng khi chưa có toAnalysisView (C06) — không gửi NodeAnalysis thô cho client", async () => {
+    it("API-A05: không có dòng cache ⇒ analyses rỗng {}", async () => {
       const req = createMockRequest({ repo_url: "https://github.com/simplifey/shop-api" });
       const res = await POST(req);
 
@@ -526,6 +528,344 @@ describe("POST /api/ingest (TASK_07 — A06)", () => {
       for (const release of releaseFns) {
         release();
       }
+    });
+  });
+
+  describe("6. API-A05 — Trả analyses có sẵn trong ai_cache (03 Mục 6.6)", () => {
+    it("API-A05: không có node trong staticResult ⇒ không truy vấn ai_cache, trả {}", async () => {
+      mockRunEngine.mockResolvedValueOnce({
+        ...typedShopApi,
+        nodes: [],
+      });
+
+      const req = createMockRequest({ repo_url: "https://github.com/simplifey/shop-api" });
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const json: IngestResponse = await res.json();
+      expect(json.analyses).toEqual({});
+
+      const aiCacheQueryCall = mockSql.mock.calls.find((call) => {
+        const firstArg = call[0];
+        const query = Array.isArray(firstArg) ? firstArg.join(" ") : String(firstArg);
+        return query.includes("FROM ai_cache");
+      });
+      expect(aiCacheQueryCall).toBeUndefined();
+    });
+
+    it("API-A05: có 1 dòng cache ⇒ analyses[node_id] là view: có node_id, steps; KHÔNG có trường thô của NodeAnalysis mà view không có", async () => {
+      const firstNode = typedShopApi.nodes[0];
+      const expectedCacheKey = `na|${typedShopApi.snapshot.source}|${typedShopApi.snapshot.snapshot_id}|${typedShopApi.snapshot.subdir}|${typedShopApi.engine_version}|${firstNode.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+
+      const rawAnalysisWithExtra = {
+        node_id: firstNode.id,
+        skeleton_only: false,
+        architecture: {
+          patterns: ["LAYERED" as const],
+          summary: "Mẫu phân tầng",
+        },
+        skills: [
+          {
+            skill: "HTTP_ROUTING" as const,
+            step: 1,
+            symbol: "routeHandler",
+            reason: "Định tuyến API",
+          },
+        ],
+        steps: [
+          {
+            step: 1,
+            text: "Xử lý request từ client",
+          },
+        ],
+        strengths: [
+          {
+            step: 1,
+            text: "Tách bạch rõ controller và service",
+          },
+        ],
+        weak_points: [],
+        raw_only_field_not_in_view: "du_lieu_tho_bi_loai_bo",
+      };
+
+      mockSql.mockImplementation(async (strings: TemplateStringsArray | string[]) => {
+        const query = Array.isArray(strings) ? strings.join(" ") : String(strings);
+
+        if (query.includes("FROM ai_cache")) {
+          return [
+            {
+              cache_key: expectedCacheKey,
+              payload: rawAnalysisWithExtra,
+            },
+          ];
+        }
+        if (query.includes("FROM learning_sessions") && query.includes("WHERE id =")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("INSERT INTO learning_sessions")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("FROM session_snapshots")) {
+          return [{ result: typedShopApi }];
+        }
+        return [];
+      });
+
+      const req = createMockRequest({ repo_url: "https://github.com/simplifey/shop-api" });
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const json: IngestResponse = await res.json();
+      const view = json.analyses[firstNode.id];
+      expect(view).toBeDefined();
+      expect(view.node_id).toBe(firstNode.id);
+      expect(view.steps).toBeDefined();
+      expect(Array.isArray(view.steps)).toBe(true);
+      expect(view.steps[0].layer).toBeDefined();
+      expect(view.steps[0].file_path).toBeDefined();
+      expect(view.shared_files).toBeDefined();
+      expect("raw_only_field_not_in_view" in view).toBe(false);
+    });
+
+    it("API-A05: khóa truy vấn đúng dạng na|...|{PROMPT_VERSION}|{LLM_MODEL}", async () => {
+      const req = createMockRequest({ repo_url: "https://github.com/simplifey/shop-api" });
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+
+      const keysCall = mockSql.mock.calls.find((call) => {
+        const firstArg = call[0];
+        return (
+          Array.isArray(firstArg) &&
+          typeof firstArg[0] === "string" &&
+          firstArg[0].startsWith("na|")
+        );
+      });
+      expect(keysCall).toBeDefined();
+      const queriedKeys = keysCall![0] as string[];
+      expect(queriedKeys.length).toBe(typedShopApi.nodes.length);
+
+      for (let i = 0; i < typedShopApi.nodes.length; i++) {
+        const node = typedShopApi.nodes[i];
+        const expectedKey = `na|${typedShopApi.snapshot.source}|${typedShopApi.snapshot.snapshot_id}|${typedShopApi.snapshot.subdir}|${typedShopApi.engine_version}|${node.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+        expect(queriedKeys[i]).toBe(expectedKey);
+      }
+
+      const aiCacheQueryCall = mockSql.mock.calls.find((call) => {
+        const firstArg = call[0];
+        const query = Array.isArray(firstArg) ? firstArg.join(" ") : String(firstArg);
+        return query.includes("FROM ai_cache");
+      });
+      expect(aiCacheQueryCall).toBeDefined();
+      const queryStr = Array.isArray(aiCacheQueryCall![0])
+        ? aiCacheQueryCall![0].join(" ")
+        : String(aiCacheQueryCall![0]);
+      expect(queryStr).toContain("SELECT cache_key, payload FROM ai_cache WHERE cache_key IN");
+    });
+
+    it("API-A05: payload dạng chuỗi JSON vẫn đọc được", async () => {
+      const firstNode = typedShopApi.nodes[0];
+      const expectedCacheKey = `na|${typedShopApi.snapshot.source}|${typedShopApi.snapshot.snapshot_id}|${typedShopApi.snapshot.subdir}|${typedShopApi.engine_version}|${firstNode.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+
+      const analysisObj: NodeAnalysis = {
+        node_id: firstNode.id,
+        skeleton_only: false,
+        architecture: {
+          patterns: ["LAYERED"],
+          summary: "Mẫu phân tầng",
+        },
+        skills: [
+          {
+            skill: "HTTP_ROUTING",
+            step: 1,
+            symbol: "routeHandler",
+            reason: "Định tuyến API",
+          },
+        ],
+        steps: [
+          {
+            step: 1,
+            text: "Xử lý request từ chuỗi JSON",
+          },
+        ],
+        strengths: [
+          {
+            step: 1,
+            text: "Điểm mạnh",
+          },
+        ],
+        weak_points: [],
+      };
+
+      mockSql.mockImplementation(async (strings: TemplateStringsArray | string[]) => {
+        const query = Array.isArray(strings) ? strings.join(" ") : String(strings);
+
+        if (query.includes("FROM ai_cache")) {
+          return [
+            {
+              cache_key: expectedCacheKey,
+              payload: JSON.stringify(analysisObj),
+            },
+          ];
+        }
+        if (query.includes("FROM learning_sessions") && query.includes("WHERE id =")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("INSERT INTO learning_sessions")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("FROM session_snapshots")) {
+          return [{ result: typedShopApi }];
+        }
+        return [];
+      });
+
+      const req = createMockRequest({ repo_url: "https://github.com/simplifey/shop-api" });
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const json: IngestResponse = await res.json();
+      expect(json.analyses[firstNode.id]).toBeDefined();
+      expect(json.analyses[firstNode.id].node_id).toBe(firstNode.id);
+      expect(json.analyses[firstNode.id].steps[0].text).toBe("Xử lý request từ chuỗi JSON");
+    });
+
+    it("API-A05: 1 dòng hỏng, 1 dòng tốt ⇒ trả dòng tốt, status 200", async () => {
+      const node0 = typedShopApi.nodes[0];
+      const node1 = typedShopApi.nodes[1];
+      const key0 = `na|${typedShopApi.snapshot.source}|${typedShopApi.snapshot.snapshot_id}|${typedShopApi.snapshot.subdir}|${typedShopApi.engine_version}|${node0.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+      const key1 = `na|${typedShopApi.snapshot.source}|${typedShopApi.snapshot.snapshot_id}|${typedShopApi.snapshot.subdir}|${typedShopApi.engine_version}|${node1.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+
+      const validAnalysis1: NodeAnalysis = {
+        node_id: node1.id,
+        skeleton_only: false,
+        architecture: {
+          patterns: ["LAYERED"],
+          summary: "Mẫu phân tầng",
+        },
+        skills: [
+          {
+            skill: "HTTP_ROUTING",
+            step: 1,
+            symbol: "handler",
+            reason: "Định tuyến",
+          },
+        ],
+        steps: [
+          {
+            step: 1,
+            text: "Xử lý bước 1",
+          },
+        ],
+        strengths: [],
+        weak_points: [],
+      };
+
+      mockSql.mockImplementation(async (strings: TemplateStringsArray | string[]) => {
+        const query = Array.isArray(strings) ? strings.join(" ") : String(strings);
+
+        if (query.includes("FROM ai_cache")) {
+          return [
+            {
+              cache_key: key0,
+              payload: "{ corrupted json",
+            },
+            {
+              cache_key: key1,
+              payload: validAnalysis1,
+            },
+          ];
+        }
+        if (query.includes("FROM learning_sessions") && query.includes("WHERE id =")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("INSERT INTO learning_sessions")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("FROM session_snapshots")) {
+          return [{ result: typedShopApi }];
+        }
+        return [];
+      });
+
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+      const req = createMockRequest({ repo_url: "https://github.com/simplifey/shop-api" });
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const json: IngestResponse = await res.json();
+      expect(json.analyses[node0.id]).toBeUndefined();
+      expect(json.analyses[node1.id]).toBeDefined();
+      expect(json.analyses[node1.id].node_id).toBe(node1.id);
+      expect(warnSpy).toHaveBeenCalledWith({ node_id: node0.id });
+
+      warnSpy.mockRestore();
+    });
+
+    it("API-A05: mở lại phiên bằng { session_id } cũng trả analyses", async () => {
+      const firstNode = typedShopApi.nodes[0];
+      const expectedCacheKey = `na|${typedShopApi.snapshot.source}|${typedShopApi.snapshot.snapshot_id}|${typedShopApi.snapshot.subdir}|${typedShopApi.engine_version}|${firstNode.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+
+      const analysisObj: NodeAnalysis = {
+        node_id: firstNode.id,
+        skeleton_only: false,
+        architecture: {
+          patterns: ["LAYERED"],
+          summary: "Mẫu phân tầng",
+        },
+        skills: [
+          {
+            skill: "HTTP_ROUTING",
+            step: 1,
+            symbol: "routeHandler",
+            reason: "Định tuyến API",
+          },
+        ],
+        steps: [
+          {
+            step: 1,
+            text: "Mở lại phiên thành công",
+          },
+        ],
+        strengths: [],
+        weak_points: [],
+      };
+
+      mockSql.mockImplementation(async (strings: TemplateStringsArray | string[]) => {
+        const query = Array.isArray(strings) ? strings.join(" ") : String(strings);
+
+        if (query.includes("FROM ai_cache")) {
+          return [
+            {
+              cache_key: expectedCacheKey,
+              payload: analysisObj,
+            },
+          ];
+        }
+        if (query.includes("FROM learning_sessions") && query.includes("WHERE id =")) {
+          return [mockSessionRecord];
+        }
+        if (query.includes("FROM session_snapshots")) {
+          return [{ result: typedShopApi }];
+        }
+        if (query.includes("UPDATE learning_sessions")) {
+          return [];
+        }
+        return [];
+      });
+
+      const req = createMockRequest({ session_id: "session-test-uuid-1" });
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const json: IngestResponse = await res.json();
+      expect(json.session_id).toBe("session-test-uuid-1");
+      expect(json.resumed).toBe(true);
+      expect(json.analyses).toBeDefined();
+      expect(json.analyses[firstNode.id]).toBeDefined();
+      expect(json.analyses[firstNode.id].node_id).toBe(firstNode.id);
+      expect(json.analyses[firstNode.id].steps[0].text).toBe("Mở lại phiên thành công");
     });
   });
 });

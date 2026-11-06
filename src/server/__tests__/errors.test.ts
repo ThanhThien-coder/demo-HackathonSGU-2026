@@ -12,7 +12,12 @@ import {
   toErrorResponse,
   type ServerErrorCode,
 } from "../errors";
-import { logAiCall, logApiRequest, logGuardBlocked } from "../log";
+import {
+  logger,
+  logAiCall,
+  logApiRequest,
+  logGuardBlocked,
+} from "../log";
 import { GET as getMe, DELETE as deleteMe } from "@/app/api/me/route";
 
 // vi.mock duoc keo len dau file, nen bien mock phai tao trong vi.hoisted
@@ -286,6 +291,64 @@ describe("Server Errors & HTTP Status Mapping (02_CONTRACTS.md Muc 9)", () => {
     expect(body.error.message).toBe(
       "Máy chủ lưu tiến độ đang gặp sự cố — thao tác chưa thực hiện, bạn không mất lượt."
     );
+  });
+
+  it("A-02: toErrorResponse ghi log an toan (error_name, error_message da che secret) va bo err_name", async () => {
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+
+    // 1. Lỗi Error("relation x does not exist") ⇒ log có error_name và error_message chứa đúng câu đó
+    const normalError = new Error("relation x does not exist");
+    const res1 = toErrorResponse(normalError);
+    expect(res1.status).toBe(503);
+    const body1 = await res1.json();
+    expect(body1.error.message).not.toContain("relation x does not exist");
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error_name: "Error",
+        error_message: "relation x does not exist",
+      })
+    );
+    const lastCall1 = errorSpy.mock.calls[errorSpy.mock.calls.length - 1][0] as Record<string, unknown>;
+    expect(lastCall1).not.toHaveProperty("err_name");
+
+    // 2. Lỗi có password=abc ⇒ log không chứa abc
+    const passError = new Error("connection failure password=abc secret=xyz");
+    const res2 = toErrorResponse(passError);
+    expect(res2.status).toBe(503);
+    const body2 = await res2.json();
+    expect(body2.error.message).not.toContain("password=abc");
+    const lastCall2 = errorSpy.mock.calls[errorSpy.mock.calls.length - 1][0] as Record<string, unknown>;
+    expect(lastCall2.error_name).toBe("Error");
+    expect(typeof lastCall2.error_message).toBe("string");
+    expect(lastCall2.error_message).not.toContain("abc");
+    expect(lastCall2.error_message).not.toContain("xyz");
+    expect(lastCall2).not.toHaveProperty("err_name");
+
+    // 3. Lỗi có postgresql://user:p4ssw0rd@db.example.com:5432/app ⇒ log không chứa p4ssw0rd
+    const connError = new Error(
+      "connection failed to postgresql://user:p4ssw0rd@db.example.com:5432/app"
+    );
+    const res3 = toErrorResponse(connError);
+    expect(res3.status).toBe(503);
+    const res3Text = await res3.text();
+    expect(res3Text).not.toContain("p4ssw0rd");
+    expect(res3Text).not.toContain("postgresql://");
+    const lastCall3 = errorSpy.mock.calls[errorSpy.mock.calls.length - 1][0] as Record<string, unknown>;
+    expect(lastCall3.error_name).toBe("Error");
+    expect(lastCall3.error_message).not.toContain("p4ssw0rd");
+    expect(lastCall3.error_message).toContain("<REDACTED_SECRET>");
+    expect(lastCall3).not.toHaveProperty("err_name");
+
+    // 4. Lỗi không phải Error ⇒ error_message là ""
+    const stringError = "strange non-error thrown";
+    const res4 = toErrorResponse(stringError);
+    expect(res4.status).toBe(503);
+    const lastCall4 = errorSpy.mock.calls[errorSpy.mock.calls.length - 1][0] as Record<string, unknown>;
+    expect(lastCall4.error_name).toBe("string");
+    expect(lastCall4.error_message).toBe("");
+    expect(lastCall4).not.toHaveProperty("err_name");
+
+    errorSpy.mockRestore();
   });
 
   it("toErrorResponse tra dung status va body khi loi la ApiHttpError", async () => {

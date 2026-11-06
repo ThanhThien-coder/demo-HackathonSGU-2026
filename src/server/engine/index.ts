@@ -4,7 +4,7 @@ import type {
   IngestSource,
   StaticEngineResult,
 } from "@/contracts";
-import { runIngest } from "./ingest";
+import { IngestionError, getScopeFallbacks, rescopeIngest, runIngest } from "./ingest";
 import { buildGraph } from "./graph";
 
 export * from "./ingest";
@@ -22,7 +22,23 @@ export async function runEngine(
   signal?: AbortSignal
 ): Promise<StaticEngineResult> {
   const ingestOutput = await runIngest(src, signal);
-  return await buildGraph(ingestOutput);
+  try {
+    return await buildGraph(ingestOutput);
+  } catch (err) {
+    if (!(err instanceof IngestionError) || err.code !== "ERR_NO_ARCHITECTURAL_SLICE") throw err;
+    // Đường lùi (spec 10 Mục 8 ý 3, lỗi B-17): scope tự chọn không dựng được bài
+    // => thử ứng viên kế tiếp, cuối cùng "", không tải lại zip; hết ứng viên giữ lỗi đầu.
+    for (const offset of getScopeFallbacks(ingestOutput)) {
+      try {
+        return await buildGraph(rescopeIngest(ingestOutput, offset));
+      } catch (retryErr) {
+        if (!(retryErr instanceof IngestionError) || retryErr.code !== "ERR_NO_ARCHITECTURAL_SLICE") {
+          throw retryErr;
+        }
+      }
+    }
+    throw err;
+  }
 }
 
 /**
