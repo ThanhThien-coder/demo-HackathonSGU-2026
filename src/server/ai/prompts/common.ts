@@ -29,6 +29,11 @@ export const DATA_TAGS = [
   "previous_points",
   "learner_history",
   "referenced_steps",
+  "node_info",
+  "step_info",
+  "flow",
+  "selection",
+  "references",
 ] as const;
 
 export type DataTag = (typeof DATA_TAGS)[number];
