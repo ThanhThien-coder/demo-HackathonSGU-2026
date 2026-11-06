@@ -32,6 +32,8 @@ describe("T27: ERROR_MESSAGES compliance and coverage", () => {
     "ERR_ANSWER_DUPLICATE",
     "ERR_ANSWER_INAPPROPRIATE",
     "ERR_REPORT_NOT_ALLOWED",
+    "ERR_SELECTION_INVALID",
+    "ERR_EXPLAIN_LIMIT",
 
     // AI
     "ERR_AI_UNAVAILABLE",

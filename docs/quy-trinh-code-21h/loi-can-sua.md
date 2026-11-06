@@ -892,7 +892,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** `02` theo Mục 3 của `sua-doc-quy-trinh-moi.md`; endpoint `POST /api/explain-selection`; bỏ `ERR_OVERVIEW_NOT_READY`; mang frontend `feat/giao-dien-ide` về `main` làm nền cho luồng 6.
 - **Kiểm tra:** `npm run typecheck` xanh; gọi endpoint với vùng chọn sai ra 400.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** đang làm. Nhánh `a/fix-a08-explain-selection`: xong kiểu thêm mới, `CONFIG`, 2 mã lỗi, route trả 400 khi vùng chọn sai (test mock, chưa gọi server thật), vùng chọn đúng trả 503 chờ C-11. Typecheck, lint, 702 test xanh. Còn: kiểu đổi `RepoOverviewRaw`, trường mới của node, cạnh, kết quả engine, bỏ `ERR_OVERVIEW_NOT_READY`, frontend.
 
 ---
 
