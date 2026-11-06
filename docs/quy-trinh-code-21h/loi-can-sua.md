@@ -324,7 +324,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Lưu ý:** id node có `slug(base_title)`, đổi tên là đổi id. Phải đổi `ENGINE_VERSION`, và tiến độ của phiên cũ không dùng lại được.
 - **Kiểm tra:** cập nhật bảng T-ENG-22, tên 6 repo trên đọc được thành câu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b30-ten-bai`. `naming.ts` làm theo spec 11 Mục 13 Bậc 1 đã sửa: `ACTION_SEGMENTS` dùng thẳng (`Cancel Order`, `Login`, `Health`; bỏ `auth`), `DELETE` nhiều đoạn giữ động từ (`Delete Article Comment`), tách `-` và `_`, có tham số xen thì chèn tài nguyên (`List User Orders`). Thêm bảng T-ENG-22b trong `node.test.ts` (13 ca). Sửa 2 test cũ theo luật mới (`User Register` → `Register User`, `Create Register` → `Register`). Chạy thật: BrewLite ra `Health`, `Login`, `Register`; microblog ra `Search`, `List Reset Password Requests`, không còn `List Logins`, `List Searchs`; boilerplate ra `Create Forgot Password`. Còn lại ngoài luật đã chốt: `Get User` và `Get User #2` (GET `/` và `GET /:userId` cùng đoạn `users`, vì path `/` không có đoạn tĩnh), `List Explores`, `Order Me`. Đổi tên là đổi `id` nên phải đổi `ENGINE_VERSION` (vào mốc `1.8.0`), chưa đổi; tiến độ của phiên cũ không dùng lại được. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-31 · Vừa · Test và bản offline không theo repo demo thật
 
