@@ -383,14 +383,14 @@ beforeEach(() => {
 // ======================= evaluate-feynman =======================
 
 describe("POST /api/evaluate-feynman — kịch bản A (50 Mục 3.1)", () => {
-  it("A4: Q1 lượt 1 chưa đạt ⇒ gợi ý CONCEPT, attempts_used = 1, BKT chưa đổi, không lộ đáp án", async () => {
+  it("A4: Q1 lượt 1 chưa đạt ⇒ gợi ý CODE_POINTER (NOVICE, D-74), attempts_used = 1, BKT chưa đổi, không lộ đáp án", async () => {
     mockLLM.mockResolvedValueOnce(llmOk(GRADING_Q1_L1));
     const { status, text, json } = await evaluate();
 
     expect(status).toBe(200);
     expect(json.is_passed).toBe(false);
     expect(json.points_covered).toEqual([false, false]);
-    expect(json.follow_up?.type).toBe("CONCEPT");
+    expect(json.follow_up?.type).toBe("CODE_POINTER"); // 50 dòng A4: NOVICE lượt 1 ⇒ CODE_POINTER (D-74 A1)
     expect(json.skill_change).toBeNull();
     expect(json.question.attempts_used).toBe(1);
     expect(json.question.finished).toBe(false);

@@ -28,6 +28,7 @@ import {
 } from "./unzip";
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
 import { selectFiles } from "./priority";
+import { rememberScope } from "./rescope";
 import { detectScope, buildFingerprint, assertNotEmpty } from "./fingerprint";
 import { extractNotebook, extractSfcScript } from "./special";
 import { hasInjectionText, redactAndMaskCode } from "./secrets";
@@ -45,6 +46,7 @@ export * from "./priority";
 export * from "./special";
 export * from "./secrets";
 export * from "./fingerprint";
+export * from "./rescope";
 
 /**
  * Điều phối toàn bộ quy trình Ingest Tầng 0 theo docs/spec/10_ENGINE_INGEST.md Mục 0..13
@@ -525,6 +527,8 @@ export async function runIngest(
     source_map: sortedSourceMap,
     module_info,
   };
+
+  rememberScope(out, classifiedEntries, scopeDecision);
 
   assertNotEmpty(out, {
     stream_cut: rawArchive.stream_cut,

@@ -8,7 +8,6 @@
 import {
   CONFIG,
   type AnalyzeOverviewResponse,
-  type NodeAnalysis,
   type RepoOverviewRaw,
 } from "@/contracts";
 import { aiCostUsd } from "@/server/ai/gemini";
@@ -105,59 +104,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // TRƯỜNG HỢP 2: TRƯỢT CACHE
-    // 2.1 Đọc node_progress.analysis_failed của phiên ⇒ failedIds
-    const progressRows = await sql<
-      Array<{ node_id: string; analysis_failed: boolean }>
-    >`
-      SELECT node_id, analysis_failed
-      FROM node_progress
-      WHERE session_id = ${session.id}
-    `;
-    const failedIds = new Set<string>(
-      progressRows.filter((r) => r.analysis_failed).map((r) => r.node_id)
-    );
-
-    // Với mọi node KHÔNG thuộc failedIds, đọc bản phân tích từ ai_cache theo khóa na|…
-    const nodesToAnalyze = graph.nodes.filter((n) => !failedIds.has(n.id));
-    const analyses: Record<string, NodeAnalysis> = {};
-
-    if (nodesToAnalyze.length > 0) {
-      const nodeKeyMap = new Map<string, string>();
-      for (const n of nodesToAnalyze) {
-        const naKey = `na|${session.source}|${session.snapshot_id}|${session.subdir}|${session.engine_version}|${n.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
-        nodeKeyMap.set(naKey, n.id);
-      }
-      const nodeCacheKeys = Array.from(nodeKeyMap.keys());
-
-      const analysisRows = await sql<
-        Array<{ cache_key: string; payload: NodeAnalysis | string }>
-      >`
-        SELECT cache_key, payload
-        FROM ai_cache
-        WHERE cache_key IN ${sql(nodeCacheKeys)}
-      `;
-
-      if (analysisRows.length < nodesToAnalyze.length) {
-        throw new ApiHttpError("ERR_OVERVIEW_NOT_READY");
-      }
-
-      for (const row of analysisRows) {
-        const nodeId = nodeKeyMap.get(row.cache_key);
-        if (!nodeId) continue;
-        const parsedPayload =
-          typeof row.payload === "string"
-            ? (JSON.parse(row.payload) as NodeAnalysis)
-            : row.payload;
-        analyses[nodeId] = parsedPayload;
-      }
-
-      for (const n of nodesToAnalyze) {
-        if (!analyses[n.id]) {
-          throw new ApiHttpError("ERR_OVERVIEW_NOT_READY");
-        }
-      }
-    }
-
+    // Gọi ngay sau khi quét, không chờ analyze-node, không gửi code (20 AI-19, D-83)
     // 2.2 Kiểm tra hạn mức token trước khi gọi AI (AI-06, API-06)
     checkTokenQuota(session.tokens_used);
 
@@ -170,13 +117,7 @@ export async function POST(request: Request): Promise<Response> {
       const usage: OverviewUsage = { tokens_in: 0, tokens_out: 0, requests: 0 };
       inFlight = (async () => {
         try {
-          const overview = await analyzeOverview(
-            session,
-            graph,
-            analyses,
-            failedIds,
-            usage
-          );
+          const overview = await analyzeOverview(session, graph, usage);
           return { overview, usage, initiatorSessionId: session.id };
         } finally {
           deleteInFlightPromise(cacheKey);

@@ -39,19 +39,17 @@ export interface NodeAnalysisView {     // Gửi trình duyệt (Tab 1)
 }
 
 // ---------- 5.2 analyze-overview ----------
-export interface RepoOverviewRaw {
-  architecture_style: ArchitecturePattern;
-  summary: string;
-  layers: Array<{ layer: ArchitecturalLayer; role: string; nodes: string[] }>;
-  main_flow: string;
-  notes: Array<{ text: string; nodes: string[] }>;
+export interface RepoOverviewRaw {      // = responseSchema của lời gọi overview (D-83)
+  summary: string;                      // Tối đa 2 câu
+  groups: Array<{ group_id: string; name: string }>;
+  node_titles: Array<{ node_id: string; title: string }>;   // Tên tiếng Việt; node.id không đổi (D-08)
 }
 export interface RepoOverviewView {
   facts: {                              // Do code tính
     archetype: ProjectArchetype; framework: string | null; tech_stack: string[];
     root_node_ids: string[]; main_path_node_ids: string[];
   };
-  ai: RepoOverviewRaw | null;           // null ⇒ AI hỏng sau thử lại, chỉ hiện phần facts
+  ai: RepoOverviewRaw | null;           // null ⇒ AI hỏng sau thử lại hoặc bị cổng gác chặn, chỉ hiện phần facts (D-83)
 }
 
 // ---------- 5.3 enrich-node (đặt câu hỏi) ----------

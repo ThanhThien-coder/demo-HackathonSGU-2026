@@ -8,7 +8,6 @@ import {
   RefreshCw,
   AlertTriangle,
   Compass,
-  Workflow,
   ShieldAlert,
 } from "lucide-react";
 import type { RepoOverviewView } from "@/contracts";
@@ -345,26 +344,11 @@ export function RepoOverviewModal({
               </div>
             )}
 
-            {/* Thông báo khi chưa phân tích xong mọi node */}
-            {discovered.done < discovered.total && (
-              <div className="p-3.5 bg-[#faf8ff] border border-[#eaedff] rounded-[10px] text-xs text-[#625e56] text-center italic">
-                Nhận định của AI sẽ hiện khi mọi node phân tích xong
-              </div>
-            )}
-
-            {/* Giai đoạn 3: overview?.ai có ⇒ khung "Nhận định của AI — có thể chưa chính xác" */}
+            {/* Giai đoạn 3: overview?.ai có ⇒ khung "Nhận định của AI — có thể chưa chính xác" (D-83: gọi đầu phiên) */}
             {effectiveOverview?.ai && (
               <div className="flex flex-col gap-4">
                 <div className="rounded-[12px] bg-gradient-to-r from-[#fff0e4] to-[#ffdcc5]/40 border border-[#ff9640]/40 p-4 flex flex-col gap-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#944b00] uppercase tracking-wider">
-                        Phong cách kiến trúc:
-                      </span>
-                      <span className="text-xs font-extrabold bg-[#ff9640] text-white px-2.5 py-0.5 rounded-full shadow-2xs">
-                        {effectiveOverview.ai.architecture_style}
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-end flex-wrap gap-2">
                     {/* Nhãn bắt buộc (UI-78) */}
                     <span className="text-[11px] font-bold text-[#944b00] bg-white/70 px-2 py-0.5 rounded-full border border-[#ff9640]/30 flex items-center gap-1">
                       <Sparkles className="size-3 text-[#ff9640]" />
@@ -377,83 +361,41 @@ export function RepoOverviewModal({
                   </p>
                 </div>
 
-                {/* Main Flow */}
-                {effectiveOverview.ai.main_flow && (
-                  <div className="flex flex-col gap-1.5 bg-[#fafbfc] border border-[#e2e8f0] p-4 rounded-[12px]">
-                    <div className="flex items-center gap-2 font-bold text-xs text-[#334155] uppercase tracking-wider">
-                      <Workflow className="size-4 text-[#0284c7]" />
-                      <span>Luồng dữ liệu chính</span>
+                {/* Tên nhóm do AI đặt (D-83); bundle offline cũ chưa có trường này ⇒ ẩn */}
+                {(effectiveOverview.ai.groups ?? []).length > 0 && (
+                  <div className="flex flex-col gap-2.5">
+                    <span className="text-xs font-bold text-[#554337] uppercase tracking-wider">
+                      Nhóm chức năng
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(effectiveOverview.ai.groups ?? []).map((g) => (
+                        <span
+                          key={g.group_id}
+                          className="text-xs bg-white border border-[#e5e7eb] rounded-full px-2.5 py-0.5 text-[#334155]"
+                        >
+                          {g.name}
+                        </span>
+                      ))}
                     </div>
-                    <p className="text-xs text-[#475569] leading-relaxed pl-6 font-mono">
-                      <AiText text={effectiveOverview.ai.main_flow} />
-                    </p>
                   </div>
                 )}
 
-                {/* Architecture Layers Breakdown */}
-                {effectiveOverview.ai.layers &&
-                  effectiveOverview.ai.layers.length > 0 && (
-                    <div className="flex flex-col gap-2.5">
-                      <span className="text-xs font-bold text-[#554337] uppercase tracking-wider">
-                        Các tầng kiến trúc & vai trò
-                      </span>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                        {effectiveOverview.ai.layers.map((layer, idx) => (
-                          <div
-                            key={idx}
-                            className="bg-white border border-[#e5e7eb] rounded-[10px] p-3 flex flex-col gap-1.5 hover:border-[#ff9640]/50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-[#004cff] font-mono">
-                                {layer.layer}
-                              </span>
-                              <span className="text-[10px] text-[#64748b] bg-gray-100 px-1.5 py-0.5 rounded">
-                                {layer.nodes?.length || 0} nodes
-                              </span>
-                            </div>
-                            <span className="text-xs text-[#475569] leading-relaxed">
-                              {layer.role}
-                            </span>
-                            {layer.nodes && layer.nodes.length > 0 && (
-                              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-gray-100">
-                                {layer.nodes.map((nid) => renderNodeChip(nid))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                {/* Tên bài do AI đặt (D-83): chỉ để hiện, node.id không đổi */}
+                {(effectiveOverview.ai.node_titles ?? []).length > 0 && (
+                  <div className="flex flex-col gap-2.5">
+                    <span className="text-xs font-bold text-[#554337] uppercase tracking-wider">
+                      Tên bài
+                    </span>
+                    <div className="flex flex-col gap-1.5">
+                      {(effectiveOverview.ai.node_titles ?? []).map((nt) => (
+                        <div key={nt.node_id} className="flex items-center gap-2 text-xs">
+                          {renderNodeChip(nt.node_id)}
+                          <span className="text-[#334155]">{nt.title}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
-
-                {/* Notes do AI nhận định */}
-                {effectiveOverview.ai.notes &&
-                  effectiveOverview.ai.notes.length > 0 && (
-                    <div className="flex flex-col gap-2.5">
-                      <span className="text-xs font-bold text-[#554337] uppercase tracking-wider">
-                        Ghi chú tổng quan
-                      </span>
-                      <div className="flex flex-col gap-2">
-                        {effectiveOverview.ai.notes.map((note, idx) => (
-                          <div
-                            key={idx}
-                            className="bg-white border border-[#e5e7eb] rounded-[10px] p-3 text-xs flex flex-col gap-1.5"
-                          >
-                            <div className="text-[#334155] leading-relaxed font-medium">
-                              <AiText text={note.text} />
-                            </div>
-                            {note.nodes && note.nodes.length > 0 && (
-                              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-gray-100">
-                                <span className="text-[11px] text-[#64748b]">
-                                  Lát cắt liên quan:
-                                </span>
-                                {note.nodes.map((nid) => renderNodeChip(nid))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  </div>
+                )}
               </div>
             )}
           </div>

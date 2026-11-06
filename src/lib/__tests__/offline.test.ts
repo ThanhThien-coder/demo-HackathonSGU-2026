@@ -224,11 +224,9 @@ describe("Offline Mode (D08a & spec/30_UI.md Section 8)", () => {
         main_path_node_ids: ["node-1", "node-2"],
       },
       ai: {
-        architecture_style: "LAYERED",
         summary: "E-commerce order system",
-        layers: [{ layer: "BUSINESS_LOGIC", role: "Business Logic", nodes: ["node-1", "node-2"] }],
-        main_flow: "Request -> Controller -> Service -> Database",
-        notes: [],
+        groups: [],
+        node_titles: [{ node_id: "node-1", title: "Đặt đơn hàng" }],
       },
     },
     enrich: {

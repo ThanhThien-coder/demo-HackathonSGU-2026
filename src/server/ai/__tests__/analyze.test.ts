@@ -39,6 +39,7 @@ import { checkAnalysis } from "../guard/analysis";
 import { logGuardBlock, logWeakPointsFiltered } from "../guard/log";
 import {
   ANALYZE_SCHEMA,
+  ANALYZE_SYSTEM,
   analyzeRequest,
   SKILL_CATALOGUE,
 } from "../prompts/analyze";
@@ -484,5 +485,14 @@ describe("analyzeNode (C06 / AI-15, AI-18, AI-37)", () => {
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("steps");
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("strengths");
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("weak_points");
+  });
+});
+
+describe("C-07 — prompt phân tích (AI-16)", () => {
+  it("AI-16 (C-07): summary đúng 2 câu, câu 1 là việc của người dùng; steps[].text viết cho người mới", () => {
+    expect(ANALYZE_SYSTEM).toContain("summary = đúng 2 câu: câu 1 nói phần này giúp người dùng làm gì");
+    expect(ANALYZE_SYSTEM).toContain("câu 2 nói các bước chia việc ra sao");
+    expect(ANALYZE_SYSTEM).toContain("text = 1–2 câu ngắn cho người mới");
+    expect(ANALYZE_SYSTEM).not.toContain("summary = tối đa 2 câu");
   });
 });

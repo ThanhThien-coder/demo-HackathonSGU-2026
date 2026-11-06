@@ -18,8 +18,11 @@ import { arr, B, en, I, nul, obj, S } from "../schemas";
 import { Type } from "@google/genai";
 
 describe("AI-13 — Đóng gói XML và renderSteps", () => {
-  it("DATA_TAGS có đủ 20 thẻ", () => {
-    expect(DATA_TAGS.length).toBe(20);
+  it("DATA_TAGS có đủ 29 thẻ (thêm 4 thẻ D-74, 5 thẻ D-82)", () => {
+    expect(DATA_TAGS.length).toBe(29);
+    for (const tag of ["previous_answer", "previous_points", "learner_history", "referenced_steps"] as const) {
+      expect(DATA_TAGS).toContain(tag);
+    }
     expect(DATA_TAGS).toContain("code_data");
     expect(DATA_TAGS).toContain("guard_feedback");
     expect(DATA_TAGS).toContain("must_have_points");
