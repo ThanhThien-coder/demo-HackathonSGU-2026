@@ -235,7 +235,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** zip có `proj/...` và `__MACOSX/...` giữ nguyên tiền tố `proj/`, nên `backend/`, `frontend/` không được nhận và không phát hiện monorepo.
 - **Nguyên nhân:** `findCommonPrefix` xét cả `__MACOSX/`. ING-71 cũng không có thư mục này.
 - **Cần sửa:** bỏ `__MACOSX/` và file `._*` trước khi tìm tiền tố chung, sửa ING-60 và ING-71.
-- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b19-macosx`. `normalizeEntries` trong `unzip.ts` bỏ `__MACOSX/` và file `._*` trước khi tìm segment chung (`isMacJunk`), nên `proj/...` kèm `__MACOSX/proj/...` được cắt `proj/` và nhận ra `backend/`, `frontend/`; cả chế độ mục lục và streaming dùng chung hàm này. 6 test trong `zip-macos.test.ts` (zip dựng giống Finder, streaming, nhận monorepo `backend/` + `frontend/`, zip GitHub thường không đổi, `my._file.ts` không bị coi là rác). Spec ING-60 (3) và ING-71 đã có luật này. Zip dựng thử, chưa thử zip nén thật bằng Finder. Rác macOS giờ bị loại hẳn ở bước đọc mục lục nên không còn tính vào `skipped.garbage`. Typecheck sạch, lint 0 lỗi, 900 test qua.
 
 ### B-20 · Vừa · Thư mục `integration/` không bị coi là test
 
