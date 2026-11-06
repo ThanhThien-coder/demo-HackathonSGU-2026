@@ -247,13 +247,13 @@ export function readCentralDirectory(
  */
 export function listEntriesStreaming(
   bytes: Uint8Array,
-  _signal?: AbortSignal,
+  signal?: AbortSignal,
   report?: IngestionReport
 ): ZipEntryMeta[] {
   const rawList: (RawParsedEntry & { completed: boolean })[] = [];
 
   const uz = new fflate.Unzip();
-  uz.register(fflate.UnzipInflate);
+  uz.register(CappedUnzipInflate);
 
   uz.onfile = (file) => {
     let uncompressedBytes = 0;
@@ -269,10 +269,23 @@ export function listEntriesStreaming(
       completed: false,
     };
 
+    // Trần theo từng entry: vượt trần kích thước hoặc tỉ lệ nén thì dừng bung và đánh dấu đã đủ,
+    // size > trần nên ING-88 vẫn loại entry (lỗi B-18)
+    const sizeCap = Math.max(CONFIG.MAX_SINGLE_FILE_BYTES, CONFIG.MAX_NOTEBOOK_BYTES);
+    const ratioCap = file.size && file.size > 0 ? file.size * CONFIG.MAX_COMPRESSION_RATIO : Infinity;
+    let stopped = false;
+
     file.ondata = (err, chunk, final) => {
-      if (err) return;
+      if (err || stopped) return;
       if (chunk) {
         uncompressedBytes += chunk.length;
+      }
+      if (!final && (uncompressedBytes > sizeCap || uncompressedBytes > ratioCap)) {
+        stopped = true;
+        entryData.size = uncompressedBytes;
+        entryData.completed = true;
+        file.terminate();
+        return;
       }
       if (final) {
         entryData.size = uncompressedBytes;
@@ -285,7 +298,7 @@ export function listEntriesStreaming(
   };
 
   try {
-    uz.push(bytes, true);
+    pushUnzipInChunks(uz, bytes, signal);
   } catch {
     // Bỏ qua lỗi kết thúc stream hỏng
   }
@@ -388,6 +401,54 @@ export function decodeAndFilter(
   return text;
 }
 
+// Đẩy dữ liệu nén theo phần nhỏ để dừng được ngay khi vượt trần (lỗi B-18, Mục 9 ý 1).
+// Một phần 1 KB nén tối đa bung khoảng 1 MB nên mỗi lượt đồng bộ chỉ vài mili giây.
+const PUSH_CHUNK_BYTES = 1024;
+
+/**
+ * Bộ giải nén DEFLATE cho Unzip có `terminate()`: `UnzipInflate` của fflate không có, nên gọi
+ * `file.terminate()` không dừng được. Sau khi dừng, phần dữ liệu nén còn lại của entry bị bỏ qua
+ * (Unzip vẫn đọc hết entry theo header để sang entry kế).
+ */
+class CappedUnzipInflate implements fflate.UnzipDecoder {
+  static compression = 8;
+  ondata: fflate.AsyncFlateStreamHandler = () => {};
+  private inflate: fflate.Inflate;
+  private stopped = false;
+
+  constructor() {
+    this.inflate = new fflate.Inflate((chunk, final) => {
+      if (!this.stopped) this.ondata(null, chunk, final);
+    });
+  }
+
+  push(chunk: Uint8Array, final: boolean): void {
+    if (this.stopped) return;
+    this.inflate.push(chunk, final);
+  }
+
+  terminate: fflate.AsyncTerminable = () => {
+    this.stopped = true;
+  };
+}
+
+/**
+ * Đẩy `bytes` vào Unzip từng phần. Dừng khi `signal` hủy hoặc quá `CONFIG.STREAM_TIMEOUT_MS`:
+ * vòng lặp chạy đồng bộ nên timer của `runIngest` không chạy được giữa chừng, phải tự kiểm giờ (lỗi B-18).
+ */
+function pushUnzipInChunks(uz: fflate.Unzip, bytes: Uint8Array, signal?: AbortSignal): void {
+  if (bytes.length === 0) {
+    uz.push(bytes, true);
+    return;
+  }
+  const deadline = performance.now() + CONFIG.STREAM_TIMEOUT_MS;
+  for (let off = 0; off < bytes.length; off += PUSH_CHUNK_BYTES) {
+    if (signal?.aborted || performance.now() > deadline) return;
+    const end = Math.min(off + PUSH_CHUNK_BYTES, bytes.length);
+    uz.push(bytes.subarray(off, end), end >= bytes.length);
+  }
+}
+
 /**
  * Nối các chunk Uint8Array thành một buffer duy nhất
  */
@@ -407,7 +468,8 @@ function concatChunks(chunks: Uint8Array[], totalLen: number): Uint8Array {
 function extractFromLocalOffset(
   bytes: Uint8Array,
   entry: ZipEntryMeta,
-  report: IngestionReport
+  report: IngestionReport,
+  opts: { maxBytes?: number; signal?: AbortSignal; onExceeded?: () => void } = {}
 ): Uint8Array | null {
   if (entry.local_offset === null) {
     return null;
@@ -436,15 +498,15 @@ function extractFromLocalOffset(
   }
 
   const isNotebook = entry.path.endsWith(".ipynb");
-  const maxAllowed = isNotebook
-    ? CONFIG.MAX_NOTEBOOK_BYTES
-    : CONFIG.MAX_SINGLE_FILE_BYTES;
+  const maxAllowed =
+    opts.maxBytes ?? (isNotebook ? CONFIG.MAX_NOTEBOOK_BYTES : CONFIG.MAX_SINGLE_FILE_BYTES);
 
   if (method === 0) {
     const uncompressedSize =
       entry.size > 0 ? entry.size : compSize;
     if (uncompressedSize > maxAllowed) {
-      report.skipped.oversized++;
+      if (opts.onExceeded) opts.onExceeded();
+      else report.skipped.oversized++;
       return null;
     }
     return bytes.subarray(dataStart, dataStart + uncompressedSize);
@@ -455,10 +517,13 @@ function extractFromLocalOffset(
     let totalUncompressed = 0;
     let exceeded = false;
     const chunks: Uint8Array[] = [];
+    // Tỉ lệ nén thật vượt ING-88 (header khai gian size nhỏ) cũng dừng ngay
+    const ratioCap = compSize > 0 ? compSize * CONFIG.MAX_COMPRESSION_RATIO : Infinity;
 
     const inflator = new fflate.Inflate((chunk) => {
+      if (exceeded) return;
       totalUncompressed += chunk.length;
-      if (totalUncompressed > maxAllowed) {
+      if (totalUncompressed > maxAllowed || totalUncompressed > ratioCap) {
         exceeded = true;
       } else {
         chunks.push(chunk);
@@ -466,13 +531,18 @@ function extractFromLocalOffset(
     });
 
     try {
-      inflator.push(compressedData, true);
+      for (let off = 0; off < compressedData.length && !exceeded; off += PUSH_CHUNK_BYTES) {
+        if (opts.signal?.aborted) return null;
+        const end = Math.min(off + PUSH_CHUNK_BYTES, compressedData.length);
+        inflator.push(compressedData.subarray(off, end), end >= compressedData.length);
+      }
     } catch {
       return null;
     }
 
     if (exceeded) {
-      report.skipped.oversized++;
+      if (opts.onExceeded) opts.onExceeded();
+      else report.skipped.oversized++;
       return null;
     }
 
@@ -488,11 +558,12 @@ function extractFromLocalOffset(
 function extractStreamingPass2(
   bytes: Uint8Array,
   targetPaths: Set<string>,
-  report: IngestionReport
+  report: IngestionReport,
+  signal?: AbortSignal
 ): Map<string, Uint8Array> {
   const result = new Map<string, Uint8Array>();
   const uz = new fflate.Unzip();
-  uz.register(fflate.UnzipInflate);
+  uz.register(CappedUnzipInflate);
 
   let knownPrefix = archiveCommonPrefixMap.get(bytes);
   const seenPaths = new Set<string>();
@@ -534,21 +605,23 @@ function extractStreamingPass2(
     let uncompressedBytes = 0;
     let exceeded = false;
     const chunks: Uint8Array[] = [];
+    const ratioCap = file.size && file.size > 0 ? file.size * CONFIG.MAX_COMPRESSION_RATIO : Infinity;
 
     file.ondata = (err, chunk, final) => {
-      if (err) return;
+      if (err || exceeded) return;
       if (chunk) {
         uncompressedBytes += chunk.length;
-        if (uncompressedBytes > maxAllowed) {
+        if (uncompressedBytes > maxAllowed || uncompressedBytes > ratioCap) {
+          // Vượt trần: dừng bung ngay, không chờ hết dữ liệu (lỗi B-18)
           exceeded = true;
-        } else {
-          chunks.push(chunk);
+          report.skipped.oversized++;
+          file.terminate();
+          return;
         }
+        chunks.push(chunk);
       }
-      if (final && !exceeded) {
+      if (final) {
         result.set(normPath, concatChunks(chunks, uncompressedBytes));
-      } else if (final && exceeded) {
-        report.skipped.oversized++;
       }
     };
 
@@ -556,7 +629,7 @@ function extractStreamingPass2(
   };
 
   try {
-    uz.push(bytes, true);
+    pushUnzipInChunks(uz, bytes, signal);
   } catch {
     // Bỏ qua lỗi
   }
@@ -588,12 +661,15 @@ export function inflateSelected(
   let streamingMap: Map<string, Uint8Array> | null = null;
   if (!hasLocalOffsets) {
     const targetSet = new Set(allEntries.map((e) => e.path));
-    streamingMap = extractStreamingPass2(bytes, targetSet, report);
+    streamingMap = extractStreamingPass2(bytes, targetSet, report, signal);
   }
 
-  const getEntryBuffer = (entry: ZipEntryMeta): Uint8Array | null => {
+  const getEntryBuffer = (
+    entry: ZipEntryMeta,
+    opts?: { maxBytes?: number; onExceeded?: () => void }
+  ): Uint8Array | null => {
     if (hasLocalOffsets) {
-      return extractFromLocalOffset(bytes, entry, report);
+      return extractFromLocalOffset(bytes, entry, report, { ...opts, signal });
     }
     return streamingMap?.get(entry.path) ?? null;
   };
@@ -604,12 +680,19 @@ export function inflateSelected(
       break;
     }
 
-    const buf = getEntryBuffer(mf);
-    if (!buf) {
+    // Manifest qua cùng lớp kiểm trần và tỉ lệ nén với file code (lỗi B-18, ING-88)
+    let manifestExceeded = false;
+    const buf = getEntryBuffer(mf, {
+      maxBytes: CONFIG.MAX_MANIFEST_BYTES,
+      onExceeded: () => {
+        manifestExceeded = true;
+      },
+    });
+    if (!buf && !manifestExceeded) {
       continue;
     }
 
-    if (buf.length > CONFIG.MAX_MANIFEST_BYTES) {
+    if (manifestExceeded || !buf || buf.length > CONFIG.MAX_MANIFEST_BYTES) {
       report.warnings.push(
         // Spec Mục 9 ý 2 chỉ ghi "bỏ + warning", chưa có câu chữ: câu tạm, chờ người giữ spec chốt.
         `Tệp cấu hình ${mf.path} vượt quá giới hạn ${Math.round(CONFIG.MAX_MANIFEST_BYTES / 1024)} KB nên bị bỏ qua.`
