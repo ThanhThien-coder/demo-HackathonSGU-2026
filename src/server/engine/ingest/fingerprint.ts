@@ -144,11 +144,19 @@ export function detectScope(
       normalized += "/";
     }
 
-    const hasCodeInSubdir = codeEntries.some((e) =>
-      e.path.startsWith(normalized)
-    );
-
+    // So không phân biệt hoa thường, dùng đúng tên thư mục thật trong repo (lỗi B-21).
+    // Khớp đúng hoa thường thì giữ nguyên; không thì lấy path nhỏ nhất để kết quả tất định.
+    const lowerNorm = normalized.toLowerCase();
+    const hasCodeInSubdir = codeEntries.some((e) => e.path.startsWith(normalized));
     if (!hasCodeInSubdir) {
+      const match = codeEntries
+        .filter((e) => e.path.toLowerCase().startsWith(lowerNorm))
+        .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))[0];
+      if (match) normalized = match.path.slice(0, normalized.length);
+    }
+    const resolvedExists = hasCodeInSubdir || codeEntries.some((e) => e.path.startsWith(normalized));
+
+    if (!resolvedExists) {
       throw new IngestionError(
         "ERR_NO_SOURCE_FILES_FOUND",
         `No source files found in subdirectory: ${normalized}`,

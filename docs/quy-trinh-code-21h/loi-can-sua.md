@@ -204,7 +204,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** `https://GitHub.com/...` và `HTTPS://github.com/...` báo `ERR_INVALID_GITHUB_URL`, dù trình duyệt mở được.
 - **Nguyên nhân:** `url.ts` so chuỗi phân biệt hoa thường. Spec cũng không nói tới trường hợp này.
 - **Cần sửa:** chuẩn hóa phần scheme và host về chữ thường, giữ nguyên owner và repo.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b15-b21-hoa-thuong`. `url.ts` đưa scheme và host (`https://`, `www.`, `github.com`, `git@github.com:`) về chữ thường trước khi chuẩn hóa, giữ nguyên owner và repo; ING-11 đã có luật này. 10 ca trong `hoa-thuong.test.ts` (`https://GitHub.com/...`, `HTTPS://github.com/...`, `GITHUB.COM/...`, `git@GitHub.com:...`); host khác vẫn bị từ chối. Chạy thật `HTTPS://GitHub.com/kuuhakubee/CNPM_BrewLite` qua `runIngest`: nhận được repo. Typecheck sạch, lint 0 lỗi, 890 test qua.
 
 ### B-16 · Nhẹ · `ref_label` chứa SHA thay vì tên nhánh
 
@@ -250,7 +250,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** repo có `Backend/`, nhập `backend` ở "Đổi thư mục" nhận `ERR_NO_SOURCE_FILES_FOUND`.
 - **Nguyên nhân:** `detectScope` so `startsWith` phân biệt hoa thường, trong khi phần tự dò thì không.
 - **Cần sửa:** so không phân biệt hoa thường rồi dùng đúng tên thư mục thật.
-- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b15-b21-hoa-thuong`. `detectScope` so thư mục tường minh không phân biệt hoa thường, dùng tên thật trong repo (`backend` → `Backend/`); khớp đúng hoa thường thì giữ nguyên; không khớp thì vẫn `ERR_NO_SOURCE_FILES_FOUND`. 5 ca trong `hoa-thuong.test.ts`. Chạy thật `subdir_override: "APPS/API"` trên BrewLite: offset `apps/api/`. Chưa làm: `snapshot.subdir` vẫn lưu đúng chuỗi người dùng nhập (`APPS/API`), chưa đổi sang tên thật; chưa sửa spec 10 Mục 8 ý 1 (đã có luật này).
 
 ### B-22 · Vừa · Che secret bỏ sót nhiều mẫu phổ biến
 
