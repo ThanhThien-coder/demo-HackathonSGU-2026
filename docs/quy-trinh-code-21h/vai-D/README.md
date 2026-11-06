@@ -48,6 +48,22 @@ Máy không có Antigravity (agy) hoặc không có ai-kit: làm cùng phiếu n
 | 03:00–05:00 | [D10](D10-hoan-thien.md) · **Mốc H+16, H+17** | Kiểm việc agy D09, sửa giao diện theo Issue, xóa trang nháp `/dev` |
 | 05:00–09:00 | Về đích (xem bên dưới) | Sửa lỗi có nhãn bug hoặc ui, không đổi bố cục, tập demo cùng E |
 
+## Phiếu theo quy trình học mới
+
+Theo D-81 … D-85, do Lê Ngọc Quý làm ở luồng 6, đặc tả ở [`spec/30`](../../spec/30_UI.md). Làm từ trên xuống. Phần bản đồ của D03, phần X-Ray, Tổng quan của D05, phần tổng quan của D06 đã được các phiếu dưới thay; khác nhau thì theo `spec/30`.
+
+| Phiếu | Việc | Lỗi | Giờ |
+| :-- | :-- | :-- | :-- |
+| [D11](D11-tab-file.md) | Khung code theo tab file | D-16 | Xong trước 19:00 |
+| [D12](D12-tour.md) | Tab X-Ray dạng tour | D-19 | Xong trước 19:00 |
+| [D13](D13-the-khai-niem.md) | Thẻ khái niệm | D-20 | Xong trước 19:00 |
+| [D14](D14-to-dung-dong.md) | Tô đúng dòng | D-17 | Xong trước 19:00 |
+| [D15](D15-goi-y-tour.md) | Gợi ý trỏ về tour, ẩn câu DROPPED | D-18, gợi ý `CODE_POINTER` | Xong trước 19:00 |
+| [D16](D16-the-vai-tro.md) | Thẻ vai trò | D-22 | Sau 22:00. Dòng "Dữ liệu" bỏ được nếu trễ |
+| [D17](D17-ban-do-nhom.md) | Bản đồ chia nhóm | D-21 phần bản đồ | Sau 22:00 |
+| [D18](D18-tong-quan.md) | Tổng quan 2 nhịp | D-21 phần Tổng quan | Sau 22:00 |
+| [D19](D19-popover-doan-chon.md) | Popover giải thích đoạn chọn | D-23 | Sau 22:00. **Bỏ trước nếu trễ** |
+
 ## Việc lặp lại suốt 21 giờ
 
 - **Store chỉ là bản sao chỉ đọc (D-02):** Store Zustand chỉ lưu và thay thế dữ liệu máy chủ trả về; không tự tính BKT, trạng thái node, mở khóa, số lượt nộp hay đáp án. Các hàm thuần `bkt-engine`, `plan`, `derive` chỉ dùng cho hiển thị hoặc vận hành nội bộ ở chế độ Offline.
