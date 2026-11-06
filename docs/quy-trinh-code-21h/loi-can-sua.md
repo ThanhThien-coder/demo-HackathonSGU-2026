@@ -25,7 +25,7 @@ Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D
 - **Nguyên nhân:** ghi nếu đã biết, chưa chắc thì ghi "nghi".
 - **Cần sửa:** sửa gì, ở file nào.
 - **Kiểm tra:** làm gì để biết đã hết lỗi.
-- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `entities`, `group_id`, `via_entities`, `groups` vào `src/contracts/engine.ts` đúng `spec/02`, `toClientResult` trả đủ. `shop-api` ra 4 nhóm theo T-ENG-48, BrewLite có nhóm theo thực thể, chạy 2 lần cùng kết quả.
+- **Trạng thái:** chưa làm.
 ```
 
 Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác minh` · `chờ quyết Q-x` · `đang làm` · `chờ kiểm` · `xong`. Chỉ người kiểm mới được ghi `xong`.
@@ -350,7 +350,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** lập chỉ mục hàm theo file và cạnh theo caller một lần, rồi dùng lại cho mọi entry.
 - **Kiểm tra:** `django/django` dưới 10 giây, kết quả đồ thị không đổi.
 - **Ảnh hưởng demo:** không, chỉ gặp với repo rất lớn.
-- **Trạng thái:** đã đo bằng CPU profile, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b33-toc-do`. Đo bằng CPU profile: nặng nhất là vòng tìm dòng trong hàm ở `buildSlice` và `findFunctionNode` dò lại cả cây cho mỗi hàm. Sửa: lập sẵn dòng thuộc hàm, mẫu regex theo tên biến, danh sách node hàm theo file. `buildGraph`: `django/django` 5,9 → 2,9 giây, `nestjs/nest` 21,1 → 3,0, `pallets/click` 17,1 → 3,9, repo này 26,6 → 9,5, BrewLite 2,2 → 1,2. So băm `nodes`, `edges`, `groups`, `symbol_whitelist`, `file_index` trước và sau: giống hệt trên cả 5 repo, repo này so trên cùng commit.
 
 ### B-34 · Vừa · Mock API bị nhận là route Express
 
@@ -830,8 +830,8 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Hiện tượng:** bản đồ là một danh sách bài ngang hàng, không biết bài nào thuộc chức năng nào, đọc ghi dữ liệu gì.
 - **Cần sửa:** theo D-84, cùng đợt với B-39: mỗi bài có `entities`, cạnh có `via_entities`, `StaticEngineResult.groups` gom tất định. Sửa `11`, `graph/nodes.ts`, `graph/index.ts`.
-- **Kiểm tra:** `shop-api` ra 3 nhóm như `prototype.html`; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
-- **Trạng thái:** chưa làm.
+- **Kiểm tra:** `shop-api` ra 4 nhóm theo T-ENG-48; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `entities`, `group_id`, `via_entities`, `groups` vào `src/contracts/engine.ts` đúng `spec/02`, `toClientResult` trả đủ. `shop-api` ra 4 nhóm theo T-ENG-48, BrewLite có nhóm theo thực thể, chạy 2 lần cùng kết quả.
 
 ### B-41 · Nhẹ · Bước nạp repo bỏ README
 
