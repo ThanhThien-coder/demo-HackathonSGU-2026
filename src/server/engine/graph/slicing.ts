@@ -8,6 +8,7 @@ import {
 } from "@/contracts";
 import type { Node } from "web-tree-sitter";
 import { getAdapter } from "./registry";
+import { isSpringDataAccessFile } from "./spring";
 import type {
   Candidate,
   EngineContext,
@@ -104,6 +105,8 @@ const DATA_SINK_IMPORT_SOURCES = new Set([
   "pymongo",
   "database/sql",
   "gorm.io/gorm",
+  "spring-data",
+  "jakarta.persistence",
 ]);
 
 const NON_VAR_TOKENS = new Set([
@@ -256,8 +259,12 @@ function callSitesOf(file: ParsedFile): CallSite[] {
     const target =
       n.type === "call_expression" || n.type === "call"
         ? n.childForFieldName("function")
+        : n.type === "method_invocation"
+        ? n.childForFieldName("name")
         : n.type === "new_expression"
         ? n.childForFieldName("constructor")
+        : n.type === "object_creation_expression"
+        ? n.childForFieldName("type")
         : null;
     if (target) {
       sites.push({
@@ -765,7 +772,7 @@ export function buildSlice(
       layer = "ENTRY_POINT";
     } else if (st.isMiddleware) {
       layer = "MIDDLEWARE";
-    } else if (isDataAccessFile(st.fnSym.file_path)) {
+    } else if (isDataAccessFile(st.fnSym.file_path) || isSpringDataAccessFile(file)) {
       layer = "DATA_ACCESS";
     } else if (st.hasDataSink && !st.callsDataAccessFile) {
       layer = "DATA_ACCESS";
