@@ -81,6 +81,9 @@ const DATA_SINK_METHOD_REGEX =
 const DATA_SINK_RECEIVER_REGEX =
   /(repository|repo|model|dao|entity|db|database|prisma|knex|pool|conn|connection|client|session|cursor|collection|datasource|manager|tx|trx|jdbcTemplate)$/i;
 
+// ENG-82 ý 4 (a): chuỗi receiver, sau khi bỏ `this.`, có đoạn `prisma`, `tx`, `trx`.
+const PRISMA_RECEIVER_SEGMENTS = new Set(["prisma", "tx", "trx"]);
+
 const DATA_SINK_IMPORT_SOURCES = new Set([
   "pg",
   "mysql",
@@ -117,13 +120,14 @@ const NON_VAR_TOKENS = new Set([
 function isDataSinkCall(call: ExternalCall, techStack: string[]): boolean {
   const method = call.method;
   const receiverLast = call.receiver_chain[call.receiver_chain.length - 1] ?? "";
-  const receiverFull = call.receiver_chain.join(".");
+  const receiverSegments =
+    call.receiver_chain[0] === "this" ? call.receiver_chain.slice(1) : call.receiver_chain;
 
   // (a) method in regex and receiver in regex or prisma.
   const isMethodA = DATA_SINK_METHOD_REGEX.test(method);
   const isReceiverA =
     DATA_SINK_RECEIVER_REGEX.test(receiverLast) ||
-    receiverFull.startsWith("prisma.");
+    receiverSegments.some((seg) => PRISMA_RECEIVER_SEGMENTS.has(seg));
   if (isMethodA && isReceiverA) return true;
 
   // (b) receiver có import_source thuộc DB libraries
@@ -222,9 +226,93 @@ function extractReadIdentifiers(lineText: string): string[] {
   return results;
 }
 
+// D-87: chờ Luồng 5 chuyển 2 hằng số này vào CONFIG.
+const SHARED_HELPER_MIN_RATIO = 0.5;
+const SHARED_HELPER_MIN_SLICES = 3;
+const NO_HELPERS: ReadonlySet<string> = new Set();
+
+interface CallSite {
+  name: string;
+  line: number;
+  column: number;
+}
+
+const callSiteCache = new WeakMap<ParsedFile, CallSite[]>();
+
+function calledName(target: Node): string {
+  const named =
+    target.childForFieldName("property") ?? target.childForFieldName("attribute") ?? target;
+  return named.text;
+}
+
+// Mọi lời gọi trong file theo AST, sort theo (dòng, cột) (ENG-04, ENG-80).
+function callSitesOf(file: ParsedFile): CallSite[] {
+  const cached = callSiteCache.get(file);
+  if (cached) return cached;
+
+  const sites: CallSite[] = [];
+  const visit = (n: Node): void => {
+    const target =
+      n.type === "call_expression" || n.type === "call"
+        ? n.childForFieldName("function")
+        : n.type === "new_expression"
+        ? n.childForFieldName("constructor")
+        : null;
+    if (target) {
+      sites.push({
+        name: calledName(target),
+        line: n.startPosition.row + 1,
+        column: n.startPosition.column,
+      });
+    }
+    for (let i = 0; i < n.childCount; i++) {
+      const child = n.child(i);
+      if (child) visit(child);
+    }
+  };
+  if (file.tree) visit(file.tree.rootNode);
+  sites.sort((a, b) => a.line - b.line || a.column - b.column);
+  callSiteCache.set(file, sites);
+  return sites;
+}
+
+// `file#Class.method~2` ⇒ `method`; constructor được gọi bằng tên lớp.
+function calleeCallName(calleeKey: string): string {
+  const parts = calleeKey.slice(calleeKey.indexOf("#") + 1).replace(/~\d+$/, "").split(".");
+  const last = parts[parts.length - 1] ?? "";
+  if ((last === "constructor" || last === "__init__") && parts.length > 1) {
+    return parts[parts.length - 2] ?? last;
+  }
+  return last;
+}
+
+// ENG-80: callee theo (dòng, cột) call site rồi khóa. Không thấy call site ⇒ đứng sau.
+function sortByCallSite(
+  edges: FunctionCallEdge[],
+  caller: SymbolDefinition,
+  file: ParsedFile | undefined
+): FunctionCallEdge[] {
+  const first = new Map<string, number>();
+  if (file) {
+    callSitesOf(file).forEach((site, order) => {
+      if (site.line < caller.line_start || site.line > caller.line_end) return;
+      if (!first.has(site.name)) first.set(site.name, order);
+    });
+  }
+  const rank = (e: FunctionCallEdge) => first.get(calleeCallName(e.callee)) ?? Infinity;
+  return edges.slice().sort((a, b) => {
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra < rb ? -1 : 1;
+    if (a.callee < b.callee) return -1;
+    if (a.callee > b.callee) return 1;
+    return 0;
+  });
+}
+
 interface StepBuildingContext {
   fnKey: string;
   fnSym: SymbolDefinition;
+  parentKey: string | null;
   hop: number;
   isEntry: boolean;
   isMiddleware: boolean;
@@ -234,7 +322,34 @@ interface StepBuildingContext {
   callsDataAccessFile: boolean;
 }
 
-export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
+interface CollectedSteps {
+  stepsMeta: StepBuildingContext[];
+  callerEdges: Map<string, FunctionCallEdge[]>;
+  hasFunctionBody: boolean;
+  parsedEntryFile: ParsedFile | undefined;
+  entryFile: string;
+}
+
+const callerEdgesCache = new WeakMap<FunctionCallEdge[], Map<string, FunctionCallEdge[]>>();
+const externalCallsCache = new WeakMap<ExternalCall[], Map<string, ExternalCall[]>>();
+
+function groupBy<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyOf(item);
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+}
+
+// ENG-80: thu hàm từ 1 entry. `helpers` là hàm vặt D-87, không đi vào.
+function collectSteps(
+  entry: EntryPoint,
+  ctx: EngineContext,
+  helpers: ReadonlySet<string>
+): CollectedSteps {
   const fnInfo =
     ctx.idx.functions.get(entry.key);
   const hasFunctionBody = Boolean(
@@ -269,30 +384,24 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
   const visitedFns = new Set<string>();
 
   // Map từ caller đến danh sách callee edges
-  const callerEdges = new Map<string, FunctionCallEdge[]>();
-  for (const edge of ctx.edges) {
-    let list = callerEdges.get(edge.caller);
-    if (!list) {
-      list = [];
-      callerEdges.set(edge.caller, list);
-    }
-    list.push(edge);
+  let callerEdges = callerEdgesCache.get(ctx.edges);
+  if (!callerEdges) {
+    callerEdges = groupBy(ctx.edges, (edge) => edge.caller);
+    callerEdgesCache.set(ctx.edges, callerEdges);
   }
+  const edgesByCaller = callerEdges;
 
   // Thu thập các ExternalCall theo từng hàm caller
-  const fnExternalCalls = new Map<string, ExternalCall[]>();
-  for (const ext of ctx.external) {
-    let list = fnExternalCalls.get(ext.caller);
-    if (!list) {
-      list = [];
-      fnExternalCalls.set(ext.caller, list);
-    }
-    list.push(ext);
+  let fnExternalCalls = externalCallsCache.get(ctx.external);
+  if (!fnExternalCalls) {
+    fnExternalCalls = groupBy(ctx.external, (ext) => ext.caller);
+    externalCallsCache.set(ctx.external, fnExternalCalls);
   }
+  const externalByCaller = fnExternalCalls;
 
   function resolveCalleeKey(callerKey: string, calleeKey: string): string {
     const callerFile = callerKey.split("#")[0] ?? "";
-    const edges = callerEdges.get(callerKey) ?? [];
+    const edges = edgesByCaller.get(callerKey) ?? [];
     const edge = edges.find((e) => e.callee === calleeKey);
     if (!edge || !edge.ambiguous) return calleeKey;
 
@@ -318,11 +427,13 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     curKey: string,
     hop: number,
     isEntry: boolean,
-    isMiddleware: boolean
+    isMiddleware: boolean,
+    parentKey: string
   ): void {
     if (hop > CONFIG.SLICE_MAX_HOPS) return;
     if (visitedFns.has(curKey)) return;
     if (curKey.endsWith("#<module>")) return;
+    if (helpers.has(curKey) && !isMiddleware) return;
 
     const sym = ctx.idx.functions.get(curKey) ?? ctx.idx.symbols.get(curKey);
     if (!sym || sym.name === "<module>") return;
@@ -332,7 +443,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
 
     visitedFns.add(curKey);
 
-    const extCalls = fnExternalCalls.get(curKey) ?? [];
+    const extCalls = externalByCaller.get(curKey) ?? [];
     const dataSinkLines: number[] = [];
     for (const ext of extCalls) {
       if (isDataSinkCall(ext, ctx.tech_stack)) {
@@ -343,6 +454,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     const curStep: StepBuildingContext = {
       fnKey: curKey,
       fnSym: sym,
+      parentKey,
       hop,
       isEntry,
       isMiddleware,
@@ -354,13 +466,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     stepsMeta.push(curStep);
 
     // Lấy các callee
-    const edges = callerEdges.get(curKey) ?? [];
-    // Sort callee theo UTF-16
-    const sortedEdges = edges.slice().sort((a, b) => {
-      if (a.callee < b.callee) return -1;
-      if (a.callee > b.callee) return 1;
-      return 0;
-    });
+    const sortedEdges = sortByCallSite(edgesByCaller.get(curKey) ?? [], sym, file);
 
     for (const e of sortedEdges) {
       const resolvedKey = resolveCalleeKey(curKey, e.callee);
@@ -368,14 +474,14 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
       if (isDataAccessFile(targetFile)) {
         curStep.callsDataAccessFile = true;
       }
-      collectFromFunction(resolvedKey, hop + 1, false, false);
+      collectFromFunction(resolvedKey, hop + 1, false, false, curKey);
     }
   }
 
   // Bước 1: Entry (hop 0)
   if (entrySym) {
     visitedFns.add(entry.key);
-    const extCalls = hasFunctionBody ? (fnExternalCalls.get(entry.key) ?? []) : [];
+    const extCalls = hasFunctionBody ? (externalByCaller.get(entry.key) ?? []) : [];
     const dataSinkLines: number[] = [];
     for (const ext of extCalls) {
       if (isDataSinkCall(ext, ctx.tech_stack)) {
@@ -386,6 +492,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     stepsMeta.push({
       fnKey: entry.key,
       fnSym: entrySym,
+      parentKey: null,
       hop: 0,
       isEntry: true,
       isMiddleware: false,
@@ -415,19 +522,18 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
           }
         }
         if (mwKey) {
-          collectFromFunction(mwKey, 1, false, true);
+          collectFromFunction(mwKey, 1, false, true, entry.key);
         }
       }
     }
 
     // Các hàm mà entry gọi (chỉ thu nếu entry là hàm có thân)
     if (hasFunctionBody) {
-    const entryEdges = callerEdges.get(entry.key) ?? [];
-    const sortedEntryEdges = entryEdges.slice().sort((a, b) => {
-      if (a.callee < b.callee) return -1;
-      if (a.callee > b.callee) return 1;
-      return 0;
-    });
+    const sortedEntryEdges = sortByCallSite(
+      edgesByCaller.get(entry.key) ?? [],
+      entrySym,
+      parsedEntryFile
+    );
 
     for (const e of sortedEntryEdges) {
       const resolvedKey = resolveCalleeKey(entry.key, e.callee);
@@ -435,10 +541,59 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
       if (isDataAccessFile(targetFile)) {
         stepsMeta[0]!.callsDataAccessFile = true;
       }
-      collectFromFunction(resolvedKey, 1, false, false);
+      collectFromFunction(resolvedKey, 1, false, false, entry.key);
     }
     }
   }
+
+  return { stepsMeta, callerEdges: edgesByCaller, hasFunctionBody, parsedEntryFile, entryFile };
+}
+
+/**
+ * D-87: hàm có mặt ở ≥ 50% số lát cắt và ≥ 3 lát cắt, không là entry, middleware,
+ * cây con không có DATA_SINK. Đếm trên bản thu đầy đủ, trước ENG-81, ENG-88.
+ */
+export function findSharedHelpers(entries: EntryPoint[], ctx: EngineContext): Set<string> {
+  const sliceCount = new Map<string, number>();
+  const touchesData = new Set<string>();
+
+  for (const entry of entries) {
+    const { stepsMeta } = collectSteps(entry, ctx, NO_HELPERS);
+    const children = groupBy(
+      stepsMeta.filter((st) => st.parentKey !== null),
+      (st) => st.parentKey ?? ""
+    );
+    const hasSinkBelow = (st: StepBuildingContext): boolean =>
+      st.hasDataSink || (children.get(st.fnKey) ?? []).some(hasSinkBelow);
+
+    for (const st of stepsMeta) {
+      if (st.isEntry || st.isMiddleware) continue;
+      sliceCount.set(st.fnKey, (sliceCount.get(st.fnKey) ?? 0) + 1);
+      if (hasSinkBelow(st)) touchesData.add(st.fnKey);
+    }
+  }
+
+  const minSlices = Math.max(
+    SHARED_HELPER_MIN_SLICES,
+    Math.ceil(entries.length * SHARED_HELPER_MIN_RATIO)
+  );
+  const helpers = new Set<string>();
+  for (const [key, count] of sliceCount) {
+    if (count >= minSlices && !touchesData.has(key)) helpers.add(key);
+  }
+  return helpers;
+}
+
+export function buildSlice(
+  entry: EntryPoint,
+  ctx: EngineContext,
+  helpers: ReadonlySet<string> = NO_HELPERS
+): Candidate {
+  const { stepsMeta, callerEdges, hasFunctionBody, parsedEntryFile, entryFile } = collectSteps(
+    entry,
+    ctx,
+    helpers
+  );
 
   // 2. ENG-81 Lọc liên quan
   // Giữ callee G khi: cây con G có DATA_SINK, hoặc G dùng kết quả, hoặc G có throw/raise.
@@ -526,6 +681,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
 
   // 4. Dựng ExecutionTraceStep cho từng hàm (ENG-82..87)
   const traceSteps: ExecutionTraceStep[] = [];
+  const stepMeta = new Map<ExecutionTraceStep, StepBuildingContext>();
   const dtoNames = new Set<string>();
 
   for (let i = 0; i < keptStepsMeta.length; i++) {
@@ -832,7 +988,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
       originNote = origin.line_origin[stepLineStart - 1];
     }
 
-    traceSteps.push({
+    const traceStep: ExecutionTraceStep = {
       step_number: i + 1,
       layer,
       file_path: st.fnSym.file_path,
@@ -842,7 +998,9 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
       snippet: finalSnippetLines.join("\n"),
       snippet_line_map: finalLineMap,
       origin_note: originNote,
-    });
+    };
+    traceSteps.push(traceStep);
+    stepMeta.set(traceStep, st);
   }
 
   // 5. ENG-88 Trần node: lines ≤ NODE_MAX_LINES (100), tokens ≤ NODE_MAX_CODE_TOKENS (1500)
@@ -860,21 +1018,35 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate {
     return { lines, tokens };
   }
 
+  // Bảo vệ = entry, middleware, hàm trên đường tới criterion
+  const protectedSteps = new Set<StepBuildingContext>(
+    keptStepsMeta.filter((st) => st.isEntry || st.isMiddleware)
+  );
+  const metaByKey = new Map(stepsMeta.map((st) => [st.fnKey, st]));
+  let onPath: StepBuildingContext | undefined = keptStepsMeta[criterionStepIndex];
+  while (onPath) {
+    protectedSteps.add(onPath);
+    onPath = onPath.parentKey ? metaByKey.get(onPath.parentKey) : undefined;
+  }
+
   let metrics = computeTotalMetrics(traceSteps);
   while (
     (metrics.lines > CONFIG.NODE_MAX_LINES ||
       metrics.tokens > CONFIG.NODE_MAX_CODE_TOKENS) &&
     traceSteps.length > 1
   ) {
-    // Tìm bước lá không bảo vệ có hop lớn nhất (hòa ⇒ step_number lớn nhất)
-    // Các bước bảo vệ: entry (bước 1), middleware, và các bước từ 1 đến criterionStepIndex + 1
-    const protectedLimit = Math.max(1, criterionStepIndex + 1);
-
+    // Tìm bước lá không bảo vệ có hop lớn nhất (hòa ⇒ step_number lớn nhất).
+    // Bước có hop lớn nhất không còn bước con trong danh sách, nên luôn là lá.
     let candidateToRemove = -1;
-    for (let idx = traceSteps.length - 1; idx >= protectedLimit; idx--) {
-      candidateToRemove = idx;
-      break;
-    }
+    let candidateHop = -1;
+    traceSteps.forEach((step, idx) => {
+      const meta = stepMeta.get(step);
+      if (!meta || protectedSteps.has(meta)) return;
+      if (meta.hop >= candidateHop) {
+        candidateHop = meta.hop;
+        candidateToRemove = idx;
+      }
+    });
 
     if (candidateToRemove >= 0) {
       traceSteps.splice(candidateToRemove, 1);

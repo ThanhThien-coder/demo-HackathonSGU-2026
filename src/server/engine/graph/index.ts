@@ -10,7 +10,7 @@ import { collectSymbols, resolveImports } from "./symbols";
 import { buildCallGraph, fileGraph, findEntries } from "./callgraph";
 import { rankFiles } from "./pagerank";
 import { cognitiveComplexity, returnsJsx } from "./complexity";
-import { buildSlice } from "./slicing";
+import { buildSlice, findSharedHelpers } from "./slicing";
 import { chooseMode, buildProceduralCandidates } from "./degraded";
 import { assembleGraph, buildAlgoCandidates, isTestCandidate } from "./nodes";
 import { diagnoseUncleBob } from "./unclebob";
@@ -126,10 +126,11 @@ export async function buildGraph(
   if (degradedMode === "PROCEDURAL") {
     candidates = buildProceduralCandidates(parsedFiles, ctx);
   } else {
-    // NORMAL mode: cắt lát từ từng entry point
+    // NORMAL mode: cắt lát từ từng entry point, bỏ hàm vặt dùng chung (D-87)
+    const helpers = findSharedHelpers(entries, ctx);
     for (const e of entries) {
       try {
-        const slice = buildSlice(e, ctx);
+        const slice = buildSlice(e, ctx, helpers);
         candidates.push(slice);
       } catch {
         // Bỏ qua nếu lát cắt thất bại
