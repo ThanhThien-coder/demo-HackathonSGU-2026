@@ -39,6 +39,53 @@ Dữ liệu AI cho D16, D18, D19 đã có trên `main`:
 - Câu 1 của `analysis.architecture.summary` là dòng "Vai trò".
 - `POST /api/explain-selection` trả `explanation {kind, what, here, analogy, skill} | null` và `references`. Lỗi: `ERR_SELECTION_INVALID` (400), `ERR_EXPLAIN_LIMIT` (429).
 
+### Sơ đồ chờ nhau
+
+Mũi tên liền: phải có việc trước mới làm xong việc sau. Mũi tên đứt: chờ mềm, trong lúc chờ code trước với dữ liệu giả.
+
+```mermaid
+flowchart LR
+    subgraph TH["Thiện"]
+        D11["D11 tab file<br/>22:15"] --> D14["D14 tô đúng dòng"] --> D15["D15 gợi ý trỏ tour,<br/>ẩn DROPPED · 23:15"]
+        MIG["migration 0002"]
+    end
+    subgraph PH["Phat107"]
+        D12["D12 tour<br/>22:30"] --> D13["D13 thẻ khái niệm<br/>23:15"]
+    end
+    subgraph MI["Minh"]
+        B40["B-40 nhóm, thực thể<br/>22:15"] --> D17["D17 bản đồ nhóm<br/>23:15"]
+    end
+    subgraph HN["Huynh Nhan"]
+        D18["D18 tổng quan<br/>22:30"] --> D16["D16 thẻ vai trò<br/>23:00"] --> D19["D19 popover đoạn chọn<br/>23:30"]
+    end
+    D11 -. "activeStep mở đúng tab" .-> D12
+    D11 -- "onSelect khi bôi đen" --> D19
+    D12 -- "goToStep(n)" --> D15
+    D12 -. "bước 0 đặt RoleCard" .-> D16
+    B40 -. "graph.groups (thiếu ⇒ nhóm dự phòng)" .-> D18
+    B40 -. "graph.groups" .-> D17
+    MIG -- "test cache, đếm lượt" --> D19
+```
+
+Đường dài nhất: D11 ⇒ D12 ⇒ D15 và D11 ⇒ D19. Vì vậy **D11 phải xong sớm nhất**.
+
+### Sơ đồ đụng file chung
+
+```mermaid
+flowchart LR
+    WB[("src/store/workbench.ts")]
+    PG[("src/app/learn/page.tsx")]
+    D12["D12 · Phat107<br/>active_step, goToStep"] --> WB
+    D15["D15 · Thiện<br/>gọi goToStep"] --> WB
+    D19["D19 · Huynh Nhan<br/>cache giải thích"] --> WB
+    D16["D16 · Huynh Nhan"] --> PG
+    D18["D18 · Huynh Nhan"] --> PG
+    D12 --> PG
+    D17["D17 · Minh"] --> PG
+```
+
+Hai file này có nhiều người cùng sửa. Mỗi người thêm khối riêng có chú thích mã thẻ, pull ngay trước khi sửa, commit ngay sau khi sửa. Các file còn lại mỗi file chỉ một người sửa, nên không đụng nhau.
+
 ## 4. Mốc giờ
 
 | Giờ | Việc |
