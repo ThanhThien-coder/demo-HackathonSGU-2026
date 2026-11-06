@@ -11,7 +11,8 @@ import {
   type GuardIssue,
   type GuardLogEntry,
 } from "@/contracts";
-import { logGuardBlocked } from "@/server/log";
+import { logGuardBlocked, logger } from "@/server/log";
+import type { WeakPointStats } from "./analysis";
 
 export function logGuardBlock(
   call: GuardCall,
@@ -37,4 +38,22 @@ export function logGuardBlock(
   };
 
   logGuardBlocked(entry);
+}
+
+/**
+ * Ghi 1 dòng log khi cổng gác lọc bớt điểm dở mà bản phân tích vẫn đạt (lỗi C-06, C-09).
+ * Chỉ ghi số theo lý do, không ghi tên, bước, văn bản AI (GUARD-22).
+ */
+export function logWeakPointsFiltered(attempt: number, nodeId: string, stats: WeakPointStats): void {
+  logger.info(
+    {
+      event: "weak_points_filtered",
+      attempt,
+      node_id: nodeId,
+      prompt_version: CONFIG.PROMPT_VERSION,
+      llm_model: CONFIG.LLM_MODEL,
+      ...stats,
+    },
+    "weak_points_filtered",
+  );
 }

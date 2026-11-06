@@ -1,7 +1,7 @@
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
   ENGINE_VERSION: "1.6.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
-  PROMPT_VERSION: "1.0.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI
+  PROMPT_VERSION: "1.1.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI (khớp 02; C-06, C-09)
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------
   MAX_STREAM_BYTES: 15 * 1024 * 1024, // Byte nén tải từ GitHub
