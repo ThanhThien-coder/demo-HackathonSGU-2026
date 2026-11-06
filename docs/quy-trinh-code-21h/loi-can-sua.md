@@ -16,7 +16,7 @@ File này là nơi duy nhất ghi lỗi và việc sửa lỗi. Không tạo fil
 
 ### Mẫu thêm lỗi
 
-Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-43`, `D-24`, `C-13`, `A-09`.
+Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-43`, `D-24`, `C-13`, `A-10`.
 
 ```markdown
 ### B-40 · Nặng | Vừa | Nhẹ · Tên ngắn
@@ -37,8 +37,8 @@ Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác min
 | B — Engine | 6 | 19 | 16 | 41 |
 | D — Giao diện | 4 | 10 | 8 | 22 |
 | C — AI | 1 | 11 | 0 | 12 |
-| A — Tích hợp, deploy | 1 | 4 | 2 | 7 |
-| **Tổng** | **12** | **44** | **26** | **82** |
+| A — Tích hợp, deploy | 2 | 4 | 2 | 8 |
+| **Tổng** | **13** | **44** | **26** | **83** |
 
 Bảng trên đã tính 12 lỗi ở mục [Lỗi mới ngày 06/11/2026](#lỗi-mới-ngày-06112026) và 11 việc ở mục [Việc mới theo quy trình học mới](#việc-mới-theo-quy-trình-học-mới).
 
@@ -902,6 +902,14 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 - **Cần sửa:** `02` theo Mục 3 của `sua-doc-quy-trinh-moi.md`; endpoint `POST /api/explain-selection`; bỏ `ERR_OVERVIEW_NOT_READY`; mang frontend `feat/giao-dien-ide` về `main` làm nền cho luồng 6.
 - **Kiểm tra:** `npm run typecheck` xanh; gọi endpoint với vùng chọn sai ra 400.
 - **Trạng thái:** chờ kiểm. Nhánh `a/chot-viec-thien`. Route `explain-selection` đã gọi hàm của C-11; bỏ hẳn `ERR_OVERVIEW_NOT_READY` ở 10 file, `offline.ts` đổi sang `ERR_CLIENT_NETWORK`. Typecheck, lint, test xanh. Chưa gọi endpoint trên server thật. `RepoOverviewRaw` đã đổi ở C-12. Trường mới của node, cạnh, kết quả engine thuộc B-40. Frontend do bạn của Thiện tự làm.
+
+### A-09 · Nặng · `npm run dev` trả 500 ở trang học
+
+- **Hiện tượng:** `main` commit `6fa10eb`, chạy `npm run dev`, mở `/learn?offline=1` trả 500, log báo `UnhandledSchemeError: Reading from "node:fs/promises"`, dấu vết tới `src/server/engine/graph/parser.ts`. Bản deploy Vercel vẫn thành công.
+- **Nguyên nhân:** `src/instrumentation.ts` dùng `if (process.env.NEXT_RUNTIME !== "nodejs") return;` nên webpack vẫn gói `import("@/server/engine/graph/parser")` cho runtime edge.
+- **Cần sửa:** đổi thành `if (process.env.NEXT_RUNTIME === "nodejs") { … }` bọc toàn bộ thân hàm.
+- **Kiểm tra:** đã thử trên bản sao tạm: sửa dòng này thì `/learn?offline=1` trả 200, `Compiled /instrumentation` không còn lỗi. Máy không có `.env` cần đặt `GEMINI_BACKEND`, `GEMINI_API_KEY` mới khởi động được.
+- **Trạng thái:** chưa làm.
 
 ---
 

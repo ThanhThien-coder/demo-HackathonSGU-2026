@@ -4,6 +4,8 @@ import type {
   HybridArchitecturalNode,
   NodeAnalysisView,
 } from "@/contracts";
+import { norm } from "@/server/ai/guard/text";
+import type { HlRange } from "@/store/workbench";
 
 export interface StepModel {
   text: string;
@@ -15,6 +17,12 @@ export interface FileTab {
   name: string; // basename
   weak: boolean; // file có bước nằm trong analysis.weak_points
   firstStep: number | null; // bước đầu thuộc file, null nếu file không có bước nào
+}
+
+export interface ModelHlRange {
+  startLine: number; // Dòng trong model, tính từ 1
+  endLine: number;
+  kind: HlRange["kind"];
 }
 
 export interface OriginalSelection {
@@ -102,6 +110,43 @@ export function buildFileTabs(
 export function stepGapAbove(step: ExecutionTraceStep | null | undefined): string | null {
   if (!step || step.line_start <= 1) return null;
   return `⋯ dòng 1–${step.line_start - 1} không thuộc bài học`;
+}
+
+/** Cả bước, dùng cho điểm hay (`strengths` không có `symbol`). */
+export function stepHl(
+  step: ExecutionTraceStep | null | undefined,
+  kind: HlRange["kind"]
+): HlRange[] {
+  if (!step) return [];
+  return [{ line_start: step.line_start, line_end: step.line_end, kind }];
+}
+
+/** Dòng gốc đầu tiên trong `snippet` chứa `symbol`, so như `20` AI-18; không thấy ⇒ cả bước. */
+export function weakPointHl(
+  step: ExecutionTraceStep | null | undefined,
+  symbol: string
+): HlRange[] {
+  if (!step) return [];
+  const target = norm(symbol);
+  const lines = splitLines(step.snippet || "");
+  const index = target
+    ? lines.findIndex((line, i) => step.snippet_line_map?.[i] > 0 && norm(line).includes(target))
+    : -1;
+  if (index < 0) return stepHl(step, "BAD");
+  const line = step.snippet_line_map[index];
+  return [{ line_start: line, line_end: line, kind: "BAD" }];
+}
+
+/** Đổi dải theo số dòng gốc sang dòng model qua `lineMap`; dải không nằm trong code đang xem bị bỏ. */
+export function hlToModelRanges(model: StepModel, hl: HlRange[]): ModelHlRange[] {
+  return hl.flatMap(({ line_start, line_end, kind }) => {
+    const inRange = (original: number) =>
+      original > 0 && original >= line_start && original <= line_end;
+    const first = model.lineMap.findIndex(inRange);
+    if (first < 0) return [];
+    const last = model.lineMap.findLastIndex(inRange);
+    return [{ startLine: first + 1, endLine: last + 1, kind }];
+  });
 }
 
 /**

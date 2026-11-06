@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import {
   CockpitHeader,
-  LessonGraphDrawer,
+  LessonGraphPanel,
   CodeSnippetViewer,
   FeynmanQuestionSection,
   RepoOverviewModal,
@@ -14,7 +14,6 @@ import {
   SkipConfirmDialog,
   ReportWrongDialog,
   FullFileModal,
-  GraphSidebarButton,
 } from "./components";
 import {
   evaluateFeynmanSafe,
@@ -30,6 +29,7 @@ import { useWorkbenchStore } from "@/store/workbench";
 import { useUserStore } from "@/stores/userStore";
 import { SelectionPopover } from "@/components/code/SelectionPopover";
 import type { CodeSelection } from "@/components/code/slice-model";
+import { activeQuestionArrayIndex, hasNextQuestionToOpen } from "./components/question-list";
 
 // Offline không có phiên thật; dữ liệu lấy từ gói offline
 const OFFLINE_SESSION_ID = "offline";
@@ -89,7 +89,6 @@ function LearnCockpitContent() {
   }, [userProfile, serverClockOffsetMs]);
 
   // 4. Chỉ giữ useState cục bộ cho 6 hộp thoại/ngăn kéo, các cờ nộp/bỏ qua/báo sai, và reloadKey
-  const [isGraphDrawerOpen, setIsGraphDrawerOpen] = useState(false);
   const [isFullFileModalOpen, setIsFullFileModalOpen] = useState(false);
   // D19: vùng bôi đen trong khung code (D11 onSelect)
   const [codeSelection, setCodeSelection] = useState<CodeSelection | null>(null);
@@ -260,11 +259,10 @@ function LearnCockpitContent() {
     return [];
   }, [active_node_id, runs, progress]);
 
-  const activeQuestionIdx = useMemo(() => {
-    if (active_question_index === null || active_question_index === undefined) return 0;
-    const idx = questions.findIndex((q) => q.question_index === active_question_index);
-    return idx >= 0 ? idx : 0;
-  }, [questions, active_question_index]);
+  const activeQuestionIdx = useMemo(
+    () => activeQuestionArrayIndex(questions, active_question_index),
+    [questions, active_question_index]
+  );
 
   const activeQuestion = questions[activeQuestionIdx] ?? null;
 
@@ -297,14 +295,10 @@ function LearnCockpitContent() {
 
   const lastFailedAnswer = evalKey ? last_failed_answers[evalKey] ?? null : null;
 
-  const hasNextQuestion = useMemo(() => {
-    for (let i = activeQuestionIdx + 1; i < questions.length; i++) {
-      if (questions[i]?.state?.ended_by !== "DROPPED") {
-        return true;
-      }
-    }
-    return false;
-  }, [questions, activeQuestionIdx]);
+  const hasNextQuestion = useMemo(
+    () => hasNextQuestionToOpen(questions, activeQuestionIdx),
+    [questions, activeQuestionIdx]
+  );
 
   const fullFileCode = useMemo(() => {
     if (currentNode?.trace_steps && currentNode.trace_steps.length > 0) {
@@ -324,6 +318,11 @@ function LearnCockpitContent() {
   // 7. Event Handlers
   const handleSelectNode = (nodeId: string) => {
     void useWorkbenchStore.getState().openNode(nodeId);
+  };
+
+  const handleOpenHintStep = (step: number) => {
+    setIsEvaluationDialogOpen(false);
+    useWorkbenchStore.getState().openHintStep(step);
   };
 
   const handleSelectQuestion = (idx: number) => {
@@ -357,6 +356,8 @@ function LearnCockpitContent() {
     setSubmitError(null);
     setCanRetrySubmit(false);
     setLastSubmittedAnswer(answer);
+    // Feynman luôn hiện ở cột phải: nộp bài nghĩa là đã xem lại xong, tắt băng UI-32b.
+    if (store.ui.return_question) store.setActiveTab("FEYNMAN");
 
     const qIndex = activeQuestion.question_index;
     const attemptNumber = (activeQuestion.state?.attempts_used || 0) + 1;
@@ -572,29 +573,23 @@ function LearnCockpitContent() {
           onChangeDir={handleChangeDir}
         />
 
-        {/* 3. Left-side Floating Tab Button: "Đồ thị bài học" (Figma node 5:217) */}
-        <GraphSidebarButton onClick={() => setIsGraphDrawerOpen(true)} />
-
-        {/* 4. Lesson Knowledge Graph Drawer (Figma node 5:1751) - Step 6 GET /api/sessions/{id}/progress */}
-        <LessonGraphDrawer
-          isOpen={isGraphDrawerOpen}
-          onClose={() => setIsGraphDrawerOpen(false)}
-          graphNodes={result?.nodes}
-          graphEdges={result?.edges}
-          progress={progress}
-          isLoading={Boolean(ui_pending["session"])}
-          errorMessage={ui_errors["session"] ?? null}
-          onRetry={() => setReloadKey((k) => k + 1)}
-          selectedNodeId={active_node_id ?? ""}
-          onSelectNode={handleSelectNode}
-        />
 
         {/* 5. Main Cockpit Learning Workspace (Figma node 5:63) */}
         <main
-          className="flex-1 flex flex-col lg:flex-row items-stretch lg:items-start gap-5 lg:gap-[20px] px-4 sm:px-8 lg:pl-[120px] lg:pr-[45px] py-6 sm:py-8 w-full max-w-[1536px] mx-auto z-10"
+          className="flex-1 flex flex-col lg:flex-row lg:flex-wrap xl:flex-nowrap items-stretch lg:items-start gap-5 lg:gap-[20px] px-4 sm:px-8 lg:px-6 py-6 sm:py-8 w-full max-w-[1536px] mx-auto z-10"
           data-node-id="5:63"
           data-name="Container"
         >
+          {/* Bản đồ bài học chia nhóm (D17). Từ xl mới đủ chỗ cho 3 cột vì khung code rộng cố định */}
+          <LessonGraphPanel
+            key={sessionId}
+            hideOnDesktop={presentation_pane}
+            isLoading={Boolean(ui_pending["session"])}
+            errorMessage={ui_errors["session"] ?? null}
+            onRetry={() => setReloadKey((k) => k + 1)}
+            onSelectNode={handleSelectNode}
+          />
+
           {/* Left Column: Code Snippet Viewer (Figma node 5:64) - Step 8 POST /api/analyze-node */}
           {active_node_id ? (
             <CodeSnippetViewer
@@ -639,7 +634,6 @@ function LearnCockpitContent() {
             <FeynmanQuestionSection
               question={activeQuestion}
               questionIndex={activeQuestionIdx + 1}
-              totalQuestions={questions.length || 1}
               questions={questions}
               onSelectQuestion={handleSelectQuestion}
               isLoadingQuestion={Boolean(active_node_id && ui_pending["enrich:" + active_node_id])}
@@ -663,6 +657,8 @@ function LearnCockpitContent() {
               skillChange={evalKey ? (ui_skill_changes[evalKey] ?? null) : null}
               nodeState={active_node_id && progress?.nodes ? (progress.nodes[active_node_id] ?? null) : null}
               unlockedNodeIds={evaluationResult?.unlocked_node_ids ?? []}
+              followUp={evaluationResult?.follow_up ?? null}
+              onOpenHintStep={handleOpenHintStep}
             />
           ) : (
             <div className="flex-1 w-full p-6 text-center text-[#625e56] bg-white rounded-2xl border border-[#eaedff]">
@@ -707,6 +703,7 @@ function LearnCockpitContent() {
         onNextQuestion={handleNextQuestion}
         hasNextQuestion={hasNextQuestion}
         onOpenReportWrong={() => setIsReportWrongDialogOpen(true)}
+        onOpenHintStep={handleOpenHintStep}
       />
 
       {/* 8. Architecture Overview Modal - Step 9 POST /api/analyze-overview */}
