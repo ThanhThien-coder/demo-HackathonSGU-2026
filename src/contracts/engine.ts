@@ -48,6 +48,8 @@ export interface UncleBobMetrics {
   is_exempt: boolean;           // Miễn trừ ⇒ D = 0, BALANCED
 }
 
+export type EntityOp = "CREATE" | "READ" | "UPDATE" | "DELETE";   // D-84
+
 export interface HybridArchitecturalNode {
   id: string;                   // Tất định (D-08)
   title: string;                // Thuật toán đặt tên tất định, 0 token, AI không đổi
