@@ -159,7 +159,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** spec 11 Mục 1 có 7 ngôn ngữ `RESOLVED` và 9 `STRUCTURAL`, nhưng `LANGUAGE_REGISTRY` chỉ có 4. `.java`, `.go`, `.dart` cũng không nằm trong `KNOWN_NO_GRAMMAR`, nên engine coi như không có code và `ERR_UNSUPPORTED_LANGUAGE` không chạy. Điểm 10 trong README Vai B ghi việc này từ trước nhưng chưa ai chốt.
 - **Cần sửa:** tối thiểu, nhận các đuôi spec có nhưng chưa có grammar: repo chủ yếu ngôn ngữ đó thì trả `ERR_UNSUPPORTED_LANGUAGE`, repo trộn thì cảnh báo chỉ phân tích một phần. Muốn hỗ trợ thật thì thêm phiếu B11 cho grammar và resolver. Sửa spec cho khớp phạm vi đã chốt, theo việc S-05.
 - **Kiểm tra:** 4 repo trên báo đúng ngôn ngữ, không còn `no_code`, không gọi repo Go là `JAVASCRIPT`.
-- **Trạng thái:** đã chạy thật trên engine, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `b/fix-b12-b07-ngon-ngu`: Go, Dart, tầng `STRUCTURAL` đã vào `KNOWN_NO_GRAMMAR`. Chạy thật ngày 06/11: `gin-gonic/examples` vẫn 13 node `JAVASCRIPT`, `flutter/samples` vẫn 2 node `PYTHON`, vì `assertNotEmpty` trong `fingerprint.ts` thoát ngay khi còn file code, trái ING-131. Repo trộn cũng chưa có cảnh báo. Cần Phat107 sửa file này. Hai repo Java chờ B-38.
 
 ### B-09 · Nhẹ · Danh sách thư viện lẫn đồ dev
 
@@ -183,7 +183,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `catch` trong `loadAll` ở `parser.ts` nuốt lỗi khi nạp file `.scm`. Nếu query hỏng, engine vẫn chạy nhưng có thể mất symbol mà không báo gì. Hiện 4 query đều nạp được.
 - **Cần sửa:** ngôn ngữ `RESOLVED` thiếu query thì báo lỗi, thêm test `getQuery` khác `null`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b12-b07-ngon-ngu`: `loadAll` báo lỗi kèm tên ngôn ngữ, có test. Typecheck, lint, 741 test xanh.
 
 ### B-13 · Nhẹ · Grammar chưa nạp lúc khởi động
 
