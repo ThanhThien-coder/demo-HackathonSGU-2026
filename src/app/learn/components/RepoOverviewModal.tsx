@@ -7,7 +7,6 @@ import {
   Sparkles,
   RefreshCw,
   AlertTriangle,
-  Compass,
   ShieldAlert,
 } from "lucide-react";
 import type { RepoOverviewView } from "@/contracts";
@@ -57,10 +56,6 @@ export function RepoOverviewModal({
 
   const discovered = buildDiscovered(storeResult, storeAnalyses, storeProgress);
   const allNodes = storeResult?.nodes || [];
-
-  const isNotReady =
-    errorMessage?.includes("tiếp tục phân tích") ||
-    errorMessage?.includes("ERR_OVERVIEW_NOT_READY");
 
   // Chip node hiện tên node, bấm thì openNode(id) rồi onClose(); node LOCKED chỉ hiện chữ
   const renderNodeChip = (id: string) => {
@@ -132,26 +127,18 @@ export function RepoOverviewModal({
           </div>
         )}
 
-        {/* Error State / Not Ready State (Giữ phần lỗi) */}
+        {/* Error State */}
         {!isLoading && errorMessage && (
           <div className="p-6 rounded-[12px] bg-[#fff7ed] border border-[#fed7aa] flex flex-col items-center text-center gap-3">
             <div className="size-10 rounded-full bg-[#ffedd5] flex items-center justify-center text-[#c2410c]">
-              {isNotReady ? (
-                <Compass className="size-5 animate-pulse" />
-              ) : (
-                <AlertTriangle className="size-5" />
-              )}
+              <AlertTriangle className="size-5" />
             </div>
             <div className="flex flex-col gap-1 max-w-[480px]">
               <span className="font-bold text-sm text-[#131b2e]">
-                {isNotReady
-                  ? "Đang hoàn tất các lát cắt còn lại"
-                  : "Chưa thể tải tổng quan"}
+                Chưa thể tải tổng quan
               </span>
               <p className="text-xs text-[#7c2d12] leading-relaxed">
-                {isNotReady
-                  ? "Hệ thống đang tiếp tục phân tích các thành phần còn lại để dựng bức tranh toàn cảnh."
-                  : errorMessage}
+                {errorMessage}
               </p>
             </div>
             {onRetry && (

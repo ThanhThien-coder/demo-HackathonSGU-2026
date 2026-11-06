@@ -42,8 +42,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
     "Bài học này chưa được mở khóa hoặc bạn đã hoàn thành bài học trước đó.",
   ERR_ANALYSIS_NOT_READY:
     "Hệ thống AI đang phân tích bài học này. Vui lòng chờ trong giây lát.",
-  ERR_OVERVIEW_NOT_READY:
-    "Hệ thống đang tiếp tục phân tích các thành phần còn lại để dựng bức tranh toàn cảnh.",
   ERR_QUESTION_FINISHED:
     "Câu hỏi này đã kết thúc trước đó. Dữ liệu đang được đồng bộ lại.",
   ERR_ATTEMPT_OUT_OF_SYNC:

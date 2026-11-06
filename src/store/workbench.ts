@@ -213,13 +213,11 @@ function maybeRequestOverview(
       overviewRequested = false;
       const code = res.error?.error?.code as ErrorCode | undefined;
       const rawMsg = res.error?.error?.message;
-      if (code !== "ERR_OVERVIEW_NOT_READY") {
-        const msg =
-          (code && ERROR_MESSAGES[code]) ||
-          rawMsg ||
-          "Lỗi phân tích tổng quan";
-        get().setUiError("overview", msg);
-      }
+      const msg =
+        (code && ERROR_MESSAGES[code]) ||
+        rawMsg ||
+        "Lỗi phân tích tổng quan";
+      get().setUiError("overview", msg);
     }
   })();
 }

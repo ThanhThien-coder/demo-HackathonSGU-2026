@@ -313,7 +313,7 @@ export function buildJavaCallGraph(
   const classMetaList: JavaClassMeta[] = [];
   const classMetaByName = new Map<string, JavaClassMeta[]>();
   const classMetaByKey = new Map<string, JavaClassMeta>();
-  const repoTypesSet = new Set<string>(SPRING_DATA_REPOSITORIES);
+  const springDataInterfaceSet = new Set<string>(SPRING_DATA_REPOSITORIES);
 
   function registerClassMeta(meta: JavaClassMeta) {
     classMetaList.push(meta);
@@ -327,11 +327,6 @@ export function buildJavaCallGraph(
       const listByQual = classMetaByName.get(meta.qualifiedName) ?? [];
       listByQual.push(meta);
       classMetaByName.set(meta.qualifiedName, listByQual);
-    }
-
-    if (meta.hasRepositoryAnnotation) {
-      repoTypesSet.add(meta.simpleName);
-      repoTypesSet.add(meta.qualifiedName);
     }
   }
 
@@ -481,18 +476,25 @@ export function buildJavaCallGraph(
     scanClasses(file.tree.rootNode, "");
   }
 
-  // Lan truyền quan hệ kế thừa vào repoTypesSet (ENT-40)
+  // Lan truyền quan hệ kế thừa vào springDataInterfaceSet (ENT-41, ENT-42)
+  // Chỉ interface kế thừa danh sách ENT-40 (method không thân) mới là ExternalCall spring-data
   let changed = true;
   while (changed) {
     changed = false;
     for (const meta of classMetaList) {
-      if (repoTypesSet.has(meta.simpleName) || repoTypesSet.has(meta.qualifiedName)) continue;
+      if (!meta.isInterface) continue;
+      if (
+        springDataInterfaceSet.has(meta.simpleName) ||
+        springDataInterfaceSet.has(meta.qualifiedName)
+      ) {
+        continue;
+      }
       const extendsEnt40 =
-        (meta.superClass !== null && repoTypesSet.has(meta.superClass)) ||
-        meta.superInterfaces.some((iface) => repoTypesSet.has(iface));
+        (meta.superClass !== null && springDataInterfaceSet.has(meta.superClass)) ||
+        meta.superInterfaces.some((iface) => springDataInterfaceSet.has(iface));
       if (extendsEnt40) {
-        repoTypesSet.add(meta.simpleName);
-        repoTypesSet.add(meta.qualifiedName);
+        springDataInterfaceSet.add(meta.simpleName);
+        springDataInterfaceSet.add(meta.qualifiedName);
         changed = true;
       }
     }
@@ -902,8 +904,19 @@ export function buildJavaCallGraph(
 
                   // Xử lý kết quả lời gọi dựa trên receiverType
                   if (receiverType) {
-                    // 1. Kiểu là Repository theo ENT-40
-                    if (repoTypesSet.has(receiverType)) {
+                    const targetMeta =
+                      receiverType === simpleName && currentMeta
+                        ? currentMeta
+                        : findClassMetaForType(receiverType, filePath);
+
+                    const isSpringDataInterface =
+                      springDataInterfaceSet.has(receiverType) ||
+                      (targetMeta?.isInterface === true &&
+                        (springDataInterfaceSet.has(targetMeta.simpleName) ||
+                          springDataInterfaceSet.has(targetMeta.qualifiedName)));
+
+                    // 1. Kiểu là interface kế thừa danh sách ENT-40 (ENT-41, ENT-42)
+                    if (isSpringDataInterface) {
                       external.push({
                         caller: callerKey!,
                         line,
@@ -926,120 +939,40 @@ export function buildJavaCallGraph(
                       });
                     }
                     // 3. Lớp trong repo, có method tên đó và có thân
-                    else {
-                      const targetMeta =
-                        receiverType === simpleName && currentMeta
-                          ? currentMeta
-                          : findClassMetaForType(receiverType, filePath);
+                    else if (targetMeta && !targetMeta.isInterface) {
+                      const candidates = findMethodsOnClass(targetMeta, methodName);
+                      if (candidates.length > 0) {
+                        const argsNode = n.childForFieldName("arguments");
+                        const nArgs = argsNode?.namedChildCount ?? 0;
+                        const matching = candidates.filter((c) => c.params.length === nArgs);
 
-                      if (targetMeta && !targetMeta.isInterface) {
-                        const candidates = findMethodsOnClass(targetMeta, methodName);
-                        if (candidates.length > 0) {
-                          const argsNode = n.childForFieldName("arguments");
-                          const nArgs = argsNode?.namedChildCount ?? 0;
-                          const matching = candidates.filter((c) => c.params.length === nArgs);
-
-                          if (matching.length === 1) {
-                            rawEdges.push({
-                              caller: callerKey!,
-                              callee: matching[0]!.key,
-                              confidence: "RESOLVED",
-                              ambiguous: false,
-                              call_count: 1,
-                            });
-                          } else if (matching.length > 1) {
-                            matching.sort((a, b) => (a.key < b.key ? -1 : 1));
-                            rawEdges.push({
-                              caller: callerKey!,
-                              callee: matching[0]!.key,
-                              confidence: "RESOLVED",
-                              ambiguous: true,
-                              call_count: 1,
-                            });
-                          } else {
-                            const sorted = [...candidates].sort((a, b) =>
-                              a.key < b.key ? -1 : 1
-                            );
-                            rawEdges.push({
-                              caller: callerKey!,
-                              callee: sorted[0]!.key,
-                              confidence: "RESOLVED",
-                              ambiguous: true,
-                              call_count: 1,
-                            });
-                          }
-                        } else {
-                          external.push({
-                            caller: callerKey!,
-                            line,
-                            receiver_chain: receiverChain,
-                            method: methodName,
-                            import_source: null,
-                          });
-                        }
-                      }
-                      // 4. Interface trong repo, method không thân
-                      else if (targetMeta && targetMeta.isInterface) {
-                        const implKeysFromIdx =
-                          idx.interface_impls.get(receiverType) ??
-                          idx.interface_impls.get(targetMeta.simpleName) ??
-                          [];
-                        const implKeySet = new Set<string>(implKeysFromIdx);
-                        for (const m of classMetaList) {
-                          if (
-                            m.superInterfaces.includes(receiverType) ||
-                            m.superInterfaces.includes(targetMeta.simpleName)
-                          ) {
-                            implKeySet.add(m.classKey);
-                          }
-                        }
-                        const implClassKeys = Array.from(implKeySet);
-                        const matchedCallees: string[] = [];
-
-                        for (const implKey of implClassKeys) {
-                          const implMeta = classMetaByKey.get(implKey);
-                          if (implMeta) {
-                            const candidates = findMethodsOnClass(implMeta, methodName);
-                            if (candidates.length > 0) {
-                              const argsNode = n.childForFieldName("arguments");
-                              const nArgs = argsNode?.namedChildCount ?? 0;
-                              const matching = candidates.filter(
-                                (c) => c.params.length === nArgs
-                              );
-                              if (matching.length > 0) {
-                                matchedCallees.push(matching[0]!.key);
-                              } else {
-                                matchedCallees.push(candidates[0]!.key);
-                              }
-                            }
-                          }
-                        }
-
-                        if (matchedCallees.length === 1) {
+                        if (matching.length === 1) {
                           rawEdges.push({
                             caller: callerKey!,
-                            callee: matchedCallees[0]!,
+                            callee: matching[0]!.key,
                             confidence: "RESOLVED",
                             ambiguous: false,
                             call_count: 1,
                           });
-                        } else if (matchedCallees.length > 1) {
-                          for (const callee of matchedCallees) {
-                            rawEdges.push({
-                              caller: callerKey!,
-                              callee,
-                              confidence: "INFERRED",
-                              ambiguous: true,
-                              call_count: 1,
-                            });
-                          }
-                        } else {
-                          external.push({
+                        } else if (matching.length > 1) {
+                          matching.sort((a, b) => (a.key < b.key ? -1 : 1));
+                          rawEdges.push({
                             caller: callerKey!,
-                            line,
-                            receiver_chain: receiverChain,
-                            method: methodName,
-                            import_source: null,
+                            callee: matching[0]!.key,
+                            confidence: "RESOLVED",
+                            ambiguous: true,
+                            call_count: 1,
+                          });
+                        } else {
+                          const sorted = [...candidates].sort((a, b) =>
+                            a.key < b.key ? -1 : 1
+                          );
+                          rawEdges.push({
+                            caller: callerKey!,
+                            callee: sorted[0]!.key,
+                            confidence: "RESOLVED",
+                            ambiguous: true,
+                            call_count: 1,
                           });
                         }
                       } else {
@@ -1051,6 +984,79 @@ export function buildJavaCallGraph(
                           import_source: null,
                         });
                       }
+                    }
+                    // 4. Interface trong repo, method không thân
+                    else if (targetMeta && targetMeta.isInterface) {
+                      const implKeysFromIdx =
+                        idx.interface_impls.get(receiverType) ??
+                        idx.interface_impls.get(targetMeta.simpleName) ??
+                        [];
+                      const implKeySet = new Set<string>(implKeysFromIdx);
+                      for (const m of classMetaList) {
+                        if (
+                          m.superInterfaces.includes(receiverType) ||
+                          m.superInterfaces.includes(targetMeta.simpleName)
+                        ) {
+                          implKeySet.add(m.classKey);
+                        }
+                      }
+                      const implClassKeys = Array.from(implKeySet);
+                      const matchedCallees: string[] = [];
+
+                      for (const implKey of implClassKeys) {
+                        const implMeta = classMetaByKey.get(implKey);
+                        if (implMeta) {
+                          const candidates = findMethodsOnClass(implMeta, methodName);
+                          if (candidates.length > 0) {
+                            const argsNode = n.childForFieldName("arguments");
+                            const nArgs = argsNode?.namedChildCount ?? 0;
+                            const matching = candidates.filter(
+                              (c) => c.params.length === nArgs
+                            );
+                            if (matching.length > 0) {
+                              matchedCallees.push(matching[0]!.key);
+                            } else {
+                              matchedCallees.push(candidates[0]!.key);
+                            }
+                          }
+                        }
+                      }
+
+                      if (matchedCallees.length === 1) {
+                        rawEdges.push({
+                          caller: callerKey!,
+                          callee: matchedCallees[0]!,
+                          confidence: "RESOLVED",
+                          ambiguous: false,
+                          call_count: 1,
+                        });
+                      } else if (matchedCallees.length > 1) {
+                        for (const callee of matchedCallees) {
+                          rawEdges.push({
+                            caller: callerKey!,
+                            callee,
+                            confidence: "INFERRED",
+                            ambiguous: true,
+                            call_count: 1,
+                          });
+                        }
+                      } else {
+                        external.push({
+                          caller: callerKey!,
+                          line,
+                          receiver_chain: receiverChain,
+                          method: methodName,
+                          import_source: null,
+                        });
+                      }
+                    } else {
+                      external.push({
+                        caller: callerKey!,
+                        line,
+                        receiver_chain: receiverChain,
+                        method: methodName,
+                        import_source: null,
+                      });
                     }
                   } else {
                     // Receiver type không biết

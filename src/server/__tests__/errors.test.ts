@@ -113,7 +113,6 @@ describe("Server Errors & HTTP Status Mapping (02_CONTRACTS.md Muc 9)", () => {
       "ERR_NODE_NOT_AVAILABLE",
       "ERR_QUESTION_FINISHED",
       "ERR_ANALYSIS_NOT_READY",
-      "ERR_OVERVIEW_NOT_READY",
     ];
     for (const code of codes409) {
       expect(getHttpStatus(code)).toBe(409);
@@ -222,7 +221,6 @@ describe("Server Errors & HTTP Status Mapping (02_CONTRACTS.md Muc 9)", () => {
     );
 
     expect(defaultMessage("ERR_ANALYSIS_NOT_READY")).toBe("");
-    expect(defaultMessage("ERR_OVERVIEW_NOT_READY")).toBe("");
   });
 
   it("createApiError tra dung cau truc ApiError", () => {

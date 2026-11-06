@@ -646,7 +646,7 @@ describe("X-13", () => {
   });
 
   it("analyze-overview trượt cache, AI thành công: đúng 1 dòng", async () => {
-    // Chuẩn bị ai_cache cho tất cả node để vượt qua điều kiện ERR_OVERVIEW_NOT_READY
+    // Chuẩn bị ai_cache cho tất cả node để phân tích tổng quan có dữ liệu
     for (const n of typedShopApi.nodes) {
       const naKey = `na|${mockSession.source}|${mockSession.snapshot_id}|${mockSession.subdir}|${mockSession.engine_version}|${n.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
       dbAiCache.set(naKey, {
