@@ -481,7 +481,7 @@ export function parseManifests(
     } else if (basename === "Pipfile") {
       const pkgSet = new Set<string>();
       const sections = content.matchAll(
-        /\[(?:packages|dev-packages)\]([\s\S]*?)(?=\n\s*\[|\z)/g
+        /\[(?:packages|dev-packages)\]([\s\S]*?)(?=\n\s*\[|$(?![\s\S]))/g
       );
       for (const sec of sections) {
         const lines = sec[1].split(/\r?\n/);
@@ -545,7 +545,7 @@ export function parseManifests(
       }
       const pkgSet = new Set<string>();
       const depSections = content.matchAll(
-        /^(?:dependencies|dev_dependencies):\s*([\s\S]*?)(?=^\w|\z)/gm
+        /^(?:dependencies|dev_dependencies):[ \t]*\r?\n([\s\S]*?)(?=^\w|$(?![\s\S]))/gm
       );
       for (const ds of depSections) {
         const lines = ds[1].split(/\r?\n/);
@@ -562,7 +562,7 @@ export function parseManifests(
     } else if (basename === "Cargo.toml") {
       const pkgSet = new Set<string>();
       const sections = content.matchAll(
-        /\[(?:dependencies|dev-dependencies)\]([\s\S]*?)(?=\n\s*\[|\z)/g
+        /\[(?:dependencies|dev-dependencies)\]([\s\S]*?)(?=\n\s*\[|$(?![\s\S]))/g
       );
       for (const s of sections) {
         const lines = s[1].split(/\r?\n/);
@@ -628,7 +628,8 @@ export function buildFingerprint(
   manifests: Map<string, string>,
   scope: ScopeDecision,
   report: IngestionReport,
-  registry: LanguageRegistry = DEFAULT_LANGUAGE_REGISTRY
+  registry: LanguageRegistry = DEFAULT_LANGUAGE_REGISTRY,
+  fileLanguage?: Map<string, LanguageId>
 ): {
   fingerprint: ProjectFingerprint;
   module_info: IngestOutput["module_info"];
@@ -823,7 +824,9 @@ export function buildFingerprint(
       if (e.path.endsWith(".ipynb")) {
         langId = "PYTHON";
       } else if (e.path.endsWith(".vue") || e.path.endsWith(".svelte")) {
-        langId = "TYPESCRIPT";
+        // Ngôn ngữ đã quyết ở ING-101: file ảo path + ".ts" hoặc path + ".js". File không được giữ thì mặc định (lỗi B-24).
+        langId =
+          fileLanguage?.get(`${e.path}.js`) ?? fileLanguage?.get(`${e.path}.ts`) ?? "TYPESCRIPT";
       }
     }
 

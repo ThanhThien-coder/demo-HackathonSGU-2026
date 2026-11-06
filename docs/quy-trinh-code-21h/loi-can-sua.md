@@ -267,14 +267,15 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** Pipfile chỉ có `[packages]` cho danh sách rỗng. Pipfile có `pytz` trước `fastapi` cũng rỗng, nên không nhận ra framework. `Cargo.toml` và `pubspec.yaml` có mục gói nằm cuối file cũng rỗng.
 - **Nguyên nhân:** `fingerprint.ts` dùng `\z` trong regex. JavaScript không có `\z`, ký hiệu này khớp chữ `z` thường, nên regex không nhận ra cuối file và dừng ở chữ `z` đầu tiên.
 - **Cần sửa:** đổi `\z` thành `$(?![\s\S])` như nhánh poetry, thêm test.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. Đổi 3 chỗ `\z` (Pipfile, pubspec, Cargo) thành `$(?![\s\S])`. Tìm thêm: regex pubspec dùng `\s*` nuốt luôn dấu thụt đầu của gói đầu tiên nên gói đầu bị mất, đã đổi thành `[ 	]*?
+`. Test trong `goi-ngon-ngu.test.ts` (Pipfile có `pytz` trước `fastapi`, Cargo, pubspec, tên gói chứa chữ `z`). Chạy thật `flutter/samples`: nhận framework Flutter, 68 gói trong `tech_stack`. Typecheck sạch, lint 0 lỗi, 876 test qua.
 
 ### B-24 · Nhẹ · Repo Vue JavaScript bị báo TypeScript
 
 - **Hiện tượng:** `gothinkster/vue-realworld-example-app` có 19 file `.vue` đều là JavaScript, nhưng `primary_language` là `TYPESCRIPT`.
 - **Nguyên nhân:** `buildFingerprint` cộng mọi `.vue`, `.svelte` vào `TYPESCRIPT`, không dùng ngôn ngữ ING-101 đã tìm được.
 - **Cần sửa:** tính phần `.vue`, `.svelte` theo `file_language` sau khi trích xuất. File không được giữ thì mới dùng giá trị mặc định.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. `buildFingerprint` nhận thêm tham số tùy chọn `fileLanguage` (từ `runIngest` và `rescopeIngest`): `.vue`, `.svelte` tính theo file ảo `.js` hoặc `.ts` của ING-101; file không được giữ thì mặc định `TYPESCRIPT`. 3 test trong `goi-ngon-ngu.test.ts`. Chạy thật `gothinkster/vue-realworld-example-app`: `primary_language` thành `JAVASCRIPT` (58 949 byte, kèm 868 byte `TYPESCRIPT` từ file `.ts`). Chưa đổi `ENGINE_VERSION`. Hàm `buildFingerprint` có thêm tham số so với chữ ký trong spec 10 Mục 12 (đã có thêm `registry` từ trước); chưa sửa spec.
 
 ### B-25 · Nhẹ · Báo nhầm tsconfig hợp lệ là hỏng
 

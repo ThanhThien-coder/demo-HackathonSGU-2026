@@ -475,7 +475,8 @@ export async function runIngest(
     manifests,
     scopeDecision,
     report,
-    DEFAULT_LANGUAGE_REGISTRY
+    DEFAULT_LANGUAGE_REGISTRY,
+    file_language
   );
 
   // Mô tả dự án cho tổng quan (ING-123)
