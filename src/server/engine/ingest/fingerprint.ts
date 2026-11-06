@@ -46,7 +46,9 @@ export function detectScope(
   );
 
   const manifestPaths = new Set(
-    entries.filter((e) => e.cls === "MANIFEST").map((e) => e.path)
+    entries
+      .filter((e) => e.cls === "MANIFEST" && !e.path.endsWith("schema.prisma"))
+      .map((e) => e.path)
   );
 
   const hasManifestInDir = (dirPrefix: string): boolean => {
