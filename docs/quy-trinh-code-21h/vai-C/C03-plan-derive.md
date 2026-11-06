@@ -43,6 +43,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 2. B1 `planNodeQuestions` (docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 5, 6; D-34): chọn kỹ năng và tier (BKT-41), mọi kỹ năng đã thạo vẫn hỏi 1 câu (BKT-31, D-34), xếp thứ tự câu (BKT-42), chọn góc focus (BKT-44, BKT-46), chọn step_indices gửi AI (BKT-48).
 3. B2 `nodeStatusFromRuns` và persona (docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md Mục 8, 9): tính màu node từ kết quả các run LEARN (BKT-70..72). Persona: dùng hằng `PERSONAS` có sẵn trong `@/contracts` (docs/spec/02_CONTRACTS.md Mục 6, do Vai A viết ở A02), KHÔNG định nghĩa lại; route ghi persona (`src/server/persona.ts`) là việc của Vai A (A11). Test T-PER kiểm các số của 3 persona bằng hàm trong `bkt-engine.ts` (C02) với dữ liệu lấy từ `PERSONAS`.
 4. B3 `deriveNodeStates` (docs/spec/03_API_VA_LUU_TRU.md Mục 5.1): duyệt các node theo thứ tự tô-pô, xác định trạng thái AVAILABLE khi mọi node cha đã thông hoặc soft-bypass khi analysis_failed, xác định cờ has_warning.
+**Bắt buộc theo quy trình học mới** (D-81, lỗi C-10): áp BKT-50 sau BKT-46, BKT-49: câu 1 của mọi run có `focus` = `FLOW` (đưa câu `FLOW` lên đầu; không có thì đổi câu không-`WEAKNESS` đầu tiên; mọi câu đều `WEAKNESS` thì thêm 1 câu `FLOW` cùng kỹ năng với câu 1). Kỳ vọng T-PLAN đã tính lại theo luật này.
 5. Viết test cho nhóm T-PLAN, T-RUN, T-PER trong `src/lib/__tests__/plan.test.ts` và test cho `deriveNodeStates` trong `src/lib/__tests__/derive.test.ts`.
 6. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
@@ -50,7 +51,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Lệnh kiểm: `npx vitest run src/lib/__tests__`
 - Có đủ các nhóm test T-PLAN, T-RUN, T-PER trong `plan.test.ts`, tất cả xanh.
 - Test `deriveNodeStates` trong `derive.test.ts` xanh: node cha FAILED hoặc analysis_failed thì node con mở khóa thành AVAILABLE kèm `has_warning = true`.
-- Kế hoạch câu hỏi không bao giờ rỗng: node đã thạo vẫn sinh đúng 1 câu tier ARCHITECT cho kỹ năng điểm thấp nhất (BKT-31, D-34).
+- Kế hoạch câu hỏi không bao giờ rỗng: node đã thạo vẫn có câu tier ARCHITECT cho kỹ năng điểm thấp nhất (BKT-31, D-34); câu 1 luôn là `FLOW` (BKT-50, ca P-D, P-D2).
 
 ## Cấm
 - Không sửa file ngoài mục Được ghi, không đọc `.env*`.
@@ -76,6 +77,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Danh sách test có đủ các nhóm T-PLAN, T-RUN, T-PER của `docs/spec/22_BKT_VA_KE_HOACH_CAU_HOI.md` Test bắt buộc.
 - [ ] Test `deriveNodeStates` xác nhận logic thông node cha (kể cả soft-bypass khi `analysis_failed`) và gắn cờ cảnh báo `has_warning`.
+- [ ] Mọi ca T-PLAN có câu 1 là `FLOW` (BKT-50, lỗi C-10).
 - [ ] Báo cho Vai A (A05 bước 3) và Vai D (chế độ offline) biết `plan.ts` và `derive.ts` đã sẵn sàng.
 
 ```text

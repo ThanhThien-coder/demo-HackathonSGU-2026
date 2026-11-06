@@ -138,7 +138,8 @@ flowchart TD
   O --> F["Chọn góc focus (BKT-44, BKT-46)"]
   CP --> F
   F --> X["NOVICE_SECOND_QUESTION bật ⇒ thêm câu thứ 2 (BKT-49)"]
-  X --> S["Chọn bước gửi AI step_indices (BKT-48)"]
+  X --> FL["Câu 1 là FLOW (BKT-50, D-81)"]
+  FL --> S["Chọn bước gửi AI step_indices (BKT-48)"]
   S --> P["Kế hoạch QuestionPlanItem · cố định suốt run (D-16)"]
 ```
 
@@ -147,7 +148,7 @@ flowchart TD
 Ký hiệu: $\tilde p(k)$ = `getDecayedMastery(skills[k], now)`; `weak(k)` = có phần tử `analysis.weak_points` với `skill = k` (≤ 1, D-03); `ev(k)` = `step` của `k` trong `analysis.skills`; `archOk` = `analysis.strengths.length > 0` ∨ có mẫu trong `analysis.architecture.patterns` khác `OTHER`.
 
 - **Chọn kỹ năng (BKT-41):** kỹ năng có $\tilde p < $ `CONFIG.MASTERED_MIN`, tier = `tierOf(`$\tilde p$`)`. Hết kỹ năng ⇒ 1 câu cho kỹ năng nhỏ nhất theo ($\tilde p$ tăng, `practice_count` tăng, thứ tự phân tích), tier `ARCHITECT` (BKT-31, D-34). Không bao giờ trả `[]`.
-- **Thứ tự câu (BKT-42):** (1) có điểm dở trước; (2) $\tilde p$ nhỏ trước; (3) `practice_count` nhỏ trước (thiếu = 0); (4) thứ tự trong `analysis.skills`. `question_index` = 1..n theo thứ tự này (câu 2 của BKT-49 nối sau cùng).
+- **Thứ tự câu (BKT-42):** (1) có điểm dở trước; (2) $\tilde p$ nhỏ trước; (3) `practice_count` nhỏ trước (thiếu = 0); (4) thứ tự trong `analysis.skills`. `question_index` = 1..n theo thứ tự này (câu 2 của BKT-49 nối sau cùng), rồi áp BKT-50.
 - Tier ghi vào kế hoạch là tier lúc lập; câu sau trong cùng run không đổi tier dù câu trước đổi điểm. Gợi ý khi chấm theo lượt và tier của câu hỏi trỏ `20` AI-31. Lịch sử ý hụt (D-74 A5b) chỉ ảnh hưởng nội dung câu hỏi (`20` AI-25), KHÔNG ảnh hưởng BKT hay kế hoạch chọn kỹ năng/bậc.
 
 ### 6.2. Góc hỏi `focus`
@@ -172,6 +173,8 @@ Ký hiệu: $\tilde p(k)$ = `getDecayedMastery(skills[k], now)`; `weak(k)` = có
 
 - **Chọn góc (BKT-46):** `weak(k)` ⇒ `WEAKNESS` (mỗi câu một điểm dở). Ngược lại đi vòng `FLOW → ARCHITECTURE → CHANGE → FLOW` từ góc khởi đầu theo tier, bỏ `ARCHITECTURE` khi `!archOk`, lấy góc đầu tiên **chưa** được câu không-`WEAKNESS` nào trước đó dùng; hết góc ⇒ lấy góc hợp lệ đầu tiên của vòng (cho phép trùng góc giữa kỹ năng khác nhau). Câu đổi góc vẫn giữ độ sâu theo tier.
 
+- **Câu 1 là `FLOW` (BKT-50, D-81):** áp sau BKT-46, BKT-49. Có câu `FLOW` ⇒ đưa câu `FLOW` đầu tiên lên vị trí 1. Không có ⇒ câu không-`WEAKNESS` đầu tiên đổi `focus` thành `FLOW` rồi lên vị trí 1. Mọi câu đều `WEAKNESS` ⇒ thêm 1 câu `FLOW` cùng `skill`, `tier` với câu 1 ở vị trí 1, kể cả kế hoạch 1 câu của D-34. Các câu khác giữ thứ tự.
+
 ### 6.3. Bước gửi AI `step_indices` (BKT-48)
 
 Tập bước, lọc trong `1..stepCount`, bỏ trùng, sắp tăng dần, không bao giờ rỗng:
@@ -192,7 +195,7 @@ Snippet các bước này gửi AI khi đặt câu hỏi (`03` 6.1). AI chấm k
 
 ### 6.5. Bất biến đầu ra (test phải kiểm)
 
-(a) Mọi `skill` thuộc `analysis.skills`; (b) cặp (`skill`, `focus`) không trùng; (c) câu 1 không trùng kỹ năng; (d) câu 1 `WEAKNESS` trước không-`WEAKNESS`; (e) `ARCHITECTURE` chỉ khi `archOk`; (f) `step_indices` tăng dần, ⊆ `1..stepCount`; (g) `analysis.skills` khác rỗng ⇒ n ≥ 1 (D-34); (h) cùng đầu vào ⇒ cùng đầu ra.
+(a) Mọi `skill` thuộc `analysis.skills`; (b) cặp (`skill`, `focus`) không trùng; (c) ngoài câu thêm của BKT-49 và BKT-50, không trùng kỹ năng; (d) câu 1 có `focus` = `FLOW`; trong các câu còn lại của lượt chọn đầu, `WEAKNESS` trước không-`WEAKNESS`; (e) `ARCHITECTURE` chỉ khi `archOk`; (f) `step_indices` tăng dần, ⊆ `1..stepCount`; (g) `analysis.skills` khác rỗng ⇒ n ≥ 1 (D-34); (h) cùng đầu vào ⇒ cùng đầu ra.
 
 ### 6.6. Mã giả
 
@@ -231,6 +234,13 @@ export function planNodeQuestions(analysis, skills, now, stepCount): QuestionPla
       take(first.skill, "NOVICE", firstFree(from(start).filter(valid).filter(f => f !== first.focus)));
     }
   }
+  let f = items.findIndex(i => i.focus === "FLOW");                                       // BKT-50
+  if (f < 0) {
+    f = items.findIndex(i => i.focus !== "WEAKNESS");
+    if (f >= 0) items[f] = { ...items[f], focus: "FLOW" };
+    else { items.unshift({ skill: items[0].skill, tier: items[0].tier, focus: "FLOW" }); f = 0; }
+  }
+  items.unshift(...items.splice(f, 1));
   return items.map((it, i) => ({ question_index: i + 1, ...it, step_indices: stepsFor(it, analysis, stepCount) })); // BKT-48
 }
 ```
@@ -417,14 +427,14 @@ Kết quả ghi `(index, skill, tier, focus, step_indices)`:
 
 | # | Ca | Đầu vào | Kỳ vọng |
 | :-: | :-- | :-- | :-- |
-| P-A | Trace A | N3, hồ sơ rỗng | `(1, DB_OPTIMIZATION, NOVICE, WEAKNESS, [2])`, `(2, LAYERED_SEPARATION, NOVICE, FLOW, [1,2,3])` |
-| P-B | Trace B | N2, `HTTP_ROUTING 0.5767` | `(1, AUTH_SECURITY, NOVICE, WEAKNESS, [2])`, `(2, HTTP_ROUTING, PRACTITIONER, ARCHITECTURE, [1,2])` |
-| P-C | Capstone, 2 kỹ năng | N5, HTTP/DTO/AUTH 0.9532, DB 0.8413, TRANSACTION 0.5767 | `(1, TRANSACTION_INTEGRITY, PRACTITIONER, WEAKNESS, [3])`, `(2, DB_OPTIMIZATION, ARCHITECT, WEAKNESS, [3])` |
-| P-D | Capstone đã thạo | N5, mọi kỹ năng 0.95, `practice_count 1` | `(1, TRANSACTION_INTEGRITY, ARCHITECT, WEAKNESS, [3])` |
-| P-D2 | Kế hoạch rỗng ⇒ 1 câu (D-34) | N3 (node thường), DB 0.96, LAYERED 0.93, `practice_count 1` | `(1, LAYERED_SEPARATION, ARCHITECT, CHANGE, [1,2,3])` — kỹ năng điểm thấp nhất, không phải `[]` |
-| P-G1 | Xoay góc | X, cả 3 kỹ năng 0.65 | `(1, HTTP_ROUTING, PRACTITIONER, ARCHITECTURE, [1])`, `(2, DTO_VALIDATION, PRACTITIONER, CHANGE, [1,2])`, `(3, ERROR_HANDLING, PRACTITIONER, FLOW, [1,2])` |
-| P-G2 | Thiếu `ARCHITECTURE` | X′, như P-G1 | `(1, HTTP_ROUTING, …, CHANGE, [1,2])`, `(2, DTO_VALIDATION, …, FLOW, [1,2])`, `(3, ERROR_HANDLING, …, CHANGE, [1,2])` |
-| P-H | `NOVICE_SECOND_QUESTION = true` | N3, hồ sơ rỗng | `(1, DB, NOVICE, WEAKNESS, [2])`, `(2, LAYERED, NOVICE, FLOW, [1,2,3])`, `(3, DB, NOVICE, ARCHITECTURE, [1,2])`, `(4, LAYERED, NOVICE, CHANGE, [1,2,3])` |
+| P-A | Trace A | N3, hồ sơ rỗng | `(1, LAYERED_SEPARATION, NOVICE, FLOW, [1,2,3])`, `(2, DB_OPTIMIZATION, NOVICE, WEAKNESS, [2])` |
+| P-B | Trace B | N2, `HTTP_ROUTING 0.5767` | `(1, HTTP_ROUTING, PRACTITIONER, FLOW, [1,2,3])` (đổi từ `ARCHITECTURE`, BKT-50), `(2, AUTH_SECURITY, NOVICE, WEAKNESS, [2])` |
+| P-C | Capstone, 2 kỹ năng | N5, HTTP/DTO/AUTH 0.9532, DB 0.8413, TRANSACTION 0.5767 | `(1, TRANSACTION_INTEGRITY, PRACTITIONER, FLOW, [1,2,3])` (thêm, BKT-50), `(2, TRANSACTION_INTEGRITY, PRACTITIONER, WEAKNESS, [3])`, `(3, DB_OPTIMIZATION, ARCHITECT, WEAKNESS, [3])` |
+| P-D | Capstone đã thạo | N5, mọi kỹ năng 0.95, `practice_count 1` | `(1, TRANSACTION_INTEGRITY, ARCHITECT, FLOW, [1,2,3])` (thêm, BKT-50), `(2, TRANSACTION_INTEGRITY, ARCHITECT, WEAKNESS, [3])` |
+| P-D2 | Kế hoạch rỗng ⇒ 1 câu (D-34) | N3 (node thường), DB 0.96, LAYERED 0.93, `practice_count 1` | `(1, LAYERED_SEPARATION, ARCHITECT, FLOW, [1,2,3])` (đổi từ `CHANGE`, BKT-50) — kỹ năng điểm thấp nhất, không phải `[]` |
+| P-G1 | Xoay góc | X, cả 3 kỹ năng 0.65 | `(1, ERROR_HANDLING, PRACTITIONER, FLOW, [1,2])`, `(2, HTTP_ROUTING, PRACTITIONER, ARCHITECTURE, [1])`, `(3, DTO_VALIDATION, PRACTITIONER, CHANGE, [1,2])` |
+| P-G2 | Thiếu `ARCHITECTURE` | X′, như P-G1 | `(1, DTO_VALIDATION, …, FLOW, [1,2])`, `(2, HTTP_ROUTING, …, CHANGE, [1,2])`, `(3, ERROR_HANDLING, …, CHANGE, [1,2])` |
+| P-H | `NOVICE_SECOND_QUESTION = true` | N3, hồ sơ rỗng | `(1, LAYERED, NOVICE, FLOW, [1,2,3])`, `(2, DB, NOVICE, WEAKNESS, [2])`, `(3, DB, NOVICE, ARCHITECTURE, [1,2])`, `(4, LAYERED, NOVICE, CHANGE, [1,2,3])` |
 
 ### T-OUT — `outcomeOf`
 
