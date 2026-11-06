@@ -877,7 +877,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-82: bôi đen trong khung code hiện nút "Giải thích"; popover hiện tiêu đề, "Là gì", "Ở đây", "Ví dụ đời thường", kỹ năng liên quan, "Còn dùng ở"; trạng thái chờ, lỗi, hết lượt, bị chặn; nhớ kết quả trên trình duyệt.
 - **Kiểm tra:** bôi đen `await` ra giải thích; bôi lại đúng chỗ đó hiện liền, không gửi request.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** phần lõi chờ kiểm (D19): `explainSelectionSafe` (`api.ts`), action `explainSelection` + nhớ ở `ui.explanations` (`workbench.ts`), `code/SelectionPopover` đủ mục và trạng thái (chờ, `null`, lỗi + "Thử lại", hết lượt tắt nút, Offline không có nút). Test T-UI-11 xanh. **Chưa gắn vào khung code**: chờ D11 (Thiện) có `onSelect`.
 
 ### C-10 · Vừa · Câu đầu chưa là câu kể luồng
 
