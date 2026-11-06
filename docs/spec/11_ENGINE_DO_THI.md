@@ -76,7 +76,7 @@ export async function parseAll(code: Map<string, string>, langs: Map<string, Lan
 - **RESOLVED:** `TYPESCRIPT` `.ts .mts .cts` · `TSX` `.tsx` · `JAVASCRIPT` `.js .jsx .mjs .cjs` (resolver `TS_JS`) · `PYTHON` `.py` · `JAVA` `.java` · `GO` `.go` · `DART` `.dart`.
 - **STRUCTURAL** (Universal): `CSHARP` `.cs` · `PHP` `.php` · `KOTLIN` `.kt .kts` · `C` `.c .h` · `CPP` `.cpp .cc .cxx .hpp .hh` · `RUST` `.rs` · `RUBY` `.rb` · `SWIFT` `.swift` · `SCALA` `.scala`.
 - **`KNOWN_NO_GRAMMAR`** (UNSUPPORTED): `.sol` SOLIDITY · `.vhd .vhdl` VHDL · `.pas` PASCAL · `.f90 .f95` FORTRAN · `.cob .cbl` COBOL · `.asm` ASSEMBLY · `.abap` ABAP.
-- **Bản thi (D-76):** `LANGUAGE_REGISTRY` chỉ có `TYPESCRIPT`, `TSX`, `JAVASCRIPT`, `PYTHON`; đuôi còn lại ở 2 dòng `RESOLVED`, `STRUCTURAL` xếp vào `KNOWN_NO_GRAMMAR`.
+- **Bản thi (D-76):** `LANGUAGE_REGISTRY` chỉ có `TYPESCRIPT`, `TSX`, `JAVASCRIPT`, `PYTHON`, `JAVA`; đuôi còn lại ở 2 dòng `RESOLVED`, `STRUCTURAL` xếp vào `KNOWN_NO_GRAMMAR`.
 
 1. **ENG-10** Thêm ngôn ngữ `STRUCTURAL` = 1 dòng registry + `public/grammars/<lang>.wasm` + `queries/<lang>.scm`. Chỉ TS/JS và Python kiểm chứng (INV-09).
 2. **ENG-11** `web-tree-sitter`; grammar `RESOLVED` nạp ở `initParsers()`, `STRUCTURAL` nạp từ bundle; không tải mạng; nạp lần đầu không tính `engine_ms`.
