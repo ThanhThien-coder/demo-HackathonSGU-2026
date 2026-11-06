@@ -165,25 +165,19 @@ const fixtureXPrime: NodeAnalysis = {
   },
 };
 
+// (index, skill, tier, focus, step_indices) như bảng T-PLAN của spec 22 Mục 6
+const rows = (plan: Array<{ question_index: number; skill: string; tier: string; focus: string; step_indices: number[] }>) =>
+  plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices]);
+
 describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
   describe("T-PLAN — planNodeQuestions", () => {
     it("P-A: Trace A (N3, hồ sơ rỗng)", () => {
       const plan = planNodeQuestions(fixtureN3, {}, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "DB_OPTIMIZATION",
-        tier: "NOVICE",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "LAYERED_SEPARATION",
-        tier: "NOVICE",
-        focus: "FLOW",
-        step_indices: [1, 2, 3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "LAYERED_SEPARATION", "NOVICE", "FLOW", [1, 2, 3]],
+        [2, "DB_OPTIMIZATION", "NOVICE", "WEAKNESS", [2]],
+      ]);
     });
 
     it("P-B: Trace B (N2, HTTP_ROUTING 0.5767)", () => {
@@ -191,21 +185,11 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
         HTTP_ROUTING: makeSkillState("HTTP_ROUTING", 0.5767, T0, 1, 1),
       };
       const plan = planNodeQuestions(fixtureN2, skills, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "AUTH_SECURITY",
-        tier: "NOVICE",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "HTTP_ROUTING",
-        tier: "PRACTITIONER",
-        focus: "ARCHITECTURE",
-        step_indices: [1, 2],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "HTTP_ROUTING", "PRACTITIONER", "FLOW", [1, 2, 3]],
+        [2, "AUTH_SECURITY", "NOVICE", "WEAKNESS", [2]],
+      ]);
     });
 
     it("P-C: Capstone, 2 kỹ năng (N5, HTTP/DTO/AUTH 0.9532, DB 0.8413, TRANSACTION 0.5767)", () => {
@@ -217,21 +201,12 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
         TRANSACTION_INTEGRITY: makeSkillState("TRANSACTION_INTEGRITY", 0.5767, T0, 1, 1),
       };
       const plan = planNodeQuestions(fixtureN5, skills, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "TRANSACTION_INTEGRITY",
-        tier: "PRACTITIONER",
-        focus: "WEAKNESS",
-        step_indices: [3],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "DB_OPTIMIZATION",
-        tier: "ARCHITECT",
-        focus: "WEAKNESS",
-        step_indices: [3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "TRANSACTION_INTEGRITY", "PRACTITIONER", "FLOW", [1, 2, 3]],
+        [2, "TRANSACTION_INTEGRITY", "PRACTITIONER", "WEAKNESS", [3]],
+        [3, "DB_OPTIMIZATION", "ARCHITECT", "WEAKNESS", [3]],
+      ]);
     });
 
     it("P-D: Capstone đã thạo (N5, mọi kỹ năng 0.95, practice_count 1)", () => {
@@ -241,14 +216,11 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
         HTTP_ROUTING: makeSkillState("HTTP_ROUTING", 0.95, T0, 1, 1),
       };
       const plan = planNodeQuestions(fixtureN5, skills, T0, 3);
-      expect(plan).toHaveLength(1);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "TRANSACTION_INTEGRITY",
-        tier: "ARCHITECT",
-        focus: "WEAKNESS",
-        step_indices: [3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "TRANSACTION_INTEGRITY", "ARCHITECT", "FLOW", [1, 2, 3]],
+        [2, "TRANSACTION_INTEGRITY", "ARCHITECT", "WEAKNESS", [3]],
+      ]);
     });
 
     it("P-D2: Kế hoạch rỗng ⇒ 1 câu (N3, DB 0.96, LAYERED 0.93, practice_count 1)", () => {
@@ -257,14 +229,10 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
         LAYERED_SEPARATION: makeSkillState("LAYERED_SEPARATION", 0.93, T0, 1, 1),
       };
       const plan = planNodeQuestions(fixtureN3, skills, T0, 3);
-      expect(plan).toHaveLength(1);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "LAYERED_SEPARATION",
-        tier: "ARCHITECT",
-        focus: "CHANGE",
-        step_indices: [1, 2, 3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "LAYERED_SEPARATION", "ARCHITECT", "FLOW", [1, 2, 3]],
+      ]);
     });
 
     it("P-G1: Xoay góc (X, cả 3 kỹ năng 0.65)", () => {
@@ -274,28 +242,12 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
         ERROR_HANDLING: makeSkillState("ERROR_HANDLING", 0.65, T0, 1, 1),
       };
       const plan = planNodeQuestions(fixtureX, skills, T0, 2);
-      expect(plan).toHaveLength(3);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "HTTP_ROUTING",
-        tier: "PRACTITIONER",
-        focus: "ARCHITECTURE",
-        step_indices: [1],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "DTO_VALIDATION",
-        tier: "PRACTITIONER",
-        focus: "CHANGE",
-        step_indices: [1, 2],
-      });
-      expect(plan[2]).toEqual({
-        question_index: 3,
-        skill: "ERROR_HANDLING",
-        tier: "PRACTITIONER",
-        focus: "FLOW",
-        step_indices: [1, 2],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "ERROR_HANDLING", "PRACTITIONER", "FLOW", [1, 2]],
+        [2, "HTTP_ROUTING", "PRACTITIONER", "ARCHITECTURE", [1]],
+        [3, "DTO_VALIDATION", "PRACTITIONER", "CHANGE", [1, 2]],
+      ]);
     });
 
     it("P-G2: Thiếu ARCHITECTURE (X', cả 3 kỹ năng 0.65)", () => {
@@ -305,28 +257,12 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
         ERROR_HANDLING: makeSkillState("ERROR_HANDLING", 0.65, T0, 1, 1),
       };
       const plan = planNodeQuestions(fixtureXPrime, skills, T0, 2);
-      expect(plan).toHaveLength(3);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "HTTP_ROUTING",
-        tier: "PRACTITIONER",
-        focus: "CHANGE",
-        step_indices: [1, 2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "DTO_VALIDATION",
-        tier: "PRACTITIONER",
-        focus: "FLOW",
-        step_indices: [1, 2],
-      });
-      expect(plan[2]).toEqual({
-        question_index: 3,
-        skill: "ERROR_HANDLING",
-        tier: "PRACTITIONER",
-        focus: "CHANGE",
-        step_indices: [1, 2],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "DTO_VALIDATION", "PRACTITIONER", "FLOW", [1, 2]],
+        [2, "HTTP_ROUTING", "PRACTITIONER", "CHANGE", [1, 2]],
+        [3, "ERROR_HANDLING", "PRACTITIONER", "CHANGE", [1, 2]],
+      ]);
     });
 
     it("P-H: NOVICE_SECOND_QUESTION = true (N3, hồ sơ rỗng)", async () => {
@@ -344,38 +280,13 @@ describe("plan.ts — Kế hoạch câu hỏi & trạng thái node", () => {
 
       const { planNodeQuestions: planDynamic } = await import("../plan");
       const plan = planDynamic(fixtureN3, {}, T0, 3);
-      expect(plan).toHaveLength(4);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "DB_OPTIMIZATION",
-        tier: "NOVICE",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "LAYERED_SEPARATION",
-        tier: "NOVICE",
-        focus: "FLOW",
-        step_indices: [1, 2, 3],
-      });
-      expect(plan[2]).toEqual({
-        question_index: 3,
-        skill: "DB_OPTIMIZATION",
-        tier: "NOVICE",
-        focus: "ARCHITECTURE",
-        step_indices: [1, 2],
-      });
-      expect(plan[3]).toEqual({
-        question_index: 4,
-        skill: "LAYERED_SEPARATION",
-        tier: "NOVICE",
-        focus: "CHANGE",
-        step_indices: [1, 2, 3],
-      });
-
-      vi.doUnmock("@/contracts/config");
-      vi.resetModules();
+      // BKT-50 (D-81): câu 1 là FLOW
+      expect(rows(plan)).toEqual([
+        [1, "LAYERED_SEPARATION", "NOVICE", "FLOW", [1, 2, 3]],
+        [2, "DB_OPTIMIZATION", "NOVICE", "WEAKNESS", [2]],
+        [3, "DB_OPTIMIZATION", "NOVICE", "ARCHITECTURE", [1, 2]],
+        [4, "LAYERED_SEPARATION", "NOVICE", "CHANGE", [1, 2, 3]],
+      ]);
     });
   });
 

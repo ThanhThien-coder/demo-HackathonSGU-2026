@@ -874,7 +874,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-81: câu đầu của mỗi run có `focus` = `FLOW`. Sửa `22` Mục 6, `src/lib/plan.ts`, test T-PLAN.
 - **Kiểm tra:** mọi run có câu 1 là `FLOW`; các luật D-34 vẫn đúng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. BKT-50 trong `planNodeQuestions`, áp sau BKT-46, BKT-49. 8 ca T-PLAN khớp bảng `22` Mục 6, phủ 3 nhánh: đưa câu `FLOW` lên đầu (P-A, P-G1, P-H), đổi câu thành `FLOW` (P-B, P-D2), thêm câu `FLOW` (P-C, P-D); kế hoạch 1 câu của D-34 thành 2 câu (P-D). 6 ca trong `src/__tests__/kich-ban-ham.test.ts` (A3, B1, C4, C6, C7, E2) sửa phần kế hoạch theo BKT-50. `spec/50` Mục 3 chưa cập nhật: C6, C7 giờ có thêm câu `FLOW` cùng kỹ năng, số BKT của kịch bản cần tính lại.
 
 ### C-11 · Vừa · Chưa có lời gọi giải thích đoạn chọn
 
