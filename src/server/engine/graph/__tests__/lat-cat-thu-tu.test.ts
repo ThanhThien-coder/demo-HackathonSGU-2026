@@ -191,6 +191,27 @@ ${routes}`),
     expect(stepsOf(res, "GET /r3").map((s) => s.function_name)).toContain("load");
   });
 
+  it("T-ENG-52: hàm gọi tới hàm đụng dữ liệu đã duyệt trước trong bài vẫn giữ (D-87)", async () => {
+    let routes = "";
+    for (let i = 0; i < 6; i++) {
+      routes += `router.get("/w${i}", (req, res) => {
+  const row = load(${i});
+  res.json(wrap(row));
+});
+`;
+    }
+    const res = await scan({
+      "src/app.ts": server(`
+import { load } from "./load";
+import { wrap } from "./wrap";
+${routes}`),
+      "src/load.ts": `const userRepo = { findOne: (v: number) => v };\nexport function load(x: number) { return userRepo.findOne(x); }\n`,
+      "src/wrap.ts": `import { load } from "./load";\nexport function wrap(x: number) { return load(x); }\n`,
+    });
+
+    expect(stepsOf(res, "GET /w2").map((s) => s.function_name)).toContain("wrap");
+  });
+
   it("T-ENG-52: dưới 3 bài thì không bỏ, dù chiếm hết số bài (D-87)", async () => {
     const res = await scan({
       "src/app.ts": server(`

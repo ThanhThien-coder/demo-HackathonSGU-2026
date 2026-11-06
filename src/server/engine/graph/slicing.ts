@@ -344,6 +344,24 @@ function groupBy<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
   return groups;
 }
 
+function callerEdgesOf(ctx: EngineContext): Map<string, FunctionCallEdge[]> {
+  let grouped = callerEdgesCache.get(ctx.edges);
+  if (!grouped) {
+    grouped = groupBy(ctx.edges, (edge) => edge.caller);
+    callerEdgesCache.set(ctx.edges, grouped);
+  }
+  return grouped;
+}
+
+function externalCallsOf(ctx: EngineContext): Map<string, ExternalCall[]> {
+  let grouped = externalCallsCache.get(ctx.external);
+  if (!grouped) {
+    grouped = groupBy(ctx.external, (ext) => ext.caller);
+    externalCallsCache.set(ctx.external, grouped);
+  }
+  return grouped;
+}
+
 // ENG-80: thu hàm từ 1 entry. `helpers` là hàm vặt D-87, không đi vào.
 function collectSteps(
   entry: EntryPoint,
@@ -383,21 +401,8 @@ function collectSteps(
   const stepsMeta: StepBuildingContext[] = [];
   const visitedFns = new Set<string>();
 
-  // Map từ caller đến danh sách callee edges
-  let callerEdges = callerEdgesCache.get(ctx.edges);
-  if (!callerEdges) {
-    callerEdges = groupBy(ctx.edges, (edge) => edge.caller);
-    callerEdgesCache.set(ctx.edges, callerEdges);
-  }
-  const edgesByCaller = callerEdges;
-
-  // Thu thập các ExternalCall theo từng hàm caller
-  let fnExternalCalls = externalCallsCache.get(ctx.external);
-  if (!fnExternalCalls) {
-    fnExternalCalls = groupBy(ctx.external, (ext) => ext.caller);
-    externalCallsCache.set(ctx.external, fnExternalCalls);
-  }
-  const externalByCaller = fnExternalCalls;
+  const edgesByCaller = callerEdgesOf(ctx);
+  const externalByCaller = externalCallsOf(ctx);
 
   function resolveCalleeKey(callerKey: string, calleeKey: string): string {
     const callerFile = callerKey.split("#")[0] ?? "";
@@ -549,27 +554,40 @@ function collectSteps(
   return { stepsMeta, callerEdges: edgesByCaller, hasFunctionBody, parsedEntryFile, entryFile };
 }
 
+// Cây con của hàm trên đồ thị gọi hàm có DATA_SINK không, mọi độ sâu.
+function reachesDataSink(key: string, ctx: EngineContext): boolean {
+  const edges = callerEdgesOf(ctx);
+  const externals = externalCallsOf(ctx);
+  const seen = new Set<string>([key]);
+  const stack = [key];
+  while (stack.length > 0) {
+    const cur = stack.pop() ?? "";
+    if ((externals.get(cur) ?? []).some((ext) => isDataSinkCall(ext, ctx.tech_stack))) return true;
+    for (const edge of edges.get(cur) ?? []) {
+      if (!seen.has(edge.callee)) {
+        seen.add(edge.callee);
+        stack.push(edge.callee);
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * D-87: hàm có mặt ở ≥ 50% số lát cắt và ≥ 3 lát cắt, không là entry, middleware,
  * cây con không có DATA_SINK. Đếm trên bản thu đầy đủ, trước ENG-81, ENG-88.
  */
 export function findSharedHelpers(entries: EntryPoint[], ctx: EngineContext): Set<string> {
   const sliceCount = new Map<string, number>();
-  const touchesData = new Set<string>();
 
   for (const entry of entries) {
-    const { stepsMeta } = collectSteps(entry, ctx, NO_HELPERS);
-    const children = groupBy(
-      stepsMeta.filter((st) => st.parentKey !== null),
-      (st) => st.parentKey ?? ""
-    );
-    const hasSinkBelow = (st: StepBuildingContext): boolean =>
-      st.hasDataSink || (children.get(st.fnKey) ?? []).some(hasSinkBelow);
-
-    for (const st of stepsMeta) {
-      if (st.isEntry || st.isMiddleware) continue;
-      sliceCount.set(st.fnKey, (sliceCount.get(st.fnKey) ?? 0) + 1);
-      if (hasSinkBelow(st)) touchesData.add(st.fnKey);
+    try {
+      for (const st of collectSteps(entry, ctx, NO_HELPERS).stepsMeta) {
+        if (st.isEntry || st.isMiddleware) continue;
+        sliceCount.set(st.fnKey, (sliceCount.get(st.fnKey) ?? 0) + 1);
+      }
+    } catch {
+      // Bỏ qua entry lỗi, như vòng buildSlice ở graph/index.ts
     }
   }
 
@@ -579,7 +597,7 @@ export function findSharedHelpers(entries: EntryPoint[], ctx: EngineContext): Se
   );
   const helpers = new Set<string>();
   for (const [key, count] of sliceCount) {
-    if (count >= minSlices && !touchesData.has(key)) helpers.add(key);
+    if (count >= minSlices && !reachesDataSink(key, ctx)) helpers.add(key);
   }
   return helpers;
 }

@@ -151,7 +151,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Không nới regex receiver chung, vì `client` đã khớp cả `httpClient.get`. Ghi rõ luật `prisma.` trong spec 11 Mục 8. Đổi `ENGINE_VERSION`.
 - **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`, các bài BrewLite có gọi Prisma đều tới tầng dữ liệu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `isDataSinkCall` bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: 14/17 bài tới `DATA_ACCESS`, đọc bài `Create Order`, `Get Order` đúng luồng. `nestjs-realworld` 19/20, `node-express-boilerplate` 12/14. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `isDataSinkCall` bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: 14/17 bài tới `DATA_ACCESS`, đọc bài `Create Order`, `Get Order` đúng luồng. `nestjs-realworld` 19/20, `node-express-boilerplate` 12/14. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`. **Còn lại:** `node-express-realworld` có 8 bài gọi `prisma.x.y` mà không có bước `DATA_ACCESS`: hàm có `throw new HttpException` từ `http-exception.model.ts`, nên ENG-82 coi là có gọi tầng dữ liệu. Code đúng chữ spec, cần chốt có tính constructor ở file `model` hay không. Chỉ sai nhãn, `entities` của B-39 đọc mọi layer nên không ảnh hưởng.
 
 ### B-07 · Nặng · Repo Java, Go, Dart bị báo sai hoặc phân tích sai
 
