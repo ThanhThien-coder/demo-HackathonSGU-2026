@@ -25,6 +25,7 @@
 | Mã lỗi | Ngày ghi nhận | Lời gọi / Module | Mô tả lỗi phát hiện | Nguyên nhân gốc | Ca test hồi quy (Input ⇒ Expected) | Biện pháp khắc phục | Prompt Version | Trạng thái |
 | :-- | :-: | :-- | :-- | :-- | :-- | :-- | :-: | :-: |
 | C-06, C-09 | 06/11/2026 | `analyze-node` | Điểm dở gần như luôn rỗng. Repo `gothinkster/node-express-realworld-example-app`, 12 bài, sau khi sửa luật 5: bản thô 2/12 bài có điểm dở, sau cổng gác 0/12; log `weak_points_filtered` cho thấy cả 2 bị lọc vì `skill_not_chosen` | Schema viết `skills` trước, `weak_points` sau cùng (`propertyOrdering`); model chọn đủ 3 kỹ năng (`ANALYSIS_MAX_SKILLS`) rồi mới viết điểm dở, gắn vào kỹ năng chưa chọn nên A3 lọc | Cùng repo, 12 bài ⇒ có bài có điểm dở qua cổng gác, không có log `skill_not_chosen` | Bỏ câu "Không chắc thì mảng rỗng"; luật 5 soát 4 mặt; `weak_points` đứng đầu schema; luật 1 bắt `skills` gồm kỹ năng của mọi điểm dở. Đo lại 1 lần: bản thô 4/12, sau cổng gác 2/12 (Create Profile Follow, Create User), cả 2 hợp lý qua duyệt tay | 1.1.0 | Chờ kiểm |
+| C-07 | 06/11/2026 | `analyze-node` | `summary` chỉ nói cách chia việc trong code, người học không biết bài giúp người dùng làm gì | Luật 2 của prompt ghi "summary = tối đa 2 câu: các bước chia việc ra sao" | BrewLite `Create Order` ⇒ câu 1 nói việc của người dùng ("giúp người dùng tạo đơn hàng mới"); duyệt tay, code không kiểm nghĩa (GUARD-21) | Luật 2: câu 1 nói phần này giúp người dùng làm gì, câu 2 nói chia việc; luật 3: `steps[].text` cho người mới, giải thích thuật ngữ trong ngoặc | 1.2.0 | Chờ kiểm |
 
 ---
 

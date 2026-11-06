@@ -1,7 +1,7 @@
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
   ENGINE_VERSION: "1.7.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
-  PROMPT_VERSION: "1.1.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI (khớp 02; C-06, C-09)
+  PROMPT_VERSION: "1.2.0",            // Đổi khi đổi prompt hoặc responseSchema của 5 lời gọi AI (D-74)
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------
   MAX_STREAM_BYTES: 15 * 1024 * 1024, // Byte nén tải từ GitHub
@@ -92,7 +92,7 @@ export const CONFIG = {
   LLM_RETRY_JITTER_MS: 100,           // Cộng ngẫu nhiên [0, JITTER)
   GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
   GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
-  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 600, QUESTIONS: 900, GRADE: 500, EXPLAIN: 400 },
+  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 1500, QUESTIONS: 900, GRADE: 500, EXPLAIN: 400 },   // OVERVIEW: đo C-12, 7 bài ra 351 token, 13 bài vượt 600 (D-83)
   LLM_PRICE_INPUT_USD_PER_M: 0.30,    // USD / 1 triệu token vào (D-69)
   LLM_PRICE_OUTPUT_USD_PER_M: 2.50,   // USD / 1 triệu token ra, gồm token suy nghĩ (D-69)
   ANALYZE_CONCURRENCY: 3,             // Số lời gọi analyze-node chạy cùng lúc / phiên

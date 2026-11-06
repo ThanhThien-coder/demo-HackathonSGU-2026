@@ -158,7 +158,7 @@ export function withGuardFeedback<T>(req: LlmRequest<T>, issues: GuardIssue[]): 
 ```text
 [GUARD_RETRY_RULE]
 LẦN TRƯỚC BỊ TỪ CHỐI: <guard_feedback> là dữ liệu do hệ thống dựng, mỗi dòng một lỗi. Viết lại toàn bộ JSON, giữ phần đúng, tránh các lỗi đó.
-A1 kỹ năng sai · A3 điểm dở sai · A5 steps phải đúng 1 mục mỗi bước · A6 chữ rỗng, tên không có trong code, công nghệ cấm hoặc số dòng sai · O1 summary hoặc main_flow rỗng · O2 tên không có trong repo · O3 công nghệ cấm · O4 có số dòng · Q1 sai kỹ năng · Q2 thiếu trường hoặc sai số ý · Q3 tên không có trong code · Q4 số dòng ngoài bước · Q5 công nghệ cấm · Q6 thiếu ký hiệu của điểm dở · Q7 đáp án nhắc quá ít bước · Q8 đáp án thiếu tên file.
+A1 kỹ năng sai · A3 điểm dở sai · A5 steps phải đúng 1 mục mỗi bước · A6 chữ rỗng, tên không có trong code, công nghệ cấm hoặc số dòng sai · O1 chữ rỗng · O2 tên không có trong repo · O3 công nghệ cấm · O4 có số dòng · O5 thiếu hoặc trùng nhóm, bài · O6 tên sai số từ · Q1 sai kỹ năng · Q2 thiếu trường hoặc sai số ý · Q3 tên không có trong code · Q4 số dòng ngoài bước · Q5 công nghệ cấm · Q6 thiếu ký hiệu của điểm dở · Q7 đáp án nhắc quá ít bước · Q8 đáp án thiếu tên file.
 ```
 
 ---
@@ -331,7 +331,7 @@ export const OVERVIEW_SCHEMA = obj({                               // = RepoOver
 
 ### View
 
-`facts` do code tính: `archetype`, `framework` = `detected_framework`, `tech_stack`, `root_node_ids` (không có `prerequisites`, sort `id`), `main_path_node_ids` = `mainPath(graph)` (`11` ENG-155). `ai` = bản đã kiểm (`21` GUARD-11) hoặc `null`. Tên AI chỉ để hiện; `node.id` và `title` của engine không đổi (D-08). `ai = null` ⇒ client giữ tên engine và câu dự phòng dựng từ `facts` (`30`).
+`facts` do code tính: `archetype`, `framework` = `detected_framework`, `tech_stack`, `root_node_ids` (không có `prerequisites`, sort `id`), `main_path_node_ids` = `mainPath(graph)` (`11` ENG-155). `ai` = bản đã kiểm (`21` GUARD-11) hoặc `null`. `ai = null` ⇒ client giữ tên engine và câu dự phòng dựng từ `facts` (`30`).
 
 ---
 
