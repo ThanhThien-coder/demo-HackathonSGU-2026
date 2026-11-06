@@ -365,7 +365,7 @@ Hệ thống cung cấp đúng 14 endpoint API (gồm 13 endpoint nghiệp vụ 
 - **Lỗi có thể gặp:** `ERR_UNAUTHENTICATED`, `ERR_PERSISTENCE_UNAVAILABLE`.
 
 #### 4. `GET /api/sessions/{session_id}/history`
-- **Ai gọi & Khi nào:** Trình duyệt gọi khi người học mở ngăn kéo (drawer) xem lại lịch sử các câu hỏi đã từng làm trong phiên học hiện tại.
+- **Ai gọi & Khi nào:** Trình duyệt gọi khi người học mở trang Lịch sử `/history` hoặc Báo cáo `/report` để xem lại các lượt nộp của một phiên học.
 - **Làm gì:** Máy chủ kiểm tra quyền sở hữu phiên học của người gọi. Sau đó, máy chủ kết nối bảng `node_runs` và `question_attempts` để lấy toàn bộ danh sách các lượt nộp bài thuộc phiên học này, bao gồm tiêu đề node, thứ tự câu hỏi, kỹ năng kiểm tra, số lượt nộp, điểm độ chính xác cốt lõi, cờ đạt hay chưa, ý định trả lời, và nội dung câu trả lời thực tế của người học.
 - **Ghi gì vào bảng nào:** Không ghi dữ liệu, chỉ đọc.
 - **Lỗi có thể gặp:** `ERR_SESSION_NOT_FOUND` nếu `session_id` không tồn tại hoặc không thuộc quyền sở hữu của người dùng hiện tại.
@@ -558,7 +558,7 @@ sequenceDiagram
   API->>AI: Gửi câu trả lời kèm ý bắt buộc để chấm
   AI-->>API: core_accuracy 50, chưa có ý nào đạt
   API->>DB: Transaction: Khóa dòng node_runs, ghi question_attempts lượt 1
-  API-->>FE: Báo chưa đạt, kèm gợi ý CONCEPT
+  API-->>FE: Báo chưa đạt, kèm gợi ý CODE_POINTER
 
   Student->>FE: Đọc gợi ý, gõ lại và nộp lượt 2
   FE->>API: POST /api/evaluate-feynman (câu 1, attempt 2)
@@ -620,7 +620,7 @@ Kịch bản dưới đây bám theo Kịch bản A trong `spec/50`: người h�
 2. Máy chủ kiểm tra độ dài chuỗi (hợp lệ), sau đó đọc câu hỏi và đáp án mẫu từ DB ra bộ nhớ (không khóa dòng).
 3. Máy chủ gửi câu trả lời kèm danh sách ý bắt buộc tới AI để chấm (không gửi code thô).
 4. AI đánh giá: `core_accuracy` 50, cả 2 ý đều chưa đạt, vì Lan nghĩ trang chậm do dữ liệu lớn, chưa thấy mỗi sản phẩm tốn thêm một truy vấn. Kết quả: Chưa đạt (`is_passed: false`). Trường `misconception` chỉ ở máy chủ, không gửi xuống trình duyệt.
-5. Gợi ý loại `CONCEPT`: "Sau khi có danh sách, trang còn cần thêm thông tin gì cho từng sản phẩm? Thông tin đó được lấy bằng cách nào?"
+5. Gợi ý loại `CODE_POINTER` (Lan ở bậc `NOVICE`, D-74): khung code tô bước có vấn đề, kèm câu hỏi như "Sau khi có danh sách, trang còn cần thêm thông tin gì cho từng sản phẩm? Thông tin đó được lấy bằng cách nào?"
 6. Máy chủ mở transaction ngắn: khóa dòng `node_runs` bằng `SELECT ... FOR UPDATE`, thêm một dòng vào `question_attempts`, tăng `attempts_used` lên 1, rồi commit. Điểm BKT chưa đổi vì câu chưa xong.
 7. Máy chủ trả về phản hồi: chưa đạt, kèm gợi ý.
 

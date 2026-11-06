@@ -352,6 +352,7 @@ flowchart LR
   end
 ```
 
+- **Theo bậc người học (D-74):** Thứ tự dưới đây là của bậc `PRACTITIONER`. Bậc `NOVICE` nhận `CODE_POINTER` ngay từ lượt 1; bậc `ARCHITECT` nhận `CONCEPT` ở cả 2 lượt đầu.
 - **Lượt 1 chưa đạt (Gợi ý Khái niệm — `CONCEPT`):** AI đưa ra một câu hỏi gợi mở về mặt khái niệm hoặc tư duy logic mà người học đang thiếu. Quy tắc tối thượng: KHÔNG được chỉ vị trí trong code, không nhắc tên bước, tên tập tin, tên hàm, hay số dòng.
 - **Lượt 2 đến áp chót chưa đạt (Gợi ý Chỉ điểm — `CODE_POINTER`):** Nếu sinh viên vẫn chưa làm được, hệ thống nâng mức hỗ trợ: AI chọn một bước liên quan trực tiếp đến ý còn thiếu, ghi nhận số bước (`follow_up_step_index`), và đặt câu hỏi xoáy thẳng vào hàm của bước đó: *"Điều gì sẽ xảy ra ở hàm này khi..."*.
 - **Lượt cuối cùng (Lượt 3):** Không đưa ra câu hỏi gợi ý nào nữa (`follow_up = null`). Câu hỏi kết thúc và hệ thống chính thức mở khóa toàn bộ đáp án chuẩn và cách sửa lỗi (`reveal`) để sinh viên học tập từ lời giải.
@@ -384,6 +385,7 @@ Lan làm Câu 1 của ô N3 về vấn đề truy vấn cơ sở dữ liệu:
   - Phân tích ý: Cả hai ý đều bị đánh dấu chưa đạt vì Lan nghĩ trang chậm do dữ liệu lớn, chưa thấy mỗi sản phẩm tốn thêm một truy vấn.
   - Điểm thiếu sót: Nghĩ trang chậm do dữ liệu lớn, chưa thấy mỗi sản phẩm tốn thêm một truy vấn.
   - Gợi ý nấc 1 (`CONCEPT`): *"Sau khi có danh sách, trang còn cần thêm thông tin gì cho từng sản phẩm? Thông tin đó được lấy bằng cách nào?"* (Gợi ý thuần túy về mặt tư duy, không hề nhắc tên tập tin hay số dòng).
+  - Lưu ý D-74: Lan ở bậc `NOVICE` nên gợi ý thực tế là `CODE_POINTER`, chỉ thẳng một bước; câu trên là mẫu của bậc `PRACTITIONER`.
   - Nhận xét gửi Lan: *"Bạn thấy đúng là nhiều sản phẩm thì chậm hơn, nhưng chưa nói vì sao."*
   - Kết quả trên màn hình: Chưa đạt, không lộ đáp án, hiện câu gợi ý để Lan suy nghĩ lại.
 - **Lượt 2:** Đọc gợi ý, Lan nhận ra mình còn thiếu và gõ lại: *"Vì lấy danh sách xong, code còn hỏi database thêm một lần cho mỗi sản phẩm để lấy loại hàng. 200 sản phẩm là 201 lần hỏi, càng nhiều sản phẩm càng nhiều lần hỏi."*

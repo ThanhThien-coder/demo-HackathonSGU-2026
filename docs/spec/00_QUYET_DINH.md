@@ -2,22 +2,22 @@
 
 > Nơi **duy nhất** ghi trạng thái "đã chốt / đang mở / chờ chốt". Các file khác trong `spec/` viết ở dạng quy phạm (đã quyết), không ghi "đề xuất". Cả nhóm đọc.
 > File này không có code. Kiểu ở `02_CONTRACTS.md`, hằng số ở bảng `CONFIG` của file đó.
-> Cập nhật lần cuối: **05/11/2026**.
+> Cập nhật lần cuối: **06/11/2026**.
 
 ## Đọc nhanh
 
-- **Mục 1 — Quyết định đang có hiệu lực:** gồm mọi D chưa hủy, xếp theo mã tăng dần (D-01 … D-10, D-12, D-13, D-15, D-16, D-18 … D-20, D-22, D-23, D-27 … D-77). Viết thẳng theo nội dung hiện hành, không giữ chữ cũ đã bị bãi bỏ.
+- **Mục 1 — Quyết định đang có hiệu lực:** gồm mọi D chưa hủy, xếp theo mã tăng dần (D-01 … D-10, D-12, D-13, D-15, D-16, D-18 … D-20, D-22, D-23, D-27 … D-76, D-78, D-79). Viết thẳng theo nội dung hiện hành, không giữ chữ cũ đã bị bãi bỏ.
 - **Mục 2 — Chờ chốt:** hiện không còn quyết định nào.
 - **Mục 3 — Câu hỏi còn mở:** Q-03, Q-10, Q-13. Không chặn việc code; có người chịu trách nhiệm và mặc định nếu chưa trả lời.
-- **Mục 4 — Lịch sử:** các D đã hủy hoặc thay thế (D-11, D-14, D-17, D-21, D-24, D-25, D-26) và các câu hỏi đã đóng (Q-01, Q-02, Q-04 … Q-09, Q-11, Q-12).
+- **Mục 4 — Lịch sử:** các D đã hủy hoặc thay thế (D-11, D-14, D-17, D-21, D-24, D-25, D-26, D-77) và các câu hỏi đã đóng (Q-01, Q-02, Q-04 … Q-09, Q-11, Q-12).
 - **Đổi một quyết định:** sửa dòng D-xx ở file này trước, rồi mới sửa file đích (cột "Áp dụng ở").
 
 | Mục | Nội dung | File được trỏ tới |
 | :-: | :-- | :-- |
-| 1 | Quyết định đang có hiệu lực (59 quyết định) | `01`, `02`, `03`, `04`, `05`, `10`, `11`, `20`, `21`, `22`, `30`, `50`, `doc-de-hieu/`, `pitch/` |
+| 1 | Quyết định đang có hiệu lực (60 quyết định) | `01`, `02`, `03`, `04`, `05`, `10`, `11`, `20`, `21`, `22`, `30`, `50`, `doc-de-hieu/`, `pitch/` |
 | 2 | Chờ chốt (không còn) | — |
 | 3 | Câu hỏi còn mở (Q-03, Q-10, Q-13) | `02`, `50` |
-| 4 | Lịch sử (7 D đã hủy/thay thế, 10 Q đã đóng) | — |
+| 4 | Lịch sử (8 D đã hủy/thay thế, 10 Q đã đóng) | — |
 
 ---
 
@@ -94,7 +94,8 @@
 | **D-74** | **Thích ứng & trí nhớ AI, tra tên xuyên bài, gọi lại theo retryDelay** (chốt 05/11/2026):<br>• **A1 — Gợi ý theo lượt và tier:** `NOVICE` CODE_POINTER/CODE_POINTER/null; `PRACTITIONER` CONCEPT/CODE_POINTER/null; `ARCHITECT` CONCEPT/CONCEPT/null.<br>• **A5a — Chấm có nhớ lượt trước:** từ lượt 2, đọc lượt gần nhất của cùng câu, thêm khối `<previous_answer>`, `<previous_points>`; gợi ý nhắm vào ý chưa trúng; tên chỉ có ở lượt trước không được dùng trong feedback.<br>• **A5b — Đặt câu hỏi nhớ ý đã hụt:** lấy tối đa `CONFIG.HISTORY_MISSED_POINTS_MAX` ý đã hụt cùng kỹ năng, thêm `<learner_history>`, không nhắc tên hàm/file từ lịch sử; không ảnh hưởng BKT/kế hoạch.<br>• **M1 — Tra tên xuyên bài khi chấm:** tìm tên khớp `function_name` của node khác trong phiên, tối đa `CONFIG.GRADE_REFERENCED_MAX` tên, ưu tiên bài điều kiện; thêm `<referenced_steps>`, chỉ tên KHÔNG kèm code/snippet (giữ nguyên D-36); snapshot lỗi ⇒ bỏ khối chấm như cũ.<br>• **R1 — Gọi lại theo retryDelay:** lỗi TRANSIENT 429/503 có `retryDelay` ⇒ chờ `max(CONFIG.LLM_RETRY_DELAY_MS, retryDelay)` + jitter; `retryDelay` > `CONFIG.LLM_RETRY_DELAY_MAX_MS` ⇒ không gọi lại, kết thúc TRANSIENT; `LlmOutcome` thất bại thêm `retry_after_ms?`.<br>• **S-08 — thinkingConfig:** `CONFIG.LLM_THINKING_BUDGET = 0` ⇒ không gửi `thinkingConfig` (tránh lỗi 400); khác 0 gửi như cũ.<br>• **S-09 — Luật câu hỏi và log:** prompt câu hỏi thêm luật quan hệ đúng code và bắt suy luận (kiểm duyệt tay theo GUARD-21); `callLLMOnce` lỗi ghi 1 dòng log warn không chứa code/prompt/nội dung.<br>• Giữ 4 lời gọi AI (INV-02), không đổi API request/response, không đổi bảng DB, không đổi INV; nâng `CONFIG.PROMPT_VERSION` lên `"1.1.0"`. | `01`, `02`, `03`, `04`, `20`, `22` |
 | **D-75** | **Trần dung lượng spec** (chốt 05/11/2026): file spec ≤ 40 000 byte; ngoại lệ: `spec/00` ≤ 45 000, `spec/02` ≤ 48 000, `spec/04` ≤ 42 000, `spec/10` ≤ 44 000, `spec/11` ≤ 46 000, `spec/20` ≤ 56 000, `spec/21` ≤ 45 000, `spec/30` ≤ 45 000 (thay trần cũ, trả lời câu hỏi Q-E). | `AGENTS.md`, `CLAUDE.md` |
 | **D-76** | **Ngôn ngữ của bản thi** (chốt 05/11/2026): cắt theo `doc-de-hieu/07_ke_hoach_21h.md` Mục 3. `LANGUAGE_REGISTRY` chỉ có TS, TSX, JS, Python. Java, Go, Dart, tầng `STRUCTURAL` và màn hình Flutter, Android, iOS của D-57 để sau thi; đuôi các ngôn ngữ đó xếp vào `KNOWN_NO_GRAMMAR`. | `01`, `02`, `10`, `11` |
-| **D-77** | **Giao diện bản thi** (chốt 05/11/2026): nhiều trang; `/learn` có code và X-Ray ở cột trái, Feynman ở cột phải, đồ thị trong ngăn kéo, Tổng quan trong cửa sổ. Thay bố cục 3 cột. | `01`, `04`, `30` |
+| **D-78** | **Trang học kiểu IDE** (chốt 06/11/2026): app nhiều trang; `/learn` từ `lg` có 3 cột: trái Bản đồ bài học, giữa Code + bảng dưới (mặc định ẩn), phải 2 tab X-Ray / Feynman; khung ẩn/hiện và kéo tỉ lệ được; dưới `lg` 1 cột; Tổng quan trong cửa sổ. | `04`, `30`, `pitch/` |
+| **D-79** | **2 chủ đề sáng / tối** (chốt 06/11/2026): màu là biến CSS theo `html[data-theme]`, mặc định tối. Giữ nghĩa 4 màu trạng thái, đổi giá trị; thêm màu nhấn `--accent`. | `01`, `30` |
 
 ---
 
@@ -123,6 +124,7 @@ Hiện không còn quyết định nào chờ chốt. D-08, D-09, D-16, D-24 đ�
 - **D-17:** Sync receipt khi lỗi ghi DB (hủy, thay bởi D-40: bỏ biên nhận, DB lỗi trả `ERR_PERSISTENCE_UNAVAILABLE` + nút "Thử lại").
 - **D-21:** Thêm persona `SENIOR_ACTIVE` để demo Fast-Track (hủy, thay bởi D-34: bỏ Fast-Track).
 - **D-24:** Node gom nhóm `vroot-*` chỉ để hiển thị (hủy, thay bởi D-54: bỏ chế độ `ALGORITHM_COLLECTION` và node gom nhóm).
+- **D-77:** Trang học 2 cột, đồ thị trong ngăn kéo (thay bởi D-78).
 - **D-25:** Câu ôn biến thể `|v{n}` tránh trùng câu đã lộ đáp án (hủy, thay bởi D-35: bỏ ôn tập).
 - **D-26:** Phiên GitHub rơi về `ARCHIVE_HASH` khi cache RAM trượt (hủy, thay bởi D-39: phiên gắn commit SHA).
 

@@ -444,8 +444,9 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
 └── src/
     ├── contracts/{config,…}.ts · contracts/index.ts   # 02 — config.ts = Mục 1, mỗi Mục 2–10 một file, index.ts re-export; viết đầu tiên
     ├── app/
-    │   ├── layout.tsx · page.tsx · history/page.tsx   # 30
-    │   ├── auth/callback/route.ts                     # Supabase OAuth callback (D-44)
+    │   ├── layout.tsx · globals.css · page.tsx        # 30 — font, script chủ đề, token 2 chủ đề (D-79)
+    │   ├── {login,register,learn,roadmap,roadmap/[courseId],history,report,how-it-works}/page.tsx   # 30
+    │   ├── auth/callback/route.ts                     # Supabase OAuth callback (D-44); sau proxy chuyển hướng theo x-forwarded-host
     │   └── api/
     │       ├── me/route.ts                      # GET, DELETE
     │       ├── sessions/route.ts · sessions/[id]/history/route.ts · sessions/[id]/progress/route.ts  # [id] = session_id
@@ -462,9 +463,10 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
     │   ├── ai/{gemini,analyze,overview,questions,grade}.ts · ai/prompts/*.ts · ai/schemas.ts      # 20
     │   └── ai/guard/{text,names,forbidden,lines,analysis,overview,questions,followup,injection,log}.ts  # 21
     ├── lib/{bkt-engine,plan,derive,similarity}.ts   # 22 — hàm thuần dùng chung server + client
+    ├── lib/{graph,moderation}.ts · lib/supabase/client.ts   # mainPath · bộ lọc an toàn · Supabase ở trình duyệt
     ├── lib/{api,offline,messages}.ts            # Client gọi API có kiểu · bản Offline cùng chữ ký · bảng thông điệp lỗi (30)
     ├── store/workbench.ts                       # Zustand (30)
-    └── components/{auth,canvas,code,home,how-it-works,layout,roadmap,roadmap-detail,ui}/*.tsx  # 30
+    └── components/{canvas,code,home,layout,learn,ui}/*  # 30 — learn/ = trang học 3 cột (D-78)
 ```
 
 ---
@@ -483,6 +485,7 @@ Chốt **phiên bản chính xác ở giờ H+0** bằng lệnh cài đặt, ghi
 | `@monaco-editor/react` | 4.x | Code viewer (read-only) |
 | `zustand` | 5.x | Store |
 | `tailwindcss` | 4.x | Giao diện; cấu hình bằng `@theme` trong `globals.css`, không có `tailwind.config.ts` (D-67) |
+| `lucide-react`, `clsx`, `tailwind-merge` | 1.x, 2.x, 3.x | Biểu tượng, ghép lớp CSS |
 | `web-tree-sitter` + file `.wasm` của từng grammar | Cùng ABI với grammar | Parser |
 | `fflate` | 0.8.x | Giải nén zip trong RAM |
 | `@google/genai` | 1.x | Gemini, structured output |

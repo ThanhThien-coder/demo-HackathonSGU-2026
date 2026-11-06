@@ -225,7 +225,7 @@ Mỗi kỹ năng chỉ có vài quan sát trên một repo, nên điểm là ư�
 - Bản dùng thử chạy gói free của Gemini, nên chỉ dành cho repo công khai (xem E4). Trước khi pilot thật, nhóm sẽ chuyển sang API trả phí và thêm màn hình xin đồng ý theo Nghị định 13/2023.
 
 **E3. "Mất Wi-Fi thì sao? Lúc đó đang xem demo thật hay dữ liệu giả?"**
-Đ: Bấm `Ctrl+Shift+D` để vào chế độ Offline. Dữ liệu ở chế độ này là bản **ghi lại từ một lần chạy thật**, đã duyệt tay; nhãn Offline luôn hiện và tiến độ không được lưu. Nhóm nói rõ mỗi khi chuyển chế độ, và có thêm video quay từ bản chạy thật.
+Đ: Bấm `Ctrl+Shift+D` để vào chế độ Offline. Dữ liệu ở chế độ này là bản **ghi lại từ một lần chạy thật**, đã duyệt tay (chỉ trả lời vậy sau khi đã ghi lại bundle thật; bản hiện tại viết tay, xem `KICH_BAN_DEMO.md`); nhãn Offline luôn hiện và tiến độ không được lưu. Nhóm nói rõ mỗi khi chuyển chế độ, và có thêm video quay từ bản chạy thật.
 
 **E4. "Dữ liệu người dùng có bị dùng để train AI không?"**
 Đ:

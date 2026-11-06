@@ -27,7 +27,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 7.1, 10, Test bắt buộc T27
+- `docs/spec/30_UI.md` Mục 7.1, 10
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T27
 - `docs/spec/02_CONTRACTS.md` Mục 1, 8, 9, 10
 - `package.json`
 - `src/`
@@ -37,26 +38,23 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/lib/api.ts`
 - `src/lib/messages.ts`
 - `src/lib/supabase/client.ts`
-- `src/stores/userStore.ts`
-- `src/stores/index.ts`
 - `src/lib/__tests__/messages.test.ts`
 - `src/lib/__tests__/api.test.ts`
 - `src/lib/supabase/__tests__/client.test.ts`
-- `src/stores/__tests__/userStore.test.ts`
 - `src/store/__tests__/workbench.test.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết store Zustand trong `src/store/workbench.ts` khớp hoàn toàn kiểu `ClientWorkbenchState` (`docs/spec/30_UI.md` Mục 7.1, `docs/spec/02_CONTRACTS.md` Mục 10). Tuân thủ nguyên tắc store chỉ là bản sao chỉ đọc (D-02): không tự tính toán BKT hay trạng thái node.
-3. Viết client khởi tạo Supabase trình duyệt trong `src/lib/supabase/client.ts`, tạo store quản lý phiên người dùng `src/stores/userStore.ts` và export qua `src/stores/index.ts`. Không có token, cờ hay đường tắt bỏ qua đăng nhập.
+2. Viết store Zustand trong `src/store/workbench.ts` khớp hoàn toàn kiểu `ClientWorkbenchState` (`docs/spec/30_UI.md` Mục 7.1, `docs/spec/02_CONTRACTS.md` Mục 10), kèm slice `ui` theo Mục 7.1. Tuân thủ nguyên tắc store chỉ là bản sao chỉ đọc (D-02): không tự tính toán BKT hay trạng thái node.
+3. Viết client khởi tạo Supabase trình duyệt trong `src/lib/supabase/client.ts`. Phiên đăng nhập lưu ở `ui.auth`, `ui.user` của `src/store/workbench.ts`, không tạo store riêng. Không có token, cờ hay đường tắt bỏ qua đăng nhập.
 4. Viết `src/lib/api.ts` có kiểu dữ liệu đầy đủ gọi các endpoint API học tập; cung cấp các hàm bản `Safe` trả kết quả hoặc `ApiError`, không bao giờ throw lỗi (`docs/spec/30_UI.md`). Khi API lỗi thì trả đúng mã lỗi, không thay bằng dữ liệu giả.
 5. Viết `src/lib/messages.ts` định nghĩa `ERROR_MESSAGES: Record<ErrorCode, string>` đầy đủ mọi mã lỗi theo `docs/spec/30_UI.md` Mục 10 và `docs/spec/02_CONTRACTS.md` Mục 9 (kèm `ERR_CLIENT_NETWORK`).
-6. Viết test trong `src/lib/__tests__/messages.test.ts` kiểm tra đủ mọi mã lỗi (`docs/spec/30_UI.md` T27), và các test tương ứng cho `userStore` và `workbench`.
+6. Viết test trong `src/lib/__tests__/messages.test.ts` kiểm tra đủ mọi mã lỗi (`docs/spec/50_TEST_VA_FIXTURE.md` Mục 6 T27), và test cho `workbench`.
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
-- **`details.hint` (lỗi D-04, `30` Mục 10):** đổi mã `submodule`, `only_unsupported`, `only_manifests`, `no_code`, `empty_subdir` thành câu tiếng Việt, không in thẳng mã.
+- **`details.hint` (lỗi D-04, `30` Mục 10):** các mã `submodule`, `only_unsupported`, `only_manifests`, `no_code`, `empty_subdir` hiện thành câu tiếng Việt, không in thẳng mã.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npx vitest run src/lib/__tests__/messages.test.ts`
@@ -103,8 +101,8 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ```powershell
 git add src/store/workbench.ts src/store/__tests__/workbench.test.ts
 git commit -m "feat(ui): store workbench khớp client state"
-git add src/lib/supabase/client.ts src/lib/supabase/__tests__/client.test.ts src/stores/
-git commit -m "feat(ui): quản lý phiên người dùng qua supabase"
+git add src/lib/supabase/client.ts src/lib/supabase/__tests__/client.test.ts
+git commit -m "feat(ui): client supabase cho trình duyệt"
 git add src/lib/api.ts src/lib/__tests__/api.test.ts
 git commit -m "feat(ui): client api an toàn có kiểu"
 git add src/lib/messages.ts src/lib/__tests__/messages.test.ts

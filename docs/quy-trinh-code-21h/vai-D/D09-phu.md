@@ -1,6 +1,6 @@
 # D09 — Trang phụ, menu, trình chiếu
 
-Làm xong phiếu này, website có thêm màn hình lịch sử học tập, báo cáo kết quả, menu cài đặt tài khoản và chọn persona, cùng chế độ trình chiếu demo phóng to màn hình chuyên nghiệp.
+Làm xong phiếu này, website có thêm màn hình lịch sử học tập, báo cáo kết quả, menu tài khoản và chọn persona, các khung trang học ẩn/hiện và kéo tỉ lệ được, cùng chế độ trình chiếu cho demo.
 
 | Mục | Nội dung |
 | :-- | :-- |
@@ -29,9 +29,10 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 2.1, 2.2, 2.3, 6.2, 9, 11, Test bắt buộc T29, T12
+- `docs/spec/30_UI.md` Mục 2, 2.2, 2.3, 6.2, 9, 11
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T12, T29, T37, T41
 - `docs/spec/02_CONTRACTS.md` Mục 1, 8, 10
-- `docs/spec/00_QUYET_DINH.md` D-22
+- `docs/spec/00_QUYET_DINH.md` D-22, D-78
 - `docs/doc-de-hieu/07_ke_hoach_21h.md` Mục 3
 - `package.json`
 - `src/`
@@ -40,37 +41,39 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - `src/app/history/`
 - `src/app/report/`
 - `src/app/how-it-works/`
-- `src/components/how-it-works/`
-- `src/components/home/`
-- `public/assets/`
-- `src/components/layout/SettingsDropdown.tsx`
-- `src/app/learn/components/ReportWrongDialog.tsx`
-- `src/app/learn/components/CockpitHeader.tsx`
+- `src/components/home/HeroArt.tsx`
+- `src/components/layout/Navbar.tsx`
+- `src/components/learn/FeynmanQuestionSection.tsx`
+- `src/components/learn/CockpitHeader.tsx`
+- `src/components/learn/CodeSnippetViewer.tsx`
+- `src/components/learn/LearnShell.tsx`
+- `src/components/learn/layout.ts`
+- `src/components/learn/LayoutControls.tsx`
+- `src/components/learn/Splitter.tsx`
 - `src/app/globals.css`
 - `src/store/workbench.ts`
-- `src/app/learn/page.tsx`
-- `src/app/learn/components/CodeSnippetViewer.tsx`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. Thực hiện nghiêm túc theo thứ tự ưu tiên:
-   - Ưu tiên 1: Viết màn hình lịch sử `src/app/history/` và báo cáo `src/app/report/` (`docs/spec/30_UI.md` Mục 2.1).
-   - Ưu tiên 2: Viết menu cài đặt tài khoản và chọn persona trong `src/components/layout/SettingsDropdown.tsx`, đồng hồ token trên `src/app/learn/components/CockpitHeader.tsx`.
-   - Ưu tiên 3: Viết hộp thoại "Báo sai" `src/app/learn/components/ReportWrongDialog.tsx` (`docs/spec/30_UI.md` Mục 6.2, D-22). Sau khi gửi báo sai, gọi lại `GET /api/sessions/{id}/progress` và cập nhật màu node (T12).
-   - Ưu tiên 4: Hiện thực hỗ trợ responsive di động, hiệu ứng chuyển động giảm thiểu `prefers-reduced-motion` trong `src/app/globals.css`, và chế độ trình chiếu phóng to khung đang xem theo `CONFIG.UI_PRESENTATION_FOCUS_PCT` và `CONFIG.UI_PRESENTATION_FONT_SCALE` (`docs/spec/30_UI.md` Mục 2.2, 11).
-   - Ưu tiên 5 (cắt được khi thiếu giờ): Trang trí trang chủ `src/components/home/`, trang giới thiệu cách hoạt động `src/app/how-it-works/`, `src/components/how-it-works/`, và hình ảnh trong `public/assets/`.
+   - Ưu tiên 1: Viết màn hình lịch sử `src/app/history/` và báo cáo `src/app/report/` dùng `ui/Page.tsx` (`docs/spec/30_UI.md` Mục 2).
+   - Ưu tiên 2: Thêm menu tài khoản và ô chọn persona vào `src/components/layout/Navbar.tsx` (`docs/spec/30_UI.md` Mục 2.3, 9), đồng hồ token trên `src/components/learn/CockpitHeader.tsx`.
+   - Ưu tiên 3: Viết hộp thoại "Báo sai" trong `src/components/learn/FeynmanQuestionSection.tsx` (`docs/spec/30_UI.md` Mục 6.2, D-22). Sau khi gửi báo sai, gọi lại `GET /api/sessions/{id}/progress` và cập nhật màu node (T12).
+   - Ưu tiên 4: Viết bố cục trang học theo `docs/spec/30_UI.md` Mục 2.2: `src/components/learn/layout.ts` (hằng nội bộ `LAYOUT_DEFAULT`, `LAYOUT_LIMIT`, lưu `sf.prefs.layout`), `LayoutControls.tsx` (4 nút cuối `CockpitHeader`, `Ctrl+B`, `Ctrl+Alt+J`, `Ctrl+Alt+B`), `Splitter.tsx` (kéo bằng chuột, chạm, phím mũi tên; bấm đúp, `Home`, `Enter` đặt lại) (T37). Viết trình chiếu: nút "Trình chiếu" ở đầu khung code hoặc trong menu bố cục ⇒ cột code rộng `CONFIG.UI_PRESENTATION_FOCUS_PCT`, 2 cột còn lại chia đều, cỡ chữ Monaco × `CONFIG.UI_PRESENTATION_FONT_SCALE`, `Esc` thoát (T41). Kiểm `prefers-reduced-motion` trong `src/app/globals.css`.
+   - Ưu tiên 5 (cắt được khi thiếu giờ): Hình trang trí `src/components/home/HeroArt.tsx` và trang cách học `src/app/how-it-works/` (4 bước).
 3. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
-- **Báo sai (lỗi D-15):** `handleReportWrongSubmit` lấy `run_id` từ `runs[nodeId]`, thiếu thì lấy `progress.nodes[id].last_run.run_id`. Bản cũ `return` im lặng với node đã xong mở lại sau khi tải trang. `applyQuestionState` và `evalKey` cũng phải chạy với `last_run`. Không tìm được run thì báo lỗi.
-- Cửa sổ Báo sai: bỏ chữ "(D-22)", "BKT", đổi "hoàn lại ngay lập tức" thành hoàn lại nếu điểm chưa bị câu khác đổi (BKT-63), xóa ô lý do sau khi gửi. `skill_change = null` thì báo rõ.
+- **Báo sai (lỗi D-15):** `handleReportWrongSubmit` lấy `run_id` từ `runs[nodeId]`, thiếu thì lấy `progress.nodes[id].last_run.run_id`, để node đã xong mở lại sau khi tải trang vẫn báo sai được. `applyQuestionState` và `evalKey` cũng phải chạy với `last_run`. Không tìm được run thì báo lỗi.
+- Cửa sổ Báo sai: chữ cho người học không có "(D-22)", "BKT"; nói rõ điểm được hoàn lại nếu chưa bị câu khác đổi (BKT-63); gửi xong thì xóa ô lý do. `skill_change = null` thì báo rõ.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
 - Các màn hình lịch sử, báo cáo hiển thị chuẩn xác dữ liệu từ store / API.
 - Hộp thoại Báo sai gọi cập nhật progress và đổi trạng thái câu thành cờ 🚩 (T12).
-- Chế độ trình chiếu phóng to đúng tỷ lệ theo hằng số cấu hình.
+- Bố cục ẩn/hiện, kéo tỉ lệ, đặt lại đúng; tải lại giữ bố cục (T37).
+- Trình chiếu: cột code rộng đúng `CONFIG.UI_PRESENTATION_FOCUS_PCT`, 2 cột còn lại đều nhau, không nội dung nào bị cắt ở 1366×768 (T41).
 - Chỉ được đụng các file của D01–D08 có tên trong mục Được ghi.
 
 ## Cấm
@@ -100,8 +103,10 @@ Làm Bước 3 khi bạn thức dậy lúc 03:00:
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npm run build` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Thử nghiệm T29: điều hướng bằng bàn phím (Tab/Enter) chuyển focus chính xác và viền focus luôn nhìn thấy rõ.
-- [ ] Bật `prefers-reduced-motion` trong cài đặt hệ thống hoặc trình duyệt: các hiệu ứng chuyển động tắt hoàn toàn.
-- [ ] Thử T12 của `docs/spec/30_UI.md`: báo sai một câu thấy cờ 🚩, có request `progress`, màu node cập nhật.
+- [ ] Bật `prefers-reduced-motion` trong cài đặt hệ thống hoặc trình duyệt: các hiệu ứng chuyển động tắt hoàn toàn, không vẽ lớp chuyển động cạnh.
+- [ ] Thử T37: `Ctrl+B`, `Ctrl+Alt+J`, `Ctrl+Alt+B` ẩn/hiện đúng khung; kéo vạch đổi tỉ lệ; bấm đúp đặt lại; tải lại giữ bố cục.
+- [ ] Thử T41: trình chiếu ở 1366×768, có và không có bảng dưới, không nội dung nào bị cắt; `Esc` trả lại tỉ lệ cũ.
+- [ ] Thử T12 ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: báo sai một câu thấy cờ 🚩, có request `progress`, màu node cập nhật.
 - [ ] Tải lại trang, mở node `FAILED`, gửi báo sai: có `POST /api/report-wrong`, có toast, cửa sổ đóng, câu có 🚩. Báo sai hết câu `FAILED` thì node thành `COMPLETED`.
 
 ```text
@@ -115,14 +120,14 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ```powershell
 git add src/app/history/ src/app/report/
 git commit -m "feat(ui): màn hình lịch sử và báo cáo học tập"
-git add src/components/layout/SettingsDropdown.tsx src/app/learn/components/CockpitHeader.tsx
-git commit -m "feat(ui): menu cài đặt, chọn persona và đồng hồ token"
-git add src/app/learn/components/ReportWrongDialog.tsx
+git add src/components/layout/Navbar.tsx src/components/learn/CockpitHeader.tsx
+git commit -m "feat(ui): menu tài khoản, chọn persona và đồng hồ token"
+git add src/components/learn/FeynmanQuestionSection.tsx
 git commit -m "feat(ui): hộp thoại báo sai và cập nhật tiến độ"
-git add src/app/globals.css src/store/workbench.ts src/app/learn/page.tsx src/app/learn/components/CodeSnippetViewer.tsx
-git commit -m "feat(ui): responsive di động và chế độ trình chiếu"
-git add src/app/how-it-works/ src/components/how-it-works/ src/components/home/ public/assets/
-git commit -m "feat(ui): trang trí trang chủ và trang how-it-works"
+git add src/app/globals.css src/store/workbench.ts src/components/learn/LearnShell.tsx src/components/learn/layout.ts src/components/learn/LayoutControls.tsx src/components/learn/Splitter.tsx src/components/learn/CodeSnippetViewer.tsx
+git commit -m "feat(ui): bố cục kéo tỉ lệ và chế độ trình chiếu"
+git add src/app/how-it-works/ src/components/home/HeroArt.tsx
+git commit -m "feat(ui): trang cách học và hình trang trí"
 git pull --rebase origin main
 git push -u origin d/D09-phu
 gh pr create --base main --title "D09 — Trang phụ, menu, trình chiếu" --body "Closes #<số Issue>"

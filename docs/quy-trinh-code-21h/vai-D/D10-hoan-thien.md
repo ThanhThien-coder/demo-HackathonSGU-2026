@@ -31,7 +31,8 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 3, Test bắt buộc T5
+- `docs/spec/30_UI.md` Mục 2.2, 3
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T5, T37, T38, T39, T40, T41
 - `docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-06
 - `package.json`
 - `src/`
@@ -82,6 +83,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Kiểm tra không còn file `src/app/dev/page.tsx` trong thư mục dự án.
 - [ ] Lệnh `git grep` xác nhận không còn dữ liệu mock hoặc session mặc định trong `src/app/` và `src/components/`.
 - [ ] Các lỗi giao diện ghi nhận trong Issue đã được khắc phục.
+- [ ] Bố cục 3 cột, bảng dưới, 2 chủ đề, trình chiếu đạt T37–T41 ở 1366×768 (D-78, D-79).
 
 ```text
 Task "D10 — Kiểm agent, sửa giao diện, bỏ trang nháp" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -105,7 +107,7 @@ git push -u origin d/D10-hoan-thien
 gh pr create --base main --title "D10 — Kiểm agent, sửa giao diện, bỏ trang nháp" --body "Closes #<số Issue>"
 ```
 
-Sau 05:00, bạn phối hợp cùng Vai E thử nghiệm chế độ Offline với file `mock_bundle.json` thật (`docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-06), persona `SENIOR_RUSTY` đạt yêu cầu (`docs/spec/30_UI.md` T5). Vai A merge khi CI xanh.
+Sau 05:00, bạn phối hợp cùng Vai E thử nghiệm chế độ Offline với file `mock_bundle.json` thật (`docs/spec/50_TEST_VA_FIXTURE.md` Mục 4 X-06), persona `SENIOR_RUSTY` đạt yêu cầu (`docs/spec/50_TEST_VA_FIXTURE.md` Mục 6 T5). Vai A merge khi CI xanh.
 
 ## Tiếp theo
 

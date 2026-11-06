@@ -27,49 +27,52 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 ## Được đọc
 - `.kb/README.md`
-- `docs/spec/30_UI.md` Mục 2.1, 2.3, 7.2, 7.3, 7.4, Test bắt buộc T13, T14, T26, T28, T30, T31
+- `docs/spec/30_UI.md` Mục 2, 2.1, 2.2, 2.3, 7.2, 7.3, 7.4
+- `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: T13, T14, T26, T28, T30, T31
 - `docs/spec/02_CONTRACTS.md` Mục 1, 8, 10
 - `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4
-- `docs/spec/00_QUYET_DINH.md` D-27, D-38, D-46
+- `docs/spec/00_QUYET_DINH.md` D-27, D-38, D-46, D-78
 - `package.json`
 - `src/`
 
 ## Được ghi
 - `src/app/page.tsx`
+- `src/app/layout.tsx`
 - `src/app/login/`
 - `src/app/register/`
-- `src/components/auth/`
 - `src/app/roadmap/`
-- `src/components/roadmap/`
-- `src/components/roadmap-detail/`
 - `src/app/learn/page.tsx`
-- `src/app/learn/types.ts`
-- `src/app/learn/components/CockpitHeader.tsx`
-- `src/app/learn/components/index.ts`
+- `src/components/home/`
+- `src/components/layout/Boot.tsx`
+- `src/components/ui/Page.tsx`
+- `src/components/learn/LearnShell.tsx`
+- `src/components/learn/CockpitHeader.tsx`
 - `src/store/workbench.ts`
 
 ## Việc cần làm
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
-2. Viết màn hình đăng nhập `src/app/login/`, đăng ký `src/app/register/` và các component `src/components/auth/` hỗ trợ đăng nhập GitHub qua Supabase Auth, truyền tham số `next` cho `/auth/callback` chuyển hướng đúng sau khi đăng nhập. Không dựa vào `?error=auth_failed`. Không có token hay đường tắt bỏ qua đăng nhập.
-3. Viết trang chủ `src/app/page.tsx`: ô nhập link GitHub (chặn ô rỗng, chỉ nhận link gốc repo D-38, có ghi chú "Chỉ hỗ trợ nhánh mặc định"), vùng thả .zip (≤ `CONFIG.MAX_UPLOAD_BYTES`), danh sách phiên trước để "Học tiếp" hoặc "Học lại từ đầu" (T30: gọi `POST /api/ingest` với `restart: true`). Hỗ trợ chip "Repo lớn" và nút "Đổi thư mục" (`subdir_override`).
-4. Viết trang lộ trình `src/app/roadmap/` và các component `src/components/roadmap/`, `src/components/roadmap-detail/` hiển thị bản đồ các bài học và tiến độ tổng quan.
-5. Viết trang học tập `src/app/learn/page.tsx`, kiểu `src/app/learn/types.ts`, thanh header buồng lái `src/app/learn/components/CockpitHeader.tsx` ("Bản đồ … ms · 0 token", đo lường, thông tin phiên) và export qua `src/app/learn/components/index.ts`. Quét repo xong chuyển hướng vào `/learn?session=<id>` và mở modal Tổng quan, đặt `active_node_id = null`. Nếu thiếu tham số `session` thì tự chuyển về `/roadmap`, trừ khi có cờ `?offline=1`.
+2. Viết màn hình đăng nhập `src/app/login/`, `src/app/register/` (chuyển sang `/login`) và `LoginScreen` trong `src/components/home/Home.tsx` hỗ trợ đăng nhập GitHub qua Supabase Auth, truyền tham số `next` cho `/auth/callback` chuyển hướng đúng sau khi đăng nhập, kèm thẻ "Bản demo Offline". Không dựa vào `?error=auth_failed`. Không có token hay đường tắt bỏ qua đăng nhập.
+3. Viết trang chủ `src/app/page.tsx` dùng `src/components/home/Home.tsx`, `SessionList.tsx`: ô nhập link GitHub (ô rỗng ⇒ nút tắt, chỉ nhận link gốc repo D-38, có ghi chú "Chỉ hỗ trợ nhánh mặc định."), vùng thả .zip (≤ `CONFIG.MAX_UPLOAD_BYTES`), `IngestOverlay` có đồng hồ thật, danh sách phiên trước để "Học tiếp" hoặc "Học lại từ đầu" (T30: gọi `POST /api/ingest` với `restart: true`).
+4. Viết `src/components/ui/Page.tsx` (`PageHeader`, `MetricCard`, `StatusPill`, `EmptyState`) và trang `src/app/roadmap/`: `/roadmap` là danh sách phiên học, `/roadmap/[courseId]` là danh sách bài của một phiên theo tô-pô (`StatusPill`, "Mở bài").
+5. Viết trang học tập `src/app/learn/page.tsx` dùng `src/components/learn/LearnShell.tsx`: từ `lg` trang cao đúng màn hình, 3 cột tự cuộn: trái `LessonGraphPanel`, giữa `CodeSnippetViewer` + `ProblemsPanel`, phải `LearnSidePanel`; nhỏ hơn `lg` 1 cột theo thứ tự bản đồ → code → bảng dưới → X-Ray / Feynman (`docs/spec/30_UI.md` Mục 2.2). Ẩn/hiện khung và kéo tỉ lệ làm ở D09. Viết thanh trên `src/components/learn/CockpitHeader.tsx` theo Mục 2.3, có "Tổng quan kiến trúc", chip "Repo lớn", Monorepo và hộp thoại "Đổi thư mục phân tích" (`subdir_override`). Quét repo xong chuyển hướng vào `/learn?session=<id>`, tự mở cửa sổ Tổng quan (`ui.overview_open`), đặt `active_node_id = null`. Nếu thiếu tham số `session` thì tự chuyển về `/roadmap`, trừ khi có cờ `?offline=1`.
 6. Viết hàng đợi phân tích D-46 trong `src/store/workbench.ts`: chỉ gọi `analyze-node` cho node đang mở và 1–2 node kế tiếp theo thứ tự tô-pô, tối đa `CONFIG.ANALYZE_CONCURRENCY` đồng thời. Xử lý các ca T14 (nút "Thử lại phân tích"), T28 (mở lại phiên giữa chừng vẫn đúng lượt và cùng `run_id`).
 7. State dùng chung giữa bản đồ, code và Feynman đặt trong `src/store/workbench.ts`, không nhân bản bằng `useState` trong page.
-8. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
+8. Viết `src/components/layout/Boot.tsx` chạy 1 lần cho cả app theo `docs/spec/30_UI.md` Mục 7.2, gắn vào `src/app/layout.tsx`.
+9. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
 - **Đổi phiên (lỗi D-11):** store khác `sessionId` thì gọi `resetSession()` trước khi tải, đang tải hiện màn chờ.
 - **Tiến độ (lỗi D-09):** không dùng chữ "cần ôn" (D-35). Hiện rõ số bài đã học và số bài chưa đạt.
-- **Thanh trên (lỗi D-14, B-16):** chia cố định 2 hàng. Hàng 1: nút quay lại, tên repo, mã 7 ký tự, đường dẫn rút gọn. Hàng 2: huy hiệu và nút. `ref_label` rỗng ⇒ `repo_name · @ sha7`. Định nghĩa `no-scrollbar` trong CSS hoặc bỏ thanh cuộn. Dùng chung một kiểu nút.
+- **Thanh trên (lỗi D-14, B-16):** không có thanh cuộn, nút không dạt lệch, dùng chung một kiểu nút. `ref_label` rỗng ⇒ `repo_name · @ sha7`.
 - **Hai thẻ repo (lỗi D-10):** thẻ phiên hiện thêm mã commit hoặc ngày tạo.
-- **Số đo:** "Khóa bí mật đã che" đổi thành "Nội dung nhạy cảm đã che", vì số này đếm cả email.
+- **Số đo:** dùng "Đã che {n} nội dung nhạy cảm", không dùng "Khóa bí mật đã che", vì số này đếm cả email.
 
 ## Tiêu chí xong
 - Lệnh kiểm: `npx tsc --noEmit && npm run build`
 - Đăng nhập GitHub hoạt động chuẩn xác, truyền `next` cho callback auth.
-- Quét xong vào `/learn?session=<id>` và mở modal Tổng quan với `active_node_id = null`.
+- Quét xong vào `/learn?session=<id>`, cửa sổ Tổng quan tự mở với `active_node_id = null`; đóng lại thì cột giữa và cột phải nhắc chọn node.
+- Từ `lg` thấy đủ 3 cột, mỗi cột cuộn riêng; nhỏ hơn `lg` còn 1 cột, không cuộn ngang.
 - Thiếu `session` thì tự chuyển về `/roadmap` (ngoại lệ `?offline=1`).
 - Hàng đợi phân tích D-46 chỉ gửi tối đa 1–2 node kế tiếp (T13). Thử lại phân tích khi lỗi (T14).
 - Không tạo mock trong route hoặc store giả phía server; API lỗi thì hiển thị thông báo lỗi.
@@ -97,12 +100,12 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 
 - [ ] Claude báo lệnh kiểm xanh, và bạn tự chạy lại `npx tsc --noEmit && npm run build` cũng xanh.
 - [ ] `git status` chỉ có các file ở mục Được ghi.
-- [ ] Người chạy tay: dán link repo demo ⇒ nạp bản đồ thành công ⇒ bấm node ⇒ hiển thị dữ liệu phân tích thật.
-- [ ] DevTools (Network): chỉ gửi yêu cầu `analyze-node` cho node đang mở và 1–2 node kế tiếp (D-46, `docs/spec/30_UI.md` T13).
-- [ ] Thử T31 của `docs/spec/30_UI.md`: chưa đăng nhập mở `/` thấy màn hình "Đăng nhập GitHub"; đăng xuất thì quay về màn hình đó.
-- [ ] Thử T14, T28, T30 của `docs/spec/30_UI.md`: node phân tích lỗi có nút "Thử lại phân tích"; tải lại trang giữa chừng vẫn đúng lượt; "Học lại từ đầu" ra phiên mới.
+- [ ] Người chạy tay: dán link repo demo ⇒ nạp bản đồ thành công, cửa sổ Tổng quan tự mở ⇒ đóng cửa sổ, bấm node ⇒ hiện code ở cột giữa, tab X-Ray ở cột phải với dữ liệu phân tích thật.
+- [ ] DevTools (Network): chỉ gửi yêu cầu `analyze-node` cho node đang mở và 1–2 node kế tiếp (D-46, `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6 T13).
+- [ ] Thử T31 ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: chưa đăng nhập mở `/` thấy màn hình "Đăng nhập GitHub"; đăng xuất thì quay về màn hình đó.
+- [ ] Thử T14, T28, T30 ở `docs/spec/50_TEST_VA_FIXTURE.md` Mục 6: node phân tích lỗi có nút "Thử lại phân tích"; tải lại trang giữa chừng vẫn đúng lượt; "Học lại từ đầu" ra phiên mới.
 - [ ] Mở phiên A, về Lộ trình, mở phiên B: không thấy bài của A.
-- [ ] Ở 1366px và 1920px, thanh trên không có thanh cuộn, tên file đọc được, nút không dạt lệch.
+- [ ] Ở 1366px và 1920px, thấy đủ 3 cột; thanh trên không có thanh cuộn, nút không dạt lệch.
 
 ```text
 Task "D06 — Trang chủ, đăng nhập, lộ trình, nối API lát dọc 1" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
@@ -113,14 +116,14 @@ Làm lại tối đa 1 lần; vẫn sai thì dán cho Claude: "Sửa trực ti�
 ## Bước 4 — Commit và PR (bạn tự gõ)
 
 ```powershell
-git add src/app/login/ src/app/register/ src/components/auth/
-git commit -m "feat(ui): trang đăng nhập và đăng ký qua supabase"
-git add src/app/page.tsx
-git commit -m "feat(ui): trang chủ dán link repo và tải file zip"
-git add src/app/roadmap/ src/components/roadmap/ src/components/roadmap-detail/
-git commit -m "feat(ui): trang lộ trình học tập và tiến độ tổng quan"
-git add src/app/learn/ src/store/workbench.ts
-git commit -m "feat(ui): trang học tập nối api lát dọc 1 và hàng đợi phân tích"
+git add src/app/login/ src/app/register/ src/app/page.tsx src/components/home/
+git commit -m "feat(ui): trang chủ và đăng nhập qua supabase"
+git add src/app/roadmap/ src/components/ui/Page.tsx
+git commit -m "feat(ui): trang lộ trình học tập"
+git add src/app/layout.tsx src/components/layout/Boot.tsx
+git commit -m "feat(ui): khởi động app"
+git add src/app/learn/ src/components/learn/LearnShell.tsx src/components/learn/CockpitHeader.tsx src/store/workbench.ts
+git commit -m "feat(ui): trang học 3 cột nối api lát dọc 1 và hàng đợi phân tích"
 git pull --rebase origin main
 git push -u origin d/D06-noi-api
 gh pr create --base main --title "D06 — Trang chủ, đăng nhập, lộ trình, nối API lát dọc 1" --body "Closes #<số Issue>"

@@ -259,11 +259,11 @@ Cách này không cần cài Supabase CLI hay Docker. Đổi bảng về sau th�
 // Nút đăng nhập
 await supabase.auth.signInWithOAuth({
   provider: "github",
-  options: { redirectTo: `${location.origin}/auth/callback` },
+  options: { redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(duongDanDich)}` },
 });
 ```
 
-Mảnh thứ hai là file `src/app/auth/callback/route.ts`, nhận `code` trên URL rồi gọi `exchangeCodeForSession(code)`. Làm theo mục "PKCE, Next.js" trong tài liệu Supabase ở Mục 9, dùng `@supabase/ssr`.
+Mảnh thứ hai là file `src/app/auth/callback/route.ts`, nhận `code` trên URL rồi gọi `exchangeCodeForSession(code)`. Làm theo mục "PKCE, Next.js" trong tài liệu Supabase ở Mục 9, dùng `@supabase/ssr`. Route chỉ nhận `next` là đường dẫn nội bộ, và chuyển hướng theo `x-forwarded-host` vì sau proxy `request.url` mang host nội bộ.
 
 - [ ] Chạy `npm run dev`, bấm đăng nhập, quay về app và thấy tên GitHub là đạt.
 
