@@ -744,7 +744,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đổi thành câu 1 nói phần này giúp người dùng làm gì, câu 2 nói các bước chia việc. Sửa `20`, prompt, đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`. Không đổi contract. Sau đó Vai D đưa câu 1 lên đầu tab X-Ray.
 - **Kiểm tra:** chạy AI thật trên repo demo, duyệt tay ít nhất 3 bài, câu đầu nói đúng việc của người dùng.
 - **Ghi chú 06/11:** quyết định D-84 dùng câu 1 này làm dòng "Vai trò" của thẻ vai trò (D-22). Sửa thêm `steps[].text` cho người mới đọc, vì tour (D-19) hiện từng câu này.
-- **Trạng thái:** đã kiểm prompt, chưa chạy AI thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật 2, 3 của prompt phân tích chép đúng `20` AI-16; gộp vào PR C-12 để dùng chung `PROMPT_VERSION` `1.2.0`. Chạy AI thật 4 bài BrewLite (`Create Order`, `Auth Register`, `List Products`, `Payment Create-url`), duyệt tay: 4/4 câu 1 nói việc của người dùng, bước có giải thích thuật ngữ trong ngoặc. `Create Order` 5 bước ra 739 token, gần trần 900 (xem C-02).
 
 ### C-08 · Vừa · Code AI chưa theo quyết định D-74
 
