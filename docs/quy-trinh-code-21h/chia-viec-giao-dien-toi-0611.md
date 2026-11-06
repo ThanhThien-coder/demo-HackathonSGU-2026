@@ -78,7 +78,6 @@ flowchart LR
     D12["D12 · Phat107<br/>active_step, goToStep"] --> WB
     D15["D15 · Thiện<br/>gọi goToStep"] --> WB
     D19["D19 · Huynh Nhan<br/>cache giải thích"] --> WB
-    D16["D16 · Huynh Nhan"] --> PG
     D18["D18 · Huynh Nhan"] --> PG
     D12 --> PG
     D17["D17 · Minh"] --> PG
