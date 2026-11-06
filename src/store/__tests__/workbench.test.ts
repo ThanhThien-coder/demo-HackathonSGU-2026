@@ -187,6 +187,7 @@ describe("src/store/workbench.ts", () => {
           presentation_pane: true,
           hint_step: 3,
           offline_persona: "SENIOR_RUSTY",
+          hl: [],
         },
       });
 
