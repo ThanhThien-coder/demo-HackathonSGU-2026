@@ -640,7 +640,7 @@ export const injectionGrading = (t: Pick<RunQuestion, "must_have_points">): Grad
 
 ### Luồng (AI-38, D-82)
 
-`explainSelection(session, graph, req): Promise<ExplainSelectionResponse>`, gọi từ `POST /api/explain-selection` (`03`).
+`explainSelection(session, graph, req): Promise<ExplainSelectionResponse>`, gọi từ `POST /api/explain-selection` (`03`). Route làm bước 1, hàm làm bước 2–6.
 
 1. Lấy node `req.node_id` và bước `req.step_number` từ kết quả engine của phiên. Cắt vùng `req.range` trong `snippet` theo `snippet_line_map` (số dòng gốc, cột tính từ 1). Vùng ra ngoài bước, rỗng, khác `req.selected_text` (so sau khi bỏ khoảng trắng 2 đầu) hoặc dài hơn `CONFIG.EXPLAIN_SELECTION_MAX_CHARS` ký tự ⇒ `ERR_SELECTION_INVALID`, 0 token.
 2. `references` do code tính, 0 token: các bước của node khác có phần cuối `function_name` (sau dấu `.` cuối) trùng một tên khớp `IDENT_RE` trong vùng chọn; sort theo `node_id` rồi `step_number`; tối đa `CONFIG.GRADE_REFERENCED_MAX` mục.

@@ -7,8 +7,10 @@
 
 import {
   CONFIG,
+  type ExplainSelectionResponse,
   type StaticEngineResult,
 } from "@/contracts";
+import { explainSelection } from "@/server/ai/explain";
 import { authenticateRequest } from "@/server/auth";
 import { ApiHttpError, toErrorResponse } from "@/server/errors";
 import {
@@ -211,7 +213,8 @@ export async function POST(request: Request): Promise<Response> {
     const graph = await getSessionStaticResult(session, user.id);
 
     // Cắt và kiểm tra vùng chọn (11)
-    extractAndValidateSelection(graph, {
+    const selection = {
+      session_id: sessionId,
       node_id: body.node_id,
       step_number: body.step_number,
       range: {
@@ -221,10 +224,15 @@ export async function POST(request: Request): Promise<Response> {
         col_end: range.col_end,
       },
       selected_text: body.selected_text,
-    });
+    };
+    extractAndValidateSelection(graph, selection);
 
-    // Chờ C-11: thay bằng explainSelection (20 Mục explain-selection).
-    throw new ApiHttpError("ERR_AI_UNAVAILABLE");
+    // Bước 2–6 của AI-38: tên xuyên bài, cache, giới hạn lượt, gọi AI, cổng gác (C-11)
+    const resBody: ExplainSelectionResponse = await explainSelection(session, graph, selection);
+    return new Response(JSON.stringify(resBody), {
+      status: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    });
   } catch (error: unknown) {
     return toErrorResponse(error);
   }

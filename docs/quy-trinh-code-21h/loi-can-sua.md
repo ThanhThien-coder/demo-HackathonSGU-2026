@@ -880,7 +880,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-82: prompt, schema, cổng gác, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION`. Sửa `20`, `21`, `src/server/ai/*`. Endpoint ở A-08.
 - **Kiểm tra:** chạy AI thật 3 vùng chọn (từ khóa, tên, đoạn code); tên bịa bị chặn; vùng chọn sai ra `ERR_SELECTION_INVALID`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `prompts/explain.ts`, `explain.ts` (tên xuyên bài, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION` đếm ở `ai_usage`, quota, gọi AI, cổng gác), `guard/explain.ts` (GUARD-23), `explainScope`; route của Thiện gọi hàm này thay chỗ chờ; thêm migration `0002_explain_selection.sql` (chưa chạy lên Supabase). Chạy AI thật N3 bước 2: `await` ⇒ `KEYWORD`, `findById` ⇒ `NAME`, vòng `for` ⇒ `CODE`, cả 3 qua cổng gác, ~1 300 token vào, ~130 ra. Tên bịa (`verifyToken`) bị chặn ở test GUARD-23; vùng chọn sai ra 400 ở test route.
 
 ### C-12 · Nặng · Tổng quan chờ hết node, chưa đặt tên
 
