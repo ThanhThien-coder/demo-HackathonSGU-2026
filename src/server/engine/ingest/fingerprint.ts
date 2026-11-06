@@ -21,6 +21,9 @@ import { redactAndMaskCode } from "./secrets";
 
 const SERVER_SEGMENTS = new Set(["server", "backend", "api"]);
 
+// Gói backend JS chỉ tính khi nằm ở dependencies (spec 10 Mục 12 ý 3, ý 5)
+const BACKEND_JS_FRAMEWORKS = new Set(["@nestjs/core", "express", "fastify", "koa"]);
+
 const CLIENT_SEGMENTS = new Set([
   "client",
   "frontend",
@@ -243,6 +246,8 @@ export function detectScope(
 export interface ParsedManifest {
   path: string;
   packages: string[];
+  /** Gói chỉ có trong devDependencies của package.json (spec 10 Mục 12 ý 3, lỗi B-34) */
+  dev_only_packages: string[];
   has_bin: boolean;
   main: string | null;
   bin_paths: string[];
@@ -366,6 +371,7 @@ export function parseManifests(
     const dirPrefix = dir === "." ? "" : `${dir}/`;
 
     let packages: string[] = [];
+    let dev_only_packages: string[] = [];
     let has_bin = false;
     let main: string | null = null;
     let bin_paths: string[] = [];
@@ -423,6 +429,19 @@ export function parseManifests(
         }
 
         packages = Array.from(pkgSet);
+
+        // Gói chỉ nằm ở devDependencies (không có ở dependencies, peerDependencies)
+        const runtimeKeys = new Set<string>();
+        for (const group of [deps, peerDeps]) {
+          if (group && typeof group === "object") {
+            for (const k of Object.keys(group)) runtimeKeys.add(k.trim().toLowerCase());
+          }
+        }
+        if (devDeps && typeof devDeps === "object") {
+          dev_only_packages = Object.keys(devDeps)
+            .map((k) => k.trim().toLowerCase())
+            .filter((k) => !runtimeKeys.has(k));
+        }
 
         // bin
         if (typeof parsed.bin === "string" && parsed.bin.trim() !== "") {
@@ -615,6 +634,7 @@ export function parseManifests(
     }
 
     result.push({
+      dev_only_packages,
       path: manifestPath,
       packages,
       has_bin,
@@ -666,6 +686,20 @@ export function buildFingerprint(
       for (const pkg of pm.packages) {
         scopePackagesSet.add(pkg);
       }
+    }
+  }
+
+  // Gói chạy thật trong scope: bỏ gói chỉ có ở devDependencies (spec 10 Mục 12 ý 3, lỗi B-34)
+  const runtimePackagesSet = new Set<string>();
+  for (const pm of parsedManifestList) {
+    const isInScope =
+      scope.root_dir_offset === "" ||
+      pm.path.startsWith(scope.root_dir_offset) ||
+      !pm.path.includes("/");
+    if (!isInScope) continue;
+    const devOnly = new Set(pm.dev_only_packages);
+    for (const pkg of pm.packages) {
+      if (!devOnly.has(pkg)) runtimePackagesSet.add(pkg);
     }
   }
 
@@ -724,11 +758,11 @@ export function buildFingerprint(
   }
   // Luật 3: WEB_BACKEND
   else if (
-    scopePackagesSet.has("express") ||
-    scopePackagesSet.has("koa") ||
-    scopePackagesSet.has("fastify") ||
-    scopePackagesSet.has("@nestjs/core") ||
-    scopePackagesSet.has("@hapi/hapi") ||
+    runtimePackagesSet.has("express") ||
+    runtimePackagesSet.has("koa") ||
+    runtimePackagesSet.has("fastify") ||
+    runtimePackagesSet.has("@nestjs/core") ||
+    runtimePackagesSet.has("@hapi/hapi") ||
     scopePackagesSet.has("fastapi") ||
     scopePackagesSet.has("flask") ||
     scopePackagesSet.has("django") ||
@@ -804,7 +838,9 @@ export function buildFingerprint(
         break;
       }
     } else {
-      if (scopePackagesSet.has(fw.pkg)) {
+      // Nhãn backend JS chỉ nhận khi là gói chạy thật, không phải gói kiểm thử ở devDependencies
+      const pool = BACKEND_JS_FRAMEWORKS.has(fw.pkg) ? runtimePackagesSet : scopePackagesSet;
+      if (pool.has(fw.pkg)) {
         detected_framework = fw.label;
         break;
       }
