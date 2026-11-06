@@ -61,4 +61,6 @@ export interface IngestOutput {       // Chỉ sống trong runEngine
   manifests: Map<string, string>;     // ManifestStore — không tính vào CONFIG.MAX_CLEAN_FILES
   source_map: Map<string, VirtualFileOrigin>;
   module_info: { go_module_path: string | null; dart_package_name: string | null; package_entry_files: string[] };
+  readme_excerpt: string | null;      // Đoạn đầu README, đã che secret, ≤ CONFIG.OVERVIEW_README_MAX_CHARS (D-83)
+  manifest_description: string | null;
 }

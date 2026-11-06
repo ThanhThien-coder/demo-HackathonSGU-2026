@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import { DEFAULT_LANGUAGE_REGISTRY } from "./prune";
 import { stripJsonc } from "../jsonc";
+import { redactAndMaskCode } from "./secrets";
 
 const SERVER_SEGMENTS = new Set(["server", "backend", "api"]);
 
@@ -991,4 +992,114 @@ export function assertNotEmpty(
     `No source code files found in repository (${hint})`,
     { hint }
   );
+}
+
+const README_BASENAME_REGEX = /^readme(\.(md|rst|txt))?$/i;
+
+/**
+ * Chọn file README theo ING-123: ở root_dir_offset, không có thì ở gốc repo; nhiều file thì path nhỏ nhất.
+ * Trả null nếu không có hoặc size > CONFIG.MAX_MANIFEST_BYTES.
+ */
+export function pickReadmeEntry(
+  entries: ClassifiedEntry[],
+  scope: ScopeDecision
+): ClassifiedEntry | null {
+  const inDir = (dir: string): ClassifiedEntry[] =>
+    entries
+      .filter((e) => {
+        if (e.is_dir || e.is_symlink || e.is_encrypted || !e.path.startsWith(dir)) return false;
+        const rest = e.path.slice(dir.length);
+        return !rest.includes("/") && README_BASENAME_REGEX.test(rest);
+      })
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
+  let found = scope.root_dir_offset ? inDir(scope.root_dir_offset) : [];
+  if (found.length === 0) found = inDir("");
+  const chosen = found[0];
+  if (!chosen || chosen.size > CONFIG.MAX_MANIFEST_BYTES) return null;
+  return chosen;
+}
+
+/** Che secret và PII rồi cắt theo CONFIG.OVERVIEW_README_MAX_CHARS. Rỗng sau trim thì null. */
+function sanitizeProjectText(text: string, report: IngestionReport): string | null {
+  const cleaned = redactAndMaskCode(text);
+  // Mất bảo toàn dòng nghĩa là bản che không dùng được: bỏ, không giữ bản chưa che
+  if (!cleaned.linePreserved) return null;
+  report.redacted_secret_count += cleaned.count;
+  const cut = cleaned.code.trim().slice(0, CONFIG.OVERVIEW_README_MAX_CHARS).trim();
+  return cut === "" ? null : cut;
+}
+
+function tomlProjectDescription(content: string): string | null {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  let inProject = false;
+  for (const line of lines) {
+    const header = line.match(/^\s*\[([^\]]+)\]\s*$/);
+    if (header) {
+      inProject = header[1].trim() === "project";
+      continue;
+    }
+    if (!inProject) continue;
+    const m = line.match(/^\s*description\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/);
+    if (m) return (m[1] ?? m[2] ?? "").trim() || null;
+  }
+  return null;
+}
+
+function pomDescription(content: string): string | null {
+  // Bỏ comment và các khối có <description> lồng (dependency, plugin, parent...)
+  const stripped = content
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(parent|dependencies|dependencyManagement|build|profiles|reporting|modules)>[\s\S]*?<\/\1>/g, "");
+  const m = stripped.match(/<description>([\s\S]*?)<\/description>/);
+  return m ? m[1].trim() || null : null;
+}
+
+function manifestDescription(manifestPath: string, content: string): string | null {
+  const base = manifestPath.slice(manifestPath.lastIndexOf("/") + 1);
+  if (base === "package.json") {
+    try {
+      const parsed = JSON.parse(stripJsonc(content)) as { description?: unknown };
+      return typeof parsed.description === "string" && parsed.description.trim() !== ""
+        ? parsed.description.trim()
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  if (base === "pyproject.toml") return tomlProjectDescription(content);
+  if (base === "pom.xml") return pomDescription(content);
+  return null;
+}
+
+/**
+ * Mô tả dự án cho tổng quan (ING-123, D-83): README đầu tiên và mô tả trong manifest.
+ * Cả hai đã che secret, cắt theo CONFIG.OVERVIEW_README_MAX_CHARS; không có thì null.
+ */
+export function buildProjectText(
+  readme: string | null,
+  manifests: Map<string, string>,
+  scope: ScopeDecision,
+  report: IngestionReport
+): Pick<IngestOutput, "readme_excerpt" | "manifest_description"> {
+  const readme_excerpt = readme === null ? null : sanitizeProjectText(readme, report);
+
+  // Manifest trong offset trước, rồi ở gốc repo; trong mỗi nhóm path tăng dần
+  const paths = Array.from(manifests.keys()).sort();
+  const inOffset = scope.root_dir_offset
+    ? paths.filter((p) => p.startsWith(scope.root_dir_offset))
+    : [];
+  const atRoot = paths.filter((p) => !p.includes("/"));
+  let manifest_description: string | null = null;
+  for (const p of [...inOffset, ...atRoot]) {
+    const raw = manifestDescription(p, manifests.get(p) ?? "");
+    if (raw === null) continue;
+    const cleaned = sanitizeProjectText(raw, report);
+    if (cleaned !== null) {
+      manifest_description = cleaned;
+      break;
+    }
+  }
+
+  return { readme_excerpt, manifest_description };
 }
