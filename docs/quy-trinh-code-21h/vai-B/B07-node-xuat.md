@@ -55,7 +55,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
    - **`hash6(s)`** = 6 ký tự hex đầu của SHA-1 (UTF-8) bằng `node:crypto` (D-08, ENG-111); kiểm bằng id kỳ vọng của T-ENG-18.
    - **Input test**: dựng zip trong RAM bằng `fflate` ⇒ `runIngest({ kind: "ZIP_UPLOAD", … })` ⇒ `buildGraph` (không tự dựng `StaticEngineResult` bằng tay, trừ test hàm thuần như `mainPath`, `toClientResult`). Bẫy khi viết test (đã gặp lúc tập): `edges` sort theo `id` (Mục 15 ý 4, id là mã băm) ⇒ so tập cạnh đã sort, không so thứ tự A→B→C; 2 candidate cùng tập `functions` bị ENG-110 gộp làm một ⇒ ca "chuỗi A→B→C giữ {A,C}" của T-ENG-15 phải dùng > `CONFIG.DISPLAY_MAX_NODES` candidate để Display Budget bỏ B, hoặc test riêng hàm tính cạnh trên tập giữ `K` (Mục 11 ý 6); không dựng `ParsedFile` với `tree: null`; không ép kiểu `as HybridArchitecturalNode` từ `Candidate`. Hàm của B06 tên là `cognitiveComplexity` (không có `computeCognitiveComplexity`). T-ENG-34: chạy 2 lần cùng zip, so `JSON.stringify` của `nodes`, `edges`, `symbol_whitelist` (không so `engine_ms`).
    - **Node từ file test:** còn từ `CONFIG.DISPLAY_MIN_NODES` candidate không mang cờ ING-87 thì bỏ candidate mang cờ, không cộng vào `omitted_node_count`. Ít hơn thì giữ để repo thư viện vẫn có bản đồ. Capstone không được nằm ở file test khi đã bỏ.
-   - **Cây bài học (D-73, ENG-115, lỗi B-04, B-05):** sau Display Budget, gọi `addTreeEdges` đúng 6 ý của ENG-115. Chỉ xét lát cắt, không áp cho node thuật toán, node ảo, để giữ D-56 và T-ENG-38. Cạnh khác module chỉ thêm khi bài đầu nhánh của module được dùng **dễ hơn** bài đầu nhánh của module đang xét. Bỏ điều kiện này thì `shop-api` chỉ còn 1 bài mở đầu là `Order Email`, `Đăng ký` bị khóa sau nó. Cạnh thêm là `INFERRED`, vào `edges` và `prerequisites`, có khóa bài thật. Cạnh tạo vòng thì bỏ.
+   - **Cạnh theo dữ liệu (D-85, ENG-116 … ENG-119, lỗi B-39, B-40, B-04, B-05):** không làm `addTreeEdges`, luật cây D-73 đã bị thay. Mỗi bài có `entities`, `G0` dựng theo ENG-118, `groups` theo ENG-119. Cặp D-07 chỉ dùng cho bài không có thực thể từ code và chưa có cạnh; giữ D-56 và T-ENG-38. Làm ở bước 7 luồng 1 trong `loi-can-sua.md`.
 6. Viết test trong `src/server/engine/graph/__tests__/node.test.ts` bao phủ các ca T-ENG-14, T-ENG-15, T-ENG-18, T-ENG-19, T-ENG-21, T-ENG-22, T-ENG-23, T-ENG-25, T-ENG-27, T-ENG-28, T-ENG-29, T-ENG-30, T-ENG-31, T-ENG-32, T-ENG-33, T-ENG-34, T-ENG-35, T-ENG-36, T-ENG-37, T-ENG-38 (T-ENG-25, T-ENG-31 chạy đủ đường `buildGraph`; B05 mới kiểm phần chọn chế độ và `parseAll`).
 7. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
@@ -74,9 +74,9 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Bản đồ giới hạn tối đa `CONFIG.DISPLAY_MAX_NODES` node (ENG-114).
 - `npm run typecheck`, `npm test`, `npm run lint` (0 error; engine 0 warning) đều sạch.
 - `resolveHandlerKey` trả `string | null`, lấy đối số từ trường `arguments`. Lời gọi không có đối số như `cors()` là factory, không tạo binding. Tên middleware dạng factory lấy tên hàm: `validate(s)` là `validate`. Candidate không có bước nào bị bỏ trước ENG-110, không cộng vào `omitted_node_count`.
-- Học xong mới mở bài tiếp theo: lát cắt cùng module chỉ còn bài đầu nhánh mở sẵn (D-73). `shop-api` có điểm bắt đầu N1, N3, N6.
+- Học xong mới mở bài tiếp theo: bài dùng thực thể bị khóa sau bài tạo thực thể đó (D-85). `shop-api` có điểm bắt đầu N1, N3.
 - Không có node từ file test khi còn đủ candidate thật; Capstone không nằm ở file test.
-- T-ENG-22, T-ENG-22b, T-ENG-41 xanh; T-ENG-28, T-ENG-37, T-ENG-38 vẫn xanh.
+- T-ENG-22, T-ENG-22b, T-ENG-41, T-ENG-45 … 48, T-ENG-50 xanh; T-ENG-28, T-ENG-37, T-ENG-38 vẫn xanh.
 - Không có node `ALGORITHMIC_CORE` có `function_name` là `<module>`.
 
 ## Cấm
