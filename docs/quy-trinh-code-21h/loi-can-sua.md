@@ -794,7 +794,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   7. Chốt một repo Java làm repo demo, rồi dựng lại gói Offline và kịch bản demo theo repo đó.
 - **Kiểm tra:** quét `spring-petclinic` và `SGU-quan-ly-nha-hang`: `primary_language` là Java, tier `RESOLVED`, tên bài theo route đúng, có bài đi đủ controller, service, repository và tới `DATA_ACCESS`. Chạy AI thật trọn một bài trên repo demo Java.
 - **Ảnh hưởng demo:** có, đổi repo demo và kịch bản vấn đáp.
-- **Trạng thái:** chưa làm. Phải sửa quyết định D-76 trước khi code.
+- **Trạng thái:** đang làm. Nhánh `b/b38-java-nen` xong bước 2–3: grammar, `queries/java.scm`, adapter `JAVA`, đọc class, method, field, import. Quét thật `spring-petclinic`, `SGU-quan-ly-nha-hang`: `JAVA`, tier `RESOLVED`, không lỗi cú pháp, engine ra 7 và 20 node. Chưa có route Spring, tầng, `DATA_ACCESS`, nên tên bài chưa theo route. Bước 4 chờ luật Spring trong `11` và mốc 1.
 
 ### B-39 · Nặng · Bản đồ không nối các chức năng với nhau
 
