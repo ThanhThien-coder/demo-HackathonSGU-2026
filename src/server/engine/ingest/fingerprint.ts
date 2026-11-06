@@ -16,6 +16,7 @@ import type {
   ScopeDecision,
 } from "./types";
 import { DEFAULT_LANGUAGE_REGISTRY } from "./prune";
+import { stripJsonc } from "../jsonc";
 
 const SERVER_SEGMENTS = new Set(["server", "backend", "api"]);
 
@@ -231,11 +232,7 @@ export interface ParsedManifest {
  * Làm sạch JSON có comment hoặc trailing comma theo ING-120
  */
 function cleanJson(str: string): string {
-  return str
-    .replace(/^\uFEFF/, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/[^\r\n]*/g, "")
-    .replace(/,\s*([\]}])/g, "$1");
+  return stripJsonc(str);
 }
 
 /**
@@ -365,7 +362,7 @@ export function parseManifests(
         try {
           parsed = JSON.parse(cleanJson(content)) as Record<string, unknown>;
         } catch {
-          if (report) {
+          if (report && basename === "package.json") {
             const warn = `Tệp cấu hình ${manifestPath} bị hỏng định dạng.`;
             if (!report.warnings.includes(warn)) {
               report.warnings.push(warn);

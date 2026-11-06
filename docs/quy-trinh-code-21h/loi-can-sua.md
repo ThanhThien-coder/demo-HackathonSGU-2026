@@ -281,7 +281,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** `nestjs/nest` có 30 cảnh báo, gần hết là "Tệp cấu hình .../tsconfig.json bị hỏng định dạng". Các file đó vẫn dùng được.
 - **Nguyên nhân:** `cleanJson` xóa comment bằng regex mà không phân biệt chuỗi, nên `"https://..."`, `"@/*"` và `"src/**/*"` bị coi là comment. tsconfig được phép có dấu phẩy thừa, nên hàm này chạy và làm hỏng file.
 - **Cần sửa:** bỏ comment có xét chuỗi, hoặc dùng parser JSONC. `tsconfig.json` chỉ dùng cho alias, không nên hiện cảnh báo cho người học.
-- **Trạng thái:** đã chạy thật, chưa làm. Lỗi cùng kiểu ở trình đọc alias ghi tại B-26.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b25-b26-tsconfig`. Thêm `src/server/engine/jsonc.ts` (bỏ comment có xét chuỗi, bỏ dấu phẩy thừa), `fingerprint.ts` dùng chung. tsconfig/jsconfig hỏng không còn cảnh báo cho người học, `package.json` hỏng vẫn cảnh báo. Quét thật `nestjs/nest`: 0 cảnh báo tsconfig (trước 30). Test trong `graph/__tests__/tsconfig.test.ts`. Typecheck sạch, lint 0 lỗi, 770 test qua.
 
 ### B-26 · Vừa · Không đọc được alias `@/` nên mất cạnh gọi hàm
 
@@ -290,7 +290,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** tìm tsconfig gần file đang xét nhất và tính `paths` theo thư mục đó. Dùng chung parser JSONC với B-25.
 - **Kiểm tra:** 3 repo trên không còn `@/...` trong external, `frontend/` của BrewLite có cạnh gọi.
 - **Ảnh hưởng demo:** không ảnh hưởng `backend/` của BrewLite. Có ảnh hưởng khi đổi sang `frontend/`.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b25-b26-tsconfig`. `ts_js.ts` đọc mọi tsconfig/jsconfig trong manifests (parser JSONC chung với B-25), mỗi file dùng tsconfig gần nhất, `baseUrl` tính từ thư mục chứa tsconfig, và mẫu `@/*` giữ dấu `/` nên không nuốt `@nestjs/core`. Quét thật (import `@/...` còn tính là gói ngoài): `CNPM_BrewLite` 147 → 0 (cạnh gọi 72), `shadcn-ui/taxonomy` 274 → 43, `full-stack-fastapi-template/frontend` 248 → 30, `nestjs/nest` 0. Phần còn lại ở `taxonomy` và `fastapi` nghi do trần số file (`truncated`, quota loại 26 và 49 file), chưa chứng minh. Chưa kiểm trực tiếp cạnh gọi khi chọn `frontend/` của BrewLite vì repo đã đổi cấu trúc thành `apps/web`. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-27 · Vừa · Bài học lấy cả `<module>` làm thuật toán
 
