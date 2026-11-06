@@ -34,6 +34,8 @@ import type {
   AnalyzeNodeResponse,
   AnalyzeOverviewRequest,
   AnalyzeOverviewResponse,
+  ExplainSelectionRequest,
+  ExplainSelectionResponse,
   EnrichNodeRequest,
   EnrichNodeResponse,
   QuestionView,
@@ -74,6 +76,8 @@ export type {
   AnalyzeNodeResponse,
   AnalyzeOverviewRequest,
   AnalyzeOverviewResponse,
+  ExplainSelectionRequest,
+  ExplainSelectionResponse,
   EnrichNodeRequest,
   EnrichNodeResponse,
   QuestionView,
@@ -951,6 +955,32 @@ export async function reportWrongSafe(
   data: ReportWrongRequest
 ): Promise<ApiResult<ReportWrongResponse>> {
   return apiFetchSafe<ReportWrongResponse>("/api/report-wrong", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// -------------------------------------------------------------------------
+// Bước 14: POST /api/explain-selection (Giải thích đoạn mã chọn D-82, UI-34, D19)
+// -------------------------------------------------------------------------
+export async function explainSelectionSafe(
+  data: ExplainSelectionRequest
+): Promise<ApiResult<ExplainSelectionResponse>> {
+  if (isOfflineMode()) {
+    return {
+      ok: false,
+      data: null,
+      error: {
+        error: {
+          code: "ERR_AI_UNAVAILABLE",
+          message: "Offline không giải thích đoạn chọn.",
+          retryable: false,
+        },
+      },
+    };
+  }
+
+  return apiFetchSafe<ExplainSelectionResponse>("/api/explain-selection", {
     method: "POST",
     body: JSON.stringify(data),
   });

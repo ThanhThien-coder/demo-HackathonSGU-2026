@@ -27,6 +27,8 @@ import { isOfflineMode, loadOfflineBundle } from "@/lib/offline";
 import { getErrorMessage } from "./utils/messages";
 import { useWorkbenchStore } from "@/store/workbench";
 import { useUserStore } from "@/stores/userStore";
+import { SelectionPopover } from "@/components/code/SelectionPopover";
+import type { CodeSelection } from "@/components/code/slice-model";
 import { activeQuestionArrayIndex, hasNextQuestionToOpen } from "./components/question-list";
 
 // Offline không có phiên thật; dữ liệu lấy từ gói offline
@@ -88,6 +90,8 @@ function LearnCockpitContent() {
 
   // 4. Chỉ giữ useState cục bộ cho 6 hộp thoại/ngăn kéo, các cờ nộp/bỏ qua/báo sai, và reloadKey
   const [isFullFileModalOpen, setIsFullFileModalOpen] = useState(false);
+  // D19: vùng bôi đen trong khung code (D11 onSelect)
+  const [codeSelection, setCodeSelection] = useState<CodeSelection | null>(null);
   const [isEvaluationDialogOpen, setIsEvaluationDialogOpen] = useState(false);
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
   const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
@@ -220,6 +224,11 @@ function LearnCockpitContent() {
     if (!active_node_id || !result?.nodes) return null;
     return result.nodes.find((n) => n.id === active_node_id) || null;
   }, [active_node_id, result]);
+
+  // D19: đổi bài, đổi bước ⇒ bỏ vùng chọn cũ
+  useEffect(() => {
+    setCodeSelection(null);
+  }, [active_node_id, active_step]);
 
   const activeEntry = active_node_id ? analyses[active_node_id] : undefined;
   const analysis = typeof activeEntry === "object" && activeEntry !== null ? activeEntry : null;
@@ -609,6 +618,7 @@ function LearnCockpitContent() {
               highlightedStep={hint_step}
               activeStep={active_step}
               onSelectStep={(step) => useWorkbenchStore.getState().setActiveStep(step)}
+              onSelect={setCodeSelection}
               isPresentationMode={presentation_pane}
               onTogglePresentationMode={() =>
                 useWorkbenchStore.getState().setPresentationPane(!presentation_pane)
@@ -662,6 +672,15 @@ function LearnCockpitContent() {
           )}
         </main>
       </div>
+
+      {/* D19: nút "Giải thích" + popover cho vùng bôi đen */}
+      {currentNode && (
+        <SelectionPopover
+          node={currentNode}
+          selection={codeSelection}
+          onClose={() => setCodeSelection(null)}
+        />
+      )}
 
       {/* 6. Full Source File Modal */}
       <FullFileModal

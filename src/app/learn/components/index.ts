@@ -9,3 +9,4 @@ export * from "./SkipConfirmDialog";
 export * from "./ReportWrongDialog";
 export * from "./FullFileModal";
 export * from "./XRayPanel";
+export * from "./RoleCard";

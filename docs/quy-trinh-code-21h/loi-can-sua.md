@@ -871,13 +871,13 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-84: tên và route, "Vai trò", "Cần trước", "Mở ra cho", "Dữ liệu"; thiếu dữ liệu thì ẩn dòng.
 - **Kiểm tra:** bài "Xem danh sách sản phẩm" ra đủ 4 dòng như `prototype.html`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm (D16): component `RoleCard` + `buildRoleCard` (`src/lib/role-card.ts`), nhãn Tạo · Đọc · Sửa · Xóa, thiếu dữ liệu ẩn dòng, chưa có phân tích ⇒ shimmer "đang phân tích…". Test T-UI-03 xanh. **Chưa gắn vào tour**: D12 (Phat107) đặt `<RoleCard node={node} onStartTour={…} />` ở bước 0.
 
 ### D-23 · Vừa · Chưa có giải thích đoạn chọn
 
 - **Cần sửa:** theo D-82: bôi đen trong khung code hiện nút "Giải thích"; popover hiện tiêu đề, "Là gì", "Ở đây", "Ví dụ đời thường", kỹ năng liên quan, "Còn dùng ở"; trạng thái chờ, lỗi, hết lượt, bị chặn; nhớ kết quả trên trình duyệt.
 - **Kiểm tra:** bôi đen `await` ra giải thích; bôi lại đúng chỗ đó hiện liền, không gửi request.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** phần lõi chờ kiểm (D19): `explainSelectionSafe` (`api.ts`), action `explainSelection` + nhớ ở `ui.explanations` (`workbench.ts`), `code/SelectionPopover` đủ mục và trạng thái (chờ, `null`, lỗi + "Thử lại", hết lượt tắt nút, Offline không có nút). Test T-UI-11 xanh. **Chưa gắn vào khung code**: chờ D11 (Thiện) có `onSelect`.
 
 ### C-10 · Vừa · Câu đầu chưa là câu kể luồng
 

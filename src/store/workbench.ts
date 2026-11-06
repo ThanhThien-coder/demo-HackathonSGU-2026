@@ -14,15 +14,19 @@ import type {
   NodeStateView,
   QuestionState,
   SkillChange,
+  ExplainSelectionRequest,
+  ExplainSelectionResponse,
 } from "@/contracts";
 import {
   analyzeNodeSafe,
   analyzeOverviewSafe,
   enrichNodeSafe,
   getSessionProgressSafe,
+  explainSelectionSafe,
 } from "@/lib/api";
 import { buildOverviewFacts } from "@/lib/overview-view";
 import { ERROR_MESSAGES } from "@/lib/messages";
+import { explanationKey, explainErrorText } from "@/lib/selection-explain";
 import {
   tourForward,
   tourBackward,
@@ -46,6 +50,7 @@ export interface WorkbenchUiSlice {
   presentation_pane: boolean;
   hint_step: number | null;
   offline_persona: PersonaMode;
+  explanations: Record<string, ExplainSelectionResponse>; // D19
   // D12 — tour X-Ray: ROLE ⇒ TOUR ⇒ SUMMARY
   xray_stage: XrayStage;
   hl: HlRange[]; // D14
@@ -98,6 +103,16 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   showWeakPoint: (weakPoint: { step: number; symbol: string }) => void;
   setOfflinePersona: (persona: PersonaMode) => void;
 
+  // D19: Lời gọi giải thích đoạn chọn
+  explainSelection: (
+    nodeId: string,
+    stepNumber: number,
+    range: ExplainSelectionRequest["range"],
+    selectedText: string
+  ) => Promise<
+    | { ok: true; data: ExplainSelectionResponse }
+    | { ok: false; code: ErrorCode | null; message: string }
+  >;
   // D12 — tour X-Ray
   setXrayStage: (stage: XrayStage) => void;
   goToStep: (step: number) => void;
@@ -117,6 +132,7 @@ const initialUiSlice: WorkbenchUiSlice = {
   presentation_pane: false,
   hint_step: null,
   offline_persona: "NEWBIE",
+  explanations: {}, // D19
   xray_stage: "ROLE",
   hl: [],
   return_question: false,
@@ -812,6 +828,73 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       },
     })),
 
+  // D19: Lời gọi giải thích đoạn chọn
+  explainSelection: async (nodeId, stepNumber, range, selectedText) => {
+    const key = explanationKey(nodeId, stepNumber, range);
+    const cached = get().ui.explanations[key];
+    if (cached) {
+      return { ok: true, data: cached };
+    }
+
+    const limitErr = get().ui.errors["explain_limit"];
+    if (limitErr) {
+      return {
+        ok: false,
+        code: "ERR_EXPLAIN_LIMIT",
+        message: limitErr,
+      };
+    }
+
+    const sid = get().session_id;
+    if (!sid) {
+      return {
+        ok: false,
+        code: null,
+        message: "Chưa có phiên học.",
+      };
+    }
+
+    const res = await explainSelectionSafe({
+      session_id: sid,
+      node_id: nodeId,
+      step_number: stepNumber,
+      range,
+      selected_text: selectedText,
+    });
+
+    if (get().session_id !== sid) {
+      return {
+        ok: false,
+        code: null,
+        message: "Phiên học đã thay đổi.",
+      };
+    }
+
+    if (res.ok) {
+      const data = res.data;
+      get().setTokensUsed(data.tokens_used);
+      if (data.explanation !== null) {
+        set((state) => ({
+          ui: {
+            ...state.ui,
+            explanations: {
+              ...state.ui.explanations,
+              [key]: data,
+            },
+          },
+        }));
+      }
+      return { ok: true, data };
+    }
+
+    const code = (res.error?.error?.code as ErrorCode) || null;
+    const message = explainErrorText(code);
+    if (code === "ERR_EXPLAIN_LIMIT") {
+      get().setUiError("explain_limit", message);
+    }
+
+    return { ok: false, code, message };
+  },
   // ===== D12 — tour X-Ray =====
   setXrayStage: (xray_stage) =>
     set((state) => ({
