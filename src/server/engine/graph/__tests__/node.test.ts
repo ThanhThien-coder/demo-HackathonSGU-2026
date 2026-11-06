@@ -4,7 +4,7 @@ import { CONFIG, type HybridArchitecturalNode, type IngestionReport } from "@/co
 import { initParsers, parseAll } from "../parser";
 import { buildCallGraph, findEntries } from "../callgraph";
 import { collectSymbols, resolveImports } from "../symbols";
-import { hash6, slug, nameCandidate, dedupeTitles } from "../naming";
+import { hash6, slug, nameCandidate, dedupeTitles, sanitizeTitle } from "../naming";
 import { diagnoseUncleBob } from "../unclebob";
 import { layoutGraph } from "../layout";
 import { buildSymbolWhitelist, mainPath } from "../whitelist";
@@ -365,6 +365,28 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
     const c = createDummyCandidate({ id: `cand-${method}-${path}`, base_title: "" });
     c.binding = { file_path: "r.ts", line_start: 1, line_end: 1, kind: "HTTP", method, path, handler: "h", middlewares: [], display_name: "" };
     expect(nameCandidate(c, ctx).base_title).toBe(expected);
+  });
+
+  // ---------------------------------------------------------------------------
+  // T-ENG-22c: Tên bài không chứa ký tự ngoài bộ cho phép (lỗi B-34)
+  // ---------------------------------------------------------------------------
+  it.each(["<DELETE :name>", "<anon@L111>", "<GET", "<module>", "<POST /todo>"])(
+    "T-ENG-22c: khóa tổng hợp %s không thành tên bài ở Bậc 2",
+    (key) => {
+      const ctx = createDummyContext();
+      const c = createDummyCandidate({ id: `cand-${key}`, base_title: "" });
+      c.entry_symbol = `src/routes/todo.ts#${key}`;
+      const named = nameCandidate(c, ctx);
+      expect(named.title_source).not.toBe("ENTRY_SYMBOL");
+      expect(named.base_title).not.toMatch(/[<>@]/);
+      expect(named.base_title.length).toBeGreaterThan(0);
+    }
+  );
+
+  it("T-ENG-22c: sanitizeTitle chỉ giữ chữ, số, khoảng trắng và / & : - ( ) #", () => {
+    expect(sanitizeTitle("<GET :name>")).toBe("GET :name");
+    expect(sanitizeTitle("Order  <b>Checkout</b> @1")).toBe("Order bCheckout/b 1");
+    expect(sanitizeTitle("Checkout (cart) #2 / A&B - C:D")).toBe("Checkout (cart) #2 / A&B - C:D");
   });
 
   // ---------------------------------------------------------------------------
