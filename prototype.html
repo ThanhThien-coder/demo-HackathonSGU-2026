@@ -245,6 +245,13 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var
 @keyframes grow{from{width:0}}
 @keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.03);box-shadow:0 0 0 4px var(--hl-good)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.selection-card{position:fixed;z-index:100;width:min(320px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:12px;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);overflow-wrap:anywhere}
+.selection-card .selection-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.selection-card .selection-label{font-size:12px;color:var(--muted)}
+.selection-card .selection-quote{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-bottom:8px;color:var(--accent);white-space:pre-wrap}
+.selection-card dt{font-size:12px;font-weight:700}
+.selection-card dd{margin:2px 0 8px}
+.selection-card dd:last-child{margin-bottom:0}
 </style>
 </head>
 <body>
@@ -274,6 +281,17 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="modalRoot"></div>
+<aside id="selectionCard" class="selection-card" aria-label="Giải thích đoạn đã chọn" hidden>
+  <div class="selection-head">
+    <span class="selection-label">Giải thích · Dữ liệu demo</span>
+    <button class="btn small" type="button" data-act="dismiss-selection" aria-label="Đóng giải thích">✕</button>
+  </div>
+  <p class="selection-quote" id="selectionQuote"></p>
+  <dl aria-live="polite" aria-atomic="true">
+    <dt>Khái niệm</dt><dd id="selectionConcept"></dd>
+    <dt>Chức năng</dt><dd id="selectionPurpose"></dd>
+  </dl>
+</aside>
 
 <script>
 (function(){
@@ -423,6 +441,7 @@ function toast(msg){
 var codeScrollPosition={top:0,left:0};
 function render(opts){
   opts = opts || {};
+  closeSelectionCard();
   closePopover(false);
   var af = captureFocus();
   var previousCode=$('#codeScroll');
@@ -744,6 +763,7 @@ function submit(){
 }
 
 var HANDLERS = {
+  'dismiss-selection':function(){ closeSelectionCard(); },
   'view':function(t){ S.view=t.dataset.id; render(); },
   'toggle-left':function(){ S.leftOpen=!S.leftOpen; render(); },
   'toggle-right':function(){ S.rightOpen=!S.rightOpen; render(); },
@@ -845,6 +865,98 @@ function closeModal(){
 }
 
 /* ============ sự kiện ============ */
+/* Dữ liệu mẫu. Khi tích hợp API, thay phần tra cứu trong explainSelection. */
+var SELECTION_EXAMPLES=[
+  [/for\s*\([\s\S]*findById/i, 'Truy vấn N+1', 'Lấy danh sách sản phẩm trước, rồi truy vấn danh mục riêng cho từng sản phẩm trong vòng lặp.'],
+  [/categoryRepo\.findById|\bfindById\b/i, 'Tra cứu theo ID', 'Tìm danh mục có ID khớp với giá trị truyền vào. Khi gọi trong vòng lặp, mỗi sản phẩm tạo thêm một lần tra cứu.'],
+  [/\bfindAll\b/i, 'Truy vấn danh sách', 'Đọc toàn bộ sản phẩm từ kho dữ liệu để lớp nghiệp vụ xử lý tiếp.'],
+  [/\blistProducts\b/i, 'Hàm nghiệp vụ lấy sản phẩm', 'Lấy danh sách sản phẩm và gắn thông tin danh mục trước khi trả về cho bộ điều khiển.'],
+  [/router\.get|\/products/i, 'Route HTTP GET', 'Tiếp nhận yêu cầu xem danh sách sản phẩm tại đường dẫn /products.'],
+  [/res\.json/i, 'Phản hồi JSON', 'Gửi dữ liệu đã xử lý về cho ứng dụng gọi API dưới dạng JSON.'],
+  [/\bawait\b/i, 'Chờ tác vụ bất đồng bộ', 'Chờ lời gọi trả kết quả trước khi hàm tiếp tục xử lý.'],
+  [/\bX-Ray\b/i, 'Phân tích theo bước', 'Giải thích từng phần của luồng xử lý và chỉ vị trí tương ứng trong mã nguồn.'],
+  [/\bFeynman\b/i, 'Giải thích bằng lời của mình', 'Kiểm tra mức độ hiểu bài bằng cách tự diễn giải cách mã nguồn hoạt động.']
+];
+
+function explainSelection(text){
+  var example=SELECTION_EXAMPLES.find(function(item){ return item[0].test(text); });
+  return example
+    ? {concept:example[1], purpose:example[2]}
+    : {concept:'Chưa có khái niệm mẫu', purpose:'Thử chọn findAll, findById hoặc res.json để xem một giải thích có sẵn.'};
+}
+
+var selectionRange=null;
+var selectionFrame=0;
+var selectingWithPointer=false;
+
+function closeSelectionCard(){
+  if(selectionFrame) cancelAnimationFrame(selectionFrame);
+  selectionFrame=0;
+  selectionRange=null;
+  $('#selectionCard').hidden=true;
+}
+
+function positionSelectionCard(){
+  var card=$('#selectionCard');
+  if(!selectionRange || card.hidden) return;
+  var rect=selectionRange.getBoundingClientRect();
+  var viewportWidth=document.documentElement.clientWidth;
+  var viewportHeight=document.documentElement.clientHeight;
+  var node=selectionRange.commonAncestorContainer;
+  var element=node.nodeType===1 ? node : node.parentElement;
+  var scroller=element && element.closest('.code-scroll, .col, .modal');
+  var bounds=scroller && scroller.getBoundingClientRect();
+  if(!rect.width || !rect.height || rect.bottom<=0 || rect.top>=viewportHeight ||
+     (bounds && (rect.bottom<=bounds.top || rect.top>=bounds.bottom))){
+    closeSelectionCard();
+    return;
+  }
+  var gap=12;
+  var left=Math.max(gap,Math.min(rect.left,viewportWidth-card.offsetWidth-gap));
+  var below=rect.bottom+gap;
+  var top=below+card.offsetHeight<=viewportHeight-gap ? below : rect.top-card.offsetHeight-gap;
+  card.style.left=left+'px';
+  card.style.top=Math.max(gap,Math.min(top,viewportHeight-card.offsetHeight-gap))+'px';
+}
+
+function queueSelectionCard(){
+  if(selectingWithPointer || selectionFrame) return;
+  selectionFrame=requestAnimationFrame(function(){
+    selectionFrame=0;
+    var selection=window.getSelection();
+    var text=selection && selection.toString().trim();
+    if(!text || !selection.rangeCount){ closeSelectionCard(); return; }
+    var range=selection.getRangeAt(0);
+    var scope=$('#colMid');
+    if(S.modal || !scope.contains(range.startContainer) || !scope.contains(range.endContainer)){
+      closeSelectionCard();
+      return;
+    }
+    var explanation=explainSelection(text);
+    $('#selectionQuote').textContent=text;
+    $('#selectionConcept').textContent=explanation.concept;
+    $('#selectionPurpose').textContent=explanation.purpose;
+    selectionRange=range.cloneRange();
+    $('#selectionCard').hidden=false;
+    positionSelectionCard();
+  });
+}
+
+document.addEventListener('selectionchange', queueSelectionCard);
+document.addEventListener('pointerdown', function(e){
+  if($('#selectionCard').contains(e.target)) return;
+  selectingWithPointer=e.pointerType!=='touch';
+  closeSelectionCard();
+});
+document.addEventListener('pointerup', function(){
+  if(!selectingWithPointer) return;
+  selectingWithPointer=false;
+  queueSelectionCard();
+});
+document.addEventListener('pointercancel', function(){ selectingWithPointer=false; });
+window.addEventListener('scroll', positionSelectionCard, true);
+window.addEventListener('resize', positionSelectionCard);
+
 document.addEventListener('click', function(e){
   var pop=document.getElementById('pop');
   if(pop && !pop.contains(e.target) && !e.target.closest('[data-act="skill"]')) closePopover(false);
@@ -863,6 +975,7 @@ window.addEventListener('resize', function(){ closePopover(false); });
 document.addEventListener('keydown', function(e){
   var t=e.target;
   if(e.key==='Escape'){
+    if(!$('#selectionCard').hidden){ closeSelectionCard(); e.preventDefault(); return; }
     if(S.popover){ closePopover(true); e.preventDefault(); return; }
     if(S.modal){ closeModal(); e.preventDefault(); return; }
   }
