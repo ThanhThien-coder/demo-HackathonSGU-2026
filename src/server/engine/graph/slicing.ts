@@ -13,6 +13,7 @@ import type {
   EngineContext,
   EntryPoint,
   ExternalCall,
+  FunctionInfo,
   ParsedFile,
 } from "./types";
 
@@ -307,6 +308,55 @@ function sortByCallSite(
     if (a.callee > b.callee) return 1;
     return 0;
   });
+}
+
+// Mục 8 ý 6 "Def-use lùi": mẫu theo tên biến, dựng 1 lần cho mỗi tên.
+const ASSIGN_OP = `([-+*/%&|^]|\\*\\*|<<|>>|\\?\\?|&&|\\|\\|)?=(?!=)`;
+
+interface VarPatterns {
+  definition: RegExp[];
+  moduleDecl: RegExp;
+}
+
+const varPatternCache = new Map<string, VarPatterns>();
+
+function varPatterns(v: string): VarPatterns {
+  let patterns = varPatternCache.get(v);
+  if (!patterns) {
+    patterns = {
+      definition: [
+        new RegExp(`\\b(const|let|var)\\s+[^=;]*\\b${v}\\b`),
+        // Gán thường và gán phức hợp (`+=`, `-=`, `??=`…), không nhầm phép so sánh `==`.
+        new RegExp(`\\b${v}\\s*${ASSIGN_OP}`),
+        new RegExp(`[\\{\\[][^\\}\\]]*\\b${v}\\b[^\\}\\]]*[\\}\\]]\\s*=`),
+        new RegExp(`\\bfor\\s*\\([^;]*\\b${v}\\b`),
+        new RegExp(`\\bcatch\\s*\\(\\s*${v}\\b`),
+        // Mục 8 ý 6: `v.push(…)`, `v.x = …`, kể cả `v.x -= …`
+        new RegExp(`\\b${v}\\.(push|set|add|append)\\b|\\b${v}\\.[a-zA-Z0-9_$]+\\s*${ASSIGN_OP}`),
+      ],
+      moduleDecl: new RegExp(`\\b(const|let|var|export const|export let)\\s+[^=;]*\\b${v}\\b`),
+    };
+    varPatternCache.set(v, patterns);
+  }
+  return patterns;
+}
+
+const fnLinesCache = new WeakMap<Map<string, FunctionInfo>, Map<string, Set<number>>>();
+
+// Dòng nằm trong thân một hàm của file, trừ `<module>`. Tính 1 lần cho cả repo (B-33).
+function linesInsideFunctions(ctx: EngineContext, filePath: string): Set<number> {
+  let byFile = fnLinesCache.get(ctx.idx.functions);
+  if (!byFile) {
+    byFile = new Map();
+    for (const fn of ctx.idx.functions.values()) {
+      if (fn.name === "<module>") continue;
+      const lines = byFile.get(fn.file_path) ?? new Set<number>();
+      for (let l = fn.line_start; l <= fn.line_end; l++) lines.add(l);
+      byFile.set(fn.file_path, lines);
+    }
+    fnLinesCache.set(ctx.idx.functions, byFile);
+  }
+  return byFile.get(filePath) ?? new Set();
 }
 
 interface StepBuildingContext {
@@ -821,20 +871,11 @@ export function buildSlice(
 
           for (const v of readVars) {
             // Tìm định nghĩa v trong thân hàm trước dòng l
+            const patterns = varPatterns(v);
             let defLine = 0;
             for (let prevL = l - 1; prevL >= startLine; prevL--) {
               const prevText = allLines[prevL - 1] ?? "";
-              const isVarDecl = new RegExp(`\\b(const|let|var)\\s+[^=;]*\\b${v}\\b`).test(prevText);
-              // Gán thường và gán phức hợp (`+=`, `-=`, `??=`…), không nhầm phép so sánh `==`.
-              const ASSIGN_OP = `([-+*/%&|^]|\\*\\*|<<|>>|\\?\\?|&&|\\|\\|)?=(?!=)`;
-              const isAssign = new RegExp(`\\b${v}\\s*${ASSIGN_OP}`).test(prevText);
-              const isDestruct = new RegExp(`[\\{\\[][^\\}\\]]*\\b${v}\\b[^\\}\\]]*[\\}\\]]\\s*=`).test(prevText);
-              const isLoop = new RegExp(`\\bfor\\s*\\([^;]*\\b${v}\\b`).test(prevText);
-              const isCatch = new RegExp(`\\bcatch\\s*\\(\\s*${v}\\b`).test(prevText);
-              // Mục 8 ý 6: `v.push(…)`, `v.x = …`, kể cả `v.x -= …`
-              const isMutate = new RegExp(`\\b${v}\\.(push|set|add|append)\\b|\\b${v}\\.[a-zA-Z0-9_$]+\\s*${ASSIGN_OP}`).test(prevText);
-
-              if (isVarDecl || isAssign || isDestruct || isLoop || isCatch || isMutate) {
+              if (patterns.definition.some((re) => re.test(prevText))) {
                 defLine = prevL;
                 break;
               }
@@ -847,18 +888,11 @@ export function buildSlice(
 
             // Nếu không tìm thấy trong hàm, kiểm tra biến module ở cấp file
             if (defLine === 0) {
+              const insideFn = linesInsideFunctions(ctx, file.path);
               for (let modL = 1; modL < startLine; modL++) {
-                const isInsideOtherFn = Array.from(ctx.idx.functions.values()).some(
-                  (fn) =>
-                    fn.file_path === file.path &&
-                    fn.name !== "<module>" &&
-                    modL >= fn.line_start &&
-                    modL <= fn.line_end
-                );
-                if (isInsideOtherFn) continue;
+                if (insideFn.has(modL)) continue;
                 const modText = allLines[modL - 1] ?? "";
-                const isModDecl = new RegExp(`\\b(const|let|var|export const|export let)\\s+[^=;]*\\b${v}\\b`).test(modText);
-                if (isModDecl) {
+                if (patterns.moduleDecl.test(modText)) {
                   if (!keptLines.has(modL)) {
                     keptLines.add(modL);
                     changed = true;
