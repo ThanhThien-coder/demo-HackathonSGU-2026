@@ -1,4 +1,6 @@
 import { CONFIG, type ApiError, type ClientErrorCode, type ErrorCode } from "@/contracts";
+import { maskSensitive } from "@/lib/moderation";
+import { redactSecrets } from "./engine/ingest/secrets";
 import { logger } from "./log";
 
 export type ServerErrorCode = Exclude<ErrorCode, ClientErrorCode>;
@@ -279,8 +281,19 @@ export function toErrorResponse(error: unknown): Response {
     return error.toResponse();
   }
 
-  const err_name = error instanceof Error ? error.name : typeof error;
-  logger.error({ err_name });
+  const error_name = error instanceof Error ? error.name : typeof error;
+  let rawMessage = error instanceof Error ? error.message : "";
+  if (rawMessage) {
+    rawMessage = rawMessage.replace(
+      /(\b[A-Za-z0-9_]*(?:password|passwd|pwd|secret|api_?key|token|private_?key|access_?key)\b\s*[:=]\s*)(["'`]?)([^"'`\r\n\s]+)\2/gi,
+      "$1$2<REDACTED_SECRET>$2"
+    );
+  }
+  const error_message = rawMessage
+    ? maskSensitive(redactSecrets(rawMessage).code)
+    : "";
+
+  logger.error({ error_name, error_message });
 
   const fallback = new ApiHttpError("ERR_PERSISTENCE_UNAVAILABLE");
   return fallback.toResponse();
