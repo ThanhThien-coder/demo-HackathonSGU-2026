@@ -27,6 +27,14 @@ import {
   tourBackward,
   type XrayStage,
 } from "@/app/learn/components/xray-tour";
+import { findStep, stepHl, weakPointHl } from "@/components/code/slice-model";
+
+// D14 — dải dòng tô sáng theo số dòng gốc (UI-32)
+export interface HlRange {
+  line_start: number;
+  line_end: number;
+  kind: "FOCUS" | "GOOD" | "BAD";
+}
 
 // D13 — dải dòng tô sáng theo SỐ DÒNG GỐC (UI-32). Renderer tô là việc của D14.
 export interface HlRange {
@@ -89,6 +97,11 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   setSkillChange: (key: string, change: SkillChange) => void;
   setPresentationPane: (enabled: boolean) => void;
   setHintStep: (step: number | null) => void;
+
+  // D14 — tô đúng dòng (UI-33, UI-44)
+  setHl: (hl: HlRange[]) => void;
+  showStrength: (step: number) => void;
+  showWeakPoint: (weakPoint: { step: number; symbol: string }) => void;
   setOfflinePersona: (persona: PersonaMode) => void;
 
   // D12 — tour X-Ray
@@ -781,4 +794,34 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         ui: { ...state.ui, xray_stage: prev.stage },
       };
     }),
+  // ===== D14 — tô đúng dòng =====
+  setHl: (hl) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        hl,
+      },
+    })),
+
+  showStrength: (step) => set((state) => applyStepHl(state, step, (s) => stepHl(s, "GOOD"))),
+
+  showWeakPoint: ({ step, symbol }) =>
+    set((state) => applyStepHl(state, step, (s) => weakPointHl(s, symbol))),
 }));
+
+// D14 — gán active_step và ui.hl trong cùng 1 lần cập nhật để lớp xóa dưới đây không xóa nhầm.
+function applyStepHl(
+  state: WorkbenchStoreState,
+  step: number,
+  toHl: (s: ReturnType<typeof findStep>) => HlRange[]
+): Partial<WorkbenchStoreState> {
+  const node = state.result?.nodes.find((n) => n.id === state.active_node_id);
+  if (!node) return {};
+  return { active_step: step, ui: { ...state.ui, hl: toHl(findStep(node, step)) } };
+}
+
+// D14 — đổi bước ⇒ ui.hl = [] (UI-32). Đặt ở đây để mọi hàm gán active_step đều được áp dụng.
+useWorkbenchStore.subscribe((state, prev) => {
+  if (state.active_step === prev.active_step || state.ui.hl !== prev.ui.hl) return;
+  if (state.ui.hl.length > 0) state.setHl([]);
+});

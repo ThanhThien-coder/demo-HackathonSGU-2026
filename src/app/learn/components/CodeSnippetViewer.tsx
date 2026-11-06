@@ -16,7 +16,15 @@ import {
 } from "lucide-react";
 import type { NodeAnalysisView, HybridArchitecturalNode } from "@/contracts";
 import { CONFIG } from "@/contracts";
-import { buildSliceModel } from "@/components/code/slice-model";
+import { useWorkbenchStore } from "@/store/workbench";
+import {
+  buildDtoModel,
+  buildFileTabs,
+  buildStepModel,
+  findStep,
+  stepGapAbove,
+  type CodeSelection,
+} from "@/components/code/slice-model";
 import { XRayPanel, ARCHITECTURE_PATTERN_LABELS } from "./XRayPanel";
 
 const CodePane = dynamic(() => import("@/components/code/CodePane"), {
@@ -30,6 +38,24 @@ const CodePane = dynamic(() => import("@/components/code/CodePane"), {
 
 const BASE_CODE_FONT_PX = 13;
 
+const FILE_TAB_CLASS =
+  "shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 font-mono text-[12.5px] whitespace-nowrap border-r border-r-[#eaedff] border-b-2 transition-colors";
+
+// Trái, phải chuyển tab như bản vẽ; dừng tại đây để không lẫn với phím chuyển bước của tour.
+function handleTabKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  const tabs = [
+    ...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'),
+  ];
+  const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+  if (current < 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const next = tabs[(current + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+  next.focus();
+  next.click();
+}
+
 interface CodeSnippetViewerProps {
   fileName?: string;
   scope?: string;
@@ -42,6 +68,7 @@ interface CodeSnippetViewerProps {
   highlightedStep?: number | null;
   activeStep?: number | null;
   onSelectStep?: (stepIndex: number) => void;
+  onSelect?: (selection: CodeSelection | null) => void;
   isPresentationMode?: boolean;
   onTogglePresentationMode?: () => void;
   allNodes?: HybridArchitecturalNode[];
@@ -59,11 +86,14 @@ export function CodeSnippetViewer({
   highlightedStep = null,
   activeStep = null,
   onSelectStep,
+  onSelect,
   isPresentationMode = false,
   onTogglePresentationMode,
   allNodes = [],
 }: CodeSnippetViewerProps) {
   const [copied, setCopied] = useState(false);
+  // Tab "Kiểu dữ liệu" gắn với bài và bước lúc bấm, đổi bước thì tự về tab file (D-81).
+  const [dtoOpenAt, setDtoOpenAt] = useState<string | null>(null);
 
   const fontSize = isPresentationMode
     ? Math.round(BASE_CODE_FONT_PX * CONFIG.UI_PRESENTATION_FONT_SCALE)
@@ -71,15 +101,35 @@ export function CodeSnippetViewer({
 
   const hasSteps = Boolean(node?.trace_steps && node.trace_steps.length > 0);
   const totalSteps = node?.trace_steps?.length ?? 0;
-  const currentStep =
-    node?.trace_steps?.find((s) => s.step_number === activeStep) ??
-    node?.trace_steps?.[0];
+  const currentStep = findStep(node, activeStep);
   const currentStepNum = currentStep?.step_number ?? (activeStep ?? 1);
   const originPart = currentStep?.origin_note ? ` · ${currentStep.origin_note}` : "";
+  const fileTabs = buildFileTabs(node, analysis);
+  const hasDto = Boolean(node?.dto_snippet?.trim());
+  const dtoKey = `${node?.id}:${currentStepNum}`;
+  // Xóa ngay khi đổi bước, nếu không quay lại bước cũ sẽ tự mở lại tab "Kiểu dữ liệu".
+  if (dtoOpenAt !== null && dtoOpenAt !== dtoKey) setDtoOpenAt(null);
+  // Tô dòng hoặc gợi ý đến từ ngoài khung mà vẫn cùng bước: phải về code thì mới thấy.
+  const hl = useWorkbenchStore((s) => s.ui.hl);
+  const [seenPointer, setSeenPointer] = useState({ hl, step: highlightedStep });
+  if (seenPointer.hl !== hl || seenPointer.step !== highlightedStep) {
+    setSeenPointer({ hl, step: highlightedStep });
+    if (hl.length > 0 || highlightedStep === currentStepNum) setDtoOpenAt(null);
+  }
+  const showDto = hasDto && dtoOpenAt === dtoKey;
+  const gapAbove = showDto ? null : stepGapAbove(currentStep);
+
+  // Mọi thao tác chọn bước đều về code của bước, kể cả chọn lại đúng bước đang xem.
+  const handleSelectStep = (step: number) => {
+    setDtoOpenAt(null);
+    onSelectStep?.(step);
+  };
 
   const handleCopy = async () => {
     try {
-      const rawText = node ? buildSliceModel(node).text : "";
+      const rawText = showDto
+        ? buildDtoModel(node).text
+        : buildStepModel(node, currentStepNum).text;
       await navigator.clipboard.writeText(rawText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -118,7 +168,7 @@ export function CodeSnippetViewer({
           </div>
           <div className="flex flex-col min-w-0">
             <span className="font-bold text-[#004cff] text-[15px] leading-tight font-mono truncate">
-              {node?.files?.[0] ? node.files[0].split("/").pop() : fileName}
+              {currentStep ? currentStep.file_path.split("/").pop() : fileName}
             </span>
             <span className="font-semibold text-[#554337] text-[12px] leading-tight truncate">
               {node?.entry_symbol
@@ -286,6 +336,62 @@ export function CodeSnippetViewer({
           </div>
         )}
 
+        {/* Hàng tab: mỗi file 1 tab, tab đang mở theo active_step (spec/30 Mục 5) */}
+        {hasSteps && node && (
+          <div
+            role="tablist"
+            aria-label="Các file trong bài"
+            onKeyDown={handleTabKeyDown}
+            className="flex overflow-x-auto bg-white border-b border-[#eaedff]"
+          >
+            {fileTabs.map((tab) => {
+              const isOpen = !showDto && tab.path === currentStep?.file_path;
+              return (
+                <button
+                  key={tab.path}
+                  type="button"
+                  role="tab"
+                  aria-selected={isOpen}
+                  title={tab.path}
+                  disabled={tab.firstStep === null}
+                  onClick={() => tab.firstStep !== null && handleSelectStep(tab.firstStep)}
+                  className={`${FILE_TAB_CLASS} ${
+                    isOpen
+                      ? "bg-[#faf8ff] text-[#131b2e] border-b-[#ff9640]"
+                      : "text-[#625e56] border-b-transparent hover:text-[#131b2e] enabled:cursor-pointer disabled:opacity-50"
+                  }`}
+                >
+                  <span>{tab.name}</span>
+                  {tab.weak && (
+                    <span
+                      role="img"
+                      aria-label="Có điểm dở do AI nhận định"
+                      title="Có điểm dở do AI nhận định"
+                      className="size-1.5 rounded-full bg-[#ef4444]"
+                    />
+                  )}
+                </button>
+              );
+            })}
+            {hasDto && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showDto}
+                title="Kiểu dữ liệu liên quan"
+                onClick={() => setDtoOpenAt(dtoKey)}
+                className={`${FILE_TAB_CLASS} cursor-pointer ${
+                  showDto
+                    ? "bg-[#faf8ff] text-[#131b2e] border-b-[#ff9640]"
+                    : "text-[#625e56] border-b-transparent hover:text-[#131b2e]"
+                }`}
+              >
+                Kiểu dữ liệu
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Đầu khu vực code khi có node: dòng bước chi tiết + hàng chip bước */}
         {hasSteps && node && (
           <div className="px-4 py-2 bg-[#f2f3ff]/70 border-b border-[#eaedff] flex flex-col gap-2">
@@ -320,7 +426,7 @@ export function CodeSnippetViewer({
                   <button
                     key={step.step_number}
                     type="button"
-                    onClick={() => onSelectStep?.(step.step_number)}
+                    onClick={() => handleSelectStep(step.step_number)}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors cursor-pointer flex items-center gap-1 ${
                       isSelected
                         ? "bg-[#ff9640] text-white border-[#ff9640] shadow-xs"
@@ -338,17 +444,31 @@ export function CodeSnippetViewer({
           </div>
         )}
 
-        {/* Monaco Code Pane: Có node với trace_steps thì luôn hiện CodePane trong khung cao h-[520px] */}
+        {/* Monaco Code Pane: chỉ code của bước đang xem, trên và dưới có dòng báo phần ngoài bài học */}
         {hasSteps && node ? (
-          <div className="h-[520px] w-full bg-[#faf8ff]">
-            <CodePane
-              node={node}
-              analysis={analysis}
-              activeStep={activeStep}
-              hintStep={highlightedStep}
-              onSelectStep={onSelectStep}
-              fontSize={fontSize}
-            />
+          <div className="h-[520px] w-full bg-[#faf8ff] flex flex-col">
+            {gapAbove && (
+              <div className="px-4 py-1 text-[11.5px] text-[#625e56] italic border-b border-[#eaedff]">
+                {gapAbove}
+              </div>
+            )}
+            <div className="flex-1 min-h-0">
+              <CodePane
+                node={node}
+                analysis={analysis}
+                activeStep={currentStepNum}
+                hintStep={highlightedStep}
+                hl={hl}
+                showDto={showDto}
+                onSelect={onSelect}
+                fontSize={fontSize}
+              />
+            </div>
+            {!showDto && (
+              <div className="px-4 py-1 text-[11.5px] text-[#625e56] italic border-t border-[#eaedff]">
+                ⋯ phần còn lại của file
+              </div>
+            )}
           </div>
         ) : (
           <div className="h-[520px] flex items-center justify-center p-8 text-center text-sm text-[#625e56] bg-[#faf8ff]">
@@ -363,7 +483,7 @@ export function CodeSnippetViewer({
           analysis={analysis}
           node={node}
           activeStep={activeStep}
-          onSelectStep={onSelectStep}
+          onSelectStep={handleSelectStep}
           allNodes={allNodes}
         />
       )}
