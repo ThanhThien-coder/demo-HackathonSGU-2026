@@ -27,6 +27,7 @@ import { isOfflineMode, loadOfflineBundle } from "@/lib/offline";
 import { getErrorMessage } from "./utils/messages";
 import { useWorkbenchStore } from "@/store/workbench";
 import { useUserStore } from "@/stores/userStore";
+import { activeQuestionArrayIndex, hasNextQuestionToOpen } from "./components/question-list";
 
 // Offline không có phiên thật; dữ liệu lấy từ gói offline
 const OFFLINE_SESSION_ID = "offline";
@@ -249,11 +250,10 @@ function LearnCockpitContent() {
     return [];
   }, [active_node_id, runs, progress]);
 
-  const activeQuestionIdx = useMemo(() => {
-    if (active_question_index === null || active_question_index === undefined) return 0;
-    const idx = questions.findIndex((q) => q.question_index === active_question_index);
-    return idx >= 0 ? idx : 0;
-  }, [questions, active_question_index]);
+  const activeQuestionIdx = useMemo(
+    () => activeQuestionArrayIndex(questions, active_question_index),
+    [questions, active_question_index]
+  );
 
   const activeQuestion = questions[activeQuestionIdx] ?? null;
 
@@ -286,14 +286,10 @@ function LearnCockpitContent() {
 
   const lastFailedAnswer = evalKey ? last_failed_answers[evalKey] ?? null : null;
 
-  const hasNextQuestion = useMemo(() => {
-    for (let i = activeQuestionIdx + 1; i < questions.length; i++) {
-      if (questions[i]?.state?.ended_by !== "DROPPED") {
-        return true;
-      }
-    }
-    return false;
-  }, [questions, activeQuestionIdx]);
+  const hasNextQuestion = useMemo(
+    () => hasNextQuestionToOpen(questions, activeQuestionIdx),
+    [questions, activeQuestionIdx]
+  );
 
   const fullFileCode = useMemo(() => {
     if (currentNode?.trace_steps && currentNode.trace_steps.length > 0) {
@@ -313,6 +309,11 @@ function LearnCockpitContent() {
   // 7. Event Handlers
   const handleSelectNode = (nodeId: string) => {
     void useWorkbenchStore.getState().openNode(nodeId);
+  };
+
+  const handleOpenHintStep = (step: number) => {
+    setIsEvaluationDialogOpen(false);
+    useWorkbenchStore.getState().openHintStep(step);
   };
 
   const handleSelectQuestion = (idx: number) => {
@@ -346,6 +347,8 @@ function LearnCockpitContent() {
     setSubmitError(null);
     setCanRetrySubmit(false);
     setLastSubmittedAnswer(answer);
+    // Feynman luôn hiện ở cột phải: nộp bài nghĩa là đã xem lại xong, tắt băng UI-32b.
+    if (store.ui.return_question) store.setActiveTab("FEYNMAN");
 
     const qIndex = activeQuestion.question_index;
     const attemptNumber = (activeQuestion.state?.attempts_used || 0) + 1;
@@ -621,7 +624,6 @@ function LearnCockpitContent() {
             <FeynmanQuestionSection
               question={activeQuestion}
               questionIndex={activeQuestionIdx + 1}
-              totalQuestions={questions.length || 1}
               questions={questions}
               onSelectQuestion={handleSelectQuestion}
               isLoadingQuestion={Boolean(active_node_id && ui_pending["enrich:" + active_node_id])}
@@ -645,6 +647,8 @@ function LearnCockpitContent() {
               skillChange={evalKey ? (ui_skill_changes[evalKey] ?? null) : null}
               nodeState={active_node_id && progress?.nodes ? (progress.nodes[active_node_id] ?? null) : null}
               unlockedNodeIds={evaluationResult?.unlocked_node_ids ?? []}
+              followUp={evaluationResult?.follow_up ?? null}
+              onOpenHintStep={handleOpenHintStep}
             />
           ) : (
             <div className="flex-1 w-full p-6 text-center text-[#625e56] bg-white rounded-2xl border border-[#eaedff]">
@@ -680,6 +684,7 @@ function LearnCockpitContent() {
         onNextQuestion={handleNextQuestion}
         hasNextQuestion={hasNextQuestion}
         onOpenReportWrong={() => setIsReportWrongDialogOpen(true)}
+        onOpenHintStep={handleOpenHintStep}
       />
 
       {/* 8. Architecture Overview Modal - Step 9 POST /api/analyze-overview */}
