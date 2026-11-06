@@ -105,10 +105,10 @@ export interface GradingRaw {           // = responseSchema của lời gọi ch
 // Đầu vào chấm đọc từ node_runs.questions (03), không có code_context (D-36)
 
 export type GuardCall = "analyze" | "overview" | "questions" | "grade" | "explain";
-export type GuardCode =                                  // 21: A1–A7, O1–O6, Q1–Q8, E1–E4, G1–G2
+export type GuardCode =                                  // 21: A1–A7, O1–O6, Q1–Q9, E1–E4, G1–G2
   | "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7"
   | "O1" | "O2" | "O3" | "O4" | "O5" | "O6"
-  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8"
+  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8" | "Q9"
   | "E1" | "E2" | "E3" | "E4"
   | "G1" | "G2";
 export interface GuardIssue {                            // Lý do cổng gác, do code dựng (GUARD-22)
