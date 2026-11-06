@@ -314,7 +314,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `callgraph.ts` lấy nguyên text receiver làm `display_name`.
 - **Cần sửa:** dựng tên gọn như `router.delete('/:userId')`.
 - **Kiểm tra:** chạy `hagopj13/node-express-boilerplate`, tên bước nằm trên 1 dòng và có path.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b29-route-name`. `callgraph.ts` thêm `resolveRouteChain`: với `R.route(path).get(a).post(b)`, mỗi động từ thành 1 binding có `path` lấy từ `route()`, `display_name` 1 dòng `router.delete('/:userId')`, nhận cả động từ chỉ có 1 đối số; cú pháp thường và `cache.get('k')` không đổi. Có 4 test trong `route-chain.test.ts`. Chạy thật `hagopj13/node-express-boilerplate`: bước route nằm 1 dòng và có path (`router.get('/:userId')`, `router.delete('/:userId')`, `router.post('/')`). Tên bài vẫn còn `Get User` và `Get User #2` (cho `GET /` và `GET /:userId`): đó là luật đặt tên của B-30, chưa sửa ở đây. `callgraph.ts` thuộc luồng Minh, cần báo để tránh xung đột. Typecheck sạch, lint 0 lỗi, test xanh. Chưa đổi `ENGINE_VERSION`.
 
 ### B-30 · Vừa · Tên bài tự sinh khó hiểu hoặc sai nghĩa
 
