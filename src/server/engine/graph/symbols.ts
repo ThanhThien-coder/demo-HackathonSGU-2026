@@ -1,5 +1,10 @@
 // Bảng symbol — spec 11 Mục 2 (ENG-20, ENG-21, ENG-21b, ENG-22, ENG-23, ENG-24, ENG-25, ENG-27).
 import type { Node } from "web-tree-sitter";
+import {
+  buildJavaPackageMap,
+  collectJavaImports,
+  collectJavaSymbols,
+} from "./resolvers/java";
 import { collectPythonImports } from "./resolvers/python";
 import { collectTsJsImports, resolveReExports } from "./resolvers/ts_js";
 import type {
@@ -14,7 +19,7 @@ import type {
   SymbolTable,
 } from "./types";
 
-function uniqueKey(baseKey: string, keyCounts: Map<string, number>): string {
+export function uniqueKey(baseKey: string, keyCounts: Map<string, number>): string {
   const count = keyCounts.get(baseKey) ?? 0;
   keyCounts.set(baseKey, count + 1);
   if (count === 0) return baseKey;
@@ -268,6 +273,20 @@ export function collectSymbols(files: ParsedFile[]): SymbolIndex {
   for (const file of files) {
     const filePath = file.path;
     const lang = file.language;
+    if (lang === "JAVA") {
+      collectJavaSymbols(
+        file,
+        {
+          symbols,
+          functions,
+          field_types,
+          interface_impls,
+          locals,
+        },
+        keyCounts
+      );
+      continue;
+    }
     let hasTopLevelCode = false;
 
     function processClass(classNode: Node, className: string, isExported: boolean): void {
@@ -807,9 +826,16 @@ export function resolveImports(
     }
   }
 
+  let javaPackageMap: ReturnType<typeof buildJavaPackageMap> | undefined;
+  if (files.some((f) => f.language === "JAVA")) {
+    javaPackageMap = buildJavaPackageMap(files);
+  }
+
   for (const file of files) {
     if (file.language === "PYTHON") {
       collectPythonImports(file, allFiles, effectiveRootDirOffset, idx);
+    } else if (file.language === "JAVA") {
+      collectJavaImports(file, files, idx, javaPackageMap);
     } else {
       collectTsJsImports(file, allFiles, manifests, effectiveRootDirOffset, idx);
     }
