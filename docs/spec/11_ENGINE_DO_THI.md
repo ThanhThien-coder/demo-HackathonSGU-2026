@@ -9,7 +9,6 @@
 
 ## Đọc nhanh
 
-- Tìm entry point (bảng mẫu ở `12`), cắt lát gọi hàm (Forward Slicing) và xếp hạng bằng PageRank/Cognitive Complexity.
 
 Sơ đồ 13 giai đoạn:
 
@@ -218,7 +217,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate;
 2. **ENG-111 Tên gốc & id (D-08).** Thang tên Mục 13 chạy trên mọi candidate ⇒ `base_title`, `title_source`, `title_evidence`. `slug(t)`: NFD bỏ dấu, `đ`⇒`d`, lowercase, ngoài `[a-z0-9]` ⇒ `-`, gộp `-`, bỏ `-` hai đầu, cắt `CONFIG.TITLE_MAX_CHARS` ký tự, rỗng ⇒ `node`. `hash6(s)` = 6 hex đầu SHA-1(UTF-8). Lát cắt `slice-<slug(base_title)>-<hash6(entry_symbol)>`; thuật toán `algo-<slug>-<hash6(khóa hàm)>`; node ảo ENG-102.
 3. **ENG-112 Cạnh `G0` (D-85).** Dựng theo ENG-118. **Dễ hơn (D-07):** `cognitive_complexity` nhỏ hơn; hòa ⇒ `rank_score` lớn hơn; hòa ⇒ `id` nhỏ hơn. **Cặp D-07:** `functions` giao ≠ ∅. **Cặp D-56:** lát cắt `S` – node thuật toán `T` mà hàm của `T` đến được từ 1 hàm của `S.functions` trên đồ thị hàm (BFS mọi độ sâu, `visited`; callback, gọi động không có cạnh ⇒ không tính). Cặp D-07, D-56 có chiều bài dễ tới bài khó. `G0` không chu trình (assert `tarjanScc`).
 4. Rút gọn bắc cầu `G0` ⇒ `G0r` (bỏ `u → v` khi còn đường dài ≥ 2).
-5. **ENG-114 Display Budget.** `max = CONFIG.DISPLAY_MAX_NODES`. ≤ `max` ⇒ giữ hết. Ngược lại: (1) đường dài nhất trên `G0r` (DP theo Kahn, hòa ⇒ `id` nhỏ), chọn đỉnh trước/cuối dài nhất, hòa ⇒ `rank_score` lớn, hòa ⇒ `id` nhỏ; giữ tối đa `CONFIG.CRITICAL_PATH_MAX_NODES` node đầu; (2) thêm: `cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN` trước, `rank_score` giảm, `cognitive_complexity` giảm, `id` tăng — tới `max`. Bỏ không gộp file. Số node bị bỏ ⇒ `ingestion_report.omitted_node_count` + warning "{n} luồng khác không hiển thị trên bản đồ".
+5. **ENG-114 Display Budget.** `max = CONFIG.DISPLAY_MAX_NODES`. ≤ `max` ⇒ giữ hết. Ngược lại: (1) đường dài nhất trên `G0r` (DP theo Kahn, hòa ⇒ `id` nhỏ), chọn đỉnh trước/cuối dài nhất, hòa ⇒ `rank_score` lớn, hòa ⇒ `id` nhỏ; giữ tối đa `CONFIG.CRITICAL_PATH_MAX_NODES` node đầu; (2) thêm theo D-88, mỗi loại theo: `cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN` trước, `rank_score` giảm, `cognitive_complexity` giảm, `id` tăng. Bỏ không gộp file. Số node bị bỏ ⇒ `ingestion_report.omitted_node_count` + warning "{n} luồng khác không hiển thị trên bản đồ".
 6. **Cạnh trên tập giữ `K`** = rút gọn bắc cầu của `{(u,v) ∈ K² : v đến được từ u trong G0}`. `confidence = RESOLVED` khi: cạnh D-07 có hàm chung `f` mà đường DFS (ENG-80) tới `f` ở cả hai lát cắt toàn `RESOLVED`; hoặc cặp D-56 có đường gọi toàn `RESOLVED`; hoặc cạnh có 1 thực thể đọc từ code ở cả 2 đầu; hoặc đường trong `G0` toàn `RESOLVED`; hoặc là cạnh node ảo. Còn lại `INFERRED`. `via_entities` (sort): thực thể tạo cạnh trong `G0`; cạnh qua node bị bỏ ⇒ thực thể chung của 2 đầu; còn lại `[]`. `GraphEdge.id = "${source}->${target}"`; `prerequisites` = nguồn cạnh vào, sort. **Điểm bắt đầu** (D-85) = node có cạnh ra, `prerequisites = []`. **Học riêng** = node không có cạnh nào, không khóa. Nút `__start__` (Mục 14) không nằm trong `nodes`.
 7. **Nhóm:** ENG-119 chạy trên `K` sau ý 6.
 8. **Capstone (D-12).** Trong node cuối, có node sạch (ENG-110) thì chỉ xét node sạch: `cognitive_complexity` lớn nhất, hòa ⇒ `rank_score` lớn nhất, hòa ⇒ `id` nhỏ nhất; đúng 1.
@@ -348,3 +347,4 @@ export function mainPath(graph: StaticEngineResult): string[];   // → RepoOver
 | T-ENG-50 | Repo không `DATA_SINK`, không route: node thuật toán có cạnh D-56 · bài không có cạnh | Cạnh theo D-07, D-56; mọi node đúng 1 nhóm; cả 2 thuộc `STANDALONE`; bài không có cạnh không khóa |
 | T-ENG-51 | Hàm `return <div/>` · chỉ callback trả JSX | Không có node · có node `algo-*` |
 | T-ENG-52 | 6 route chung `shared`, `load` đọc DB | Bỏ `shared`, giữ `load` |
+| T-ENG-53 | 12 API, 12 trang, 12 algo | 6 algo, đủ 12 API |
