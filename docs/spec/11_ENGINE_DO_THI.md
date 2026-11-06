@@ -1,6 +1,6 @@
 # 11 — ENGINE TẦNG 1–2: CÚ PHÁP, ĐỒ THỊ GỌI HÀM, LÁT CẮT, NODE
 
-> Bản đồ `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` node tất định, 0 token: symbol, callgraph, lát cắt entry (D-06), cạnh (D-07), budget, tên, tọa độ.
+> Bản đồ `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` node tất định, 0 token: symbol, callgraph, lát cắt entry (D-06), cạnh (D-85), nhóm (D-84), budget, tên, tọa độ.
 > Input: `IngestOutput` (`10` Mục 0). Output: `StaticEngineResult`; `toClientResult()` ⇒ `ClientStaticEngineResult`.
 > Code: `src/server/engine/index.ts` (`runEngine`, `buildGraph`, `toClientResult`) · `src/server/engine/graph/{registry,parser,symbols,callgraph,tarjan,pagerank,complexity,slicing,unclebob,nodes,naming,layout,whitelist,degraded}.ts` · `graph/resolvers/{ts_js,python,java,go,dart,universal}.ts` · `queries/<lang>.scm` · `public/grammars/*.wasm`.
 > Kiểu: `02_CONTRACTS.md` · Hằng số: `CONFIG.*` · Luật `ENG-xx` · Bảng mẫu entry theo framework / ngôn ngữ: `12_ENGINE_MAU_ENTRY.md`.
@@ -9,11 +9,8 @@
 
 ## Đọc nhanh
 
-- Nhận `IngestOutput`, dựng `CONFIG.DISPLAY_MIN_NODES`–`CONFIG.DISPLAY_MAX_NODES` node kiến trúc tất định, 0 token AI.
 - Parse AST qua Tree-sitter (TS/JS, Python đã kiểm chứng) trích xuất symbol và callgraph.
 - Tìm entry point (bảng mẫu ở `12`), cắt lát gọi hàm (Forward Slicing) và xếp hạng bằng PageRank/Cognitive Complexity.
-- Ghép node theo Display Budget (tối đa `CONFIG.DISPLAY_MAX_NODES` node), đặt tên tất định, bố cục DAG (D-07, D-08).
-- Trả về `StaticEngineResult` (lưu cache) và `ClientStaticEngineResult` gửi về UI.
 
 Sơ đồ 13 giai đoạn:
 
@@ -40,19 +37,9 @@ flowchart TB
   D --> OUT["StaticEngineResult"]
 ```
 
-| Mục | Nội dung | File chính |
-| :-: | :-- | :-- |
-| 0–2 | Giai đoạn, parser & symbol | `index.ts`, `registry.ts`, `symbols.ts` |
-| 3–7 | Callgraph, entry, mode, rank & CC | `callgraph.ts`, `degraded.ts`, `complexity.ts` |
-| 8–11 | Lát cắt, node algo, degraded, budget | `slicing.ts`, `nodes.ts`, `degraded.ts` |
-| 12–15 | Uncle Bob, tên, layout, whitelist | `unclebob.ts`, `naming.ts`, `layout.ts` |
-
 ---
 
 ## 0. Giai đoạn, kiểu nội bộ, luật chung
-
-Giai đoạn: G1 `PARSE` (1) → G2 `SYMBOLS` (2) → G3 `CALLGRAPH` (3) → G4 `ENTRIES` (4) → G5 `MODE` (5) → G6 `RANK` (6) → G7 `COMPLEXITY` (7) → G8 `CANDIDATES` (8–10) → G9 `ASSEMBLE` (11) → G10 `UNCLE_BOB` (12) → G11 `NAMING` (13) → G12 `LAYOUT` (14) → G13 `OUTPUT` (15).
-
 
 ```typescript
 // nội bộ — graph/* (FunctionInfo = SymbolDefinition + params, locals, complexity)
@@ -230,14 +217,36 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate;
 
 1. **ENG-110 Lọc, gộp.** Còn từ `CONFIG.DISPLAY_MIN_NODES` candidate có `files[0]` không mang cờ ING-87 ⇒ bỏ candidate mang cờ, không cộng `omitted_node_count`. Cùng tập `functions` ⇒ giữ `order_key` nhỏ nhất (`order_key` = `entry_symbol`; node ảo = khóa băm). Tập con không gộp.
 2. **ENG-111 Tên gốc & id (D-08).** Thang tên Mục 13 chạy trên mọi candidate ⇒ `base_title`, `title_source`, `title_evidence`. `slug(t)`: NFD bỏ dấu, `đ`⇒`d`, lowercase, ngoài `[a-z0-9]` ⇒ `-`, gộp `-`, bỏ `-` hai đầu, cắt `CONFIG.TITLE_MAX_CHARS` ký tự, rỗng ⇒ `node`. `hash6(s)` = 6 hex đầu SHA-1(UTF-8). Lát cắt `slice-<slug(base_title)>-<hash6(entry_symbol)>`; thuật toán `algo-<slug>-<hash6(khóa hàm)>`; node ảo ENG-102.
-3. **ENG-112 Cạnh D-07, D-56.** Cặp có `functions` giao ≠ ∅, hoặc cặp lát cắt `S` – node thuật toán `T` mà hàm của `T` đến được từ 1 hàm của `S.functions` trên đồ thị hàm (BFS mọi độ sâu, `visited`; callback, gọi động không có cạnh ⇒ không tính): A → B nếu `cognitive_complexity` A nhỏ hơn; hòa ⇒ `rank_score` lớn hơn; hòa ⇒ `id` nhỏ hơn. Thứ tự toàn phần ⇒ `G0` không chu trình (assert `tarjanScc`).
+3. **ENG-112 Cạnh `G0` (D-85).** Dựng theo ENG-118. **Dễ hơn (D-07):** `cognitive_complexity` nhỏ hơn; hòa ⇒ `rank_score` lớn hơn; hòa ⇒ `id` nhỏ hơn. **Cặp D-07:** `functions` giao ≠ ∅. **Cặp D-56:** lát cắt `S` – node thuật toán `T` mà hàm của `T` đến được từ 1 hàm của `S.functions` trên đồ thị hàm (BFS mọi độ sâu, `visited`; callback, gọi động không có cạnh ⇒ không tính). Cặp D-07, D-56 có chiều bài dễ tới bài khó. `G0` không chu trình (assert `tarjanScc`).
 4. Rút gọn bắc cầu `G0` ⇒ `G0r` (bỏ `u → v` khi còn đường dài ≥ 2).
 5. **ENG-114 Display Budget.** `max = CONFIG.DISPLAY_MAX_NODES`. ≤ `max` ⇒ giữ hết. Ngược lại: (1) đường dài nhất trên `G0r` (DP theo Kahn, hòa ⇒ `id` nhỏ), chọn đỉnh trước/cuối dài nhất, hòa ⇒ `rank_score` lớn, hòa ⇒ `id` nhỏ; giữ tối đa `CONFIG.CRITICAL_PATH_MAX_NODES` node đầu; (2) thêm: `cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN` trước, `rank_score` giảm, `cognitive_complexity` giảm, `id` tăng — tới `max`. Bỏ không gộp file. Số node bị bỏ ⇒ `ingestion_report.omitted_node_count` + warning "{n} luồng khác không hiển thị trên bản đồ".
-6. **Cạnh trên tập giữ `K`** = rút gọn bắc cầu của `{(u,v) ∈ K² : v đến được từ u trong G0}`. `confidence = RESOLVED` khi: cạnh D-07 có hàm chung `f` mà đường DFS (ENG-80) tới `f` ở cả hai lát cắt toàn `RESOLVED`; hoặc cặp D-56 có đường gọi toàn `RESOLVED`; hoặc đường trong `G0` toàn `RESOLVED`; hoặc là cạnh node ảo. Còn lại `INFERRED`. `GraphEdge.id = "${source}->${target}"`; `prerequisites` = nguồn cạnh vào, sort. **Điểm bắt đầu** (D-55) = node có `prerequisites = []`; mọi node đều có code thật; nút `__start__` (Mục 14) không nằm trong `nodes`.
-7. **ENG-115 Cây bài học (D-73).** Chạy trên `K` sau ý 6, chỉ xét lát cắt. (1) Module = thư mục cha của `files[0]`; dưới 3 module ⇒ module = `files[0]`. (2) Module A dùng B khi 1 lát cắt của A có file thuộc B. (3) Sắp module theo tô-pô của quan hệ dùng, module được dùng trước; hòa hoặc gặp vòng ⇒ độ phức tạp trung bình nhỏ hơn, rồi tên tăng. (4) Bài đầu nhánh = lát cắt dễ nhất (D-07) chưa có cạnh vào; lát cắt chưa có cạnh vào còn lại ⇒ thêm cạnh từ bài đầu nhánh. (5) Bài đầu nhánh của A chưa có cạnh vào, B là module A dùng đứng sau cùng, bài đầu nhánh của B dễ hơn ⇒ thêm cạnh từ B tới A. (6) `u` đến được từ `v` ⇒ bỏ cạnh `u → v`. Cạnh thêm `confidence = "INFERRED"`; sort `edges` theo `id`, rồi điền `prerequisites`.
+6. **Cạnh trên tập giữ `K`** = rút gọn bắc cầu của `{(u,v) ∈ K² : v đến được từ u trong G0}`. `confidence = RESOLVED` khi: cạnh D-07 có hàm chung `f` mà đường DFS (ENG-80) tới `f` ở cả hai lát cắt toàn `RESOLVED`; hoặc cặp D-56 có đường gọi toàn `RESOLVED`; hoặc cạnh có 1 thực thể đọc từ code ở cả 2 đầu; hoặc đường trong `G0` toàn `RESOLVED`; hoặc là cạnh node ảo. Còn lại `INFERRED`. `via_entities` (sort): thực thể tạo cạnh trong `G0`; cạnh qua node bị bỏ ⇒ thực thể chung của 2 đầu; còn lại `[]`. `GraphEdge.id = "${source}->${target}"`; `prerequisites` = nguồn cạnh vào, sort. **Điểm bắt đầu** (D-85) = node có cạnh ra, `prerequisites = []`. **Học riêng** = node không có cạnh nào, không khóa. Nút `__start__` (Mục 14) không nằm trong `nodes`.
+7. **Nhóm:** ENG-119 chạy trên `K` sau ý 6.
 8. **Capstone (D-12).** Trong node cuối: `cognitive_complexity` lớn nhất, hòa ⇒ `rank_score` lớn nhất, hòa ⇒ `id` nhỏ nhất; đúng 1.
 9. **Trường.** `files` = file các bước theo thứ tự, không trùng; `languages` = `LanguageId` của `files`, sort; `support_tier` = `STRUCTURAL` nếu có file `STRUCTURAL`, ngược lại `RESOLVED`; lát cắt: `cognitive_complexity` = max `complexity` các hàm (D-12), `rank_score = rank_score(files[0])`, `ARCHITECTURAL_DATA_FLOW`, `is_vip_algorithm = false`.
 10. 0 node sau mọi bước ⇒ `ERR_NO_ARCHITECTURAL_SLICE`.
+
+### 11.1. B-39: thực thể, cạnh dữ liệu, nhóm (D-84, D-85)
+
+Node thuật toán, node ảo có `entities = []`.
+
+1. **ENG-116 Thực thể.** Xét mọi `ExternalCall` khớp `DATA_SINK` (Mục 8) của hàm là bước, mọi layer, theo (`step_number`, dòng).
+   - **Tên**, luật đầu khớp thắng: (a) đoạn sau `prisma`, `tx`, `trx` của receiver; (b) receiver viết hoa (mẫu c); (c) `T` của `Repository<T>`, `JpaRepository<T, …>`, `@InjectRepository(T)` ở field receiver; (d) đoạn cuối receiver có đuôi ENG-82, bỏ đuôi khác rỗng (`orderRepo` ⇒ `Order`); (e) file có segment ENG-82 ⇒ tên lớp bỏ đuôi đó, thiếu lớp ⇒ stem file. Không khớp ⇒ bỏ lời gọi. Tách token, số ít (`normalizeTokens` 1, 4), ghép PascalCase.
+   - **Thao tác:** `create`, `insert*`, `add`, `upsert`, `save` ⇒ `CREATE`; `update*` ⇒ `UPDATE`; `delete*`, `remove` ⇒ `DELETE`; `find*`, `get`, `count`, `aggregate`, `query` ⇒ `READ`; còn lại bỏ. `save` sau `find*`, `get` cùng thực thể ⇒ `UPDATE`.
+   - **Từ route:** bài `HTTP` không có thực thể từ code, có `S` (Mục 13 bậc 1) ⇒ thực thể `Singular(S[0])`: `POST` ⇒ `CREATE` (`S[-1]` ∈ `ACTION_SEGMENTS` trừ `register` ⇒ `READ`), `GET` ⇒ `READ`, `PUT`, `PATCH` ⇒ `UPDATE`, `DELETE` ⇒ `DELETE`.
+   - `entities` sort theo `name`; `ops` theo thứ tự `EntityOp`, không trùng.
+   - **Thực thể chính:** thực thể đầu tiên có thao tác ghi; không ghi ⇒ thực thể đầu tiên.
+2. **ENG-117 Khóa ngoại** `E → P`: `@relation` trong `schema.prisma`, `@ManyToOne` của TypeORM, JPA (`E` chứa field, `P` là kiểu field). `schema.prisma` đọc theo dòng, ngoại lệ của ENG-04.
+3. **ENG-118 Dựng `G0`** theo thứ tự:
+   1. `source(E)` = bài dễ nhất có `CREATE` từ code; không có ⇒ bài dễ nhất có `CREATE` từ route; không có ⇒ bài dễ nhất có `E`.
+   2. `source(E)` → mọi bài khác có `E`. Bài có `CREATE` `E`, `E → P`, `source(P)` khác bài đó ⇒ `source(P)` → bài đó. Cùng cặp ⇒ 1 cạnh, hợp thực thể.
+   3. Bài không có thực thể từ code, chưa có cạnh ⇒ thêm mọi cặp D-07 chứa bài đó.
+   4. Thêm cặp D-56.
+   5. `tarjanScc`: trong SCC trên 1 đỉnh, bỏ cạnh từ bài khó tới bài dễ.
+4. **ENG-119 Nhóm (`groups`).** Mỗi node đúng 1 nhóm, bỏ nhóm rỗng.
+   - `STANDALONE`: `ALGORITHMIC_CORE`, node không có cạnh hoặc không có thực thể chính. `key = "Học riêng"`, `group_id = "group-standalone"`.
+   - Còn lại theo thực thể chính, `key` = tên thực thể. Có bài đọc được từ code ⇒ `ENTITY`, `group_id = "group-entity-<slug(key)>"`; không ⇒ `ROUTE_PREFIX`, `group_id = "group-route-<slug(key)>"`.
+   - `depth` = đường dài nhất từ điểm bắt đầu. `node_ids` sort theo (`depth`, `id`); `groups` theo (`depth` nhỏ nhất, `group_id`), `STANDALONE` cuối.
 
 ---
 
@@ -268,9 +277,10 @@ Mục đích: `title`, `title_source`, `title_evidence` từ code (0 token AI). 
 
 ## 14. Bố cục — `layout.ts`
 
-1. `@dagrejs/dagre` (ranker `network-simplex`): `rankdir = CONFIG.DAGRE_RANKDIR`, `ranksep = CONFIG.DAGRE_RANKSEP`, `nodesep = CONFIG.DAGRE_NODESEP`; `setNode(id, { width: CONFIG.NODE_BOX_WIDTH, height: CONFIG.NODE_BOX_HEIGHT })` theo `id` tăng; `setEdge` theo `GraphEdge.id` tăng, `{ weight: 1, minlen: 1 }`.
-2. **Hàng điểm bắt đầu (D-55).** Thêm nút `__start__` (`width = height = 0`) và cạnh `__start__ → r` cho mọi điểm bắt đầu `r` theo `id` tăng, `{ weight: (|E| + 1)(|V| + 1), minlen: 1 }` (`|V|`, `|E|` của đồ thị thật). Trọng số này lớn hơn mọi phần lợi khi đẩy 1 điểm bắt đầu xuống ⇒ mọi điểm bắt đầu cùng hạng ngay dưới `__start__` = hàng trên cùng. `dagre.layout(g)` rồi bỏ `__start__`.
+1. Chỉ node có cạnh vào Dagre. `@dagrejs/dagre` (ranker `network-simplex`): `rankdir = CONFIG.DAGRE_RANKDIR`, `ranksep = CONFIG.DAGRE_RANKSEP`, `nodesep = CONFIG.DAGRE_NODESEP`; `setNode(id, { width: CONFIG.NODE_BOX_WIDTH, height: CONFIG.NODE_BOX_HEIGHT })` theo `id` tăng; `setEdge` theo `GraphEdge.id` tăng, `{ weight: 1, minlen: 1 }`.
+2. **Hàng điểm bắt đầu (D-55, D-85).** Thêm nút `__start__` (`width = height = 0`) và cạnh `__start__ → r` cho mọi điểm bắt đầu `r` theo `id` tăng, `{ weight: (|E| + 1)(|V| + 1), minlen: 1 }` (`|V|`, `|E|` của đồ thị thật). Trọng số này lớn hơn mọi phần lợi khi đẩy 1 điểm bắt đầu xuống ⇒ mọi điểm bắt đầu cùng hạng ngay dưới `__start__` = hàng trên cùng. `dagre.layout(g)` rồi bỏ `__start__`.
 3. `position = { x: round(cx − CONFIG.NODE_BOX_WIDTH/2), y: round(cy − CONFIG.NODE_BOX_HEIGHT/2) }`. Trạng thái node suy ra ở `03` §5.1.
+4. **Cột Học riêng.** Node không có cạnh, `id` tăng, `i` từ 0: `x = X + CONFIG.NODE_BOX_WIDTH + CONFIG.DAGRE_NODESEP`, `y = Y + i·(CONFIG.NODE_BOX_HEIGHT + CONFIG.DAGRE_NODESEP)`; `X`, `Y` = `x` lớn nhất, `y` nhỏ nhất của node Dagre, không có ⇒ `x = Y = 0`.
 
 ---
 
@@ -285,7 +295,7 @@ export function mainPath(graph: StaticEngineResult): string[];   // → RepoOver
 1. **`symbol_whitelist` (D-19, phạm vi repo):** (a) `name` mọi `SymbolDefinition` (hàm, method, lớp, interface, type, biến module) + `Class.method`; (b) field/property trong lớp, interface, type object, dataclass/pydantic, struct; (c) tham số + biến cục bộ (ENG-24) của hàm là bước trong node cuối. Bỏ tên chứa `<`; giữ dạng gốc; bỏ trùng; sort UTF-16. Chuẩn hóa khi so thuộc `21`. Không chứa `tech_stack`.
 2. `file_index` = path file parse thành công (sau ENG-12), sort; `total_files = ingestion_report.code_file_count`.
 3. **Report.** Điền `skipped.parse_error`, `degraded_mode`, `engine_ms` = `performance.now()` cuối G13 − đầu G1. `engine_ms > CONFIG.ENGINE_BUDGET_MS` ⇒ warning, không đổi hành vi. Ghi theo thứ tự giai đoạn.
-4. `engine_version = CONFIG.ENGINE_VERSION`; `repo_name`, `snapshot`, `fingerprint` từ `IngestOutput`; `nodes`, `edges` sort theo `id`.
+4. `engine_version = CONFIG.ENGINE_VERSION`; `repo_name`, `snapshot`, `fingerprint` từ `IngestOutput`; `nodes`, `edges` sort theo `id`; `groups` theo ENG-119.
 5. **`toClientResult`** dựng object mới từng trường (API-03, không spread): mọi trường trừ `symbol_whitelist`; `ingestion_report` trừ `suspicious_instruction_files`.
 6. **ENG-155 `mainPath`** (chỉ đọc `nodes`, `edges`): đường dài nhất trên DAG bằng DP như ENG-114 (1) nhưng không giới hạn `CONFIG.CRITICAL_PATH_MAX_NODES`, hòa chỉ theo `id` nhỏ hơn (tô-pô Kahn). Trả `id` từ gốc tới cuối; rỗng ⇒ `[]`. Dùng cho `RepoOverviewView.facts.main_path_node_ids` (`20`).
 
@@ -320,11 +330,17 @@ export function mainPath(graph: StaticEngineResult): string[];   // → RepoOver
 | T-ENG-31 | File 40% byte trong `ERROR` · mọi file như vậy | Bỏ file, `parse_error 1`, không trong `file_index` · `ERR_NO_ARCHITECTURAL_SLICE` |
 | T-ENG-32 | `OrderService.checkout(userId, items)`, DTO field `qty` | Whitelist ⊇ `OrderService`, `checkout`, `OrderService.checkout`, `userId`, `items`, `qty`; sort; không `<module>` |
 | T-ENG-33 | `toClientResult` | Không `symbol_whitelist`, không `suspicious_instruction_files` |
-| T-ENG-34 | `runEngine` 2 lần cùng zip (X-01) | `nodes`, `edges`, `symbol_whitelist` giống hệt khi `JSON.stringify` |
+| T-ENG-34 | `runEngine` 2 lần cùng zip (X-01) | `nodes`, `edges`, `groups`, `symbol_whitelist` giống hệt khi `JSON.stringify` |
 | T-ENG-35 | `mainPath`: cạnh `n-a→n-b→n-d`, `n-a→n-c→n-d` | `["n-a","n-b","n-d"]` (hòa theo `id`) |
 | T-ENG-36 | 25 candidate | Giữ 20 (= CONFIG.DISPLAY_MAX_NODES), omitted_node_count = 5, warning "5 luồng khác không hiển thị trên bản đồ" |
-| T-ENG-37 | Gốc A (A→B→C→D), gốc E (E→D), gốc F lẻ | A, E, F cùng `position.y` nhỏ nhất; không có `__start__` |
+| T-ENG-37 | Gốc A (A→B→C→D), gốc E (E→D), F không có cạnh | A, E cùng `position.y` nhỏ nhất; F ở cột bên phải mọi node Dagre; không có `__start__` |
 | T-ENG-38 | Lát cắt gọi VIP `calcShipping` ở hop > `SLICE_MAX_HOPS` · VIP chỉ là callback `sort(cmp)` · không ai gọi | Có cạnh theo D-07 · đứng riêng · đứng riêng |
 | T-ENG-39 | Repo Expo Router có `app/(tabs)/index.tsx` có `export default`, không có route server | File màn hình được nhận là entry `REGISTERED` (SCREEN), có node bắt đầu từ màn hình đó, archetype `MOBILE_APP` |
 | T-ENG-40 | Repo Python > `CONFIG.PROCEDURAL_MAX_FILES` file, không framework, chỉ `cli.py` có `if __name__ == "__main__":` gọi hàm ở file khác | Entry `PROGRAM` (D-58, `12` Mục 2), chế độ NORMAL, có node bắt đầu từ khối `__main__` |
-| T-ENG-41 | 3 lát cắt cùng module · bài đầu nhánh của module được dùng khó hơn · node thuật toán không ai gọi · cạnh gây vòng · chạy 2 lần | Bài dễ nhất là cha 2 bài còn lại · không nối · đứng riêng · bị bỏ · cùng `edges` |
+| T-ENG-41 | `Register` tạo `User` · `Profile` đọc `User` · `Checkout` tạo `Order`, `Order` `@ManyToOne` `User` · `Report` đọc `Order` | `Register`→`Profile`, `Register`→`Checkout` (`via_entities` `["User"]`), `Checkout`→`Report` (`["Order"]`) |
+| T-ENG-45 | `prisma.orderItem.create` · `tx.user.findMany` · `Order.create` (Mongoose) · `Repository<Order>`: `findOne` rồi `save` · `this.repo.save` trong `UserRepo` · `db.query` ở `order.service.ts` | `OrderItem` `CREATE` · `User` `READ` · `Order` `CREATE` · `Order` `READ`, `UPDATE` · `User` `CREATE` · không có thực thể |
+| T-ENG-46 | Bài không có `DATA_SINK`: `POST /orders` · `POST /auth/login` · `POST /auth/register` | `Order` `CREATE` · `Auth` `READ` · `Auth` `CREATE` |
+| T-ENG-47 | `E` không có bài tạo, 2 bài đụng `E` · 2 thực thể tạo cạnh ngược chiều | Nguồn là bài dễ hơn · bỏ cạnh bài khó tới bài dễ |
+| T-ENG-48 | `shop-api` (`repo-demo.test.ts`) | `Create Register`→`List Profiles`→`Cart Items`→`Order Checkout`, `List Products`→`Order Checkout`→`Order Email`, `Order Checkout`→`Report Revenue`. Nhóm theo thứ tự: `Product`, `User`, `Cart` (`ROUTE_PREFIX`), `Order` (3 bài) |
+| T-ENG-49 | `kuuhakubee/CNPM_BrewLite` (`apps/api`), chạy 2 lần | `Auth Register`, `List Products` là điểm bắt đầu, cùng dẫn tới `Create Order`; không có `Auth Me`→`Login`→`Register`; `List Healths` thuộc `STANDALONE`; có nhóm `ENTITY`; cùng `groups` |
+| T-ENG-50 | Repo không `DATA_SINK`, không route: node thuật toán có cạnh D-56 · bài không có cạnh | Cạnh theo D-07, D-56; mọi node đúng 1 nhóm; cả 2 thuộc `STANDALONE`; bài không có cạnh không khóa |
