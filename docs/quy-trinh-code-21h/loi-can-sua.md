@@ -470,7 +470,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** mọi loại lỗi Gemini đều hiện "Chưa phân tích được", nên lỗi `thinkingBudget` rất khó tìm.
 - **Cần sửa:** ghi mã lỗi trong `catch` của `callLLMOnce` ở `gemini.ts`, không ghi khóa hay nội dung nhạy cảm. Luật log đã có trong quyết định D-74 (`20` AI-12).
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `callLLMOnce` ghi 1 dòng log `warn` (`event: "llm_error"`, loại lời gọi, `kind`, `status`, `retry_after_ms`, lý do ngắn) cho mọi lần lỗi, không ghi khóa và prompt. Test AI-12 (C-01) xanh; `typecheck`, `lint`, `npm test` xanh.
 
 ### C-02 · Vừa · Giới hạn token có thể quá thấp
 
@@ -497,7 +497,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** code theo luật gọi lại mới trong quyết định D-74 (`20` AI-12), ở `retryDelay` và `callLLMOnce` của `src/server/ai/gemini.ts`.
 - **Kiểm tra:** test AI-12 mới xanh; chạy lại probe, tổng quan có kết quả.
 - **Ghi chú 06/11:** quyết định D-83 chuyển tổng quan lên đầu phiên, trước loạt `analyze-node`, nên bớt gặp 429. Vẫn phải sửa `retryDelay` như trên. Phần tổng quan mới là C-12.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `retryDelay` đọc `retryDelay` của Google, chờ `max(LLM_RETRY_DELAY_MS, retryDelay)` + jitter, vượt `LLM_RETRY_DELAY_MAX_MS` thì không gọi lại; `analyze`, `overview`, `questions`, `callLLMWithRetry` dừng đúng. Test AI-12 (R1) xanh. **Chưa chạy AI thật** (cần chạy lại sau C-12 vì tổng quan đổi thời điểm gọi).
 
 ### C-06 · Vừa · Điểm dở luôn rỗng
 

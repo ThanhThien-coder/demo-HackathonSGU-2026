@@ -82,8 +82,8 @@ export async function analyzeNode(
       break;
     }
 
-    if (i < CONFIG.LLM_MAX_RETRIES && !r.ok) {
-      await retryDelay(r);
+    if (i < CONFIG.LLM_MAX_RETRIES && !r.ok && !(await retryDelay(r))) {
+      break; // Google bắt chờ quá CONFIG.LLM_RETRY_DELAY_MAX_MS ⇒ không gọi lại (D-74 R1)
     }
   }
 
