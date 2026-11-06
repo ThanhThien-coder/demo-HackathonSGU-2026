@@ -476,19 +476,19 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `ANALYZE` chỉ có 900 token đầu ra, tiếng Việt có thể bị cắt.
 - **Cần sửa:** phân tích hết repo demo trên AI thật, đếm bài lỗi rồi chỉnh `LLM_MAX_OUTPUT_TOKENS` nếu cần.
-- **Trạng thái:** cần đo trên AI thật.
+- **Trạng thái:** chờ kiểm. Phân tích thật 13 bài BrewLite: `Create Order` (5 bước) bị cắt ở 900 (`NOT_STOP`) lần đầu, gọi lại vừa đủ (~754); bài 2–4 bước ra 309–669 token. Ước ~150 + 150/bước ⇒ bài 7 bước ~1 200. Nâng `ANALYZE` lên 1400 (`02`, `config.ts`); chạy lại `Create Order`: 1 request, 729 token.
 
 ### C-03 · Vừa · Câu hỏi gắn sai dòng code
 
 - **Hiện tượng:** bài `Order` nói `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 "thay vì viết thủ công". Thực tế dòng 21–25 chính là ca viết tay, biến `ALL` chỉ dùng ở dòng 44 và 49. Đáp án tham khảo cũng sai theo.
 - **Cần sửa:** sửa prompt và thêm ca này vào `review/loi_da_gap.md`, rồi kiểm bằng duyệt tay. Không viết kiểm tra bằng code cho lỗi này, vì cổng gác không kiểm được nghĩa đúng sai (GUARD-21).
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật câu hỏi 8 (quan hệ phải đúng như `<code_data>`) đã thêm ở C-08. Chạy thật BrewLite `Update Order Status` và `Auth Login` (6 câu, 3 lượt): mọi quan hệ và số dòng khớp code. Bản BrewLite hiện tại không còn `canTransition` nên chưa dựng lại đúng ca cũ.
 
 ### C-04 · Vừa · Câu hỏi chỉ lặp lại phần giải thích
 
 - **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
 - **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** làm dở. Câu `ARCHITECTURE`, `CHANGE` đã hỏi suy luận (luật 9 từ C-08). Lỗi còn ở câu `FLOW`, nay luôn là câu 1 (BKT-50): hỏi "đi qua những bước / hàm nào", chép X-Ray là trả lời được. Đã sửa luật `FLOW` chế độ A (`20` AI-25): đặt tình huống code xử lý thấy được, cấm dạng câu đó. Chạy thật 2 lượt: `Auth Login` có tình huống cụ thể, `Update Order Status` vẫn hỏi chung (1/2). Bước sau: chặn bằng code (mẫu câu "đi qua những … nào" ⇒ gọi lại câu đó), cần thêm mã Q mới ở `21` và `GuardCode`.
 
 ### C-05 · Vừa · Tổng quan AI không ra sau khi phân tích hết bài
 

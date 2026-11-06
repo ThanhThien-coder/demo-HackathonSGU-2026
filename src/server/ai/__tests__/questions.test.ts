@@ -595,3 +595,11 @@ describe("C-08 — D-74 trong lời gọi đặt câu hỏi", () => {
     expect(loadMissedPoints).toHaveBeenCalledWith(session.user_id, [...new Set(planN3.map((p) => p.skill))]);
   });
 });
+
+describe("C-04 — luật FLOW chế độ A (AI-25)", () => {
+  it("FLOW đặt tình huống code xử lý thấy được, cấm dạng câu \"đi qua những bước / hàm nào\"", () => {
+    const req = questionsRequest(session, graph, nodeN3, analysisN3, planN3);
+    expect(req.system).toContain("- FLOW: đặt 1 tình huống cụ thể mà code xử lý thấy được");
+    expect(req.system).toContain('Câu hỏi KHÔNG có dạng "đi qua những bước / hàm nào"');
+  });
+});
