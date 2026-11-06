@@ -11,6 +11,7 @@ import { IngestionError } from "../ingest/types";
 import { getAdapter } from "./registry";
 import { cognitiveComplexity } from "./complexity";
 import { hash6, nameCandidate, slug } from "./naming";
+import { isTestPath } from "../ingest/priority";
 import { tarjanScc } from "./tarjan";
 import type {
   Candidate,
@@ -422,14 +423,38 @@ export function computeEdgesOnKept(
 /**
  * Ghép node, sinh id, dựng cạnh, Display Budget, Capstone — spec 11 Mục 11.
  */
+/** Candidate có file đầu (`files[0]`) mang cờ ING-87. */
+export function isTestCandidate(c: Candidate): boolean {
+  const file = c.trace_steps[0]?.file_path;
+  return !!file && isTestPath(file);
+}
+
+// ENG-110: đủ candidate sạch ⇒ bỏ candidate mang cờ; thiếu ⇒ bù cho đủ; không có candidate sạch ⇒ giữ nguyên
+function dropTestCandidates(candidates: Candidate[]): Candidate[] {
+  const clean = candidates.filter((c) => !isTestCandidate(c));
+  if (clean.length === 0 || clean.length === candidates.length) return candidates;
+  const missing = CONFIG.DISPLAY_MIN_NODES - clean.length;
+  if (missing <= 0) return clean;
+  const fill = candidates
+    .filter(isTestCandidate)
+    .sort(
+      (a, b) =>
+        b.rank_score - a.rank_score ||
+        b.cognitive_complexity - a.cognitive_complexity ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    )
+    .slice(0, missing);
+  return [...clean, ...fill];
+}
+
 export function assembleGraph(
   candidates: Candidate[],
   ctx: EngineContext,
   report: IngestionReport
 ): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[] } {
   // ENG-40 / B07: Bỏ candidate có trace_steps rỗng trước bước gộp ENG-110 (không cộng vào omitted_node_count)
-  const validCandidates = candidates.filter(
-    (c) => c.trace_steps && c.trace_steps.length > 0
+  const validCandidates = dropTestCandidates(
+    candidates.filter((c) => c.trace_steps && c.trace_steps.length > 0)
   );
   if (validCandidates.length === 0) {
     throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
@@ -733,7 +758,8 @@ export function assembleGraph(
   let maxComp = -1;
   let maxRank = -1;
 
-  for (const c of keptCandidates) {
+  const cleanKept = keptCandidates.filter((c) => !isTestCandidate(c));
+  for (const c of cleanKept.length > 0 ? cleanKept : keptCandidates) {
     if (c.cognitive_complexity > maxComp) {
       maxComp = c.cognitive_complexity;
       maxRank = c.rank_score;

@@ -8,68 +8,9 @@ import type {
   ZipEntryMeta,
 } from "./types";
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
-import { selectFiles } from "./priority";
+import { isTestPath, selectFiles } from "./priority";
 import { detectScope } from "./fingerprint";
 import { decodeAndFilter } from "./unzip";
-
-const TEST_SEGMENTS = new Set([
-  "test",
-  "tests",
-  "__tests__",
-  "spec",
-  "specs",
-  "example",
-  "examples",
-  "demo",
-  "demos",
-  "e2e",
-  "fixtures",
-  "__mocks__",
-  "migrations",
-  "seeds",
-  "docs",
-  "scripts",
-  "testdata",
-  "bench",
-  "benches",
-  "benchmark",
-  "benchmarks",
-]);
-
-/**
- * Kiểm tra xem đường dẫn có mang cờ test theo ING-87 không
- */
-function isTestPath(filePath: string): boolean {
-  const segments = filePath.split("/");
-  for (const seg of segments) {
-    const lower = seg.toLowerCase();
-    if (TEST_SEGMENTS.has(lower)) {
-      return true;
-    }
-    if (seg.startsWith(".") && seg !== "." && seg !== "..") {
-      return true;
-    }
-    if (lower.endsWith("_src")) {
-      return true;
-    }
-  }
-
-  const basename = segments[segments.length - 1];
-  const dotIdx = basename.lastIndexOf(".");
-  const stem = dotIdx > 0 ? basename.slice(0, dotIdx) : basename;
-  const lowerStem = stem.toLowerCase();
-
-  if (
-    lowerStem.endsWith(".test") ||
-    lowerStem.endsWith(".spec") ||
-    lowerStem.endsWith("_test") ||
-    lowerStem.startsWith("test_")
-  ) {
-    return true;
-  }
-
-  return false;
-}
 
 /**
  * Chuẩn hóa một đường dẫn theo ING-60

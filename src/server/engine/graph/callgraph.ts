@@ -246,6 +246,82 @@ function resolveHandlerKey(
   return `${filePath}#${text}`;
 }
 
+// `12` Mục 1: gói cung cấp receiver route
+const ROUTER_PACKAGES = new Set(["express", "fastify", "koa-router", "@koa/router"]);
+const ROUTER_FACTORY = /^(express|Router|express\.Router|fastify|Fastify|require\(['"](express|fastify|koa-router|@koa\/router)['"]\)(\.Router)?)$/;
+const ROUTER_NAME = /^(app|router|server|fastify)$|Router$/i;
+const INTERNAL_IMPORT = /^(\.|@\/|~\/|#)/;
+const FIXED_VALUE_TYPES = new Set([
+  "string", "template_string", "number", "true", "false", "null", "undefined", "object", "array", "regex",
+]);
+
+interface RouteScope {
+  routers: Set<string>; // Biến gán từ express(), Router(), fastify()…
+  fixedValues: Set<string>; // Biến gán giá trị cố định
+}
+
+function isRouterFactory(callee: Node | null, filePath: string, idx: SymbolIndex): boolean {
+  if (!callee) return false;
+  const text = callee.text.replace(/\s+/g, "");
+  if (ROUTER_FACTORY.test(text)) return true;
+  const imported = idx.imports.get(filePath)?.get(text.split(".")[0] ?? "");
+  return !!imported?.import_source && ROUTER_PACKAGES.has(imported.import_source);
+}
+
+function collectRouteScope(root: Node, filePath: string, idx: SymbolIndex): RouteScope {
+  const scope: RouteScope = { routers: new Set(), fixedValues: new Set() };
+  for (const decl of root.descendantsOfType("variable_declarator")) {
+    const name = decl?.childForFieldName("name");
+    let value = decl?.childForFieldName("value") ?? null;
+    if (!name || name.type !== "identifier" || !value) continue;
+    if (value.type === "await_expression") value = value.namedChild(0);
+    if (!value) continue;
+    if (FIXED_VALUE_TYPES.has(value.type)) {
+      scope.fixedValues.add(name.text);
+    } else if (value.type === "call_expression") {
+      if (isRouterFactory(value.childForFieldName("function"), filePath, idx)) scope.routers.add(name.text);
+    } else if (value.type === "new_expression") {
+      if (isRouterFactory(value.childForFieldName("constructor"), filePath, idx)) scope.routers.add(name.text);
+    }
+  }
+  return scope;
+}
+
+// `12` Mục 1: R từ express(), Router()… trong file, hoặc tham số, field, import nội bộ đúng tên; gói ngoài khác ⇒ không phải route
+function isRouteReceiver(obj: Node, filePath: string, idx: SymbolIndex, scope: RouteScope): boolean {
+  let r: Node | null = obj;
+  while (r?.type === "call_expression") {
+    const fn: Node | null = r.childForFieldName("function");
+    if (isRouterFactory(fn, filePath, idx)) return true;
+    if (fn?.type !== "member_expression") return false;
+    const prop = fn.childForFieldName("property")?.text ?? "";
+    if (prop !== "route" && !HTTP_VERBS.has(prop)) return false;
+    r = fn.childForFieldName("object");
+  }
+  if (!r) return false;
+
+  let name: string;
+  if (r.type === "identifier") {
+    name = r.text;
+    if (scope.routers.has(name)) return true;
+    const imported = idx.imports.get(filePath)?.get(name);
+    const source = imported?.import_source;
+    if (imported && !imported.source_file && source && !INTERNAL_IMPORT.test(source) && !ROUTER_PACKAGES.has(source)) {
+      return false;
+    }
+  } else if (r.type === "member_expression") {
+    name = r.childForFieldName("property")?.text ?? "";
+  } else {
+    return false;
+  }
+  return ROUTER_NAME.test(name);
+}
+
+function isHandlerArg(arg: Node, scope: RouteScope): boolean {
+  if (FIXED_VALUE_TYPES.has(arg.type)) return false;
+  return !(arg.type === "identifier" && scope.fixedValues.has(arg.text));
+}
+
 export interface CallGraphResult {
   edges: FunctionCallEdge[];
   external: ExternalCall[];
@@ -535,6 +611,8 @@ export function buildCallGraph(
       }
     }
 
+    let routeScope: RouteScope | null = null;
+
     function visit(node: Node): void {
       // 1. Nhận diện Route Express / Koa / Fastify (ENG-40)
       if (
@@ -556,7 +634,8 @@ export function buildCallGraph(
                 // Handler là arg cuối cùng, middlewares là các arg ở giữa
                 const argCount = argsNode.namedChildCount;
                 const lastArg = argsNode.namedChild(argCount - 1);
-                if (lastArg) {
+                routeScope ??= collectRouteScope(root, filePath, idx);
+                if (lastArg && isHandlerArg(lastArg, routeScope) && isRouteReceiver(obj, filePath, idx, routeScope)) {
                   const handlerKey = resolveHandlerKey(
                     lastArg,
                     filePath,

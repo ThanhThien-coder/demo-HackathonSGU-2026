@@ -82,12 +82,12 @@ Cột **Thử sửa** là kết quả sửa thử trên bản sao tạm rồi ch
 | B04 | B-22 | Che secret bỏ sót | Spec | ING-110, `ingest/secrets.ts` | Không | Một phần: `SECRET_KEY` của repo Django đã được che, chưa thêm token Stripe, Slack, URL `https` |
 | B04 | B-09 + B-23 + B-24 | Vân tay đọc sai gói, sai ngôn ngữ | Code | B-09 chỉ lọc lúc hiển thị, không đổi `tech_stack`; B-23, B-24 ở `ingest/fingerprint.ts` | Có với B-09 | B-23 đã vá, chưa đo riêng; còn lại chưa thử |
 | B05 | B-01 | NestJS hiện code method khác | Code | `graph/symbols.ts`, có ở `b/fix-nest-buoc-dau` | Có | Hết: BrewLite 9 → 17/17 bài có dòng đầu riêng |
-| B05 | B-03 + B-34 | Nhận nhầm route: `config.get`, `msw` | Code | `graph/callgraph.ts` (TASK_20) | Có với B-03 | Hết: route giả BrewLite 2 → 0, `bulletproof-react` 13 → 0. Luật handler phải vẫn nhận `const h = makeHandler(cfg)`, bản thử chặn nhầm nên 1 test đỏ |
+| B05 | B-03 + B-34 | Nhận nhầm route: `config.get`, `msw` | Code | `graph/callgraph.ts` | Có với B-03 | Hết: route giả BrewLite 2 → 0, `bulletproof-react` 13 → 0. Luật handler phải vẫn nhận `const h = makeHandler(cfg)`, bản thử chặn nhầm nên 1 test đỏ |
 | B05 | B-25 + B-26 | Đọc tsconfig sai, mất alias `@/` | Code | `graph/resolvers/ts_js.ts`, `ingest/fingerprint.ts` | Có khi chọn `frontend/` | Một phần: BrewLite 147 → 0, `taxonomy` 274 → 43, `full-stack-fastapi-template` 248 → 201. Phần còn lại chưa rõ nguyên nhân |
 | B06 | B-06 | Prisma không tới tầng dữ liệu | Code | `graph/slicing.ts` | Có | Hết: BrewLite 0/19 → 14/17 |
 | B06 | B-33 | Engine chậm khi nhiều route | Code | `graph/slicing.ts` | Không | Một phần: `django/django` 121 → 32 giây, còn chỗ chậm khác |
-| B07 | B-02 + B-20 | File test thành bài học | Spec | ING-87, `graph/nodes.ts`, `ingest/priority.ts` (TASK_20) | Có | Hết: file test BrewLite 1 → 0, `nestjs/nest` 12 → 0 |
-| B07 | B-04 + B-05 | Bài rời rạc, mở sẵn quá nhiều | Spec | D-07, D-55, `graph/nodes.ts` (TASK_21) | Có | Chưa thử |
+| B07 | B-02 + B-20 | File test thành bài học | Spec | ING-87, `graph/nodes.ts`, `ingest/priority.ts` | Có | Hết: file test BrewLite 1 → 0, `nestjs/nest` 12 → 0 |
+| B07 | B-04 + B-05 | Bài rời rạc, mở sẵn quá nhiều | Spec | D-07, D-55, `graph/nodes.ts`, làm theo B-39 | Có | Chưa thử |
 | B07 | B-27 | Lấy `<module>` làm bài thuật toán | Code | `graph/index.ts` | Có | Hết: 0 bài `<module>` trên các repo đo, Capstone BrewLite thành `Create Order` |
 | B07 | B-11 + B-28 | Bước thuật toán rỗng, sai số dòng | Code | `graph/nodes.ts` | Có với B-11 | Chưa thử riêng, B-27 đã bỏ bài `Order` gây B-11 |
 | B07 | B-29 + B-30 | Tên bước, tên bài khó hiểu | Spec, Code | Spec 11 Mục 13, `graph/naming.ts`, `graph/callgraph.ts` | Có | Chưa thử. Đổi tên là đổi id |
@@ -107,7 +107,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `getStartLineWithDecorators` trong `symbols.ts` quét mọi decorator trong class.
 - **Cần sửa:** method chỉ lấy decorator của chính nó.
 - **Kiểm tra:** quét repo NestJS chưa từng quét, mở `Get Order`, bước đầu chỉ có `findOne`.
-- **Trạng thái:** đã xác nhận trên site. Bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, đã qua test, chưa vào `main`.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-nest-buoc-dau-2` lấy commit `1066d4d`, thêm ca comment giữa decorator và method. `npm test` 685 qua. Quét `kuuhakubee/CNPM_BrewLite` và `lujakob/nestjs-realworld-example-app`: bước 1 không còn lẫn method khác, số bài, số cạnh, `id` không đổi. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-02 · Nặng · Capstone lấy từ file test
 
@@ -115,7 +115,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-87 chỉ giảm ưu tiên file test, không loại khỏi node.
 - **Cần sửa:** trong `nodes.ts`, còn từ `DISPLAY_MIN_NODES` candidate không mang cờ test thì bỏ candidate mang cờ. `isTestPath` trong `selective.ts` chưa export và `priority.ts` có bản logic riêng, nên gom về một hàm dùng chung rồi mới dùng lại.
 - **Kiểm tra:** Capstone BrewLite là `Create Order`, không còn node từ `.spec`.
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_20).
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-route-file-test`. Đã sửa ENG-110, D-12: thiếu bài sạch thì bù vừa đủ `CONFIG.DISPLAY_MIN_NODES`, không có bài sạch thì giữ nguyên, Capstone ưu tiên bài sạch. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: 17 bài, không còn bài từ `.spec`, Capstone `Create Order`. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.7.0`.
 
 ### B-03 · Vừa · `config.get()` thành route giả
 
@@ -125,7 +125,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
   1. Đối số cuối phải là hàm, lời gọi bọc, hoặc tên tham chiếu tới hàm. Chuỗi, số, boolean, object, tên hằng thì không tạo route.
   2. Receiver phải có nguồn từ `express()`, `Router()` theo `12` Mục 1. Code hiện chưa kiểm điều này.
 - **Kiểm tra:** BrewLite không còn 2 bài trên và vẫn đủ 17 route thật. Có test `cache.get('k', loadFn)` không sinh route.
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_20).
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-route-file-test`. Đã kiểm receiver và đối số cuối. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: hết `List Jwt_expires_ins`, `Charge`, còn đủ 17 bài. Có test `cache.get('k', loadFn)`.
 
 ### B-04 · Vừa · Quá nhiều bài mở sẵn
 
@@ -133,7 +133,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** quyết định D-07 chỉ nối bài gọi chung hàm, nên nhiều bài không có bài cha.
 - **Cần sửa:** thêm `addTreeEdges` trong `nodes.ts`, nối bài theo module thành cây, cạnh thêm là `INFERRED` và có khóa bài (đề xuất D-73).
 - **Kiểm tra:** BrewLite mở lúc đầu không quá 6 bài.
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21). Đổi cách khóa bài nên cần thử kỹ trước khi demo.
+- **Trạng thái:** đã xác nhận trên site, chưa làm. Làm theo B-39, không nối theo module. Đổi cách khóa bài nên cần thử kỹ trước khi demo.
 
 ### B-05 · Vừa · Node tách rời, bản đồ quá dài
 
@@ -141,7 +141,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** như B-04, cộng quyết định D-55 đưa mọi bài không có cha lên hàng đầu.
 - **Cần sửa:** làm cùng B-04, rồi đo lại. Bản đồ chỉ đọc được khi đã sửa thêm lỗi D-01.
 - **Kiểm tra:** BrewLite hết node lẻ, còn khoảng 3 cây (theo mô phỏng).
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21).
+- **Trạng thái:** đã xác nhận trên site, chưa làm. Làm theo B-39.
 
 ### B-06 · Vừa · Không có luồng tới tầng dữ liệu
 
@@ -241,9 +241,9 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `nestjs/nest` có 12/20 node lấy từ `integration/`, là code kiểm thử của repo. Trong 100 file giữ lại, `packages/common` chỉ còn 7 file.
 - **Nguyên nhân:** danh sách ING-87 không có `integration`, `sample`, `samples`. Các file bằng điểm được xếp theo tên nên `integration/` lấy chỗ trước `packages/`.
-- **Cần sửa:** thêm các segment này vào ING-87 và `priority.ts`, làm cùng TASK_20 vì task đó dùng chung cờ test.
+- **Cần sửa:** thêm các segment này vào ING-87 và `priority.ts`, làm cùng B-02 vì dùng chung cờ test.
 - **Kiểm tra:** `nestjs/nest` không còn node từ `integration/`.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-route-file-test`. Một hàm `isTestPath` ở `priority.ts`. Đã sửa ING-87: `integration`, `sample`, `samples` chỉ tính ở segment đầu đường dẫn, để không bỏ nhầm `src/integration/`. Quét `nestjs/nest` qua zip: bài có cờ 12 → 0.
 
 ### B-21 · Nhẹ · Nhập thư mục sai hoa thường bị báo không có code
 
@@ -296,7 +296,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** BrewLite có bài `Order` với 3 bước đều là `<module>` của file test. `node-express-realworld` có bài `:slug / Article` với `<module>` của `article.controller.ts`, đoạn bỏ qua tới 214 dòng. Cả 2 repo này và `node-express-boilerplate` đều có Capstone là node `<module>`. `pallets/click` có nhiều bài `<module>` tương tự.
 - **Nguyên nhân:** code cấp cao nhất được coi là hàm `<module>`, gồm cả các handler ẩn danh, nên độ phức tạp cộng dồn rất cao. `pickVipFunctions` không loại nó nên thành bài `ALGORITHMIC_CORE`.
-- **Cần sửa:** loại `<module>` khỏi chọn VIP và ENG-90, trừ chế độ `PROCEDURAL`. Liên quan B-02 và B-11: TASK_20 chỉ bỏ được file test, không bỏ được trường hợp này.
+- **Cần sửa:** loại `<module>` khỏi chọn VIP và ENG-90, trừ chế độ `PROCEDURAL`. Liên quan B-02 và B-11: B-02 chỉ bỏ được file test, không bỏ được trường hợp này.
 - **Kiểm tra:** không còn node `ALGORITHMIC_CORE` có `function_name` là `<module>`.
 - **Ảnh hưởng demo:** có.
 - **Trạng thái:** đã chạy thật, chưa làm.
@@ -355,11 +355,11 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 ### B-34 · Vừa · Mock API bị nhận là route Express
 
 - **Hiện tượng:** `alan2207/bulletproof-react` là app React nhưng bị báo `WEB_BACKEND`, framework Express. Cả 20 bài lấy từ mock `http.get(...)` của thư viện `msw`, tên bài là `<anon@l111>`, không có bài nào từ giao diện thật.
-- **Nguyên nhân:** spec 12 Mục 1 yêu cầu `R` phải đến từ `express()`, `Router()` hoặc `fastify()`, nhưng `callgraph.ts` chỉ xét tên method. Luật handler của TASK_20 không chặn được ca này vì đối số cuối đúng là hàm. Framework Express đến từ `express` trong `devDependencies` (liên quan B-09). URL dạng template làm path rỗng, nên tên bài rơi về `<anon@l111>`.
-- **Cần sửa:** kiểm nguồn gốc của `R`, làm cùng TASK_20. Bỏ file mock theo ING-87 (`mocks`, `__mocks__`), và không cho tên bài chứa `<`, `>`.
+- **Nguyên nhân:** spec 12 Mục 1 yêu cầu `R` phải đến từ `express()`, `Router()` hoặc `fastify()`, nhưng `callgraph.ts` chỉ xét tên method. Luật handler không chặn được ca này vì đối số cuối đúng là hàm. Framework Express đến từ `express` trong `devDependencies` (liên quan B-09). URL dạng template làm path rỗng, nên tên bài rơi về `<anon@l111>`.
+- **Cần sửa:** kiểm nguồn gốc của `R`, làm cùng B-03. Bỏ file mock theo ING-87 (`mocks`, `__mocks__`), và không cho tên bài chứa `<`, `>`.
 - **Kiểm tra:** repo trên không còn route từ `msw`.
 - **Ảnh hưởng demo:** không có với BrewLite.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `b/fix-route-file-test` đã xong nhận route và cờ `mocks`: `bulletproof-react` từ 13 bài mock về 0. Còn 2 phần ở Luồng 2: repo vẫn báo framework Express, và `fastify-example-todo` còn 6 tên bài có `<`, `>`.
 
 ---
 
@@ -800,7 +800,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 
 - **Hiện tượng:** `main` có nhiều chức năng không nối với nhau nên bị kéo thành một hàng. `feat/giao-dien-ide` nối theo thư mục nên ra các cột không có nghĩa, ví dụ `App Hello → Health`, `Auth Me → Login → Register`, tức Đăng nhập đứng trước Đăng ký. Sơ đồ cần có là các chức năng nối theo nghiệp vụ: Đăng ký và Danh sách sản phẩm là điểm bắt đầu, cùng dẫn tới Thanh toán, còn Health và bài thuật toán học riêng.
 - **Nguyên nhân:** quyết định D-07 chỉ nối 2 bài khi dùng chung hàm, nên chức năng không chung hàm thì không có cạnh. Quyết định D-73 và `lessonTree` của `feat` nối theo thư mục, không theo nghiệp vụ. Tài liệu gốc của sơ đồ mẫu cũng ghi cạnh là "thứ tự học giả định", tức chưa từng có thuật toán sinh ra nó.
-- **Cần sửa:** đổi sang đồ thị phụ thuộc dữ liệu giữa các chức năng, theo ý "có dữ liệu rồi mới dùng được". Bản này thay hướng nối theo module của B-04, B-05 và TASK_21.
+- **Cần sửa:** đổi sang đồ thị phụ thuộc dữ liệu giữa các chức năng, theo ý "có dữ liệu rồi mới dùng được". Bản này thay hướng nối theo module của B-04, B-05.
   1. **Đọc thực thể:** mỗi bài có tập thực thể và thao tác tạo, đọc, sửa, xóa, lấy từ bước `DATA_ACCESS`. Làm cho Prisma, TypeORM, Mongoose, JPA. Không đọc được thì lấy tài nguyên từ route, ví dụ `POST /orders` là tạo `orders`.
   2. **Đọc khóa ngoại:** `@relation` của Prisma, `@ManyToOne` của TypeORM và JPA.
   3. **Tìm nguồn của thực thể:** bài dễ nhất có thao tác tạo. Không có bài tạo vì dữ liệu nhập sẵn thì lấy bài dễ nhất đụng tới thực thể đó.
@@ -1016,13 +1016,13 @@ Làm từ trên xuống. Cột **Chờ** rỗng thì làm được ngay sau Bư�
 | Bước | Mã | Việc | Chờ |
 | --: | :-- | :-- | :-- |
 | 1 | B-01 | Lấy commit `1066d4d`, không làm lại | |
-| 2 | B-03, B-34, B-02, B-20 | TASK_20: nhận route đúng, bỏ file test và mock | Bước 1 |
+| 2 | B-03, B-34, B-02, B-20 | Nhận route đúng, bỏ file test và mock | Bước 1 |
 | 3 | B-27, B-35 | Bỏ `<module>` và component giao diện khỏi bài thuật toán | Luật B-35 |
 | 4 | B-37, B-06 | Đo trước bước nào bị bỏ, rồi sửa lát cắt và Prisma | Luật B-37 |
 | 5 | B-11, B-28 | Bỏ bước rỗng, dựng lại `snippet_line_map` | Bước 3 |
 | | | **Đổi `ENGINE_VERSION` thành `1.7.0`, báo cả nhóm** | Bước 1–5 |
 | 6 | B-36 | Sửa luật cắt còn 20 bài | Luật B-36 |
-| 7 | B-39, B-04, B-05 | Nối bài theo phụ thuộc dữ liệu. Không làm TASK_21, đo lại B-04, B-05 sau khi xong | Bước 4, 6, luật B-39 |
+| 7 | B-39, B-04, B-05 | Nối bài theo phụ thuộc dữ liệu. Không nối theo module, đo lại B-04, B-05 sau khi xong | Bước 4, 6, luật B-39 |
 | 8 | B-33 | Tăng tốc `buildSlice` | Bước 7 |
 
 **Luồng 2 · Ingest**
@@ -1038,6 +1038,7 @@ Làm từ trên xuống. Cột **Chờ** rỗng thì làm được ngay sau Bư�
 | 7 | B-32 | Tải manifest song song | Luồng 1 xong bước 2, vì cùng sửa `selective.ts` |
 | 8 | B-18, B-19 | Zip độc, zip macOS | |
 | 9 | B-29, B-30 | Tên bước, tên bài. Đổi tên là đổi id, nên vào `1.8.0` | Mốc 1 |
+| 10 | B-34 | Phần còn lại: framework lấy từ `devDependencies`, tên bài có `<`, `>` | Bước 9 |
 
 **Luồng 3 · Java**
 

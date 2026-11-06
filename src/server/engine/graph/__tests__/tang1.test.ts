@@ -678,3 +678,152 @@ def register():
     expect(edge?.confidence).toBe("RESOLVED");
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// ENG-20: line_start với decorator trong NestJS controller và export class
+// ---------------------------------------------------------------------------
+describe("ENG-20: line_start với decorator trong NestJS controller và export class", () => {
+  beforeAll(async () => {
+    await initParsers();
+  });
+
+  it("ENG-20: Controller 3 method, mỗi method 1 decorator ⇒ line_start của method là decorator của chính nó", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const nestCode = [
+      "import { Controller, Get, Post, Delete } from '@nestjs/common';",
+      "",
+      "@Controller('orders')",
+      "export class OrderController {",
+      "  @Post()",
+      "  async create() {",
+      "    return {};",
+      "  }",
+      "",
+      "  @Get(':id')",
+      "  async findOne() {",
+      "    return {};",
+      "  }",
+      "",
+      "  @Delete(':id')",
+      "  async remove() {",
+      "    return {};",
+      "  }",
+      "}",
+    ].join("\n");
+
+    code.set("src/order.controller.ts", nestCode);
+    langs.set("src/order.controller.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+
+    const createSym = idx.functions.get("src/order.controller.ts#OrderController.create");
+    const findOneSym = idx.functions.get("src/order.controller.ts#OrderController.findOne");
+    const removeSym = idx.functions.get("src/order.controller.ts#OrderController.remove");
+
+    expect(createSym).toBeDefined();
+    expect(findOneSym).toBeDefined();
+    expect(removeSym).toBeDefined();
+
+    expect(createSym?.line_start).toBe(5);
+    expect(findOneSym?.line_start).toBe(10);
+    expect(removeSym?.line_start).toBe(15);
+  });
+
+  it("ENG-20: Method có 2 decorator liền nhau như @Get() và @Roles() ⇒ line_start là decorator đầu của chính method đó", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const nestCode = [
+      "import { Controller, Get, Post, Roles } from '@nestjs/common';",
+      "",
+      "@Controller('users')",
+      "export class UserController {",
+      "  @Post()",
+      "  async create() {",
+      "    return {};",
+      "  }",
+      "",
+      "  @Get(':id')",
+      "  @Roles('admin')",
+      "  async findOne() {",
+      "    return {};",
+      "  }",
+      "}",
+    ].join("\n");
+
+    code.set("src/user.controller.ts", nestCode);
+    langs.set("src/user.controller.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+
+    const createSym = idx.functions.get("src/user.controller.ts#UserController.create");
+    const findOneSym = idx.functions.get("src/user.controller.ts#UserController.findOne");
+
+    expect(createSym).toBeDefined();
+    expect(findOneSym).toBeDefined();
+
+    expect(createSym?.line_start).toBe(5);
+    expect(findOneSym?.line_start).toBe(10);
+  });
+
+  it("ENG-20: @Dec export class X vẫn lấy dòng decorator", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const codeStr = [
+      "@Dec",
+      "export class X {",
+      "  run() {}",
+      "}",
+    ].join("\n");
+
+    code.set("src/x.ts", codeStr);
+    langs.set("src/x.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+
+    const classSym = idx.symbols.get("src/x.ts#X");
+    expect(classSym).toBeDefined();
+    expect(classSym?.line_start).toBe(1);
+    expect(classSym?.line_end).toBe(4);
+  });
+
+  it("ENG-20: Comment giữa decorator và method ⇒ line_start vẫn là decorator của method", async () => {
+    const report = createEmptyReport();
+    const code = new Map<string, string>();
+    const langs = new Map<string, LanguageId>();
+
+    const nestCode = [
+      "export class OrderController {",
+      "  @Get()",
+      "  list() {}",
+      "",
+      "  @Post()",
+      "  // tạo đơn mới",
+      "  create() {}",
+      "",
+      "  @Get(':id')",
+      "  /** lấy một đơn */",
+      "  findOne() {}",
+      "}",
+    ].join("\n");
+
+    code.set("src/order.controller.ts", nestCode);
+    langs.set("src/order.controller.ts", "TYPESCRIPT");
+
+    const parsed = await parseAll(code, langs, report);
+    const idx = collectSymbols(parsed);
+
+    expect(idx.functions.get("src/order.controller.ts#OrderController.create")?.line_start).toBe(5);
+    expect(idx.functions.get("src/order.controller.ts#OrderController.findOne")?.line_start).toBe(9);
+  });
+});
