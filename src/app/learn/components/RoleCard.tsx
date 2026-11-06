@@ -74,9 +74,18 @@ export function RoleCard({ node, onStartTour }: RoleCardProps) {
                 Thuật toán
               </span>
             )}
-            {card.support_tier && (
-              <span className="text-[10px] font-mono text-[#625e56] bg-[#f1f5f9] border border-[#e2e8f0] px-1.5 py-0.25 rounded">
-                {card.support_tier}
+            {/* RESOLVED là mặc định ⇒ không hiện; STRUCTURAL ⇒ "suy luận" như bản đồ (Mục 4) */}
+            {card.support_tier === "STRUCTURAL" && (
+              <span
+                className="text-[10px] text-[#625e56] bg-[#f1f5f9] border border-[#e2e8f0] px-1.5 py-0.5 rounded"
+                title="Ngôn ngữ chưa phân tích đầy đủ — các bước do engine suy luận"
+              >
+                suy luận
+              </span>
+            )}
+            {card.support_tier === "UNSUPPORTED" && (
+              <span className="text-[10px] text-[#625e56] bg-[#f1f5f9] border border-[#e2e8f0] px-1.5 py-0.5 rounded">
+                chưa hỗ trợ
               </span>
             )}
           </div>
