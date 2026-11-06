@@ -91,6 +91,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Gõ `grep -n "runIngest" src/app/api/ingest/route.ts src/server/session.ts`, không có kết quả: route chỉ gọi `runEngine`, không ingest 2 lần.
 - [ ] Có test `runEngine` ném `IngestionError` ⇒ trả `ApiError` đúng mã HTTP và giữ `code`, `details` (VD `ERR_INVALID_GITHUB_URL` ⇒ 400, không phải 503 `ERR_PERSISTENCE_UNAVAILABLE`), và test đó xanh.
 - [ ] Trong route có chỗ đổi `IngestionError` ⇒ `ApiHttpError` trước khi trả về; `src/server/errors.ts` không bị sửa.
+- [ ] `analyses` trả đúng khi mở lại phiên.
 
 ```text
 Task "A06 — Nối POST /api/ingest" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

@@ -9,7 +9,6 @@
 
 ## Đọc nhanh
 
-- Parse AST qua Tree-sitter (TS/JS, Python đã kiểm chứng) trích xuất symbol và callgraph.
 - Tìm entry point (bảng mẫu ở `12`), cắt lát gọi hàm (Forward Slicing) và xếp hạng bằng PageRank/Cognitive Complexity.
 
 Sơ đồ 13 giai đoạn:
@@ -181,7 +180,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate;
 ```
 
 1. **ENG-80 Thu hàm (1 step = 1 hàm).** Thứ tự: entry (hop 0) ⇒ từng middleware của `binding` (hop 1) kèm hàm nó gọi ⇒ hàm entry gọi. DFS tiền thứ tự, callee theo (dòng, cột) call site rồi khóa; chỉ hàm có thân; mỗi hàm 1 lần; dừng ở hop `CONFIG.SLICE_MAX_HOPS`. Call site `ambiguous` ⇒ 1 đích: file có tiền tố chung dài nhất với caller, hòa ⇒ khóa nhỏ.
-2. **ENG-81 Lọc liên quan.** Callee `G` (không là entry/middleware) giữ khi: cây con `G` có `DATA_SINK`, hoặc giá trị trả về ở ≥ 1 site được dùng (gán, return, đối số, điều kiện), hoặc `G` có `throw`/`raise`. Không ⇒ bỏ `G` và hàm chỉ đến qua `G` (VD `logger.info(x)`).
+2. **ENG-81 Lọc liên quan.** Bỏ hàm vặt (D-87). Callee `G` (không là entry/middleware) giữ khi: cây con `G` có `DATA_SINK`, hoặc giá trị trả về ở ≥ 1 site được dùng (gán, return, đối số, điều kiện), hoặc `G` có `throw`/`raise`. Không ⇒ bỏ `G` và hàm chỉ đến qua `G` (VD `logger.info(x)`).
 3. **ENG-82 Layer** (ưu tiên trên xuống): entry ⇒ `ENTRY_POINT`; middleware ⇒ `MIDDLEWARE`; file có segment/token cuối stem ∈ {repository, repositories, repo, repos, dao, daos, model, models, entity, entities} ⇒ `DATA_ACCESS`; hàm có `DATA_SINK` và không gọi hàm nào ở file trên ⇒ `DATA_ACCESS`; còn lại ⇒ `BUSINESS_LOGIC` (VD service gọi `categoryRepo.findById` ⇒ `BUSINESS_LOGIC`).
 4. **Mẫu.** `DATA_SINK` = `ExternalCall` khớp: (a) method ∈ {save, insert\*, update\*, delete\*, remove, find\*, create, upsert, query, execute, exec, aggregate, count, get, add, commit} và receiver khớp `/(repository|repo|model|dao|entity|db|database|prisma|knex|pool|conn|connection|client|session|cursor|collection|datasource|manager|tx|trx|jdbcTemplate)$/i` hoặc chuỗi receiver, sau khi bỏ `this.`, có đoạn `prisma`, `tx`, `trx`; (b) receiver có `import_source` ∈ {pg, mysql, mysql2, mongodb, mongoose, sequelize, typeorm, @prisma/client, sqlite3, better-sqlite3, redis, ioredis, knex, sqlalchemy, psycopg2, pymongo, database/sql, gorm.io/gorm}; (c) receiver viết hoa + method ∈ (a) khi `tech_stack` có mongoose/sequelize/typeorm. `OUTPUT` = `res.json|send|status|render|redirect|end|sendStatus`, `reply.send`, `next(…)`, `return jsonify|Response|HttpResponse(…)`, `print`, `fetch`/`axios.*`, `setState`/`set<X>`. Không gồm `console.*`, `logger.*`, `logging.*`.
 5. **Criterion:** câu lệnh `DATA_SINK` đầu tiên theo (thứ tự bước, dòng); không có ⇒ `OUTPUT` cuối của entry; không ⇒ `return` cuối của entry; không ⇒ dòng cuối thân entry.
@@ -199,7 +198,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate;
 
 ## 9. Node thuật toán — `nodes.ts`
 
-1. **ENG-90 Khi nào tạo.** (a) VIP trong scope không là bước lát cắt (sau ENG-81, ENG-88). (b) NORMAL có `< CONFIG.DISPLAY_MIN_NODES` candidate sau ENG-110 ⇒ thêm hàm có `complexity ≥ CONFIG.VIP_FALLBACK_MIN_SCORE` (thứ tự ENG-74). `<module>` không là ứng viên của (a), (b).
+1. **ENG-90 Khi nào tạo.** (a) VIP trong scope không là bước lát cắt (sau ENG-81, ENG-88). (b) NORMAL có `< CONFIG.DISPLAY_MIN_NODES` candidate sau ENG-110 ⇒ thêm hàm có `complexity ≥ CONFIG.VIP_FALLBACK_MIN_SCORE` (thứ tự ENG-74). `<module>`, hàm trả JSX (D-86) không là ứng viên của (a), (b).
 2. **ENG-91 Chia bước** (các bước cùng `function_name`). Câu chính = vòng lặp cấp 1 nhiều dòng nhất (hòa ⇒ đầu tiên); thiếu ⇒ câu có điểm ENG-71 lớn nhất. `ALGO_SETUP` = chữ ký + câu trước; `ALGO_EXECUTION` = câu chính; `ALGO_TERMINATION` = câu sau + đóng. Không câu điều khiển ⇒ SETUP = mọi câu trừ cuối, TERMINATION = câu cuối. Bỏ bước rỗng; clamp ENG-87 (mốc: trước câu chính / header / câu đầu); rồi ENG-88, ENG-89.
 3. `ALGORITHMIC_CORE`; `entry_symbol` = khóa hàm; `cognitive_complexity = complexity`; `rank_score` = của file chứa hàm; `is_vip_algorithm = true`; `functions = [khóa]`.
 
@@ -347,3 +346,5 @@ export function mainPath(graph: StaticEngineResult): string[];   // → RepoOver
 | T-ENG-48 | `shop-api` (`repo-demo.test.ts`) | `Create Register`→`List Profiles`→`Cart Items`→`Order Checkout`, `List Products`→`Order Checkout`→`Order Email`, `Order Checkout`→`Report Revenue`. Nhóm theo thứ tự: `Product`, `User`, `Cart` (`ROUTE_PREFIX`), `Order` (3 bài) |
 | T-ENG-49 | `kuuhakubee/CNPM_BrewLite` (`apps/api`), chạy 2 lần | `Auth Register`, `List Products` là điểm bắt đầu, cùng dẫn tới `Create Order`; không có `Auth Me`→`Login`→`Register`; `List Healths` thuộc `STANDALONE`; có nhóm `ENTITY`; cùng `groups` |
 | T-ENG-50 | Repo không `DATA_SINK`, không route: node thuật toán có cạnh D-56 · bài không có cạnh | Cạnh theo D-07, D-56; mọi node đúng 1 nhóm; cả 2 thuộc `STANDALONE`; bài không có cạnh không khóa |
+| T-ENG-51 | Hàm `return <div/>` · chỉ callback trả JSX | Không có node · có node `algo-*` |
+| T-ENG-52 | 6 route chung `shared`, `load` đọc DB | Bỏ `shared`, giữ `load` |
