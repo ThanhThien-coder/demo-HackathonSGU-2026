@@ -20,6 +20,10 @@ export interface EngineContext {
   extByFn: Map<string, CallGraph["external"]>;
   sitesByFn: Map<string, CallGraph["sites"]>;
   throwsByFn: Map<string, boolean>;
+  /** Hàm tự có hoặc gọi (bắc cầu) tới DATA_SINK — tính 1 lần bằng duyệt ngược đồ thị gọi (ENG-81). */
+  sinkReach: Set<string>;
+  /** Call site đã chọn 1 đích mỗi site (ENG-80), nhớ theo hàm gọi. */
+  pickedSites: Map<string, Array<{ callee: string; node: SyntaxNode; confidence: "RESOLVED" | "INFERRED" }>>;
 }
 
 export type CandidateKind = "SLICE" | "ALGO" | "VNODE";
@@ -50,17 +54,20 @@ export function makeContext(idx: SymbolIndex, cg: CallGraph, techStack: string[]
     if (fn.body && !fn.is_module) walk(fn.body, (n) => { if (n.type === "throw_statement" || n.type === "raise_statement") t = true; });
     throwsByFn.set(fn.key, t);
   }
-  return { idx, cg, techStack, sourceMap, fileRank, scope, sinkByFn, extByFn, sitesByFn, throwsByFn };
+  // duyệt ngược từ các hàm có DATA_SINK: mọi hàm gọi tới chúng (bắc cầu) cũng "có sink trong cây con"
+  const callers = new Map<string, string[]>();
+  for (const s of cg.sites) { const l = callers.get(s.callee) ?? []; l.push(s.caller); callers.set(s.callee, l); }
+  const sinkReach = new Set<string>();
+  const stack = [...sinkByFn].filter(([, v]) => v).map(([k]) => k);
+  for (const k of stack) sinkReach.add(k);
+  while (stack.length > 0) {
+    const x = stack.pop()!;
+    for (const c of callers.get(x) ?? []) if (!sinkReach.has(c)) { sinkReach.add(c); stack.push(c); }
+  }
+  return { idx, cg, techStack, sourceMap, fileRank, scope, sinkByFn, extByFn, sitesByFn, throwsByFn, sinkReach, pickedSites: new Map() };
 }
 
 const pos = (n: SyntaxNode) => n.startPosition.row * 100000 + n.startPosition.column;
-
-function subtreeHasSink(ctx: EngineContext, key: string, seen = new Set<string>()): boolean {
-  if (seen.has(key)) return false;
-  seen.add(key);
-  if (ctx.sinkByFn.get(key)) return true;
-  return (ctx.sitesByFn.get(key) ?? []).some((s) => subtreeHasSink(ctx, s.callee, seen));
-}
 
 const valueUsed = (call: SyntaxNode): boolean => {
   let p = call.parent;
@@ -182,7 +189,9 @@ interface StepDraft {
   protected_: boolean;
   seeds: Set<number>;            // node.id của các node hạt giống (call tới callee giữ, sink, output)
   maxLines: number;
-  rows: number[];
+  rows: number[];                // hàng đang dùng sau khi kẹp (Hard Clamp)
+  fullRows: number[];            // hàng đầy đủ trước khi kẹp — tính 1 lần
+  drafted: boolean;
   prefix_rows: number[];
   mark_row: number | null;
   criterion_row: number | null;
@@ -204,13 +213,15 @@ function regionOf(fn: FunctionInfo): { start: number; end: number; sigEnd: numbe
 }
 
 function draftRows(ctx: EngineContext, f: ParsedFile, d: StepDraft, isPy: boolean): void {
+  if (d.drafted) return; // chỉ phân tích câu lệnh 1 lần; kẹp lại nhiều lần khi trần node bắt giảm
+  d.drafted = true;
   const fn = d.fn;
   const reg = regionOf(fn);
   const keep = new Set<number>();
   const range = (a: number, b: number) => { for (let r = a; r <= b; r++) keep.add(r); };
   range(reg.start, reg.sigEnd);
   if (reg.closeStart <= reg.end) range(reg.closeStart, reg.end);
-  if (reg.exprBody || !fn.body) { range(reg.start, reg.end); d.rows = [...keep].sort((a, b) => a - b); return; }
+  if (reg.exprBody || !fn.body) { range(reg.start, reg.end); d.fullRows = [...keep].sort((a, b) => a - b); d.rows = d.fullRows; return; }
 
   const stmts = fn.is_module ? collectStmts(fn.body, true) : collectStmts(fn.body, false);
   d.stmts = stmts;
@@ -311,7 +322,8 @@ function draftRows(ctx: EngineContext, f: ParsedFile, d: StepDraft, isPy: boolea
   const firstSeed = seedStmts.sort((a, b) => a.start - b.start)[0];
   d.mark_row = d.criterion_row ?? (firstSeed ? firstSeed.start : null);
   void f;
-  d.rows = [...keep].filter((r) => r >= reg.start && r <= reg.end).sort((a, b) => a - b);
+  d.fullRows = [...keep].filter((r) => r >= reg.start && r <= reg.end).sort((a, b) => a - b);
+  d.rows = d.fullRows;
 }
 
 function renderRows(f: ParsedFile, rows: number[], prefix: number[], commentPrefix: string): { snippet: string; map: number[] } {
@@ -339,7 +351,7 @@ function renderRows(f: ParsedFile, rows: number[], prefix: number[], commentPref
 /** ENG-87 Hard Clamp: bước dài hơn maxLines ⇒ giữ chữ ký, dòng đóng, cửa sổ quanh mốc. */
 function clampRows(d: StepDraft, f: ParsedFile, cp: string, maxLines: number): { snippet: string; map: number[]; rows: number[] } {
   const reg = regionOf(d.fn);
-  let rows = d.rows;
+  let rows = d.fullRows; // luôn kẹp từ bản đầy đủ, không kẹp chồng lên bản đã kẹp
   let r = renderRows(f, rows, d.prefix_rows, cp);
   if (r.map.length <= maxLines) return { ...r, rows };
   const sig = rows.filter((x) => x <= reg.sigEnd);
@@ -394,6 +406,8 @@ export function buildSlice(entryKey: string, middlewares: string[], ctx: EngineC
   const resolvedPath = new Map<string, boolean>();
 
   const callSitesOf = (key: string) => {
+    const cached = ctx.pickedSites.get(key);
+    if (cached) return cached;
     const bySite = new Map<number, typeof ctx.cg.sites>();
     for (const s of ctx.sitesByFn.get(key) ?? []) { const l = bySite.get(s.node.id) ?? []; l.push(s); bySite.set(s.node.id, l); }
     const picked: Array<{ callee: string; node: SyntaxNode; confidence: "RESOLVED" | "INFERRED" }> = [];
@@ -403,7 +417,9 @@ export function buildSlice(entryKey: string, middlewares: string[], ctx: EngineC
       const best = [...list].sort((a, b) => common(idx.functions.get(b.callee)?.file ?? "") - common(idx.functions.get(a.callee)?.file ?? "") || cmp(a.callee, b.callee))[0];
       picked.push({ callee: best.callee, node: best.node, confidence: best.confidence });
     }
-    return picked.sort((a, b) => pos(a.node) - pos(b.node) || cmp(a.callee, b.callee));
+    const sorted = picked.sort((a, b) => pos(a.node) - pos(b.node) || cmp(a.callee, b.callee));
+    ctx.pickedSites.set(key, sorted);
+    return sorted;
   };
 
   const add = (key: string, hop: number, parent: string | null, layer: ArchitecturalLayer, prot: boolean, chainResolved: boolean) => {
@@ -412,7 +428,7 @@ export function buildSlice(entryKey: string, middlewares: string[], ctx: EngineC
     visited.add(key);
     parentOf.set(key, parent);
     resolvedPath.set(key, chainResolved);
-    order.push({ fn, hop, parent, layer, protected_: prot, seeds: new Set(), maxLines: CONFIG.STEP_MAX_LINES, rows: [], prefix_rows: [], mark_row: null, criterion_row: null, stmts: [] });
+    order.push({ fn, hop, parent, layer, protected_: prot, seeds: new Set(), maxLines: CONFIG.STEP_MAX_LINES, rows: [], fullRows: [], drafted: false, prefix_rows: [], mark_row: null, criterion_row: null, stmts: [] });
     return true;
   };
 
@@ -423,7 +439,7 @@ export function buildSlice(entryKey: string, middlewares: string[], ctx: EngineC
       const g = idx.functions.get(s.callee);
       if (!g || g.is_module || !g.body) continue;
       // ENG-81: lọc liên quan
-      const keep = subtreeHasSink(ctx, s.callee) || valueUsed(s.node) || ctx.throwsByFn.get(s.callee);
+      const keep = ctx.sinkReach.has(s.callee) || valueUsed(s.node) || ctx.throwsByFn.get(s.callee);
       if (!keep) continue;
       const cr = chainResolved && s.confidence === "RESOLVED";
       add(s.callee, hop + 1, key, "BUSINESS_LOGIC", false, cr);
@@ -588,7 +604,7 @@ export function buildAlgoSteps(fnKey: string, ctx: EngineContext): { steps: Exec
   for (const p of parts) {
     const rows = [...new Set(p.rows)].sort((a, b) => a - b);
     if (rows.length === 0) continue;
-    const d: StepDraft = { fn, hop: 0, parent: null, layer: p.layer, protected_: true, seeds: new Set(), maxLines: CONFIG.STEP_MAX_LINES, rows, prefix_rows: [], mark_row: p.mark, criterion_row: null, stmts: [] };
+    const d: StepDraft = { fn, hop: 0, parent: null, layer: p.layer, protected_: true, seeds: new Set(), maxLines: CONFIG.STEP_MAX_LINES, rows, fullRows: rows, drafted: true, prefix_rows: [], mark_row: p.mark, criterion_row: null, stmts: [] };
     const r = clampRows(d, f, cp, CONFIG.STEP_MAX_LINES);
     const nz = r.map.filter((x) => x > 0);
     steps.push({

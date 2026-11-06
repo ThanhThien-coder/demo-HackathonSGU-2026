@@ -4,6 +4,7 @@ import * as monaco from "monaco-editor";
 import Editor, { loader } from "@monaco-editor/react";
 import { useEffect, useRef } from "react";
 import { stepAtLine, type SliceModel } from "./slice-model";
+import { useTheme } from "@/components/ui/theme";
 
 loader.config({ monaco });
 
@@ -18,6 +19,27 @@ if (typeof window !== "undefined") {
   const off = { noSemanticValidation: true, noSyntaxValidation: true, noSuggestionDiagnostics: true };
   monaco.typescript.typescriptDefaults.setDiagnosticsOptions(off);
   monaco.typescript.javascriptDefaults.setDiagnosticsOptions(off);
+  // 2 theme theo bảng màu sáng / tối của globals.css (nền --code-bg, chữ --text, số dòng --muted).
+  monaco.editor.defineTheme("simplifey-dark", {
+    base: "vs-dark", inherit: true,
+    rules: [{ token: "comment", foreground: "6E6889", fontStyle: "italic" }],
+    colors: {
+      "editor.background": "#0D0B14", "editor.foreground": "#EEECF6", "editorLineNumber.foreground": "#5D5872",
+      "editorLineNumber.activeForeground": "#B69CFF", "editorGutter.background": "#0D0B14", "editor.lineHighlightBackground": "#00000000",
+      "scrollbarSlider.background": "#9D98B333", "scrollbarSlider.hoverBackground": "#9D98B355", "editorWidget.background": "#12101A",
+      "editorHoverWidget.background": "#12101A", "editorHoverWidget.border": "#C4B5FD33",
+    },
+  });
+  monaco.editor.defineTheme("simplifey-light", {
+    base: "vs", inherit: true,
+    rules: [{ token: "comment", foreground: "64748B", fontStyle: "italic" }],
+    colors: {
+      "editor.background": "#FFFFFF", "editor.foreground": "#0F172A", "editorLineNumber.foreground": "#94A3B8",
+      "editorLineNumber.activeForeground": "#9333EA", "editorGutter.background": "#FFFFFF", "editor.lineHighlightBackground": "#00000000",
+      "scrollbarSlider.background": "#64748B33", "scrollbarSlider.hoverBackground": "#64748B55", "editorWidget.background": "#FFFFFF",
+      "editorHoverWidget.background": "#FFFFFF", "editorHoverWidget.border": "#E2E8F0",
+    },
+  });
 }
 
 export interface MonacoPaneProps {
@@ -35,6 +57,7 @@ export default function MonacoPane({ model, language, activeStep, hintStep, weak
   const decoRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const lineMapRef = useRef(model.lineMap);
   const modelRef = useRef(model);
+  const theme = useTheme((t) => t.theme);
   lineMapRef.current = model.lineMap;
   modelRef.current = model;
 
@@ -78,7 +101,7 @@ export default function MonacoPane({ model, language, activeStep, hintStep, weak
   return (
     <Editor
       height="100%"
-      theme="vs-dark"
+      theme={theme === "light" ? "simplifey-light" : "simplifey-dark"}
       language={language}
       value={model.text}
       options={{

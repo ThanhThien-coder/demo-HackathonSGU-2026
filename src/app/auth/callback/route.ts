@@ -20,5 +20,16 @@ export async function GET(request: Request) {
     });
     await supabase.auth.exchangeCodeForSession(code);
   }
-  return NextResponse.redirect(new URL(next, url.origin));
+  return NextResponse.redirect(new URL(next, publicOrigin(request, url)));
+}
+
+/**
+ * Origin công khai của app. Sau proxy (Cloud Run, Vercel) `request.url` của bản standalone mang host nội bộ
+ * (VD `localhost:8080`) ⇒ dựng lại từ `x-forwarded-host` / `host` + `x-forwarded-proto`.
+ */
+function publicOrigin(request: Request, url: URL): string {
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim();
+  if (!host || !/^[a-z0-9.\-]+(:\d+)?$/i.test(host)) return url.origin;
+  const proto = (request.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "")).split(",")[0].trim();
+  return `${proto === "http" ? "http" : "https"}://${host}`;
 }

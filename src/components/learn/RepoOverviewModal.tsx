@@ -32,7 +32,7 @@ export function RepoOverviewModal() {
 
   return (
     <Modal open={open} onClose={() => setUi({ overview_open: false })} title="Tổng quan kiến trúc" wide>
-      <div className="flex flex-col gap-5 text-sm">
+      <div className="stagger flex flex-col gap-5 text-sm">
         <section>
           <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">Dự án</h3>
           <div className="flex flex-wrap gap-1.5">
@@ -62,8 +62,8 @@ export function RepoOverviewModal() {
         )}
         {overview === "PENDING" && <p className="text-muted">đang tổng hợp nhận định của AI…</p>}
         {ai && (
-          <section className="rounded-xl border border-blue/40 bg-blue/5 p-4">
-            <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-blue">Nhận định của AI — có thể chưa chính xác</h3>
+          <section className="sf-callout p-4">
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-violet">Nhận định của AI — có thể chưa chính xác</h3>
             <p><Chip tone="blue">{PATTERN_LABEL[ai.architecture_style] ?? ai.architecture_style}</Chip></p>
             <p className="mt-2"><PlainText text={ai.summary} /></p>
             <p className="mt-2 text-muted"><PlainText text={ai.main_flow} /></p>

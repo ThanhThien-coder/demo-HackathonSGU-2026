@@ -21,7 +21,7 @@ export function Chip({ children, tone = "muted", title, className, onClick }: {
     muted: "border-line text-muted", amber: "border-amber/50 text-amber", green: "border-green/50 text-green",
     red: "border-red/50 text-red", violet: "border-violet/50 text-violet", blue: "border-blue/50 text-blue",
   };
-  const cls = cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs", tones[tone], onClick && "cursor-pointer hover:bg-white/5", className);
+  const cls = cn("inline-flex items-center gap-1 rounded-full border bg-white/[0.02] px-2 py-0.5 text-xs transition-colors duration-150", tones[tone], onClick && "cursor-pointer hover:bg-white/[0.08] active:scale-95", className);
   return onClick
     ? <button type="button" title={title} onClick={onClick} className={cls}>{children}</button>
     : <span title={title} className={cls}>{children}</span>;
@@ -29,11 +29,11 @@ export function Chip({ children, tone = "muted", title, className, onClick }: {
 
 export function Button({ children, variant = "primary", className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
   const v = {
-    primary: "bg-amber text-bg hover:brightness-110 disabled:opacity-40",
-    ghost: "border border-line text-text hover:bg-white/5 disabled:opacity-40",
-    danger: "border border-red/60 text-red hover:bg-red/10 disabled:opacity-40",
+    primary: "btn-primary",
+    ghost: "btn-secondary",
+    danger: "border border-red/40 bg-panel text-red hover:bg-red/10 active:scale-[.97] disabled:opacity-50",
   }[variant];
-  return <button type="button" {...rest} className={cn("rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed", v, className)}>{children}</button>;
+  return <button type="button" {...rest} className={cn("rounded-lg px-3 py-1.5 text-sm font-semibold transition-all duration-150 disabled:cursor-not-allowed", v, className)}>{children}</button>;
 }
 
 export function Modal({ open, onClose, title, children, wide, footer }: {
@@ -49,15 +49,15 @@ export function Modal({ open, onClose, title, children, wide, footer }: {
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title}
-        className={cn("glass flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-2xl border border-line shadow-2xl", wide ? "max-w-3xl" : "max-w-lg")}>
+        className={cn("anim-dialog glass flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-2xl border border-line", wide ? "max-w-3xl" : "max-w-lg")}>
         <header className="flex items-center justify-between gap-4 border-b border-line px-5 py-3">
-          <h2 className="text-base font-bold">{title}</h2>
-          <button type="button" aria-label="Đóng" onClick={onClose} className="rounded p-1 text-muted hover:text-text">✕</button>
+          <h2 className="text-base font-bold text-text">{title}</h2>
+          <button type="button" aria-label="Đóng" onClick={onClose} className="rounded-md p-1 text-muted transition-colors hover:bg-white/10 hover:text-text">✕</button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>}
+        {footer && <footer className="flex justify-end gap-2 rounded-b-2xl border-t border-line bg-panel-2/60 px-5 py-3">{footer}</footer>}
       </div>
     </div>
   );
@@ -76,6 +76,23 @@ export function PlainText({ text, className }: { text: string; className?: strin
 }
 
 export const fmt4 = (n: number) => n.toFixed(4);
+
+/** Logo: ô vàng + hình 3 nút nối nhau (đồ thị lát cắt). */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-2 text-on-accent shadow-[0_6px_18px_-6px_color-mix(in_srgb,var(--accent)_75%,transparent)]", className)}>
+      <svg viewBox="0 0 24 24" className="h-[60%] w-[60%]" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+        <circle cx="6" cy="6" r="2.4" fill="currentColor" /><circle cx="18" cy="6" r="2.4" fill="currentColor" /><circle cx="12" cy="18" r="2.4" fill="currentColor" />
+        <path d="M7.6 7.8 11 15.8M16.4 7.8 13 15.8" />
+      </svg>
+    </span>
+  );
+}
+
+/** Phím tắt hiển thị. */
+export const Kbd = ({ children }: { children: ReactNode }) => (
+  <kbd className="rounded border border-line bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] text-subtle">{children}</kbd>
+);
 
 export const TITLE_DERIVED = new Set(["DOMAIN_TERMS", "DIRECTORY", "FILE_BASENAME"]);
 import { CONFIG } from "@/contracts/config";

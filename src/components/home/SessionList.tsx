@@ -29,19 +29,19 @@ export function SessionList({ compact }: { compact?: boolean }) {
   const [restartOf, setRestartOf] = useState<LearningSessionSummary | null>(null);
   useEffect(() => { if (auth === "user" && !offline && sessions === null) void loadSessions(); }, [auth, offline, sessions, loadSessions]);
   if (auth !== "user" || offline) return null;
-  if (!sessions || sessions.length === 0) return compact ? <p className="text-sm text-muted">Chưa có phiên học nào.</p> : null;
+  if (!sessions || sessions.length === 0) return compact ? <p className="mt-6 rounded-xl border border-dashed border-line-strong bg-panel/60 px-4 py-8 text-center text-sm text-muted">Chưa có phiên học nào — dán link repo ở trang chủ để bắt đầu.</p> : null;
 
   const open = async (id: string, restart = false) => { await resumeSession(id, restart); if (useWorkbench.getState().session_id) router.push(`/learn?session=${useWorkbench.getState().session_id}`); };
 
   return (
     <section aria-label="Tiếp tục học" className="mt-8">
-      <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">Tiếp tục học</h2>
-      <ul className="flex flex-col gap-2">
+      <h2 className="sf-metric-label mb-2">Tiếp tục học</h2>
+      <ul className="sf-list">
         {sessions.map((s) => (
-          <li key={s.session_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3">
+          <li key={s.session_id} className="sf-row flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <p className="truncate font-mono text-sm">{sessionLine(s)}</p>
-              <p className="mt-1 text-xs text-muted">
+              <p className="truncate font-mono text-sm font-semibold text-text">{sessionLine(s)}</p>
+              <p className="mt-1 font-mono text-xs text-subtle">
                 {s.completed_count}/{s.total_nodes} node{s.failed_count > 0 && <> (<span className="text-red">{s.failed_count} ✗</span>)</>} · {ago(s.last_active_at)} trước
               </p>
             </div>
@@ -52,7 +52,7 @@ export function SessionList({ compact }: { compact?: boolean }) {
                   <Button variant="ghost" disabled={ingesting} onClick={() => setRestartOf(s)}>Học lại từ đầu</Button>
                 </>
               ) : <Chip tone="amber" title="Phiên tạo bằng phiên bản engine cũ">Engine đã cập nhật</Chip>}
-              <Link href={`/history?session=${s.session_id}`} className="rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-white/5">{s.can_resume ? "Lịch sử" : "Xem lịch sử"}</Link>
+              <Link href={`/history?session=${s.session_id}`} className="btn-secondary rounded-lg px-3 py-1.5 text-sm font-semibold">{s.can_resume ? "Lịch sử" : "Xem lịch sử"}</Link>
             </div>
           </li>
         ))}

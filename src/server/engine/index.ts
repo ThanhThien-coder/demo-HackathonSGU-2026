@@ -31,7 +31,11 @@ export async function buildGraph(input: IngestOutput): Promise<StaticEngineResul
   const res = assemble(ctx, input, nInScope);
   if (res.nodes.length === 0) return fail("ERR_NO_ARCHITECTURAL_SLICE");
 
-  const finalFns = res.nodes.length ? [...idx.functions.values()].filter((f) => res.nodes[res.nodes.length - 1].trace_steps.some((s) => s.file_path === f.file && s.function_name === f.name)).map((f) => f.key) : [];
+  // symbol_whitelist (c): tham số + biến cục bộ của hàm là bước trong node cuối của bài học = Capstone (D-12, 11 Mục 15)
+  const finalNode = res.nodes.find((n) => n.is_capstone) ?? res.nodes[res.nodes.length - 1];
+  const finalFns = [...idx.functions.values()]
+    .filter((f) => finalNode.trace_steps.some((s) => s.file_path === f.file && s.function_name === f.name))
+    .map((f) => f.key);
   report.omitted_node_count = res.omitted;
   report.degraded_mode = res.degraded;
   report.warnings.push(...warnings, ...res.warnings);

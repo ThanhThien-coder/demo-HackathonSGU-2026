@@ -2,10 +2,12 @@
 // 30 Mục 7.2 — khởi động 1 lần cho cả ứng dụng (đăng nhập, hồ sơ, danh sách phiên) + phím tắt Offline (Ctrl+Shift+D).
 import { useEffect } from "react";
 import { useWorkbench } from "@/store/workbench";
+import { useTheme } from "@/components/ui/theme";
 
 export function Boot() {
   const init = useWorkbench((s) => s.init);
   useEffect(() => {
+    useTheme.getState().hydrate();
     void init();
     const h = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {

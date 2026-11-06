@@ -1,7 +1,7 @@
 // 10 Mục 5–6, 9 — snapshot (EOCD / SHA-256), mục lục zip, chuẩn hóa đường dẫn, giải nén chọn lọc, lọc nội dung.
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
-import { unzipSync } from "fflate";
+import { Unzip, UnzipInflate, UnzipPassThrough, unzipSync } from "fflate";
 import { CONFIG } from "@/contracts/config";
 import type { IngestionReport } from "@/contracts";
 import { fail } from "../../errors";
@@ -94,6 +94,91 @@ export function inflateEntries(bytes: Uint8Array, entries: ZipEntryMeta[]): Map<
     if (d) out.set(e.path, d);
   }
   return out;
+}
+
+// ---------- đọc tuần tự (streaming) cho zip bị cắt hoặc hỏng mục lục (ING-61 dự phòng) ----------
+interface StreamedEntry { name: string; size: number; complete: boolean }
+
+/** Lượt 1: đọc lần lượt các local header, chỉ ghi tên + đếm byte giải nén thật. Entry chưa trọn (bị cắt) có complete = false. */
+function streamEntries(bytes: Uint8Array): StreamedEntry[] {
+  const out: StreamedEntry[] = [];
+  const u = new Unzip((file) => {
+    const rec: StreamedEntry = { name: file.name, size: 0, complete: false };
+    out.push(rec);
+    if (file.name.endsWith("/")) { rec.complete = true; return; }
+    file.ondata = (err, chunk, final) => {
+      if (err) return;
+      rec.size += chunk.length;
+      if (final) rec.complete = true;
+    };
+    try { file.start(); } catch { /* phương thức nén lạ: bỏ qua entry */ }
+  });
+  u.register(UnzipInflate);
+  u.register(UnzipPassThrough);
+  try { u.push(bytes, false); } catch { /* cắt giữa chừng */ }
+  return out;
+}
+
+/** Lượt 2: chạy lại, chỉ giải nén entry đã chọn (entry không gọi start() thì bị bỏ qua) và chỉ nhận entry trọn vẹn. */
+function inflateStreaming(bytes: Uint8Array, entries: ZipEntryMeta[]): Map<string, Uint8Array> {
+  const want = new Set(entries.map((e) => e.raw_name));
+  const parts = new Map<string, Uint8Array[]>();
+  const done = new Set<string>();
+  const u = new Unzip((file) => {
+    if (!want.has(file.name)) return;
+    const list: Uint8Array[] = [];
+    parts.set(file.name, list);
+    file.ondata = (err, chunk, final) => {
+      if (err) return;
+      list.push(chunk);
+      if (final) done.add(file.name);
+    };
+    try { file.start(); } catch { /* bỏ qua */ }
+  });
+  u.register(UnzipInflate);
+  u.register(UnzipPassThrough);
+  try { u.push(bytes, false); } catch { /* cắt giữa chừng */ }
+  const out = new Map<string, Uint8Array>();
+  for (const e of entries) {
+    const list = parts.get(e.raw_name);
+    if (!list || !done.has(e.raw_name)) continue;
+    const total = list.reduce((a, c) => a + c.length, 0);
+    const buf = new Uint8Array(total);
+    let o = 0;
+    for (const c of list) { buf.set(c, o); o += c.length; }
+    out.set(e.path, buf);
+  }
+  return out;
+}
+
+export interface ArchiveReader {
+  entries: ZipEntryMeta[];
+  /** true = đọc tuần tự vì không có mục lục (zip bị cắt / hỏng) */
+  streaming: boolean;
+  inflate: (selected: ZipEntryMeta[]) => Map<string, Uint8Array>;
+}
+
+/**
+ * ING-61: ưu tiên mục lục ở cuối zip; không có thì đọc tuần tự. null ⇒ không đọc được entry hợp lệ nào (ING-63).
+ * `force_streaming` (zip bị cắt, ING-42): bỏ qua mục lục, đọc tuần tự luôn — tránh nhận nhầm byte giống chữ ký EOCD trong nội dung file.
+ */
+export function readArchive(bytes: Uint8Array, report: IngestionReport, opts: { force_streaming?: boolean } = {}): ArchiveReader | null {
+  if (!opts.force_streaming) {
+    const central = listEntries(bytes, report);
+    if (central.length > 0) return { entries: central, streaming: false, inflate: (sel) => inflateEntries(bytes, sel) };
+  }
+  const streamed = streamEntries(bytes);
+  if (streamed.length === 0) return null;
+  const names = normalizePaths(streamed.map((s) => s.name), report);
+  const entries: ZipEntryMeta[] = [];
+  for (const s of streamed) {
+    const path = names.get(s.name);
+    if (!path || !s.complete) continue;
+    entries.push({ path, raw_name: s.name, compressed_size: 0, size: s.size, is_dir: s.name.endsWith("/") });
+  }
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  if (entries.length === 0) return null;
+  return { entries, streaming: true, inflate: (sel) => inflateStreaming(bytes, sel) };
 }
 
 /** ING-?: decodeAndFilter — UTF-16/UTF-8, null byte, LFS pointer, CRLF, minified. */

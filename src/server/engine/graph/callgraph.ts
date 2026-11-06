@@ -215,6 +215,23 @@ function resolveCall(idx: SymbolIndex, caller: FunctionInfo, shape: CalleeShape)
   return fallback(idx, caller, shape, b?.file ? null : (b?.source ?? null), b);
 }
 
+// chỉ mục method theo tên ngắn, dựng 1 lần cho mỗi SymbolIndex (tránh quét mọi hàm ở từng call site không rõ kiểu)
+const methodIndex = new WeakMap<SymbolIndex, Map<string, string[]>>();
+function methodsNamed(idx: SymbolIndex, method: string): string[] {
+  let m = methodIndex.get(idx);
+  if (!m) {
+    m = new Map();
+    for (const [k, fi] of idx.functions) {
+      if (fi.kind !== "METHOD" || fi.is_module || fi.is_anon) continue;
+      const short = fi.name.slice(fi.name.lastIndexOf(".") + 1);
+      const l = m.get(short);
+      if (l) l.push(k); else m.set(short, [k]);
+    }
+    methodIndex.set(idx, m);
+  }
+  return m.get(method) ?? [];
+}
+
 /** (6): receiver không rõ kiểu ⇒ mọi ứng viên cùng tên method trong file import / cùng file — INFERRED. */
 function fallback(idx: SymbolIndex, caller: FunctionInfo, shape: CalleeShape, importSource: string | null, binding?: ImportBinding): { targets: Target[]; importSource: string | null } {
   const method = shape.method;
@@ -224,9 +241,10 @@ function fallback(idx: SymbolIndex, caller: FunctionInfo, shape: CalleeShape, im
   for (const b of idx.imports.get(caller.file)?.values() ?? []) if (b.file) files.add(b.file);
   if (binding?.file) { files.clear(); files.add(binding.file); }
   const cands: string[] = [];
-  for (const [k, fi] of idx.functions) {
-    if (!files.has(fi.file) || fi.is_module || fi.is_anon || k === caller.key) continue;
-    if (fi.kind === "METHOD" && fi.name.endsWith(`.${method}`)) cands.push(k);
+  for (const k of methodsNamed(idx, method)) {
+    const fi = idx.functions.get(k)!;
+    if (!files.has(fi.file) || k === caller.key) continue;
+    cands.push(k);
   }
   cands.sort(cmp);
   // chỉ nhận khi root là tên cục bộ/tham số không rõ kiểu hoặc không phải gói ngoài

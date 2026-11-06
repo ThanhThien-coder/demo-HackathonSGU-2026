@@ -2,11 +2,16 @@
 // 30 Mục 2 — báo cáo phiên: tiến độ node + thống kê lượt nộp theo kỹ năng (số thật từ DB, không số mục tiêu).
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { FileText } from "lucide-react";
 import type { AttemptHistoryItem, SessionProgress } from "@/contracts";
+import { CONFIG } from "@/contracts/config";
 import { Navbar } from "@/components/layout/Navbar";
 import { STATUS_UI } from "@/components/ui/common";
+import { EmptyState, MetricCard, PageHeader } from "@/components/ui/Page";
 import { api } from "@/lib/api";
 import { useWorkbench } from "@/store/workbench";
+
+const ST_FG = { COMPLETED: "var(--st-done-fg)", FAILED: "var(--st-fail-fg)", AVAILABLE: "var(--st-ready-fg)", LOCKED: "var(--st-lock-fg)" } as const;
 
 function Report() {
   const id = useSearchParams().get("session");
@@ -29,29 +34,49 @@ function Report() {
   return (
     <>
       <Navbar />
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-2xl font-extrabold">Báo cáo phiên học</h1>
-        {!id && <p className="mt-4 text-muted">Chọn một phiên ở trang chủ để xem báo cáo.</p>}
-        {err && <p className="mt-4 text-red">⚠ {err}</p>}
-        {progress && (
-          <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {(["COMPLETED", "FAILED", "AVAILABLE", "LOCKED"] as const).map((s) => (
-              <div key={s} className="rounded-xl border border-line bg-panel p-4 text-center">
-                <p className={`text-2xl font-bold ${STATUS_UI[s].color}`}>{count(s)}</p><p className="text-xs text-muted">{STATUS_UI[s].icon} {STATUS_UI[s].label}</p>
+      <main className="anim-fade-up mx-auto max-w-5xl px-6 py-10">
+        <PageHeader icon={<FileText className="h-5 w-5" />} title="Báo cáo phiên học"
+          description="Số liệu thật lấy từ máy chủ: trạng thái từng node và lượt nộp theo kỹ năng." />
+        <div className="mt-6 flex flex-col gap-8">
+          {!id && <EmptyState>Chọn một phiên ở trang chủ để xem báo cáo.</EmptyState>}
+          {id && auth !== "user" && <EmptyState>Đăng nhập để xem báo cáo.</EmptyState>}
+          {err && <p className="rounded-xl border border-red/40 bg-red/5 px-4 py-3 text-sm text-red">⚠ {err}</p>}
+          {progress && (
+            <section aria-label="Tiến độ node">
+              <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {(["COMPLETED", "FAILED", "AVAILABLE", "LOCKED"] as const).map((s) => (
+                  <MetricCard key={s} label={STATUS_UI[s].label} icon={<span style={{ color: ST_FG[s] }}>{STATUS_UI[s].icon}</span>} value={count(s)} hint={`/ ${nodes.length} node`} />
+                ))}
               </div>
-            ))}
-            <p className="col-span-full text-xs text-muted">Token đã dùng trong phiên: {progress.tokens_used}</p>
-          </section>
-        )}
-        {items && (
-          <section className="mt-8">
-            <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">Lượt nộp theo kỹ năng</h2>
-            {bySkill.length === 0 ? <p className="text-sm text-muted">Chưa có lượt nộp nào.</p> : (
-              <table className="w-full text-sm"><thead className="text-left text-xs text-muted"><tr><th>Kỹ năng</th><th>Số lượt</th><th>Lượt đạt</th></tr></thead>
-                <tbody>{bySkill.map(([k, v]) => <tr key={k} className="border-t border-line"><td className="py-1.5 font-mono">{k}</td><td>{v.n}</td><td>{v.pass}</td></tr>)}</tbody></table>
-            )}
-          </section>
-        )}
+              <MetricCard className="mt-3" label="Token đã dùng trong phiên" value={<span className="font-mono">{progress.tokens_used.toLocaleString("vi-VN")}</span>}
+                hint={`hạn mức ${CONFIG.SESSION_TOKEN_QUOTA.toLocaleString("vi-VN")} token / phiên`} />
+            </section>
+          )}
+          {items && (
+            <section aria-label="Lượt nộp theo kỹ năng">
+              <h2 className="sf-metric-label mb-2">Lượt nộp theo kỹ năng</h2>
+              {bySkill.length === 0 ? <EmptyState>Chưa có lượt nộp nào.</EmptyState> : (
+                <div className="sf-list">
+                  <div className="sf-thead grid grid-cols-[minmax(0,1fr)_80px_80px_minmax(0,160px)] gap-4 px-4 py-2"><span>Kỹ năng</span><span className="text-right">Số lượt</span><span className="text-right">Lượt đạt</span><span>Tỉ lệ đạt</span></div>
+                  {bySkill.map(([k, v]) => {
+                    const pct = v.n ? Math.round((v.pass / v.n) * 100) : 0;
+                    return (
+                      <div key={k} className="sf-row grid grid-cols-[minmax(0,1fr)_80px_80px_minmax(0,160px)] items-center gap-4 px-4 py-2.5 text-sm">
+                        <span className="truncate font-mono font-semibold text-text">{k}</span>
+                        <span className="text-right font-mono text-subtle">{v.n}</span>
+                        <span className="text-right font-mono text-subtle">{v.pass}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel-2"><span className="bar-grow block h-full rounded-full bg-gradient-to-r from-accent to-accent-2" style={{ width: `${pct}%` }} /></span>
+                          <span className="w-9 text-right font-mono text-xs text-subtle">{pct}%</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       </main>
     </>
   );

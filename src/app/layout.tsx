@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import { Boot } from "@/components/layout/Boot";
+import { THEME_INIT_SCRIPT } from "@/components/ui/theme-script";
 import { Toasts } from "@/components/ui/Toasts";
 import "./globals.css";
 
@@ -14,7 +16,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="vi" data-theme="dark" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* gán chủ đề đã lưu trước khi vẽ ⇒ không nháy màu */}
+        <Script id="sf-theme" strategy="beforeInteractive">{THEME_INIT_SCRIPT}</Script>
+      </head>
       <body className="min-h-screen font-sans antialiased">
         <Boot />
         {children}

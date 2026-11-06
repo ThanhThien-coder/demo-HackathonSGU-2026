@@ -20,7 +20,8 @@ function getClient(): GoogleGenAI | null {
   const backend = process.env.GEMINI_BACKEND || (process.env.GEMINI_API_KEY ? "studio" : process.env.GOOGLE_CLOUD_PROJECT ? "vertex" : "studio");
   if (backend === "vertex") {
     if (!process.env.GOOGLE_CLOUD_PROJECT) return null;
-    client = new GoogleGenAI({ vertexai: true, project: process.env.GOOGLE_CLOUD_PROJECT, location: process.env.GOOGLE_CLOUD_LOCATION || "asia-southeast1" });
+    // 05 Mục 6 (D-66): Vertex AI endpoint location "global", xác thực bằng service account của Cloud Run
+    client = new GoogleGenAI({ vertexai: true, project: process.env.GOOGLE_CLOUD_PROJECT, location: "global" });
   } else {
     if (!process.env.GEMINI_API_KEY) return null; // D-66: studio mà thiếu key ⇒ không dùng được
     client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });

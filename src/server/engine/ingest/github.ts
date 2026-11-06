@@ -111,7 +111,10 @@ export async function resolveRef(owner: string, repo: string, headZip: { status:
   return fail("ERR_EMPTY_REPOSITORY"); // ING-33
 }
 
-async function downloadOnce(url: string): Promise<Uint8Array> {
+/** `bytes` không bao giờ vượt `CONFIG.MAX_STREAM_BYTES`; `stream_cut` = bị cắt ở trần đó (ING-42). */
+export interface RawArchive { bytes: Uint8Array; stream_cut: boolean }
+
+async function downloadOnce(url: string): Promise<RawArchive> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), CONFIG.STREAM_TIMEOUT_MS); // ING-40: phủ cả kết nối + tải
   try {
@@ -122,33 +125,54 @@ async function downloadOnce(url: string): Promise<Uint8Array> {
     if (!res.ok || !res.body) throw new Error(`http ${res.status}`);
     const chunks: Uint8Array[] = [];
     let total = 0;
+    let cut = false;
     const reader = res.body.getReader();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      total += value.byteLength;
-      if (total > CONFIG.MAX_STREAM_BYTES) { ctl.abort(); return fail("ERR_STREAM_QUOTA_EXCEEDED"); } // ING-42 (tải chọn lọc 4A chưa làm)
+      const room = CONFIG.MAX_STREAM_BYTES - total;
+      if (value.byteLength > room) { // ING-42: không tin Content-Length; giữ đúng MAX_STREAM_BYTES byte đầu, bỏ phần thừa của chunk cuối
+        if (room > 0) chunks.push(value.subarray(0, room));
+        total = CONFIG.MAX_STREAM_BYTES;
+        cut = true;
+        ctl.abort();
+        await reader.cancel().catch(() => undefined);
+        break;
+      }
       chunks.push(value);
+      total += value.byteLength;
     }
     const out = new Uint8Array(total);
     let o = 0;
     for (const c of chunks) { out.set(c, o); o += c.byteLength; }
-    return out;
+    return { bytes: out, stream_cut: cut };
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** ING-44: thử lại 1 lần với timer mới; không thử lại 404/429/451/quota. */
-export async function downloadArchive(url: string): Promise<Uint8Array> {
+/**
+ * ING-44: tối đa 2 lần tải (1 lần tải lại, timer mới). Không thử lại 404/429/451.
+ * `consume` xử lý bản tải; nó ném `ERR_STREAM_CORRUPTED` (zip hỏng, ING-63) thì cũng tính là một lần lỗi cần tải lại.
+ */
+export async function downloadArchive<T>(url: string, consume: (a: RawArchive) => T | Promise<T>): Promise<T> {
   let lastTimeout = false;
   for (let attempt = 0; attempt < 2; attempt++) {
+    let archive: RawArchive;
     try {
-      return await downloadOnce(url);
+      archive = await downloadOnce(url);
     } catch (e) {
-      if (e instanceof AppError) throw e; // 404 / 429 / 451 / quota: không thử lại
+      if (e instanceof AppError) throw e; // 404 / 429 / 451: không thử lại
       lastTimeout = (e as Error).name === "AbortError";
       if (attempt === 0) await sleep(CONFIG.STREAM_RETRY_DELAY_MS);
+      continue;
+    }
+    try {
+      return await consume(archive);
+    } catch (e) {
+      if (!(e instanceof AppError) || e.code !== "ERR_STREAM_CORRUPTED" || attempt === 1) throw e;
+      lastTimeout = false;
+      await sleep(CONFIG.STREAM_RETRY_DELAY_MS);
     }
   }
   return lastTimeout ? fail("ERR_STREAM_TIMEOUT") : fail("ERR_STREAM_CORRUPTED");

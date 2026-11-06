@@ -30,7 +30,6 @@ export interface UiState {
   offline_persona: PersonaMode;
   toasts: Toast[];
   overview_open: boolean;
-  drawer_open: boolean;
   ingest_error: ApiFail | null;
   ingesting: boolean;
   submit_error: ApiFail | null;
@@ -84,7 +83,7 @@ const emptySession = (): Pick<ClientWorkbenchState, "session_id" | "result" | "p
 
 const defaultUi = (): UiState => ({
   auth: "loading", user: null, boot_error: null, pending: {}, last_evaluations: {}, last_changes: {}, drafts: {}, sessions: null,
-  metrics: false, presentation: false, hint_step: null, offline_persona: "NEWBIE", toasts: [], overview_open: false, drawer_open: false,
+  metrics: false, presentation: false, hint_step: null, offline_persona: "NEWBIE", toasts: [], overview_open: false,
   ingest_error: null, ingesting: false, submit_error: null, newly_unlocked: [], quota_stopped: false,
 });
 
@@ -275,8 +274,9 @@ export const useWorkbench = create<Store>((set, get) => {
     },
 
     enterOffline: async () => {
+      setUi({ ingesting: true });
       const b = await offlineBoot(get().ui.offline_persona);
-      if (!b.ok) { toast(b.message, "error"); return; }
+      if (!b.ok) { setUi({ ingesting: false }); toast(b.message, "error"); return; }
       set({ ...emptySession(), is_offline_mode: true, profile: b.profile, server_clock_offset_ms: 0 });
       applyIngest(b.ingest, { offline: true });
       set({ is_offline_mode: true, overview: offlineBundle()?.overview ?? null }); // bundle đã có bản phân tích mọi node ⇒ giai đoạn "học hết"
@@ -297,7 +297,7 @@ export const useWorkbench = create<Store>((set, get) => {
       analysisQueue = []; analysisInflight = 0; overviewRequested = false;
       ls.del(LAST_KEY);
       set({ ...emptySession() });
-      setUi({ overview_open: false, drawer_open: false, last_evaluations: {}, last_changes: {} });
+      setUi({ overview_open: false, last_evaluations: {}, last_changes: {} });
       void get().loadSessions();
     },
 
@@ -306,7 +306,7 @@ export const useWorkbench = create<Store>((set, get) => {
       const ns = s.progress?.nodes[id];
       if (!ns || ns.status === "LOCKED") return; // 0 request
       set({ active_node_id: id, active_step: 1, active_question_index: null, active_tab: "XRAY" });
-      setUi({ hint_step: null, drawer_open: false, overview_open: false, submit_error: null });
+      setUi({ hint_step: null, overview_open: false, submit_error: null });
       if (!s.is_offline_mode) {
         const a = s.analyses[id];
         if (!a || a === "FAILED") queueAnalysis([id, ...nextNodes(id, 2)], true);

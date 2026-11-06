@@ -175,11 +175,20 @@ export function assemble(ctx: EngineContext, out: IngestOutput, nFilesInScope: n
   cands = [...byId.values()].sort((a, b) => cmp(a.id, b.id));
 
   // cạnh G0 (ENG-112)
-  const reach = (from: string, to: string): boolean => {
-    const seen = new Set<string>([from]); const q = [from];
-    while (q.length) { const x = q.shift()!; if (x === to) return true; for (const e of cg.edges) if (e.caller === x && !seen.has(e.callee)) { seen.add(e.callee); q.push(e.callee); } }
-    return false;
+  // đến được trên đồ thị gọi hàm (BFS mọi độ sâu, visited): dựng danh sách kề 1 lần, nhớ tập đến được theo hàm xuất phát
+  const adj = new Map<string, string[]>();
+  for (const e of cg.edges) { const l = adj.get(e.caller) ?? []; l.push(e.callee); adj.set(e.caller, l); }
+  const reachMemo = new Map<string, Set<string>>();
+  const reachSet = (from: string): Set<string> => {
+    const hit = reachMemo.get(from);
+    if (hit) return hit;
+    const seen = new Set<string>([from]);
+    const q = [from];
+    for (let i = 0; i < q.length; i++) for (const w of adj.get(q[i]) ?? []) if (!seen.has(w)) { seen.add(w); q.push(w); }
+    reachMemo.set(from, seen);
+    return seen;
   };
+  const reach = (from: string, to: string): boolean => reachSet(from).has(to);
   const g0 = new Map<string, { source: string; target: string; resolved: boolean }>();
   const addPair = (a: Candidate, b: Candidate, resolved: boolean) => {
     const [s, t] = easier(a, b) <= 0 ? [a, b] : [b, a];

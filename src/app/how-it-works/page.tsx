@@ -1,4 +1,6 @@
+import { BookOpen } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
+import { PageHeader } from "@/components/ui/Page";
 
 const STEPS = [
   ["Dán link repo", "Bản đồ tối đa 20 node dựng bằng code thuần (Tree-sitter, đồ thị gọi hàm, PageRank), 0 token. Mỗi node là một lát cắt nghiệp vụ xuyên file."],
@@ -11,14 +13,18 @@ export default function HowItWorksPage() {
   return (
     <>
       <Navbar />
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-2xl font-extrabold">Cách học với SimpliFey</h1>
-        <ol className="mt-6 flex flex-col gap-4">
+      <main className="anim-fade-up mx-auto max-w-4xl px-6 py-10">
+        <PageHeader icon={<BookOpen className="h-5 w-5" />} title="Cách học với SimpliFey" description="Bốn bước từ một link repo tới việc tự giải thích được kiến trúc." />
+        <ol className="stagger mt-6 grid gap-3 sm:grid-cols-2">
           {STEPS.map(([t, d], i) => (
-            <li key={t} className="rounded-xl border border-line bg-panel p-4"><p className="font-bold"><span className="mr-2 text-amber">{i + 1}.</span>{t}</p><p className="mt-1 text-sm text-muted">{d}</p></li>
+            <li key={t} className="sf-card rounded-xl p-5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-2 font-mono text-sm font-bold text-on-accent">{i + 1}</span>
+              <p className="mt-3 font-bold text-text">{t}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{d}</p>
+            </li>
           ))}
         </ol>
-        <p className="mt-6 text-xs text-muted">Hỗ trợ kiểm chứng: TypeScript/JavaScript và Python. Số liệu độ trễ / token trên giao diện là số đo thật của từng lần chạy.</p>
+        <p className="mt-6 text-xs text-subtle">Hỗ trợ kiểm chứng: TypeScript/JavaScript và Python. Số liệu độ trễ / token trên giao diện là số đo thật của từng lần chạy.</p>
       </main>
     </>
   );
