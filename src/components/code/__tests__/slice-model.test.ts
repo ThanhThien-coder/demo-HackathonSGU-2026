@@ -1,80 +1,203 @@
 import { describe, it, expect } from "vitest";
-import { buildSliceModel, stepAtLine } from "../slice-model";
+import {
+  buildDtoModel,
+  buildFileTabs,
+  buildStepModel,
+  findStep,
+  stepGapAbove,
+  toOriginalSelection,
+} from "../slice-model";
 import shopApiFixture from "@/server/engine/__fixtures__/shop-api.json";
-import type { HybridArchitecturalNode } from "@/contracts";
+import type { ExecutionTraceStep, HybridArchitecturalNode, NodeAnalysisView } from "@/contracts";
 
-describe("Mô hình Lát cắt Code (Slice Model) - D04 & spec/30_UI.md Mục 5", () => {
-  const nodes = shopApiFixture.nodes as unknown as HybridArchitecturalNode[];
-  // Node N3 trong shop-api là slice-product-list
-  const nodeN3 = nodes.find((n) => n.id === "slice-product-list");
+function makeStep(
+  step_number: number,
+  file_path: string,
+  line_start: number,
+  snippet: string,
+  snippet_line_map: number[]
+): ExecutionTraceStep {
+  return {
+    step_number,
+    layer: "BUSINESS_LOGIC",
+    file_path,
+    function_name: `ham${step_number}`,
+    line_start,
+    line_end: line_start + snippet_line_map.length - 1,
+    snippet,
+    snippet_line_map,
+  };
+}
 
-  it("UI-31 số dòng gốc: tiêu đề không có số dòng, đầu snippet bước 2 có số 14, marker dòng 0", () => {
-    expect(nodeN3).toBeDefined();
-    if (!nodeN3) return;
+// Bài 3 file; file b.ts có 2 bước (bước 2, 3) để kiểm "tab giữ, code đổi theo bước".
+const threeFileNode = {
+  files: ["src/a.ts", "src/b.ts", "src/c.ts"],
+  dto_snippet: "interface Dto {\n  id: string;\n}",
+  trace_steps: [
+    makeStep(1, "src/a.ts", 1, "a1();\na2();", [1, 2]),
+    makeStep(2, "src/b.ts", 10, "b1();\n// … (3 dòng)\nb2();", [10, 0, 14]),
+    makeStep(3, "src/b.ts", 40, "b3();", [40]),
+    makeStep(4, "src/c.ts", 7, "c1();", [7]),
+  ],
+} as unknown as HybridArchitecturalNode;
 
-    const model = buildSliceModel(nodeN3);
-    expect(model.text).toContain("Bước 1");
-    expect(model.text).toContain("Bước 2");
-    expect(model.lineMap.length).toBeGreaterThan(0);
+const weakOnStep3 = {
+  weak_points: [{ step: 3, what: "Gọi lặp trong vòng for" }],
+} as unknown as NodeAnalysisView;
 
-    // Tìm vị trí dòng tiêu đề Bước 2
-    const lines = model.text.split("\n");
-    const step2HeaderIdx = lines.findIndex((l) => l.includes("Bước 2"));
-    expect(step2HeaderIdx).toBeGreaterThanOrEqual(0);
+describe("T-UI-05 — Tab file và model theo bước (spec/30 Mục 5)", () => {
+  it("sang bước ở file 2: tab file 2 mở, chỉ có snippet của bước đó", () => {
+    const step = findStep(threeFileNode, 2);
+    expect(step?.file_path).toBe("src/b.ts");
 
-    // Tiêu đề bước không hiển thị số dòng (lineMap = 0)
-    expect(model.lineMap[step2HeaderIdx]).toBe(0);
+    const model = buildStepModel(threeFileNode, 2);
+    expect(model.text).toBe("b1();\n// … (3 dòng)\nb2();");
+    expect(model.text).not.toContain("a1();");
+    expect(model.text).not.toContain("b3();");
+    expect(model.text).not.toContain("c1();");
+  });
 
-    // Dòng ngay sau tiêu đề bước 2 là dòng đầu tiên của snippet bước 2
-    const firstSnippetLineIdx = step2HeaderIdx + 1;
-    // Theo T22: đầu snippet bước 2 có số 14
-    expect(model.lineMap[firstSnippetLineIdx]).toBe(14);
+  it("bấm tab file 3: active_step = bước đầu của file 3", () => {
+    const tabs = buildFileTabs(threeFileNode, null);
+    expect(tabs.map((t) => t.path)).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
+    expect(tabs.map((t) => t.name)).toEqual(["a.ts", "b.ts", "c.ts"]);
+    expect(tabs[2].firstStep).toBe(4);
+  });
 
-    // Các dòng trống có lineMap = 0
-    lines.forEach((l, idx) => {
-      if (l.trim() === "") {
-        expect(model.lineMap[idx]).toBe(0);
-      }
+  it("file có 2 bước: tab giữ nguyên, code đổi theo bước", () => {
+    expect(findStep(threeFileNode, 2)?.file_path).toBe(findStep(threeFileNode, 3)?.file_path);
+    expect(buildStepModel(threeFileNode, 3).text).toBe("b3();");
+    expect(buildStepModel(threeFileNode, 3).text).not.toBe(buildStepModel(threeFileNode, 2).text);
+    expect(buildFileTabs(threeFileNode, null)[1].firstStep).toBe(2);
+  });
+
+  it("chấm đỏ cho file có bước nằm trong weak_points", () => {
+    expect(buildFileTabs(threeFileNode, weakOnStep3).map((t) => t.weak)).toEqual([false, true, false]);
+    expect(buildFileTabs(threeFileNode, null).some((t) => t.weak)).toBe(false);
+  });
+
+  it("file không có bước nào: tab không có firstStep để bấm", () => {
+    const node = { ...threeFileNode, files: [...threeFileNode.files, "src/khong-buoc.ts"] };
+    expect(buildFileTabs(node, null)[3]).toMatchObject({ name: "khong-buoc.ts", firstStep: null });
+  });
+
+  it("bước ở file ngoài node.files vẫn có tab, để tab đang mở luôn tồn tại", () => {
+    const node = { ...threeFileNode, files: ["src/a.ts"] };
+    expect(buildFileTabs(node, null).map((t) => t.path)).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
+  });
+
+  it("active_step lạ hoặc null: rơi về bước đầu", () => {
+    expect(findStep(threeFileNode, null)?.step_number).toBe(1);
+    expect(findStep(threeFileNode, 99)?.step_number).toBe(1);
+    expect(findStep(null, 1)).toBeNull();
+  });
+});
+
+describe("UI-31 — Số dòng gốc", () => {
+  it("lineMap lấy từ snippet_line_map, marker = 0", () => {
+    expect(buildStepModel(threeFileNode, 2).lineMap).toEqual([10, 0, 14]);
+  });
+
+  it("comment thật bắt đầu bằng // ... vẫn giữ số dòng gốc", () => {
+    const node = {
+      ...threeFileNode,
+      trace_steps: [makeStep(1, "src/a.ts", 5, "// ...keep\na();", [5, 6])],
+    } as unknown as HybridArchitecturalNode;
+    expect(buildStepModel(node, 1).lineMap).toEqual([5, 6]);
+  });
+
+  it("đầu snippet bước 2 của slice-product-list có số 14", () => {
+    const nodes = shopApiFixture.nodes as unknown as HybridArchitecturalNode[];
+    const node = nodes.find((n) => n.id === "slice-product-list");
+    expect(buildStepModel(node, 2).lineMap[0]).toBe(14);
+  });
+
+  it("snippet CRLF không để lại ký tự thừa, số dòng khớp lineMap", () => {
+    const node = {
+      ...threeFileNode,
+      trace_steps: [makeStep(1, "src/a.ts", 1, "a();\r\nb();", [1, 2])],
+    } as unknown as HybridArchitecturalNode;
+    const model = buildStepModel(node, 1);
+    expect(model.text).toBe("a();\nb();");
+    expect(model.lineMap).toHaveLength(2);
+  });
+
+  it("dòng phía trên code: bỏ khi line_start = 1", () => {
+    expect(stepGapAbove(findStep(threeFileNode, 1))).toBeNull();
+    expect(stepGapAbove(findStep(threeFileNode, 2))).toBe("⋯ dòng 1–9 không thuộc bài học");
+  });
+
+  it("tab Kiểu dữ liệu không có số dòng", () => {
+    const model = buildDtoModel(threeFileNode);
+    expect(model.text).toBe("interface Dto {\n  id: string;\n}");
+    expect(model.lineMap).toEqual([0, 0, 0]);
+  });
+
+  it("node rỗng trả model rỗng", () => {
+    expect(buildStepModel(null, 1)).toEqual({ text: "", lineMap: [] });
+    expect(buildDtoModel(null)).toEqual({ text: "", lineMap: [] });
+  });
+});
+
+describe("Thỏa thuận onSelect — vùng bôi đen theo số dòng gốc (D-82)", () => {
+  const model = buildStepModel(
+    {
+      ...threeFileNode,
+      trace_steps: [makeStep(1, "src/a.ts", 10, "const a = 1;\nconst b = 2;\n// … (1 dòng)\nconst c = 3;", [10, 11, 0, 14])],
+    } as unknown as HybridArchitecturalNode,
+    1
+  );
+
+  it("đổi dòng model sang dòng gốc, cột giữ nguyên, col_end không tính", () => {
+    expect(
+      toOriginalSelection(model, { startLineNumber: 2, startColumn: 7, endLineNumber: 2, endColumn: 8 })
+    ).toEqual({
+      range: { line_start: 11, col_start: 7, line_end: 11, col_end: 8 },
+      selected_text: "b",
     });
-
-    // stepRanges ghi nhận đúng bước 1 và bước 2
-    expect(model.stepRanges[1]).toBeDefined();
-    expect(model.stepRanges[2]).toBeDefined();
-    expect(model.stepRanges[2].startLine).toBe(step2HeaderIdx + 1);
   });
 
-  it("UI-33 đồng bộ 2 chiều: với N3 (slice-product-list), tìm dòng model có lineMap bằng 16, stepAtLine phải trả 2 (T22), dòng DTO hoặc ngoài khoảng trả null", () => {
-    expect(nodeN3).toBeDefined();
-    if (!nodeN3) return;
-
-    const model = buildSliceModel(nodeN3);
-    const lineIndex = model.lineMap.findIndex((orig) => orig === 16);
-    expect(lineIndex).toBeGreaterThanOrEqual(0);
-    // line trong Monaco là 1-based (lineIndex + 1)
-    const lineNumber16 = lineIndex + 1;
-    expect(stepAtLine(model, lineNumber16)).toBe(2);
-
-    // Dòng DTO hoặc ngoài khoảng trả null
-    const lines = model.text.split("\n");
-    const dtoHeaderIdx = lines.findIndex((l) => l.includes("Kiểu dữ liệu liên quan"));
-    if (dtoHeaderIdx >= 0) {
-      expect(stepAtLine(model, dtoHeaderIdx + 1)).toBeNull();
-      if (dtoHeaderIdx + 2 <= lines.length) {
-        expect(stepAtLine(model, dtoHeaderIdx + 2)).toBeNull();
-      }
-    }
-
-    // Ngoài khoảng trả null
-    expect(stepAtLine(model, 0)).toBeNull();
-    expect(stepAtLine(model, -5)).toBeNull();
-    expect(stepAtLine(model, lines.length + 10)).toBeNull();
+  it("chọn nhiều dòng: selected_text nối bằng xuống dòng", () => {
+    expect(
+      toOriginalSelection(model, { startLineNumber: 1, startColumn: 7, endLineNumber: 2, endColumn: 8 })
+    ).toEqual({
+      range: { line_start: 10, col_start: 7, line_end: 11, col_end: 8 },
+      selected_text: "a = 1;\nconst b",
+    });
   });
 
-  it("Xử lý an toàn khi node rỗng hoặc không có trace_steps", () => {
-    const emptyModel = buildSliceModel(null);
-    expect(emptyModel.text).toBe("");
-    expect(emptyModel.lineMap).toEqual([]);
-    expect(emptyModel.stepRanges).toEqual({});
-    expect(stepAtLine(emptyModel, 1)).toBeNull();
+  it("kết thúc ở cột 1 của dòng sau: lùi về cuối dòng trước", () => {
+    expect(
+      toOriginalSelection(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 1 })
+    ).toEqual({
+      range: { line_start: 10, col_start: 1, line_end: 10, col_end: 13 },
+      selected_text: "const a = 1;",
+    });
+  });
+
+  it("vùng rỗng, chỉ khoảng trắng, chạm marker ⇒ null", () => {
+    expect(
+      toOriginalSelection(model, { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 3 })
+    ).toBeNull();
+    expect(
+      toOriginalSelection(model, { startLineNumber: 1, startColumn: 6, endLineNumber: 1, endColumn: 7 })
+    ).toBeNull();
+    expect(
+      toOriginalSelection(model, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 5 })
+    ).toBeNull();
+    expect(
+      toOriginalSelection(model, { startLineNumber: 2, startColumn: 1, endLineNumber: 4, endColumn: 6 })
+    ).toBeNull();
+  });
+
+  it("tab Kiểu dữ liệu không chọn được", () => {
+    expect(
+      toOriginalSelection(buildDtoModel(threeFileNode), {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 10,
+      })
+    ).toBeNull();
   });
 });
