@@ -12,7 +12,7 @@ import { rankFiles } from "./pagerank";
 import { cognitiveComplexity } from "./complexity";
 import { buildSlice } from "./slicing";
 import { chooseMode, buildProceduralCandidates } from "./degraded";
-import { assembleGraph, buildAlgoCandidates } from "./nodes";
+import { assembleGraph, buildAlgoCandidates, isTestCandidate } from "./nodes";
 import { diagnoseUncleBob } from "./unclebob";
 import { dedupeTitles } from "./naming";
 import { layoutGraph } from "./layout";
@@ -159,7 +159,8 @@ export async function buildGraph(
 
     // ENG-90 (b): NORMAL có < DISPLAY_MIN_NODES candidate sau ENG-110
     // ⇒ thêm hàm có complexity >= VIP_FALLBACK_MIN_SCORE
-    if (candidates.length < CONFIG.DISPLAY_MIN_NODES) {
+    let cleanCount = candidates.filter((c) => !isTestCandidate(c)).length;
+    if (cleanCount < CONFIG.DISPLAY_MIN_NODES) {
       const remainingFns = inScopeFns
         .filter(
           (fn) =>
@@ -177,8 +178,10 @@ export async function buildGraph(
 
       const fallbackAlgos = buildAlgoCandidates(remainingFns, ctx);
       for (const fa of fallbackAlgos) {
-        if (candidates.length >= CONFIG.DISPLAY_MIN_NODES) break;
+        const isClean = !isTestCandidate(fa);
+        if ((isClean ? cleanCount : candidates.length) >= CONFIG.DISPLAY_MIN_NODES) continue;
         candidates.push(fa);
+        if (isClean) cleanCount++;
       }
     }
   }
