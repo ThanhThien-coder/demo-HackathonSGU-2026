@@ -796,10 +796,9 @@ describe("runIngest thử lại", () => {
 
   it("runIngest thử lại 1 lần khi zip hỏng từ codeload và thành công ở lần 2", async () => {
     // Chuẩn bị mock fetch:
-    // 1. HEAD https://github.com/my-org/my-repo (probeRepo) -> 200
-    // 2. HEAD https://github.com/my-org/my-repo/archive/HEAD.zip (resolveRef) -> 302 location https://codeload.github.com/my-org/my-repo/zip/refs/heads/main
-    // 3. GET download archive lần 1 -> trả buffer hỏng (không phải zip hợp lệ)
-    // 4. GET download archive lần 2 -> trả zip hợp lệ chứa 1 file src/index.ts
+    // 1. HEAD https://github.com/my-org/my-repo/archive/HEAD.zip (probeRepo) -> 302 location https://codeload.github.com/my-org/my-repo/zip/refs/heads/main
+    // 2. GET download archive lần 1 -> trả buffer hỏng (không phải zip hợp lệ)
+    // 3. GET download archive lần 2 -> trả zip hợp lệ chứa 1 file src/index.ts
 
     const validZip = fflate.zipSync({
       "my-repo-main/package.json": fflate.strToU8(JSON.stringify({ name: "my-repo" })),
@@ -811,12 +810,7 @@ describe("runIngest thử lại", () => {
     globalThis.fetch = vi.fn(async (url: string | URL | Request) => {
       const urlStr = url.toString();
 
-      // probeRepo
-      if (urlStr === "https://github.com/my-org/my-repo") {
-        return new Response(null, { status: 200 });
-      }
-
-      // resolveRef
+      // probeRepo (HEAD.zip, kết quả dùng lại cho resolveRef)
       if (urlStr === "https://github.com/my-org/my-repo/archive/HEAD.zip") {
         return new Response(null, {
           status: 302,

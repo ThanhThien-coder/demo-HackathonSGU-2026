@@ -89,7 +89,7 @@ export async function runIngest(
   if (src.kind === "GITHUB_URL") {
     const repoInfo = parseGithubUrl(src.repo_url);
     const probe = await probeRepo(repoInfo);
-    const resolvedRef = await resolveRef(probe.owner, probe.repo);
+    const resolvedRef = await resolveRef(probe.owner, probe.repo, probe.head_zip);
 
     owner = probe.owner;
     repo_name = probe.repo;
