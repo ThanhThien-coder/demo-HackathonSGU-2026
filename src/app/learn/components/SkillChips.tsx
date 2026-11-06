@@ -7,18 +7,28 @@ import { CONFIG } from "@/contracts/config";
 import { useUserStore } from "@/stores/userStore";
 import { useWorkbenchStore } from "@/store/workbench";
 import { getDecayedMastery, tierOf, isDecaying } from "@/lib/bkt-engine";
+import { skillLabel } from "@/lib/concept-cards";
+
+export type SkillEntry = NodeAnalysisView["skills"][number];
 
 export interface SkillChipsProps {
   analysis: NodeAnalysisView;
   onSelectStep?: (step: number) => void;
   /** D12: chỉ hiện chip của bước này (tour). Bỏ trống ⇒ hiện mọi kỹ năng. */
   step?: number;
+  /** D13: có ⇒ bấm chip mở thẻ khái niệm (thay cho onSelectStep). */
+  onOpenSkill?: (skill: SkillEntry, anchor: HTMLElement) => void;
 }
 
 /**
  * Hiển thị chip kỹ năng theo dõi mài mòn theo thời gian (BKT-24, D-35).
  */
-export function SkillChips({ analysis, onSelectStep, step }: SkillChipsProps) {
+export function SkillChips({
+  analysis,
+  onSelectStep,
+  step,
+  onOpenSkill,
+}: SkillChipsProps) {
   const profile = useUserStore((s) => s.profile);
   const serverClockOffset = useWorkbenchStore(
     (s) => s.server_clock_offset_ms ?? 0
@@ -49,10 +59,15 @@ export function SkillChips({ analysis, onSelectStep, step }: SkillChipsProps) {
                 key={idx}
                 type="button"
                 title={baseTooltip}
-                onClick={() => onSelectStep?.(s.step)}
+                onClick={(e) =>
+                  onOpenSkill
+                    ? onOpenSkill(s, e.currentTarget)
+                    : onSelectStep?.(s.step)
+                }
+                aria-haspopup={onOpenSkill ? "dialog" : undefined}
                 className="text-[11px] font-semibold bg-[#f2f3ff] hover:bg-[#eaedff] active:bg-[#dce3ff] text-[#004cff] px-2.5 py-1 rounded-md border border-[#eaedff] cursor-pointer transition-colors"
               >
-                {s.skill}
+                {skillLabel(s.skill)}
               </button>
             );
           }
@@ -82,11 +97,16 @@ export function SkillChips({ analysis, onSelectStep, step }: SkillChipsProps) {
               key={idx}
               type="button"
               title={title}
-              onClick={() => onSelectStep?.(s.step)}
+              onClick={(e) =>
+                onOpenSkill
+                  ? onOpenSkill(s, e.currentTarget)
+                  : onSelectStep?.(s.step)
+              }
+              aria-haspopup={onOpenSkill ? "dialog" : undefined}
               className="group flex flex-col gap-1 text-[11px] font-semibold bg-[#f2f3ff] hover:bg-[#eaedff] active:bg-[#dce3ff] text-[#004cff] px-2.5 py-1.5 rounded-lg border border-[#eaedff] cursor-pointer transition-colors text-left"
             >
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span>{s.skill}</span>
+                <span>{skillLabel(s.skill)}</span>
                 <span className="font-mono text-[10px] text-[#554337] bg-white/80 px-1 rounded border border-[#eaedff]">
                   {decayedStr}
                 </span>

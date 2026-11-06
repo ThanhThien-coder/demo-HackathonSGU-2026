@@ -188,6 +188,7 @@ describe("src/store/workbench.ts", () => {
           hint_step: 3,
           offline_persona: "SENIOR_RUSTY",
           xray_stage: "SUMMARY",
+          hl: [{ line_start: 1, line_end: 2, kind: "FOCUS" }],
         },
       });
 
@@ -234,6 +235,7 @@ describe("src/store/workbench.ts", () => {
       expect(state.last_failed_answers).toEqual({});
       expect(state.ui.offline_persona).toBe("SENIOR_RUSTY");
       expect(state.ui.xray_stage).toBe("ROLE");
+      expect(state.ui.hl).toEqual([]);
       expect(state.ui.pending).toEqual({});
       expect(state.ui.errors).toEqual({});
       expect(state.ui.hint_step).toBeNull();

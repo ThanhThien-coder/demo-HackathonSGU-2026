@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 import type { NodeAnalysisView, HybridArchitecturalNode } from "@/contracts";
 import { useWorkbenchStore } from "@/store/workbench";
-import { SkillChips, StartAnswerButton } from "./SkillChips";
+import { SkillChips, StartAnswerButton, type SkillEntry } from "./SkillChips";
+import { ConceptPopover } from "./ConceptPopover";
+import { skillFocusRange } from "./concept-popover";
 import {
   buildTourSteps,
   layerLabel,
@@ -166,6 +168,16 @@ function TourStage({
 }) {
   const cur = steps[index];
   const total = steps.length;
+  // D13 — thẻ khái niệm đang mở (chip + phần tử chip để trả focus)
+  const [concept, setConcept] = useState<{
+    skill: SkillEntry;
+    anchor: HTMLElement;
+  } | null>(null);
+  const curStep = cur.step;
+  // Đổi bước ⇒ đóng thẻ
+  useEffect(() => {
+    setConcept(null);
+  }, [curStep]);
   const isFirst = index === 0;
   const isLast = index === total - 1;
 
@@ -245,7 +257,26 @@ function TourStage({
       </div>
 
       {analysis && (
-        <SkillChips analysis={analysis} step={cur.step} onSelectStep={onGoToStep} />
+        <SkillChips
+          analysis={analysis}
+          step={cur.step}
+          onSelectStep={onGoToStep}
+          onOpenSkill={(skill, anchor) =>
+            // Bấm lại đúng chip đang mở ⇒ đóng
+            setConcept((c) => (c?.anchor === anchor ? null : { skill, anchor }))
+          }
+        />
+      )}
+      {concept && (
+        <ConceptPopover
+          skill={concept.skill.skill}
+          reason={concept.skill.reason}
+          anchor={concept.anchor}
+          onClose={() => setConcept(null)}
+          onSeeLine={() =>
+            useWorkbenchStore.getState().setHl(skillFocusRange(concept.skill))
+          }
+        />
       )}
 
       <div className="flex items-center justify-between gap-2">
