@@ -310,7 +310,7 @@ Số trong ví dụ chỉ minh họa định dạng, không phải số đo. Dò
 5. Dòng `guard_blocked` chỉ có các trường của `GuardLogEntry`; `node_id` giữ như Mục 9.1; không ghi thêm tên hàm, văn bản AI hoặc tên trong `GuardIssue`.
 
 - **Lỗi lạ:** ghi thêm `error_name` và `error_message` đã che secret; không ghi biến môi trường, body request.
-- **Khởi động:** kiểm biến môi trường bắt buộc 1 lần ở `instrumentation.ts`, thiếu ⇒ log `error`.
+- **Khởi động:** kiểm biến môi trường bắt buộc 1 lần ở `instrumentation.ts`, thiếu ⇒ không khởi động (D-66). Nạp grammar ở đó, lỗi ⇒ log `warn`, `parseAll` nạp lại.
 
 ---
 

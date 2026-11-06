@@ -19,6 +19,9 @@ import type {
   FunctionInfo,
 } from "./types";
 
+// ENG-91: bước không có câu lệnh, chỉ còn dòng trống hoặc ngoặc đóng.
+const EMPTY_STEP_REGEX = /^[\s})\];,]*$/;
+
 /**
  * Tính điểm Cognitive Complexity cho một AST statement theo ENG-71.
  */
@@ -280,17 +283,28 @@ export function buildAlgoCandidates(
       }
     }
 
-    // Clamp các bước > CONFIG.STEP_MAX_LINES (ENG-87)
+    // Clamp các bước > CONFIG.STEP_MAX_LINES (ENG-87). Marker có map = 0 (ENG-86).
     for (const st of traceSteps) {
       const sLines = st.snippet.split("\n");
       if (sLines.length > CONFIG.STEP_MAX_LINES) {
-        const kept = sLines.slice(0, CONFIG.STEP_MAX_LINES - 1);
-        const omitted = sLines.length - kept.length;
-        kept.push(`  ${commentPrefix} … (${omitted} dòng)`);
-        st.snippet = kept.join("\n");
-        st.snippet_line_map = st.snippet_line_map.slice(0, CONFIG.STEP_MAX_LINES);
+        const keepCount = CONFIG.STEP_MAX_LINES - 1;
+        const kept = sLines.slice(0, keepCount);
+        const dropped = sLines.slice(keepCount);
+        const firstDropped = dropped.find((l) => l.trim() !== "") ?? "";
+        const indent = firstDropped.slice(0, firstDropped.length - firstDropped.trimStart().length);
+        const keptMap = st.snippet_line_map.slice(0, keepCount);
+        st.snippet = [...kept, `${indent}${commentPrefix} … (${dropped.length} dòng)`].join("\n");
+        st.snippet_line_map = [...keptMap, 0];
+        st.line_end = Math.max(...keptMap);
       }
     }
+
+    // ENG-91: bỏ bước rỗng (không có câu lệnh, chỉ còn dòng trống hoặc ngoặc đóng)
+    const codeSteps = traceSteps.filter((st) => !EMPTY_STEP_REGEX.test(st.snippet));
+    if (codeSteps.length === 0) continue;
+    codeSteps.forEach((st, idx) => {
+      st.step_number = idx + 1;
+    });
 
     const rankScore = ctx.rank.get(fn.file_path) ?? 0;
 
@@ -298,7 +312,7 @@ export function buildAlgoCandidates(
       id: `algo-${fn.key}`,
       node_type: "ALGORITHMIC_CORE",
       entry_symbol: fn.key,
-      trace_steps: traceSteps,
+      trace_steps: codeSteps,
       dto_snippet: "",
       cognitive_complexity: fn.complexity,
       rank_score: rankScore,

@@ -82,6 +82,8 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] `git status` chỉ có các file ở mục Được ghi.
 - [ ] Ca test D18 (hoàn điểm BKT khi báo sai) và D24 (che PII trong ghi chú) chạy đạt.
 - [ ] Ca test `ERR_REPORT_NOT_ALLOWED` và `ERR_DEMO_MODE_DISABLED` chạy đạt.
+- [ ] Lỗi lạ có `error_name`, `error_message` đã che secret.
+- [ ] Biến môi trường AI được kiểm lúc khởi động.
 
 ```text
 Task "A11 — Giao agent: các API còn lại" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).

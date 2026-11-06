@@ -9,15 +9,15 @@ import { parseAll } from "./parser";
 import { collectSymbols, resolveImports } from "./symbols";
 import { buildCallGraph, fileGraph, findEntries } from "./callgraph";
 import { rankFiles } from "./pagerank";
-import { cognitiveComplexity } from "./complexity";
-import { buildSlice } from "./slicing";
+import { cognitiveComplexity, returnsJsx } from "./complexity";
+import { buildSlice, findSharedHelpers } from "./slicing";
 import { chooseMode, buildProceduralCandidates } from "./degraded";
 import { assembleGraph, buildAlgoCandidates, isTestCandidate } from "./nodes";
 import { diagnoseUncleBob } from "./unclebob";
 import { dedupeTitles } from "./naming";
 import { layoutGraph } from "./layout";
 import { buildSymbolWhitelist } from "./whitelist";
-import type { Candidate, EngineContext } from "./types";
+import type { Candidate, EngineContext, FunctionInfo } from "./types";
 
 export * from "./types";
 export * from "./registry";
@@ -126,19 +126,23 @@ export async function buildGraph(
   if (degradedMode === "PROCEDURAL") {
     candidates = buildProceduralCandidates(parsedFiles, ctx);
   } else {
-    // NORMAL mode: cắt lát từ từng entry point
+    // NORMAL mode: cắt lát từ từng entry point, bỏ hàm vặt dùng chung (D-87)
+    const helpers = findSharedHelpers(entries, ctx);
     for (const e of entries) {
       try {
-        const slice = buildSlice(e, ctx);
+        const slice = buildSlice(e, ctx, helpers);
         candidates.push(slice);
       } catch {
         // Bỏ qua nếu lát cắt thất bại
       }
     }
 
-    // Node thuật toán (ENG-90 (a)): VIP trong scope không là bước của lát cắt
+    // Node thuật toán (ENG-90 (a)): VIP trong scope không là bước của lát cắt.
+    // <module> không là ứng viên của (a), (b); PROCEDURAL đi nhánh riêng ở trên.
     const inScopeFns = Array.from(idx.functions.values()).filter(
-      (fn) => !rootDirOffset || fn.file_path.startsWith(rootDirOffset)
+      (fn) =>
+        fn.name !== "<module>" &&
+        (!rootDirOffset || fn.file_path.startsWith(rootDirOffset))
     );
 
     const usedFunctionKeys = new Set<string>();
@@ -148,10 +152,16 @@ export async function buildGraph(
       }
     }
 
+    const isComponent = (fn: FunctionInfo): boolean => {
+      const pf = ctx.files.get(fn.file_path);
+      return pf !== undefined && returnsJsx(fn, pf);
+    };
+
     const vipFns = inScopeFns.filter(
       (fn) =>
         fn.complexity > CONFIG.VIP_COMPLEXITY_MIN &&
-        !usedFunctionKeys.has(fn.key)
+        !usedFunctionKeys.has(fn.key) &&
+        !isComponent(fn)
     );
 
     const algoCandidates = buildAlgoCandidates(vipFns, ctx);
@@ -166,7 +176,8 @@ export async function buildGraph(
           (fn) =>
             fn.complexity >= CONFIG.VIP_FALLBACK_MIN_SCORE &&
             !usedFunctionKeys.has(fn.key) &&
-            !algoCandidates.some((ac) => ac.entry_symbol === fn.key)
+            !algoCandidates.some((ac) => ac.entry_symbol === fn.key) &&
+            !isComponent(fn)
         )
         .sort((a, b) => {
           if (b.complexity !== a.complexity) return b.complexity - a.complexity;

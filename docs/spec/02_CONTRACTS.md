@@ -31,7 +31,7 @@
 ```typescript
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
-  ENGINE_VERSION: "1.6.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
+  ENGINE_VERSION: "1.7.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
   PROMPT_VERSION: "1.2.0",            // Đổi khi đổi prompt hoặc responseSchema của 5 lời gọi AI (D-74)
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------

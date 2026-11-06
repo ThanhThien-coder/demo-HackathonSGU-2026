@@ -16,6 +16,7 @@ import type {
   ScopeDecision,
 } from "./types";
 import { DEFAULT_LANGUAGE_REGISTRY } from "./prune";
+import { stripJsonc } from "../jsonc";
 
 const SERVER_SEGMENTS = new Set(["server", "backend", "api"]);
 
@@ -121,6 +122,19 @@ export function detectScope(
   }
 
   const sortedServers = Array.from(serverDirs).sort();
+  const sortedClients = Array.from(clientDirs).sort();
+
+  // Ứng viên scope cho đường lùi (B-17): server rồi client, bytes giảm dần, hòa thì path nhỏ hơn
+  const bytesUnder = (dir: string): number =>
+    codeEntries.filter((e) => e.path.startsWith(dir)).reduce((sum, e) => sum + e.size, 0);
+  const byBytesDesc = (dirs: string[]): string[] => {
+    const bytes = new Map(dirs.map((d) => [d, bytesUnder(d)] as const));
+    return [...dirs].sort((a, b) => {
+      const diff = (bytes.get(b) ?? 0) - (bytes.get(a) ?? 0);
+      return diff !== 0 ? diff : a < b ? -1 : a > b ? 1 : 0;
+    });
+  };
+  const candidateDirs = [...byBytesDesc(sortedServers), ...byBytesDesc(sortedClients)];
 
   // 2. Scope tường minh (ING-80)
   if (explicit_subdir !== null && explicit_subdir.trim() !== "") {
@@ -147,7 +161,7 @@ export function detectScope(
     return {
       root_dir_offset: normalized,
       is_monorepo,
-      candidates: sortedServers,
+      candidates: candidateDirs,
       explicit: true,
     };
   }
@@ -212,7 +226,7 @@ export function detectScope(
   return {
     root_dir_offset,
     is_monorepo,
-    candidates: sortedServers,
+    candidates: candidateDirs,
     explicit: false,
   };
 }
@@ -231,11 +245,7 @@ export interface ParsedManifest {
  * Làm sạch JSON có comment hoặc trailing comma theo ING-120
  */
 function cleanJson(str: string): string {
-  return str
-    .replace(/^\uFEFF/, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/[^\r\n]*/g, "")
-    .replace(/,\s*([\]}])/g, "$1");
+  return stripJsonc(str);
 }
 
 /**
@@ -365,7 +375,7 @@ export function parseManifests(
         try {
           parsed = JSON.parse(cleanJson(content)) as Record<string, unknown>;
         } catch {
-          if (report) {
+          if (report && basename === "package.json") {
             const warn = `Tệp cấu hình ${manifestPath} bị hỏng định dạng.`;
             if (!report.warnings.includes(warn)) {
               report.warnings.push(warn);

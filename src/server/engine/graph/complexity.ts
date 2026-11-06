@@ -313,6 +313,43 @@ export function cognitiveComplexity(
   return score;
 }
 
+const FUNCTION_NODE_TYPES = new Set([
+  "function_declaration",
+  "function_expression",
+  "arrow_function",
+  "method_definition",
+  "function_definition",
+]);
+
+function hasJsx(n: Node): boolean {
+  if (n.type.startsWith("jsx_")) return true;
+  for (let i = 0; i < n.childCount; i++) {
+    const child = n.child(i);
+    if (child && hasJsx(child)) return true;
+  }
+  return false;
+}
+
+// Có câu `return` của chính hàm trả JSX. Bỏ qua hàm lồng (D-86).
+function hasJsxReturn(n: Node): boolean {
+  for (let i = 0; i < n.childCount; i++) {
+    const child = n.child(i);
+    if (!child || FUNCTION_NODE_TYPES.has(child.type)) continue;
+    if (child.type === "return_statement" ? hasJsx(child) : hasJsxReturn(child)) return true;
+  }
+  return false;
+}
+
+/** Hàm trả JSX không là ứng viên node thuật toán (ENG-90, D-86). */
+export function returnsJsx(fn: SymbolDefinition, file: ParsedFile): boolean {
+  const root = file.tree.rootNode;
+  const node = findFunctionNode(root, fn);
+  if (!node || node.id === root.id) return false;
+  const body = node.childForFieldName("body");
+  if (!body) return false;
+  return body.type === "statement_block" ? hasJsxReturn(body) : hasJsx(body);
+}
+
 export function pickVipFunctions(
   fns: FunctionInfo[],
   rank: Map<string, number>

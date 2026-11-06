@@ -2,6 +2,7 @@
 import path from "node:path";
 import type { Node } from "web-tree-sitter";
 import { CONFIG } from "@/contracts";
+import { parseJsonc } from "../../jsonc";
 import type { ImportedSymbol, ParsedFile, SymbolIndex } from "../types";
 
 const TS_JS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
@@ -15,28 +16,53 @@ interface TsConfigPaths {
   paths: Record<string, string[]>;
 }
 
-// Trích xuất baseUrl và paths từ tsconfig/jsconfig gần nhất
-function parseTsConfig(manifests: Map<string, string>): TsConfigPaths | null {
-  for (const name of ["tsconfig.json", "jsconfig.json"]) {
-    const raw = manifests.get(name);
-    if (!raw) continue;
+interface TsConfigEntry extends TsConfigPaths {
+  dir: string; // thư mục chứa tsconfig, dạng "" hoặc "frontend/"
+}
+
+const tsConfigCache = new WeakMap<Map<string, string>, TsConfigEntry[]>();
+
+// Đọc mọi tsconfig/jsconfig trong manifests; baseUrl tính từ gốc repo (B-26)
+function loadTsConfigs(manifests: Map<string, string>): TsConfigEntry[] {
+  const cached = tsConfigCache.get(manifests);
+  if (cached) return cached;
+
+  const entries: TsConfigEntry[] = [];
+  for (const [manifestPath, raw] of manifests) {
+    const norm = normalizePosix(manifestPath);
+    const base = norm.slice(norm.lastIndexOf("/") + 1);
+    if (base !== "tsconfig.json" && base !== "jsconfig.json") continue;
     try {
-      // Bỏ comment dòng đơn và đa dòng đơn giản để parse JSON
-      const cleanJson = raw.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
-      const parsed = JSON.parse(cleanJson) as {
+      const parsed = parseJsonc<{
         compilerOptions?: { baseUrl?: string; paths?: Record<string, string[]> };
-      };
-      if (parsed.compilerOptions) {
-        return {
-          baseUrl: parsed.compilerOptions.baseUrl ?? ".",
-          paths: parsed.compilerOptions.paths ?? {},
-        };
-      }
+      }>(raw);
+      const opts = parsed.compilerOptions;
+      if (!opts) continue;
+      const dir = norm.slice(0, norm.length - base.length); // "" hoặc "frontend/"
+      entries.push({
+        dir,
+        baseUrl: normalizePosix(path.posix.join(dir || ".", opts.baseUrl ?? ".")),
+        paths: opts.paths ?? {},
+      });
     } catch {
-      // bỏ qua nếu parse lỗi
+      // bỏ qua nếu parse lỗi; tsconfig chỉ dùng cho alias
     }
   }
-  return null;
+  tsConfigCache.set(manifests, entries);
+  return entries;
+}
+
+// Chọn tsconfig gần file nhất: thư mục dài nhất là tiền tố của đường dẫn file
+function findNearestTsConfig(
+  manifests: Map<string, string>,
+  filePath: string
+): TsConfigPaths | null {
+  let best: TsConfigEntry | null = null;
+  for (const entry of loadTsConfigs(manifests)) {
+    if (entry.dir && !filePath.startsWith(entry.dir)) continue;
+    if (!best || entry.dir.length > best.dir.length) best = entry;
+  }
+  return best;
 }
 
 // Thử phân giải một đường dẫn tương đối hoặc alias thành file code có thật trong allFiles
@@ -96,7 +122,7 @@ export function resolveTsJsImport(
   if (tsConfig && tsConfig.paths) {
     for (const [pattern, targetList] of Object.entries(tsConfig.paths)) {
       if (pattern.endsWith("/*")) {
-        const prefix = pattern.slice(0, -2);
+        const prefix = pattern.slice(0, -1); // giữ dấu "/" để "@/*" không khớp "@nestjs/core"
         if (specifier.startsWith(prefix)) {
           const suffix = specifier.slice(prefix.length);
           for (const target of targetList) {
@@ -177,7 +203,7 @@ export function collectTsJsImports(
   rootDirOffset: string,
   idx: SymbolIndex
 ): void {
-  const tsConfig = parseTsConfig(manifests);
+  const tsConfig = findNearestTsConfig(manifests, file.path);
   const fileImportMap = idx.imports.get(file.path) ?? new Map<string, ImportedSymbol>();
   idx.imports.set(file.path, fileImportMap);
 
