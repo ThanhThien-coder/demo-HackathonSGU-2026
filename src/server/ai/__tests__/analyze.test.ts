@@ -14,7 +14,7 @@ vi.mock("../gemini", async (importOriginal) => {
   return {
     ...actual,
     callLLMOnce: vi.fn(),
-    retryDelay: vi.fn(),
+    retryDelay: vi.fn(async () => true), // D-74 R1: true = được gọi lại
   };
 });
 
@@ -174,6 +174,22 @@ describe("analyzeNode (C06 / AI-15, AI-18, AI-37)", () => {
     expect(vi.mocked(callLLMOnce).mock.calls.length).toBeLessThanOrEqual(
       1 + CONFIG.LLM_MAX_RETRIES,
     );
+  });
+
+  it("AI-12 (R1): 429 mà retryDelay trả false (Google bắt chờ quá trần) ⇒ không gọi lại, chỉ 1 request", async () => {
+    vi.mocked(callLLMOnce).mockResolvedValueOnce({
+      ok: false,
+      kind: "TRANSIENT",
+      status: 429,
+      retry_after_ms: CONFIG.LLM_RETRY_DELAY_MAX_MS + 1,
+      tokens_in: 0,
+      tokens_out: 0,
+    });
+    vi.mocked(retryDelay).mockResolvedValueOnce(false);
+
+    const result = await analyzeNode(session, graph, nodeN3);
+    expect(result).toBeNull();
+    expect(callLLMOnce).toHaveBeenCalledTimes(1);
   });
 
   it("D2: N6, callLLMOnce trả TRANSIENT cả 2 lần ⇒ analyzeNode trả null", async () => {

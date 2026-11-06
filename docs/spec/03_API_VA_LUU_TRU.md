@@ -1,12 +1,12 @@
 # 03 — API, LƯU TRỮ & GIAO DỊCH
 
-> Quy định 14 endpoint, lược đồ Postgres, RLS, khóa cache AI, suy ra trạng thái node và các luồng ghi. Người đọc: cả nhóm; Vai A cài đặt, gọi hàm của Vai B (`10`, `11`) và Vai C (`20`–`22`).
+> Quy định 15 endpoint, lược đồ Postgres, RLS, khóa cache AI, suy ra trạng thái node và các luồng ghi. Người đọc: cả nhóm; Vai A cài đặt, gọi hàm của Vai B (`10`, `11`) và Vai C (`20`–`22`).
 > **Trong repo thi:** route handler ở `src/app/api/**/route.ts` (mỏng: xác thực → gọi service → map lỗi); nghiệp vụ ở `src/server/*.ts`; SQL ở `supabase/migrations/0001_init.sql`.
 > **Kiểu:** `02_CONTRACTS.md` (Mục 5–9). **Hằng số:** `CONFIG.*`. Luồng nghiệp vụ tổng thể: `01_KIEN_TRUC_VA_LUONG.md`.
 
 ## Đọc nhanh
 
-- Nhận request ở 14 endpoint (kiểu ở `02` Mục 8; riêng `/api/health` trả text `ok`) ⇒ xác thực phiên Supabase, kiểm `session_id` thuộc người gọi ⇒ gọi service ở `src/server/*.ts` ⇒ trả response dựng theo danh sách trường cho phép.
+- Nhận request ở 15 endpoint (kiểu ở `02` Mục 8; riêng `/api/health` trả text `ok`) ⇒ xác thực phiên Supabase, kiểm `session_id` thuộc người gọi ⇒ gọi service ở `src/server/*.ts` ⇒ trả response dựng theo danh sách trường cho phép.
 - Server là nơi ghi duy nhất vào Postgres; Postgres không chứa file nguồn, chỉ lưu đoạn code đã cắt của phiên trong `session_snapshots` (API-01, API-02, D-59).
 - `evaluate-feynman`: đọc câu hỏi + đáp án từ DB, kiểm không khóa ⇒ gọi AI ngoài transaction ⇒ transaction ngắn ghi lượt và BKT; ghi hỏng ⇒ `ERR_PERSISTENCE_UNAVAILABLE`, người học bấm "Thử lại" (Mục 6.2).
 - Trạng thái node suy ra khi đọc từ khung đồ thị + `node_progress` (`deriveNodeStates`, Mục 5.1); `LOCKED` không bao giờ được lưu.
@@ -25,7 +25,7 @@ flowchart LR
 | Mục | Nói về | Code (file / hàm chính) |
 | :-: | :-- | :-- |
 | 1 | Nguyên tắc: không lưu file nguồn, server ghi duy nhất, xác thực, quota token, AI ngoài transaction, Cloud Run | — |
-| 2 | 14 endpoint (request → response, bảng ghi, lỗi riêng); `GET /api/sessions`, `GET /api/health` | `src/app/api/**/route.ts` |
+| 2 | 15 endpoint (request → response, bảng ghi, lỗi riêng); `GET /api/sessions`, `GET /api/health` | `src/app/api/**/route.ts` |
 | 3 | Lược đồ Postgres; 3.1 `RunQuestion`; 3.2 RLS; 3.3 khóa cache AI | `supabase/migrations/0001_init.sql` |
 | 4 | Khóa phiên, cache RAM, đọc `StaticEngineResult` của phiên | `getSessionStaticResult` |
 | 5 | Suy ra trạng thái node (5.1), mài mòn (5.2), kế hoạch không rỗng (5.3), đổi persona (5.4) | `deriveNodeStates` (`src/lib/derive.ts`) |
@@ -36,6 +36,7 @@ flowchart LR
 | 6.5 | `finalizeRunIfDone`: đổi màu node khi run xong | `src/server/progress.ts` |
 | 6.6 | `analyze-node`, `analyze-overview`, `ingest` | `src/app/api/**/route.ts` |
 | 6.7 | `demo/persona` | `src/server/persona.ts` |
+| 6.9 | `explain-selection` | `src/server/ai/explain.ts` |
 | 7 | Sự cố và tình huống biên | — |
 | 8 | Biến môi trường server | — |
 
@@ -64,7 +65,7 @@ flowchart LR
 | 4 | `GET /api/sessions/{session_id}/history` | — → `HistoryResponse` | — | — | — |
 | 5 | `POST /api/ingest` | `IngestRequest` → `IngestResponse` | Tạo / mở `learning_sessions` (Mục 6.6) | — | Mọi `IngestionErrorCode`, `ERR_SESSION_ENGINE_OUTDATED` |
 | 6 | `POST /api/analyze-node` | `AnalyzeNodeRequest` → `AnalyzeNodeResponse` | `ai_cache`, `node_progress.analysis_failed`, `tokens_used` | ✅ | `ERR_TOKEN_QUOTA_EXCEEDED` |
-| 7 | `POST /api/analyze-overview` | `AnalyzeOverviewRequest` → `AnalyzeOverviewResponse` | `ai_cache`, `tokens_used` | ✅ | `ERR_OVERVIEW_NOT_READY`, `ERR_TOKEN_QUOTA_EXCEEDED` |
+| 7 | `POST /api/analyze-overview` | `AnalyzeOverviewRequest` → `AnalyzeOverviewResponse` | `ai_cache`, `tokens_used` | ✅ | `ERR_TOKEN_QUOTA_EXCEEDED` |
 | 8 | `POST /api/enrich-node` | `EnrichNodeRequest` → `EnrichNodeResponse` | `node_runs` (tạo run), `tokens_used`, `last_active_at` | ✅ | `ERR_NODE_NOT_AVAILABLE`, `ERR_ANALYSIS_NOT_READY`, `ERR_AI_REJECTED`, `ERR_AI_UNAVAILABLE`, `ERR_TOKEN_QUOTA_EXCEEDED` |
 | 9 | `POST /api/evaluate-feynman` | `EvaluateFeynmanRequest` → `EvaluateFeynmanResponse` | Transaction Mục 6.2 | ✅ | `ERR_ANSWER_*`, `ERR_QUESTION_FINISHED`, `ERR_ATTEMPT_OUT_OF_SYNC`, `ERR_AI_UNAVAILABLE`, `ERR_TOKEN_QUOTA_EXCEEDED` |
 | 10 | `POST /api/reveal` | `RevealRequest` → `RevealResponse` | Transaction Mục 6.3 | — | `ERR_QUESTION_FINISHED` |
@@ -72,13 +73,14 @@ flowchart LR
 | 12 | `POST /api/demo/persona` | `PersonaRequest` → `PersonaResponse` | Ghi đè 16 dòng `skill_states` của **tài khoản hiện tại** | — | `ERR_DEMO_MODE_DISABLED` |
 | 13 | `GET /api/sessions/{session_id}/progress` | — → `ProgressResponse` | — (chỉ đọc DB, không engine, không AI) | — | — |
 | 14 | `GET /api/health` | — → 200 `ok` | — | — | — |
+| 15 | `POST /api/explain-selection` | `ExplainSelectionRequest` → `ExplainSelectionResponse` | `ai_cache`, `ai_usage`, `tokens_used` | ✅ | `ERR_SELECTION_INVALID`, `ERR_EXPLAIN_LIMIT`, `ERR_AI_UNAVAILABLE`, `ERR_TOKEN_QUOTA_EXCEEDED` |
 
 ### Lỗi chung
 
 Không lặp ở cột "Lỗi riêng":
 - Mọi endpoint ⇒ `ERR_UNAUTHENTICATED` (API-04), `ERR_PERSISTENCE_UNAVAILABLE` (Postgres lỗi khi đọc hoặc ghi, D-40).
 - Endpoint nhận `session_id` / `run_id` ⇒ `ERR_SESSION_NOT_FOUND` (API-05).
-- Endpoint gọi `getSessionStaticResult` (`ingest { session_id }`, `analyze-node`, `analyze-overview`, `enrich-node`) ⇒ `ERR_SESSION_ENGINE_OUTDATED` và các lỗi của Mục 4.
+- Endpoint gọi `getSessionStaticResult` (`ingest { session_id }`, `analyze-node`, `analyze-overview`, `enrich-node`, `explain-selection`) ⇒ `ERR_SESSION_ENGINE_OUTDATED` và các lỗi của Mục 4.
 
 ### `GET /api/sessions`
 
@@ -200,8 +202,8 @@ create index on question_attempts (run_id);
 
 create table ai_cache (                                -- D-37: văn bản AI đã qua kiểm, dùng chung mọi người học
   cache_key     text primary key,
-  kind          text not null check (kind in ('NODE_ANALYSIS','REPO_OVERVIEW')),
-  payload       jsonb not null,                        -- NodeAnalysis | RepoOverviewRaw
+  kind          text not null check (kind in ('NODE_ANALYSIS','REPO_OVERVIEW','SELECTION_EXPLAIN')),
+  payload       jsonb not null,                        -- NodeAnalysis | RepoOverviewRaw | ExplainSelectionRaw
   model         text not null,
   prompt_version text not null,
   tokens_in     int not null,
@@ -212,7 +214,7 @@ create table ai_cache (                                -- D-37: văn bản AI đ
 create table ai_usage (                                -- D-66: lưu vết chi phí L2 từng lời gọi AI; client không đọc (Mục 3.2)
   id          bigint generated always as identity primary key,
   session_id  uuid not null references learning_sessions on delete cascade,
-  call_kind   text not null check (call_kind in ('ANALYZE','OVERVIEW','QUESTIONS','GRADE')),
+  call_kind   text not null check (call_kind in ('ANALYZE','OVERVIEW','QUESTIONS','GRADE','EXPLAIN')),
   tokens_in   int not null,
   tokens_out  int not null,
   cost_usd    numeric(8,6) not null,
@@ -234,7 +236,7 @@ create index on dispute_reports (user_id);
 
 ### 3.1. `node_runs.questions` (jsonb) — kiểu `RunQuestion`
 
-Kiểu `RunQuestion`: `02` Mục 7 (D-61). Cột chứa câu hỏi + đáp án nên client không đọc (Mục 3.2). Kiểu `// nội bộ`: `AiUsageRow = { id: number; session_id: string; call_kind: "ANALYZE" | "OVERVIEW" | "QUESTIONS" | "GRADE"; tokens_in: number; tokens_out: number; cost_usd: number; created_at: string }` lưu vết chi phí L2 (D-66).
+Kiểu `RunQuestion`: `02` Mục 7 (D-61). Cột chứa câu hỏi + đáp án nên client không đọc (Mục 3.2). Kiểu `// nội bộ`: `AiUsageRow = { id: number; session_id: string; call_kind: "ANALYZE" | "OVERVIEW" | "QUESTIONS" | "GRADE" | "EXPLAIN"; tokens_in: number; tokens_out: number; cost_usd: number; created_at: string }` lưu vết chi phí L2 (D-66).
 
 ### 3.2. Bảo mật hàng (RLS)
 
@@ -248,6 +250,7 @@ Kiểu `RunQuestion`: `02` Mục 7 (D-61). Cột chứa câu hỏi + đáp án n
 `cache_key` theo loại:
 - `NODE_ANALYSIS`: `na|{source}|{snapshot_id}|{subdir}|{engine_version}|{node_id}|{PROMPT_VERSION}|{LLM_MODEL}`
 - `REPO_OVERVIEW`: `ov|{source}|{snapshot_id}|{subdir}|{engine_version}|{PROMPT_VERSION}|{LLM_MODEL}`
+- `SELECTION_EXPLAIN`: `se|{source}|{snapshot_id}|{subdir}|{engine_version}|{node_id}|{step_number}|{line_start}:{col_start}-{line_end}:{col_end}|{PROMPT_VERSION}|{LLM_MODEL}`
 
 Câu hỏi không cache: mỗi run sinh mới và lưu trong `node_runs`; chấm bài không cache (D-37). Hai yêu cầu trùng khóa cùng lúc trong 1 instance dùng chung một promise (in-flight map); khác instance ⇒ ghi `on conflict do nothing`.
 
@@ -301,7 +304,7 @@ Chỉ ghi `skill_states` (Mục 6.7); UI gọi lại `GET /api/me`. Trạng thá
 
 ## 6. Luồng ghi
 
-Mọi lời gọi AI thành công (`analyze-node`, `analyze-overview`, `enrich-node`, `evaluate-feynman`): server ghi 1 dòng vào `ai_usage` (`session_id`, `call_kind`, `tokens_in`, `tokens_out`, `cost_usd`) ngoài transaction học; lỗi ghi DB ở bước này chỉ log cảnh báo, không làm hỏng request của người học (D-66).
+Mọi lời gọi AI thành công (`analyze-node`, `analyze-overview`, `enrich-node`, `evaluate-feynman`, `explain-selection`): server ghi 1 dòng vào `ai_usage` (`session_id`, `call_kind`, `tokens_in`, `tokens_out`, `cost_usd`) ngoài transaction học; lỗi ghi DB ở bước này chỉ log cảnh báo, không làm hỏng request của người học (D-66).
 
 ### 6.1. `enrich-node` — tạo run, lưu câu hỏi + đáp án
 
@@ -433,7 +436,7 @@ Run xong khi mọi câu `finished`. Câu `DROPPED` và câu `disputed` không t�
   - Phần chữ trượt gác 2 lần ⇒ `skeleton_only = true`, vẫn cache.
   - Thành công ⇒ xóa `analysis_failed`.
   - Client chỉ gọi cho node đang mở và 1–2 node kế tiếp (D-46), tối đa `CONFIG.ANALYZE_CONCURRENCY` node cùng lúc.
-- **`analyze-overview`:** mọi node không `analysis_failed` phải có bản phân tích, nếu không ⇒ `ERR_OVERVIEW_NOT_READY`. Server tự gom dữ liệu từ `ai_cache` + khung (không nhận dữ liệu từ client, không gửi code cho AI). AI hỏng sau thử lại ⇒ `ai: null`, vẫn trả `facts`.
+- **`analyze-overview`:** gọi được ngay sau khi quét, không chờ phân tích node. Trúng `ai_cache` ⇒ trả ngay. Trượt ⇒ kiểm quota ⇒ gọi AI qua in-flight map ⇒ kiểm theo `21`. Server dựng gói ngữ cảnh từ `StaticEngineResult` của phiên (tên repo, `readme_excerpt`, `manifest_description`, route, thực thể, nhóm, tên bài, cạnh). Không nhận dữ liệu từ client, không gửi code cho AI. AI hỏng sau thử lại hoặc bị cổng gác chặn ⇒ `ai: null`, vẫn trả `facts`, không cache.
 - **`ingest`:**
   - Semaphore `MAX_CONCURRENT_INGESTIONS` (trong 1 instance); chờ quá `INGEST_QUEUE_TIMEOUT_MS` ⇒ `ERR_SERVER_BUSY`.
   - Upload zip: client kiểm `CONFIG.MAX_UPLOAD_BYTES` trước khi gửi; vượt ⇒ `ERR_STREAM_QUOTA_EXCEEDED`.
@@ -451,6 +454,17 @@ Run xong khi mọi câu `finished`. Câu `DROPPED` và câu `disputed` không t�
 ### 6.8. `GET /api/health` — Healthcheck (D-64)
 
 Không cần đăng nhập (ngoại lệ API-04), không gọi DB, không gọi AI, không log body request. Trả về ngay HTTP 200 với body `ok` (`text/plain`, 0 token). Dùng làm startup probe cho Cloud Run (`05`) và smoke test cho CI/CD.
+
+### 6.9. `explain-selection`
+
+1. Đọc `StaticEngineResult` theo Mục 4. `node_id` hoặc `step_number` không có trong snapshot ⇒ `ERR_SELECTION_INVALID`.
+2. Kiểm vùng chọn: dùng `snippet_line_map` cắt lại đoạn chọn từ `snippet` của bước. Dòng không có trong map, dòng marker, đoạn cắt khác `selected_text` (so theo `20` AI-38), hoặc dài hơn `CONFIG.EXPLAIN_SELECTION_MAX_CHARS` ⇒ `ERR_SELECTION_INVALID`. AI chỉ nhận đoạn server cắt.
+3. Dựng `references` bằng code (`20`).
+4. Trúng `ai_cache` ⇒ trả ngay, không tính lượt.
+5. Đếm lượt: số dòng `ai_usage` có `call_kind` = `EXPLAIN` của phiên ≥ `CONFIG.EXPLAIN_MAX_PER_SESSION` ⇒ `ERR_EXPLAIN_LIMIT`. Kiểm quota như Mục 1.
+6. Gọi AI qua in-flight map, ngoài transaction. Lỗi sau thử lại ⇒ `ERR_AI_UNAVAILABLE`.
+7. Kiểm theo `21`. Qua ⇒ ghi `ai_cache`, trả kết quả. Trượt ⇒ `explanation = null`, không gọi lại, không cache.
+8. Không đọc câu hỏi, đáp án, dữ liệu người học. Không đổi tiến độ, BKT, `reveal`.
 
 ---
 
@@ -476,7 +490,7 @@ Không cần đăng nhập (ngoại lệ API-04), không gọi DB, không gọi 
 | `GEMINI_BACKEND` | Chọn kênh gọi AI | `"vertex"` (mặc định Cloud Run production/staging) hoặc `"studio"` (Vercel dự phòng, dev) (D-66) |
 | `GOOGLE_CLOUD_PROJECT` | Project ID của Google Cloud | Bắt buộc khi `GEMINI_BACKEND="vertex"`; Cloud Run tự nạp hoặc cấu hình env (D-66) |
 | `AI_DISABLED` | Khóa khẩn cấp toàn bộ lời gọi AI | `"true"` khi nhận cảnh báo ngân sách 100% ⇒ trả ngay `ERR_AI_UNAVAILABLE`; mặc định `"false"` (D-66) |
-| `GEMINI_API_KEY` | 4 lời gọi AI qua Google AI Studio | Chỉ bắt buộc khi `GEMINI_BACKEND="studio"`; Cloud Run gọi qua Vertex AI bằng service account, không có key này (D-64, D-66) |
+| `GEMINI_API_KEY` | 5 lời gọi AI qua Google AI Studio | Chỉ bắt buộc khi `GEMINI_BACKEND="studio"`; Cloud Run gọi qua Vertex AI bằng service account, không có key này (D-64, D-66) |
 | `GITHUB_TOKEN` | Tải chọn lọc repo lớn (`10` Mục 4A) | Chỉ server; token chỉ đọc repo công khai; thiếu ⇒ ING-49; trên Cloud Run lấy từ Secret Manager (D-64) |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client đăng nhập GitHub | Công khai được; `NEXT_PUBLIC_SUPABASE_ANON_KEY` nhận publishable key `sb_publishable_…` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Dự phòng thao tác quản trị Supabase; không dùng cho truy vấn bảng | Chỉ server; nhận secret key `sb_secret_…`; trên Cloud Run lấy từ Secret Manager (D-64) |

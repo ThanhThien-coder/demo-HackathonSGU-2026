@@ -17,7 +17,7 @@ vi.mock("../gemini", async (importOriginal) => {
   return {
     ...actual,
     callLLMOnce: vi.fn(),
-    retryDelay: vi.fn(),
+    retryDelay: vi.fn(async () => true), // D-74 R1: true = được gọi lại
   };
 });
 

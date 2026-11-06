@@ -6,11 +6,12 @@
 
 ## 1. Sản phẩm trong 1 đoạn
 
-SimpliFey V2 Pro biến một repo GitHub public (hoặc file `.zip`) thành **bản đồ học tập** gồm tối đa `CONFIG.DISPLAY_MAX_NODES` node. Mỗi node là một **lát cắt nghiệp vụ xuyên file** (route → middleware → service → repository), không phải một file. Bản đồ dựng bằng **code thuần, 0 token** (Tree-sitter, Tarjan, PageRank, lát cắt, Dagre). Sau đó AI (Gemini) làm 4 việc:
+SimpliFey V2 Pro biến một repo GitHub public (hoặc file `.zip`) thành **bản đồ học tập** gồm tối đa `CONFIG.DISPLAY_MAX_NODES` node. Mỗi node là một **lát cắt nghiệp vụ xuyên file** (route → middleware → service → repository), không phải một file. Bản đồ dựng bằng **code thuần, 0 token** (Tree-sitter, Tarjan, PageRank, lát cắt, Dagre). Sau đó AI (Gemini) làm 5 việc:
 1. phân tích từng node (kỹ năng + điểm hay + điểm dở, dùng chung cho mọi người học);
-2. viết tổng quan repo;
+2. viết tổng quan repo (gọi ngay sau khi quét, đặt tên nhóm và tên bài);
 3. đặt câu hỏi Feynman cho đúng các kỹ năng người học còn yếu;
-4. chấm câu trả lời và gợi ý theo lượt và bậc (trỏ `20` AI-31) rồi lộ đáp án.
+4. chấm câu trả lời và gợi ý theo lượt và bậc (trỏ `20` AI-31) rồi lộ đáp án;
+5. giải thích đoạn code người học chọn.
 
 Mô hình **BKT** ghi nhận năng lực của 16 kỹ năng lâu dài trong Postgres. Từ đó server chọn kỹ năng cần hỏi — kỹ năng đã thạo vẫn bị hỏi 1 câu, không node nào được miễn (D-34) — và kỹ năng của node đang mở hiện "đang mài mòn" khi trí nhớ phai, chỉ hiển thị (D-35).
 
@@ -21,7 +22,7 @@ Mô hình **BKT** ghi nhận năng lực của 16 kỹ năng lâu dài trong Pos
 | ID | Bất biến |
 | :-- | :-- |
 | **INV-01** | **1 node = 1 lát cắt xuyên file** mở đầu bằng 1 hàm entry đã đăng ký (D-06); không bao giờ là 1 file đơn lẻ. Node thuật toán (`ALGORITHMIC_CORE`) là 1 hàm phức tạp tách riêng. |
-| **INV-02** | **Code thuần trước, AI sau.** Bản đồ (Tầng 0–2) không gọi AI, mục tiêu < 1.5 s. AI chỉ chạy ở **4 lời gọi**: `analyze-node`, `analyze-overview`, `enrich-node` (đặt câu hỏi), `evaluate-feynman` (chấm). Không có Intent Router, không có Actor-Critic nhiều lượt. |
+| **INV-02** | **Code thuần trước, AI sau.** Bản đồ (Tầng 0–2) không gọi AI, mục tiêu < 1.5 s. AI chỉ chạy ở **5 lời gọi**: `analyze-node`, `analyze-overview`, `enrich-node` (đặt câu hỏi), `evaluate-feynman` (chấm), `explain-selection` (giải thích đoạn chọn). Không có Intent Router, không có Actor-Critic nhiều lượt. |
 | **INV-03** | **Zero-Trust:** không `git clone`, không chạy code người dùng; chỉ phân tích tĩnh. Tải từ `codeload.github.com` sau HEAD probe; zip bị cắt ⇒ GitHub API + `raw.githubusercontent.com` (D-63); file zip upload chỉ nằm trong RAM. |
 | **INV-04** | **Không lưu file mã nguồn:** file code, buffer zip, AST không bao giờ ghi đĩa hay DB. Thứ duy nhất có code được lưu là **đoạn code đã cắt của các node** trong `StaticEngineResult` của phiên (bảng `session_snapshots`, D-59), để mọi lần vào phiên hiện cùng đoạn code; client không đọc trực tiếp bảng này. Ngoài ra Postgres chỉ chứa dữ liệu học tập + văn bản AI đã qua kiểm (API-01). |
 | **INV-05** | **Server là nơi ghi duy nhất** của tiến độ học: lập kế hoạch câu hỏi, BKT, đếm lượt, mở khóa, quyết định mở đáp án. Client giữ bản sao chỉ đọc. `localStorage` chỉ giữ tiện ích giao diện, không giữ hồ sơ người học. |
@@ -41,7 +42,7 @@ Mô hình **BKT** ghi nhận năng lực của 16 kỹ năng lâu dài trong Pos
 ```mermaid
 flowchart LR
     subgraph Browser["Trình duyệt (Next.js client, Zustand chỉ đọc)"]
-        UI["Giao diện học<br/>ReactFlow · Monaco · X-Ray · Feynman · Tổng quan"]
+        UI["Giao diện học<br/>ReactFlow · Monaco · X-Ray · Feynman · Tổng quan · Giải thích đoạn chọn"]
     end
     subgraph Server["Cloud Run (Next.js route handlers, D-27, D-64)"]
         API["/api/* (03)"]
@@ -70,11 +71,12 @@ flowchart LR
 | :-- | :-- | :-: | :-- |
 | 0 | Phân tích link, HEAD probe, tải zip vào RAM, đọc commit SHA, lọc rác, chọn ≤ `MAX_CLEAN_FILES` file, che secret, nhận diện monorepo / archetype / tech_stack | 0 | `10` |
 | 1 | Tree-sitter + Language Registry, bảng symbol, đồ thị gọi hàm (`RESOLVED` / `INFERRED`), Tarjan SCC | 0 | `11` |
-| 2 | Lát cắt từ entry (D-06), độ phức tạp & VIP, PageRank xếp hạng, Uncle Bob, cạnh giữa node (D-07, D-73), Display Budget, đặt tên tất định, Dagre | 0 | `11` |
+| 2 | Lát cắt từ entry (D-06), độ phức tạp & VIP, PageRank xếp hạng, Uncle Bob, cạnh giữa node (D-07, D-73), Display Budget, gom nhóm chức năng (D-84), đặt tên tất định, Dagre | 0 | `11` |
+| 3b | `analyze-overview`: chạy ngay sau khi quét: bức tranh chung, tên nhóm, tên bài từ gói ngữ cảnh không có code (D-83) | AI | `20`, `21` |
 | 3a | `analyze-node`: kỹ năng + bằng chứng, mẫu kiến trúc, giải thích từng bước, điểm hay, điểm dở — cache dùng chung | AI | `20`, `21` |
-| 3b | `analyze-overview`: tổng quan repo từ các bản phân tích (không gửi code) | AI | `20`, `21` |
 | 4 | `enrich-node`: server lập kế hoạch câu hỏi theo hồ sơ người học, AI viết câu hỏi + đáp án | AI | `20`, `21`, `22` |
 | 5 | `evaluate-feynman`: AI chấm + gợi ý theo lượt và bậc (trỏ `20` AI-31) rồi lộ đáp án; server quyết Đạt, cập nhật BKT, mở khóa | AI + 0 | `20`, `21`, `22`, `03` |
+| 6 | `explain-selection`: giải thích đoạn chọn khi người học bấm nút, cache dùng chung (D-82) | AI | `03`, `20`, `21` |
 
 ---
 
@@ -100,14 +102,16 @@ sequenceDiagram
     BE->>BE: Tầng 0–2 trong RAM (0 token)
     BE->>DB: Tạo / mở learning_sessions + session_snapshots (đoạn code đã cắt, D-59)
     BE-->>FE: IngestResponse (bản đồ + progress + analyses có sẵn trong cache)
+    FE->>BE: POST /api/analyze-overview
+    BE->>AI: Tổng quan (nếu cache trượt)
+    BE->>DB: ai_cache
+    BE-->>FE: AnalyzeOverviewResponse
     loop Node đang mở và 1–2 node kế tiếp (tối đa ANALYZE_CONCURRENCY cùng lúc, D-46)
         FE->>BE: POST /api/analyze-node
         BE->>AI: Phân tích (nếu cache trượt)
         BE->>DB: ai_cache
         BE-->>FE: AnalyzeNodeResponse
     end
-    FE->>BE: POST /api/analyze-overview (khi mọi node đã phân tích)
-    BE-->>FE: AnalyzeOverviewResponse
 ```
 
 Node chưa phân tích xong hiện "đang phân tích…". Bấm vào node đó thì phần X-Ray chờ bản phân tích; phần Feynman khóa cho tới khi có bản phân tích.

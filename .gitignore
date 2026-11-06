@@ -34,3 +34,6 @@ npm-debug.log*
 
 # Subagent artifacts
 .agents/
+
+# Thư mục làm việc cục bộ của ai-kit, không commit
+.kb/
