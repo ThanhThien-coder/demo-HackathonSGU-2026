@@ -333,7 +333,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** Q-03 trong `00_QUYET_DINH.md` chưa chốt repo demo, nên tiêu chí vẫn bám `shop-api`.
 - **Cần sửa:** chốt Q-03. Nếu là BrewLite thì thêm repo mẫu NestJS và Prisma trong `repo-demo.test.ts`, thêm ngưỡng `cnpm_brewlite:toi_data` vào lệnh kiểm, và thu lại bản offline nếu demo cần.
 - **Ảnh hưởng demo:** có, vì lỗi của repo demo không được test chặn.
-- **Trạng thái:** đã kiểm, cần nhóm chốt Q-03.
+- **Trạng thái:** đang làm. Q-03 chốt `gothinkster/spring-boot-realworld-example-app`. Nhánh `a/chot-viec-thien`: `spring-demo.test.ts` là repo mẫu Spring có ngưỡng `DISPLAY_MIN_NODES`, đủ 3 tầng, tất định. Còn: thu lại `public/demo/mock_bundle.json` theo repo demo, cần AI thật và tài khoản bot.
 
 ### B-32 · Vừa · Monorepo lớn hết hạn tải chọn lọc vì tải manifest từng file
 
@@ -516,7 +516,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `deploy` thất bại 6 lần gần nhất vì thiếu xác thực GCP. Site Vercel không bị ảnh hưởng.
 - **Cần sửa:** đặt secret theo `deploy.yml`, hoặc tắt workflow nếu nhóm chỉ dùng Vercel.
-- **Trạng thái:** đã xác nhận, chờ quyết Q-C.
+- **Trạng thái:** đã xác nhận. Theo Q-C: giữ workflow, không tắt. Từ 12:00 ngày 07/11/2026 ban giám khảo cấp Google Cloud thì đặt secret theo `deploy.yml` và deploy lên đó. Trước đó workflow vẫn đỏ, site chạy Vercel.
 
 ### A-02 · Vừa · Lỗi thật bị che
 
@@ -647,9 +647,9 @@ Agent không tự trả lời các câu này. Nhóm chốt xong thì đổi cộ
 
 | Mã | Câu hỏi | Đề xuất | Việc bị chặn | Trạng thái |
 | :-- | :-- | :-- | :-- | :-- |
-| Q-A | Luật đạt bài, xem chi tiết bên dưới | Giữ luật, hiện "Đạt 2/3 câu" | Một phần D-09 | chờ quyết |
+| Q-A | Luật đạt bài, xem chi tiết bên dưới | Giữ luật, hiện "Đạt 2/3 câu" | Một phần D-09 | giữ luật, hiện "Đạt 2/3 câu", Thiện chốt 06/11/2026 |
 | Q-B | Có thêm quyết định D-73, nối bài thành cây theo module không? | Có, nhưng phải thử kỹ khóa bài | B-04, B-05, S-13 | cây, Minh chốt 05/11/2026 |
-| Q-C | Host chính của vòng 2 là Cloud Run hay Vercel? | Vercel, tắt workflow Cloud Run, vì GCP còn thiếu secret | A-01, S-11 | chờ quyết |
+| Q-C | Host chính của vòng 2 là Cloud Run hay Vercel? | Vercel, tắt workflow Cloud Run, vì GCP còn thiếu secret | A-01, S-11 | Google Cloud từ 12:00 ngày 07/11/2026, ban giám khảo cấp tài khoản. Trước đó vẫn chạy Vercel. Thiện chốt 06/11/2026 |
 | Q-D | Spec 30 theo giao diện thật hay đổi code về 3 cột? | Viết lại spec theo giao diện thật | S-07 | giao diện mới, Minh chốt 05/11/2026 |
 | Q-E | 6 file spec đã vượt trần byte: nâng trần hay cắt bớt? | Nâng trần cho `02`, `10`, `20`, `21`, `30`, ghi một quyết định, cắt `00` | Việc spec có cột Chờ là Q-E | nâng trần, quyết định D-75 |
 | Q-F | Có nâng `ENGINE_VERSION` lên `1.7.0` và gom các đổi engine vào một lần không? | Có | Bước đổi phiên bản của B-01 … B-07 | không cần giữ phiên cũ, đợt 1 lên `1.7.0`, đợt 2 lên `1.8.0`, Minh chốt 05/11/2026 |
@@ -761,7 +761,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Nguyên nhân:** test cần database riêng, nhưng máy nhóm và CI chưa đặt sẵn.
 - **Cần sửa:** dựng Postgres riêng cho test, trên máy hoặc service của CI, không trỏ tới database thật. Chuyển `flow.test.ts` về `main` và đổi lại fixture theo code `main`.
 - **Kiểm tra:** chạy test với `TEST_DATABASE_URL`, không ca tích hợp nào bị bỏ qua. Chạy tay trọn một bài và kiểm điểm BKT qua `/api/me`.
-- **Trạng thái:** đã kiểm code, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `a/chot-viec-thien`: `ci.yml` có service Postgres và `TEST_DATABASE_URL`; `postgres-that.test.ts` chạy cả migration `0002`; thêm `tests/integration/hoc-sai-dung.test.ts`: trả lời sai, nhận gợi ý, trả lời đúng, kiểm điểm qua `/api/me`. Chạy trên Postgres thật ở máy: 5/5 ca đạt. Chưa chạy trên CI. 21 ca của `flow.test.ts` chưa chuyển, vì gọi service chỉ có trên `feat/giao-dien-ide`, phải viết lại. Chưa chạy tay trọn một bài.
 
 ### C-09 · Vừa · Có điểm hay nhưng không có điểm dở
 
@@ -795,7 +795,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   7. Chốt một repo Java làm repo demo, rồi dựng lại gói Offline và kịch bản demo theo repo đó.
 - **Kiểm tra:** quét `spring-petclinic` và `SGU-quan-ly-nha-hang`: `primary_language` là Java, tier `RESOLVED`, tên bài theo route đúng, có bài đi đủ controller, service, repository và tới `DATA_ACCESS`. Chạy AI thật trọn một bài trên repo demo Java.
 - **Ảnh hưởng demo:** có, đổi repo demo và kịch bản vấn đáp.
-- **Trạng thái:** đang làm. Bước 2–3 đã vào `main`. Nhánh `b/b38-spring` xong bước 4–5 theo `12` Mục 4: route, lời gọi Java, tầng, JPA. Quét thật: `spring-petclinic` 17 bài, 14 theo route, 6 bài đủ `ENTRY_POINT`, `BUSINESS_LOGIC`, `DATA_ACCESS`; `spring-boot-realworld-example-app` 19 bài, 19 theo route, 6 bài đủ tầng. BrewLite giữ nguyên kết quả so với `main`. Còn bước 6–7, repo mẫu trong test, `ENGINE_VERSION`, chốt repo demo, chạy AI thật.
+- **Trạng thái:** đang làm. Bước 2–5 đã vào `main`, Q-03 chốt `gothinkster/spring-boot-realworld-example-app`. Nhánh `a/chot-viec-thien`: `spring.ts` sửa class `@Repository` có thân thành cạnh thường, `spring-demo.test.ts` là repo mẫu Spring trong test. Quét thật: repo demo 19 bài, 19 theo route, 7 bài đủ `ENTRY_POINT`, `BUSINESS_LOGIC`, `DATA_ACCESS`, 15 cạnh; `spring-petclinic` 17 bài, 14 theo route, 6 bài đủ tầng. Còn: `ENGINE_VERSION` đổi sau B-39, gói Offline, chạy AI thật trên repo demo.
 
 ### B-39 · Nặng · Bản đồ không nối các chức năng với nhau
 
@@ -901,7 +901,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** `02` theo Mục 3 của `sua-doc-quy-trinh-moi.md`; endpoint `POST /api/explain-selection`; bỏ `ERR_OVERVIEW_NOT_READY`; mang frontend `feat/giao-dien-ide` về `main` làm nền cho luồng 6.
 - **Kiểm tra:** `npm run typecheck` xanh; gọi endpoint với vùng chọn sai ra 400.
-- **Trạng thái:** đang làm. Nhánh `a/fix-a08-explain-selection`: xong kiểu thêm mới, `CONFIG`, 2 mã lỗi, route trả 400 khi vùng chọn sai (test mock, chưa gọi server thật), vùng chọn đúng trả 503 chờ C-11. Typecheck, lint, 702 test xanh. Còn: kiểu đổi `RepoOverviewRaw`, trường mới của node, cạnh, kết quả engine, bỏ `ERR_OVERVIEW_NOT_READY`, frontend.
+- **Trạng thái:** chờ kiểm. Nhánh `a/chot-viec-thien`. Route `explain-selection` đã gọi hàm của C-11; bỏ hẳn `ERR_OVERVIEW_NOT_READY` ở 10 file, `offline.ts` đổi sang `ERR_CLIENT_NETWORK`. Typecheck, lint, test xanh. Chưa gọi endpoint trên server thật. `RepoOverviewRaw` đã đổi ở C-12. Trường mới của node, cạnh, kết quả engine thuộc B-40. Frontend do bạn của Thiện tự làm.
 
 ---
 

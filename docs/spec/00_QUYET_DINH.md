@@ -118,7 +118,7 @@ Hiện không còn quyết định nào chờ chốt. D-08, D-09, D-16, D-24 đ�
 
 | ID | Câu hỏi | Người | Hạn | Mặc định nếu chưa trả lời |
 | :-- | :-- | :-- | :-- | :-- |
-| **Q-03** | **Repo demo thật** (thay repo minh họa `shop-api`).<br>Tiêu chí:<br>• public<br>• Java Spring Boot (chốt 06/11/2026, chưa chọn repo)<br>• 20–50 file code<br>• có ≥ 1 điểm dở rõ (truy vấn trong vòng lặp / thiếu transaction / secret viết thẳng)<br>• ≤ 15 MB nén | Cả nhóm | Trước ngày thi | Dùng repo mẫu tự viết theo `50_TEST_VA_FIXTURE.md` Mục 1, đẩy lên GitHub cá nhân trước giờ thi (đây là repo **dữ liệu demo**, không phải code sản phẩm) |
+| **Q-03** | **Repo demo thật** (thay repo minh họa `shop-api`).<br>Tiêu chí:<br>• public<br>• Java Spring Boot: `gothinkster/spring-boot-realworld-example-app` (chốt 06/11/2026)<br>• 20–50 file code<br>• có ≥ 1 điểm dở rõ (truy vấn trong vòng lặp / thiếu transaction / secret viết thẳng)<br>• ≤ 15 MB nén | Cả nhóm | Trước ngày thi | Dùng repo mẫu tự viết theo `50_TEST_VA_FIXTURE.md` Mục 1, đẩy lên GitHub cá nhân trước giờ thi (đây là repo **dữ liệu demo**, không phải code sản phẩm) |
 | **Q-10** | **Giới hạn tốc độ tải zip không xác thực từ `codeload.github.com`:** GitHub không công bố quota số cụ thể cho codeload ngoài secondary rate limits / abuse detection (trả 429 / 403 khi quá nhiều request từ 1 IP/dải IP). Cần kiểm chứng hành vi probe và tải zip ở giờ H+1. | Vai B | Trước ngày thi | Giữ semaphore `MAX_CONCURRENT_INGESTIONS` và cache RAM để giảm thiểu số lần tải; gặp 429 trả `ERR_GITHUB_RATE_LIMIT_CDN` |
 | **Q-13** | **Trần số bài học nạp vào prompt (D-51):** chưa có số đo nên chưa đặt số. | _chờ điền_ | _chờ điền_ | Chưa nạp bài học nào vào prompt |
 

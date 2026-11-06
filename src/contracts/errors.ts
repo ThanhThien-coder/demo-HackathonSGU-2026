@@ -3,7 +3,6 @@ import type { IngestionErrorCode } from "./engine";
 export type LearningErrorCode =
   | "ERR_NODE_NOT_AVAILABLE"        // Tạo run cho node không AVAILABLE
   | "ERR_ANALYSIS_NOT_READY"        // enrich khi node chưa có bản phân tích
-  | "ERR_OVERVIEW_NOT_READY"        // Còn node chưa phân tích xong
   | "ERR_QUESTION_FINISHED"         // Nộp / bỏ qua câu đã xong
   | "ERR_ATTEMPT_OUT_OF_SYNC"       // attempt_number lệch số lượt thật (2 tab)
   | "ERR_ANSWER_TOO_SHORT" | "ERR_ANSWER_TOO_LONG" | "ERR_ANSWER_DUPLICATE" | "ERR_ANSWER_INAPPROPRIATE"   // Không tính lượt

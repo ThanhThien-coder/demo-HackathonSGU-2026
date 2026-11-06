@@ -16,6 +16,19 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Tải mã nguồn
         uses: actions/checkout@v4
@@ -37,3 +50,5 @@ jobs:
 
       - name: Chạy kiểm thử tự động
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@127.0.0.1:55432/test

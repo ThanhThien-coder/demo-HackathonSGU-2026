@@ -267,6 +267,69 @@ public class ClientService {
       const orderServiceExtCalls = result.external.filter((e) => e.receiver_chain.includes("orderService"));
       expect(orderServiceExtCalls).toHaveLength(0);
     });
+
+    it("ENT-41: orders.save(o) với OrderRepository là class @Repository có thân => có cạnh tới OrderRepository.save, không có ExternalCall spring-data cho lời gọi đó", () => {
+      const repoSource = `
+package com.example.demo;
+
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class OrderRepository {
+    public Order save(Order o) {
+        return o;
+    }
+}
+`;
+      const entitySource = `
+package com.example.demo;
+
+public class Order {}
+`;
+      const serviceSource = `
+package com.example.demo;
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class OrderService {
+    private final OrderRepository orders;
+
+    public OrderService(OrderRepository orders) {
+        this.orders = orders;
+    }
+
+    public Order create(Order o) {
+        return this.orders.save(o);
+    }
+}
+`;
+      const repoFile = parseJavaFile("src/main/java/com/example/demo/OrderRepository.java", repoSource);
+      const entityFile = parseJavaFile("src/main/java/com/example/demo/Order.java", entitySource);
+      const serviceFile = parseJavaFile("src/main/java/com/example/demo/OrderService.java", serviceSource);
+      const files = [repoFile, entityFile, serviceFile];
+
+      const idx = collectSymbols(files);
+      resolveImports(files, idx, new Map(), {
+        go_module_path: null,
+        dart_package_name: null,
+        package_entry_files: [],
+      });
+
+      const result = buildJavaCallGraph(files, idx);
+
+      // Có cạnh tới OrderRepository.save với confidence RESOLVED
+      const saveEdge = result.edges.find(
+        (e) => e.caller.includes("OrderService.create") && e.callee.includes("OrderRepository.save")
+      );
+      expect(saveEdge).toBeDefined();
+      expect(saveEdge?.confidence).toBe("RESOLVED");
+      expect(saveEdge?.ambiguous).toBe(false);
+
+      // Không có ExternalCall spring-data cho lời gọi đó
+      const springDataCalls = result.external.filter((e) => e.import_source === "spring-data");
+      expect(springDataCalls).toHaveLength(0);
+    });
   });
 
   describe("T-ENT-06: 3 tầng Controller -> Service -> Repository & Tiêm Interface", () => {

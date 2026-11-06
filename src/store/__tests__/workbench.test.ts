@@ -42,7 +42,7 @@ vi.mock("@/lib/api", () => ({
     data: null,
     error: {
       error: {
-        code: "ERR_OVERVIEW_NOT_READY",
+        code: "ERR_AI_UNAVAILABLE",
         message: "Chưa sẵn sàng",
         retryable: false,
       },
@@ -606,7 +606,7 @@ describe("src/store/workbench.ts", () => {
   // 7. analyzeOverviewSafe
   // ---------------------------------------------------------------------------
   describe("analyzeOverviewSafe", () => {
-    it("gọi đúng 1 lần khi đủ node; ERR_OVERVIEW_NOT_READY không ghi lỗi", async () => {
+    it("gọi đúng 1 lần khi đủ node; ghi nhận lỗi khi phân tích tổng quan thất bại", async () => {
       const nodes = [
         { id: "node-1", prerequisites: [] },
         { id: "node-2", prerequisites: [] },
@@ -645,8 +645,8 @@ describe("src/store/workbench.ts", () => {
         data: null,
         error: {
           error: {
-            code: "ERR_OVERVIEW_NOT_READY",
-            message: "Hệ thống đang phân tích tiếp.",
+            code: "ERR_AI_UNAVAILABLE",
+            message: "Hệ thống đang bận.",
             retryable: true,
           },
         },
@@ -679,8 +679,8 @@ describe("src/store/workbench.ts", () => {
         expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
       });
 
-      // Lỗi ERR_OVERVIEW_NOT_READY không được ghi vào ui.errors["overview"]
-      expect(useWorkbenchStore.getState().ui.errors["overview"]).toBeUndefined();
+      // Lỗi được ghi vào ui.errors["overview"]
+      expect(useWorkbenchStore.getState().ui.errors["overview"]).toBeDefined();
 
       // Giả lập lời gọi thành công
       const mockOverview: RepoOverviewView = {

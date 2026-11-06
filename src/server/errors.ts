@@ -33,7 +33,6 @@ export const ERROR_HTTP_STATUS: Record<ServerErrorCode, number> = {
   ERR_NODE_NOT_AVAILABLE: 409,
   ERR_QUESTION_FINISHED: 409,
   ERR_ANALYSIS_NOT_READY: 409,
-  ERR_OVERVIEW_NOT_READY: 409,
 
   // HTTP 410
   ERR_SESSION_ENGINE_OUTDATED: 410,
@@ -126,8 +125,6 @@ export function defaultMessage(
       return "Node này chưa mở hoặc đã học xong.";
     case "ERR_ANALYSIS_NOT_READY":
       return "";
-    case "ERR_OVERVIEW_NOT_READY":
-      return "";
     case "ERR_QUESTION_FINISHED":
       return "Câu này đã kết thúc.";
     case "ERR_ATTEMPT_OUT_OF_SYNC":
@@ -185,7 +182,6 @@ export const ERROR_DEFAULT_MESSAGES: Record<ServerErrorCode, string> = {
   ERR_SERVER_BUSY: defaultMessage("ERR_SERVER_BUSY"),
   ERR_NODE_NOT_AVAILABLE: defaultMessage("ERR_NODE_NOT_AVAILABLE"),
   ERR_ANALYSIS_NOT_READY: defaultMessage("ERR_ANALYSIS_NOT_READY"),
-  ERR_OVERVIEW_NOT_READY: defaultMessage("ERR_OVERVIEW_NOT_READY"),
   ERR_QUESTION_FINISHED: defaultMessage("ERR_QUESTION_FINISHED"),
   ERR_ATTEMPT_OUT_OF_SYNC: defaultMessage("ERR_ATTEMPT_OUT_OF_SYNC"),
   ERR_ANSWER_TOO_SHORT: defaultMessage("ERR_ANSWER_TOO_SHORT"),
