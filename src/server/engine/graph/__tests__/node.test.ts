@@ -879,6 +879,54 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
   });
 
   // ---------------------------------------------------------------------------
+  // T-ENG-53 (B-36, D-88): thứ tự giữ node khi vượt DISPLAY_MAX_NODES
+  // ---------------------------------------------------------------------------
+  const budgetCandidate = (id: string, kind: "HTTP" | "PAGE" | "ALGO", cc: number, rank: number): Candidate => ({
+    ...createDummyCandidate({ id, kind: kind === "ALGO" ? "ALGO" : "SLICE", cognitive_complexity: cc, rank_score: rank }),
+    binding:
+      kind === "ALGO"
+        ? null
+        : { file_path: "src/a.ts", line_start: 1, line_end: 2, kind, method: "GET", path: "/" + id, handler: id, middlewares: [], display_name: id },
+  });
+  const pad = (i: number) => String(i).padStart(2, "0");
+
+  it("T-ENG-53: giữ tối đa VIP_FALLBACK_TOP_K node thuật toán, bài API trước bài trang dù hạng thấp hơn", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`page-${pad(i)}`, "PAGE", 40, 0.9));
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`algo-${pad(i)}`, "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+    const count = (prefix: string) => nodes.filter((n) => n.entry_symbol?.startsWith(prefix)).length;
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(count("algo-")).toBe(CONFIG.VIP_FALLBACK_TOP_K);
+    expect(count("api-")).toBe(12);
+  });
+
+  it("T-ENG-53: thiếu bài luồng thì trả chỗ lại cho node thuật toán", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 3; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    for (let i = 0; i < 25; i++) candidates.push(budgetCandidate(`algo-${pad(i)}`, "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(nodes.filter((n) => n.entry_symbol?.startsWith("api-")).length).toBe(3);
+  });
+
+  it("T-ENG-53: thiếu node thuật toán thì bài luồng lấp đủ chỗ", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 25; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    candidates.push(budgetCandidate("algo-00", "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(nodes.filter((n) => n.entry_symbol?.startsWith("algo-")).length).toBe(1);
+  });
+
+  // ---------------------------------------------------------------------------
   // T-ENG-37: Mọi điểm bắt đầu nằm trên cùng hàng trên cùng (D-55)
   // ---------------------------------------------------------------------------
   it("T-ENG-37: Gốc A (A->B->C->D), gốc E (E->D), gốc F lẻ => A, E, F cùng position.y nhỏ nhất; không có nút __start__", () => {

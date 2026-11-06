@@ -702,7 +702,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đề xuất ưu tiên bài luồng trên đường chính trước bài thuật toán. Ghi quyết định mới vào `00`, sửa ENG-114 và `nodes.ts`, đổi `ENGINE_VERSION`. Làm sau B-35 rồi đo lại, vì B-35 có thể đã giảm phần lớn lỗi này.
 - **Kiểm tra:** quét code `main`, phần lớn bài giữ lại là luồng server. Chạy thêm repo fullstack lớn mà nhóm gặp lỗi này.
 - **Ảnh hưởng demo:** chỉ khi repo demo có trên 20 bài và có giao diện.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b36-budget`. Quyết định D-88, Minh chốt 06/11/2026: sau đường chính giữ tối đa `CONFIG.VIP_FALLBACK_TOP_K` node thuật toán, chỗ còn lại cho bài API, rồi bài khác, thiếu loại nào thì loại kia lấp. Không chọn "bài luồng trước hẳn" vì xóa sạch bài thuật toán. Quét repo này: 20 bài gồm 13/13 API, 1 trang, 6 thuật toán, có lại `/api/sessions`, `/api/health`, `/api/me`. `nestjs/nest` 14 luồng, 6 thuật toán. `cal.com` 18 API, 1 thuật toán. BrewLite không đổi vì dưới 20 bài. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.8.0`.
 
 ### B-37 · Nặng · Lát cắt toàn hàm vặt, thiếu phần xử lý chính
 

@@ -725,21 +725,41 @@ export function assembleGraph(
       criticalPath.slice(0, CONFIG.CRITICAL_PATH_MAX_NODES)
     );
 
-    // Thêm các node còn lại theo thứ tự ưu tiên ENG-114
-    const remaining = mergedCandidates
-      .filter((c) => !keptIdsSet.has(c.id))
-      .sort((a, b) => {
-        const aIsVip = a.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
-        const bIsVip = b.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
-        if (bIsVip !== aIsVip) return bIsVip - aIsVip;
-        if (b.rank_score !== a.rank_score) return b.rank_score - a.rank_score;
-        if (b.cognitive_complexity !== a.cognitive_complexity) {
-          return b.cognitive_complexity - a.cognitive_complexity;
-        }
-        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-      });
+    // Thêm các node còn lại theo ENG-114 (2), D-88
+    const byPriority = (a: Candidate, b: Candidate): number => {
+      const aIsVip = a.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
+      const bIsVip = b.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
+      if (bIsVip !== aIsVip) return bIsVip - aIsVip;
+      if (b.rank_score !== a.rank_score) return b.rank_score - a.rank_score;
+      if (b.cognitive_complexity !== a.cognitive_complexity) {
+        return b.cognitive_complexity - a.cognitive_complexity;
+      }
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    };
+    const isHttp = (c: Candidate): number => (c.binding?.kind === "HTTP" ? 1 : 0);
 
-    for (const r of remaining) {
+    const remaining = mergedCandidates.filter((c) => !keptIdsSet.has(c.id));
+    const algos = remaining.filter((c) => c.kind === "ALGO").sort(byPriority);
+    const flows = remaining
+      .filter((c) => c.kind !== "ALGO")
+      .sort((a, b) => isHttp(b) - isHttp(a) || byPriority(a, b));
+
+    const algosOnPath = mergedCandidates.filter(
+      (c) => c.kind === "ALGO" && keptIdsSet.has(c.id)
+    ).length;
+    const algoQuota = Math.min(
+      algos.length,
+      Math.max(0, CONFIG.VIP_FALLBACK_TOP_K - algosOnPath)
+    );
+    const flowQuota = Math.max(0, maxNodes - keptIdsSet.size - algoQuota);
+
+    const pickOrder = [
+      ...flows.slice(0, flowQuota),
+      ...algos.slice(0, algoQuota),
+      ...flows.slice(flowQuota),
+      ...algos.slice(algoQuota),
+    ];
+    for (const r of pickOrder) {
       if (keptIdsSet.size >= maxNodes) break;
       keptIdsSet.add(r.id);
     }
