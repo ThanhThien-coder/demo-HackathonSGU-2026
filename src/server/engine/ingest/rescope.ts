@@ -49,7 +49,8 @@ export function rescopeIngest(out: IngestOutput, offset: string): IngestOutput {
     out.manifests,
     scope,
     report,
-    DEFAULT_LANGUAGE_REGISTRY
+    DEFAULT_LANGUAGE_REGISTRY,
+    out.file_language
   );
 
   const next: IngestOutput = { ...out, fingerprint, module_info, report };
