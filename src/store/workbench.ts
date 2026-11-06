@@ -47,7 +47,8 @@ export interface WorkbenchUiSlice {
   offline_persona: PersonaMode;
   // D12 — tour X-Ray: ROLE ⇒ TOUR ⇒ SUMMARY
   xray_stage: XrayStage;
-  hl: HlRange[]; // D14
+  // D13 — "Xem dòng" của thẻ khái niệm gán vào đây
+  hl: HlRange[];
 }
 
 export interface WorkbenchStoreState extends ClientWorkbenchState {
