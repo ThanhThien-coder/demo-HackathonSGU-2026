@@ -52,7 +52,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 - Lệnh kiểm: `npx vitest run src/server/ai`
 - Có test (mock AI hoặc mock DB) cho ca D8 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4, tên test ghi mã ca.
 - Test AI-30a, AI-30b: fixture 2.4 lượt 2 đạt (true); đổi trích dẫn sang câu không có thật thì không đạt (false); core_accuracy < 70 không đạt.
-- Test AI-31, AI-32: lượt 1 gợi ý CONCEPT, lượt 2 gợi ý CODE_POINTER, lượt cuối null; gợi ý vi phạm cổng gác tự động chuyển sang mẫu tĩnh.
+- Test AI-31, AI-32: gợi ý theo bậc (D-74): `NOVICE` lượt 1, 2 đều `CODE_POINTER`; `PRACTITIONER` lượt 1 `CONCEPT`, lượt 2 `CODE_POINTER`; `ARCHITECT` lượt 1, 2 đều `CONCEPT`; lượt cuối `null`. Gợi ý vi phạm cổng gác tự động chuyển sang mẫu tĩnh.
 - Test AI-33: câu lệnh tiêm prompt thì nhận injectionGrading, 0 điểm, 0 token, không gợi ý.
 - Test GUARD-13, GUARD-14: kiểm tra lộ số và làm sạch feedback đúng quy tắc.
 - Test AI-37 (lời gọi chấm): gợi ý trượt gác thì không gọi lại, dùng mẫu tĩnh, có dòng log mã `G1`.

@@ -47,7 +47,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 1. Dùng skill doc-spec đọc đúng các mục ở Được đọc.
 2. B1: Viết file migration `supabase/migrations/0001_init.sql` chứa toàn bộ bảng, enum, index, RLS của `docs/spec/03_API_VA_LUU_TRU.md` Mục 3, 3.2, bao gồm cả bảng `session_snapshots` (D-59).
 3. B2: Viết `src/server/db.ts` (kết nối driver `postgres` 3.x, `prepare: false`, số kết nối `max` theo `docs/spec/05_HA_TANG_CLOUD.md` Mục 1, `db.tx` dùng `sql.begin`), `src/server/log.ts` (dùng `pino` theo `docs/spec/04_KIEN_TRUC_TRIEN_KHAI.md` Mục 9), `src/server/errors.ts` (`ApiError`, bảng mã HTTP theo `docs/spec/02_CONTRACTS.md` Mục 9) và viết test trong `src/server/__tests__/errors.test.ts`.
-4. B3: Viết `src/server/auth.ts` xác thực Bearer token (API-04), `src/app/auth/callback/route.ts` (D-44), `src/app/api/me/route.ts` (`GET` tạo `profiles` nếu chưa có, `DELETE` trả 204).
+4. B3: Viết `src/server/auth.ts` xác thực Bearer token (API-04), `src/app/auth/callback/route.ts` (D-44; chỉ nhận `next` là đường dẫn nội bộ, chuyển hướng theo `x-forwarded-host` vì sau proxy `request.url` mang host nội bộ), `src/app/api/me/route.ts` (`GET` tạo `profiles` nếu chưa có, `DELETE` trả 204).
 5. Dùng skill kiem-contract so code với `docs/spec/02_CONTRACTS.md`.
 
 ## Tiêu chí xong
