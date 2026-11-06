@@ -66,7 +66,9 @@ export async function generateQuestions(
     }
 
     // TRANSIENT hoặc INVALID_JSON: retryDelay rồi request 2 gửi lại cả lô, KHÔNG kèm guard_feedback
-    await retryDelay(r1);
+    if (!(await retryDelay(r1))) {
+      throw new ApiHttpError("ERR_AI_UNAVAILABLE"); // Google bắt chờ quá CONFIG.LLM_RETRY_DELAY_MAX_MS (D-74 R1)
+    }
     const req2 = questionsRequest(session, graph, node, analysis, plan);
     const r2 = await callLLMOnce(req2);
 

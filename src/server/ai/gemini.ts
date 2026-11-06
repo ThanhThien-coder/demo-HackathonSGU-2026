@@ -9,6 +9,7 @@ import type {
 } from "@google/genai";
 import { CONFIG } from "@/contracts";
 import type { AiErrorCode } from "@/contracts";
+import { logger } from "../log";
 
 export type GeminiBackend = "vertex" | "studio";
 
@@ -82,8 +83,41 @@ export interface LlmRequest<T> {
 }
 
 export type LlmOutcome<T> =
-  | ({ ok: true; value: T } | { ok: false; kind: "TRANSIENT" | "INVALID_JSON" | "FATAL"; status?: number })
+  | ({ ok: true; value: T } | { ok: false; kind: "TRANSIENT" | "INVALID_JSON" | "FATAL"; status?: number; retry_after_ms?: number })
     & { tokens_in: number; tokens_out: number };
+
+type LlmFailure<T> = Extract<LlmOutcome<T>, { ok: false }>;
+
+/** Thời gian Google yêu cầu chờ (RetryInfo, dạng "57s") đổi ra ms; không có ⇒ undefined (20 AI-12, D-74 R1). */
+function extractRetryAfterMs(err: unknown): number | undefined {
+  let text = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  try {
+    text += " " + JSON.stringify(err);
+  } catch {
+    // vòng tham chiếu: chỉ dùng message
+  }
+  const m = /"?retryDelay"?\s*[:=]\s*"?(\d+(?:\.\d+)?)s"?/.exec(text);
+  return m ? Math.round(Number(m[1]) * 1000) : undefined;
+}
+
+/**
+ * Ghi 1 dòng log warn cho lời gọi lỗi rồi trả lại kết quả (20 AI-12, lỗi C-01).
+ * Chỉ ghi loại lời gọi, kind, status, retry_after_ms, lý do ngắn; cấm ghi khóa, prompt, nội dung AI.
+ */
+function failed<T>(req: LlmRequest<T>, reason: string, out: LlmFailure<T>): LlmFailure<T> {
+  logger.warn(
+    {
+      event: "llm_error",
+      call: req.kind,
+      kind: out.kind,
+      status: out.status ?? null,
+      retry_after_ms: out.retry_after_ms ?? null,
+      reason,
+    },
+    "llm_error",
+  );
+  return out;
+}
 
 function extractHttpStatus(err: unknown): number | null {
   if (typeof err === "object" && err !== null) {
@@ -106,14 +140,14 @@ function extractHttpStatus(err: unknown): number | null {
  */
 export async function callLLMOnce<T>(req: LlmRequest<T>): Promise<LlmOutcome<T>> {
   if (isAiDisabled()) {
-    return { ok: false, kind: "FATAL", tokens_in: 0, tokens_out: 0 };
+    return failed(req, "AI_DISABLED", { ok: false, kind: "FATAL", tokens_in: 0, tokens_out: 0 });
   }
 
   let client: GoogleGenAI;
   try {
     client = getGeminiClient();
   } catch {
-    return { ok: false, kind: "FATAL", tokens_in: 0, tokens_out: 0 };
+    return failed(req, "NO_CLIENT", { ok: false, kind: "FATAL", tokens_in: 0, tokens_out: 0 });
   }
 
   let response: GenerateContentResponse;
@@ -153,10 +187,18 @@ export async function callLLMOnce<T>(req: LlmRequest<T>): Promise<LlmOutcome<T>>
     const tokens_out = (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0);
 
     if (status === 400 || status === 401 || status === 403 || status === 404) {
-      return { ok: false, kind: "FATAL", status, tokens_in, tokens_out };
+      return failed(req, "HTTP", { ok: false, kind: "FATAL", status, tokens_in, tokens_out });
     }
 
-    return { ok: false, kind: "TRANSIENT", status: status ?? undefined, tokens_in, tokens_out };
+    const retry_after_ms = extractRetryAfterMs(err);
+    return failed(req, status === null ? "NETWORK" : "HTTP", {
+      ok: false,
+      kind: "TRANSIENT",
+      status: status ?? undefined,
+      ...(retry_after_ms !== undefined ? { retry_after_ms } : {}),
+      tokens_in,
+      tokens_out,
+    });
   }
 
   const tokens_in = response.usageMetadata?.promptTokenCount ?? 0;
@@ -168,7 +210,7 @@ export async function callLLMOnce<T>(req: LlmRequest<T>): Promise<LlmOutcome<T>>
   const finishReason = candidate?.finishReason;
 
   if (response.promptFeedback?.blockReason || (finishReason && finishReason !== "STOP")) {
-    return { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out };
+    return failed(req, "NOT_STOP", { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out });
   }
 
   const rawText =
@@ -179,7 +221,7 @@ export async function callLLMOnce<T>(req: LlmRequest<T>): Promise<LlmOutcome<T>>
     "";
 
   if (!rawText || !rawText.trim()) {
-    return { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out };
+    return failed(req, "EMPTY", { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out });
   }
 
   const cleanedText = rawText
@@ -191,34 +233,35 @@ export async function callLLMOnce<T>(req: LlmRequest<T>): Promise<LlmOutcome<T>>
   try {
     parsedJson = JSON.parse(cleanedText);
   } catch {
-    return { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out };
+    return failed(req, "BAD_JSON", { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out });
   }
 
   const value = req.parse(parsedJson);
   if (value === null || value === undefined) {
-    return { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out };
+    return failed(req, "PARSE", { ok: false, kind: "INVALID_JSON", tokens_in, tokens_out });
   }
 
   return { ok: true, value, tokens_in, tokens_out };
 }
 
 /**
- * Chờ trước khi gọi lại: prev là TRANSIENT do 429/503 ⇒ chờ CONFIG.LLM_RETRY_DELAY_MS + ngẫu nhiên [0, CONFIG.LLM_RETRY_JITTER_MS).
- * Các trường hợp khác không chờ. Cho phép tiêm hàm sleep để test không chờ thật.
+ * Chờ trước khi gọi lại (20 AI-12, D-74 R1). prev là TRANSIENT do 429/503:
+ * - Google trả retryDelay > CONFIG.LLM_RETRY_DELAY_MAX_MS ⇒ không chờ, trả false (không gọi lại).
+ * - Ngược lại chờ max(CONFIG.LLM_RETRY_DELAY_MS, retryDelay) + ngẫu nhiên [0, CONFIG.LLM_RETRY_JITTER_MS).
+ * Các trường hợp khác không chờ. Trả true nếu được gọi lại. Cho phép tiêm hàm sleep để test không chờ thật.
  */
 export async function retryDelay(
   prev: LlmOutcome<unknown>,
   sleepFn: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms)),
-): Promise<void> {
-  if (!prev.ok && prev.kind === "TRANSIENT") {
-    const status = prev.status;
-    if (status === 429 || status === 503) {
-      const jitter = Math.floor(Math.random() * CONFIG.LLM_RETRY_JITTER_MS);
-      const delay = CONFIG.LLM_RETRY_DELAY_MS + jitter;
-      await sleepFn(delay);
-    }
+): Promise<boolean> {
+  if (!prev.ok && prev.kind === "TRANSIENT" && (prev.status === 429 || prev.status === 503)) {
+    const server = prev.retry_after_ms;
+    if (server !== undefined && server > CONFIG.LLM_RETRY_DELAY_MAX_MS) return false;
+    const jitter = Math.floor(Math.random() * CONFIG.LLM_RETRY_JITTER_MS);
+    await sleepFn(Math.max(CONFIG.LLM_RETRY_DELAY_MS, server ?? 0) + jitter);
   }
+  return true;
 }
 
 /**
@@ -254,8 +297,8 @@ export async function callLLMWithRetry<T>(
       break;
     }
 
-    if (attempt < CONFIG.LLM_MAX_RETRIES) {
-      await retryDelay(outcome, sleepFn);
+    if (attempt < CONFIG.LLM_MAX_RETRIES && !(await retryDelay(outcome, sleepFn))) {
+      break;
     }
   }
 
