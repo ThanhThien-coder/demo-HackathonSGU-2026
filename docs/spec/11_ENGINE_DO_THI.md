@@ -199,7 +199,7 @@ export function buildSlice(entry: EntryPoint, ctx: EngineContext): Candidate;
 
 ## 9. Node thuật toán — `nodes.ts`
 
-1. **ENG-90 Khi nào tạo.** (a) VIP trong scope không là bước lát cắt (sau ENG-81, ENG-88). (b) NORMAL có `< CONFIG.DISPLAY_MIN_NODES` candidate sau ENG-110 ⇒ thêm hàm có `complexity ≥ CONFIG.VIP_FALLBACK_MIN_SCORE` (thứ tự ENG-74). `<module>` không là ứng viên của (a), (b).
+1. **ENG-90 Khi nào tạo.** (a) VIP trong scope không là bước lát cắt (sau ENG-81, ENG-88). (b) NORMAL có `< CONFIG.DISPLAY_MIN_NODES` candidate sau ENG-110 ⇒ thêm hàm có `complexity ≥ CONFIG.VIP_FALLBACK_MIN_SCORE` (thứ tự ENG-74). `<module>`, hàm trả JSX (D-86) không là ứng viên của (a), (b).
 2. **ENG-91 Chia bước** (các bước cùng `function_name`). Câu chính = vòng lặp cấp 1 nhiều dòng nhất (hòa ⇒ đầu tiên); thiếu ⇒ câu có điểm ENG-71 lớn nhất. `ALGO_SETUP` = chữ ký + câu trước; `ALGO_EXECUTION` = câu chính; `ALGO_TERMINATION` = câu sau + đóng. Không câu điều khiển ⇒ SETUP = mọi câu trừ cuối, TERMINATION = câu cuối. Bỏ bước rỗng; clamp ENG-87 (mốc: trước câu chính / header / câu đầu); rồi ENG-88, ENG-89.
 3. `ALGORITHMIC_CORE`; `entry_symbol` = khóa hàm; `cognitive_complexity = complexity`; `rank_score` = của file chứa hàm; `is_vip_algorithm = true`; `functions = [khóa]`.
 
@@ -347,3 +347,4 @@ export function mainPath(graph: StaticEngineResult): string[];   // → RepoOver
 | T-ENG-48 | `shop-api` (`repo-demo.test.ts`) | `Create Register`→`List Profiles`→`Cart Items`→`Order Checkout`, `List Products`→`Order Checkout`→`Order Email`, `Order Checkout`→`Report Revenue`. Nhóm theo thứ tự: `Product`, `User`, `Cart` (`ROUTE_PREFIX`), `Order` (3 bài) |
 | T-ENG-49 | `kuuhakubee/CNPM_BrewLite` (`apps/api`), chạy 2 lần | `Auth Register`, `List Products` là điểm bắt đầu, cùng dẫn tới `Create Order`; không có `Auth Me`→`Login`→`Register`; `List Healths` thuộc `STANDALONE`; có nhóm `ENTITY`; cùng `groups` |
 | T-ENG-50 | Repo không `DATA_SINK`, không route: node thuật toán có cạnh D-56 · bài không có cạnh | Cạnh theo D-07, D-56; mọi node đúng 1 nhóm; cả 2 thuộc `STANDALONE`; bài không có cạnh không khóa |
+| T-ENG-51 | Hàm `return <div/>` · chỉ callback trả JSX | Không có node · có node `algo-*` |
