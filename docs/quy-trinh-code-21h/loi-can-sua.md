@@ -476,19 +476,19 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `ANALYZE` chỉ có 900 token đầu ra, tiếng Việt có thể bị cắt.
 - **Cần sửa:** phân tích hết repo demo trên AI thật, đếm bài lỗi rồi chỉnh `LLM_MAX_OUTPUT_TOKENS` nếu cần.
-- **Trạng thái:** cần đo trên AI thật.
+- **Trạng thái:** chờ kiểm. Phân tích thật 13 bài BrewLite: `Create Order` (5 bước) bị cắt ở 900 (`NOT_STOP`) lần đầu, gọi lại vừa đủ (~754); bài 2–4 bước ra 309–669 token. Ước ~150 + 150/bước ⇒ bài 7 bước ~1 200. Nâng `ANALYZE` lên 1400 (`02`, `config.ts`); chạy lại `Create Order`: 1 request, 729 token.
 
 ### C-03 · Vừa · Câu hỏi gắn sai dòng code
 
 - **Hiện tượng:** bài `Order` nói `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 "thay vì viết thủ công". Thực tế dòng 21–25 chính là ca viết tay, biến `ALL` chỉ dùng ở dòng 44 và 49. Đáp án tham khảo cũng sai theo.
 - **Cần sửa:** sửa prompt và thêm ca này vào `review/loi_da_gap.md`, rồi kiểm bằng duyệt tay. Không viết kiểm tra bằng code cho lỗi này, vì cổng gác không kiểm được nghĩa đúng sai (GUARD-21).
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật câu hỏi 8 (quan hệ phải đúng như `<code_data>`) đã thêm ở C-08. Chạy thật BrewLite `Update Order Status` và `Auth Login` (6 câu, 3 lượt): mọi quan hệ và số dòng khớp code. Bản BrewLite hiện tại không còn `canTransition` nên chưa dựng lại đúng ca cũ.
 
 ### C-04 · Vừa · Câu hỏi chỉ lặp lại phần giải thích
 
 - **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
 - **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** làm dở. Câu `ARCHITECTURE`, `CHANGE` đã hỏi suy luận (luật 9 từ C-08). Lỗi còn ở câu `FLOW`, nay luôn là câu 1 (BKT-50): hỏi "đi qua những bước / hàm nào", chép X-Ray là trả lời được. Đã sửa luật `FLOW` chế độ A (`20` AI-25): đặt tình huống code xử lý thấy được, cấm dạng câu đó. Chạy thật 2 lượt: `Auth Login` có tình huống cụ thể, `Update Order Status` vẫn hỏi chung (1/2). Bước sau: chặn bằng code (mẫu câu "đi qua những … nào" ⇒ gọi lại câu đó), cần thêm mã Q mới ở `21` và `GuardCode`.
 
 ### C-05 · Vừa · Tổng quan AI không ra sau khi phân tích hết bài
 
@@ -744,7 +744,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đổi thành câu 1 nói phần này giúp người dùng làm gì, câu 2 nói các bước chia việc. Sửa `20`, prompt, đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`. Không đổi contract. Sau đó Vai D đưa câu 1 lên đầu tab X-Ray.
 - **Kiểm tra:** chạy AI thật trên repo demo, duyệt tay ít nhất 3 bài, câu đầu nói đúng việc của người dùng.
 - **Ghi chú 06/11:** quyết định D-84 dùng câu 1 này làm dòng "Vai trò" của thẻ vai trò (D-22). Sửa thêm `steps[].text` cho người mới đọc, vì tour (D-19) hiện từng câu này.
-- **Trạng thái:** đã kiểm prompt, chưa chạy AI thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật 2, 3 của prompt phân tích chép đúng `20` AI-16; gộp vào PR C-12 để dùng chung `PROMPT_VERSION` `1.2.0`. Chạy AI thật 4 bài BrewLite (`Create Order`, `Auth Register`, `List Products`, `Payment Create-url`), duyệt tay: 4/4 câu 1 nói việc của người dùng, bước có giải thích thuật ngữ trong ngoặc. `Create Order` 5 bước ra 739 token, gần trần 900 (xem C-02).
 
 ### C-08 · Vừa · Code AI chưa theo quyết định D-74
 
@@ -752,7 +752,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Nguyên nhân:** quyết định D-74 chốt sau khi code AI của `main` đã xong. `feat/giao-dien-ide` đã có các phần này nhưng dùng tên file khác spec, nên phải viết lại trên `main`, không chép thẳng.
 - **Cần sửa:** làm theo các ô D-74 trong phiếu `vai-C/C07-cau-hoi.md`, `vai-C/C08-cham.md`. Phần trần `retryDelay` thuộc C-05.
 - **Kiểm tra:** test AI-31 xanh theo từng bậc. Chạy AI thật một câu qua 3 lượt sai, gợi ý đổi đúng bảng trong quyết định D-74.
-- **Trạng thái:** đã kiểm code, chưa làm.
+- **Trạng thái:** chờ kiểm. A1 gợi ý theo bậc × lượt; A5a `<previous_answer>`, `<previous_points>` từ lượt 2; A5b `<learner_history>` (đọc ý hụt trong `generateQuestions`, DB lỗi thì bỏ khối); M1 `<referenced_steps>` chỉ tên (snapshot lỗi thì bỏ khối); luật câu hỏi 8, 9, 10. Code mới ở `src/server/ai/history.ts`; `evaluate.ts` thêm vài dòng truyền dữ liệu A5a, M1; test A4 trong `src/app/api/__tests__/evaluate.test.ts` sửa theo `50` (NOVICE lượt 1 ra `CODE_POINTER`). Test xanh (700). Chạy AI thật N3 Q1, 3 bậc × 2 lượt: gợi ý đúng bảng D-74, cả 6 gợi ý của AI qua cổng gác. `PROMPT_VERSION` giữ `1.1.0` (chấm, câu hỏi không cache), lên `1.2.0` cùng C-12.
 
 ### A-07 · Vừa · Chưa có test tích hợp đủ luồng trên `main`
 
@@ -874,19 +874,19 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-81: câu đầu của mỗi run có `focus` = `FLOW`. Sửa `22` Mục 6, `src/lib/plan.ts`, test T-PLAN.
 - **Kiểm tra:** mọi run có câu 1 là `FLOW`; các luật D-34 vẫn đúng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. BKT-50 trong `planNodeQuestions`, áp sau BKT-46, BKT-49. 8 ca T-PLAN khớp bảng `22` Mục 6, phủ 3 nhánh: đưa câu `FLOW` lên đầu (P-A, P-G1, P-H), đổi câu thành `FLOW` (P-B, P-D2), thêm câu `FLOW` (P-C, P-D); kế hoạch 1 câu của D-34 thành 2 câu (P-D). 6 ca trong `src/__tests__/kich-ban-ham.test.ts` (A3, B1, C4, C6, C7, E2) sửa phần kế hoạch theo BKT-50. `spec/50` Mục 3 chưa cập nhật: C6, C7 giờ có thêm câu `FLOW` cùng kỹ năng, số BKT của kịch bản cần tính lại.
 
 ### C-11 · Vừa · Chưa có lời gọi giải thích đoạn chọn
 
 - **Cần sửa:** theo D-82: prompt, schema, cổng gác, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION`. Sửa `20`, `21`, `src/server/ai/*`. Endpoint ở A-08.
 - **Kiểm tra:** chạy AI thật 3 vùng chọn (từ khóa, tên, đoạn code); tên bịa bị chặn; vùng chọn sai ra `ERR_SELECTION_INVALID`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `prompts/explain.ts`, `explain.ts` (tên xuyên bài, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION` đếm ở `ai_usage`, quota, gọi AI, cổng gác), `guard/explain.ts` (GUARD-23), `explainScope`; route của Thiện gọi hàm này thay chỗ chờ; thêm migration `0002_explain_selection.sql` (chưa chạy lên Supabase). Chạy AI thật N3 bước 2: `await` ⇒ `KEYWORD`, `findById` ⇒ `NAME`, vòng `for` ⇒ `CODE`, cả 3 qua cổng gác, ~1 300 token vào, ~130 ra. Tên bịa (`verifyToken`) bị chặn ở test GUARD-23; vùng chọn sai ra 400 ở test route.
 
 ### C-12 · Nặng · Tổng quan chờ hết node, chưa đặt tên
 
 - **Cần sửa:** theo D-83: `analyze-overview` gọi ngay sau khi quét, đầu vào gói ngữ cảnh, ra `RepoOverviewRaw` mới; cổng gác mới; câu dự phòng do code dựng. Sửa `20`, `21`, `src/server/ai/*`.
 - **Kiểm tra:** quét `shop-api` và BrewLite, tổng quan có trước khi phân tích bài nào; mỗi bài đúng 1 tên, không trùng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Gói ngữ cảnh, prompt, schema mới; `checkOverview` theo GUARD-11 (O5, O6); `analyzeOverview(session, graph)` không cần bản phân tích; route bỏ đoạn chờ hết node; store gọi tổng quan trước khi tải trước node; `PROMPT_VERSION` `1.2.0`. Nhóm, thực thể, README đọc kiểu "có thì dùng" tới khi có B-40, B-41. Chạy AI thật, chưa có bản phân tích nào: `shop-api` 7/7 tên, BrewLite 13/13 tên, không trùng, 1 request mỗi repo. Trần `LLM_MAX_OUTPUT_TOKENS.OVERVIEW` 600 làm BrewLite bị cắt (`NOT_STOP`) nên nâng lên 1500 (13 bài ra 635 token). `shop-api` với nhóm giả: AI đặt "Tài khoản", "Sản phẩm", "Đơn hàng", "Báo cáo". Bundle offline `public/demo/mock_bundle.json` còn tổng quan kiểu cũ, cần ghi lại.
 
 ### A-08 · Nặng · Contract và endpoint cho quy trình mới
 

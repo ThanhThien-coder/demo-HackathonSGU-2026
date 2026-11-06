@@ -32,6 +32,7 @@ import {
   type GradeUsage,
 } from "../grade";
 import { verifyFollowUp } from "../guard/followup";
+import { gradeRequest } from "../prompts/grade";
 import { callLLMWithRetry } from "../gemini";
 import { logGuardBlock } from "../guard/log";
 
@@ -64,7 +65,7 @@ const fixtureGradingRaw: GradingRaw = JSON.parse(
 const mockGradeContext: GradeContext = {
   question_index: 1,
   skill: "DB_OPTIMIZATION",
-  tier: "NOVICE",
+  tier: "PRACTITIONER", // D-74: PRACTITIONER giữ CONCEPT lượt 1, CODE_POINTER lượt 2
   focus: "WEAKNESS",
   step_indices: [2],
   feynman_question:
@@ -134,10 +135,10 @@ describe("evaluate-feynman - Bộ chấm bài AI", () => {
 
   // AI-31: LEARN max 3, lượt 1/2/3 ⇒ CONCEPT / CODE_POINTER / null
   it("AI-31: expectedFollowUpType trả CONCEPT / CODE_POINTER / null theo số lượt", () => {
-    expect(expectedFollowUpType(1, 3)).toBe("CONCEPT");
-    expect(expectedFollowUpType(2, 3)).toBe("CODE_POINTER");
-    expect(expectedFollowUpType(3, 3)).toBeNull();
-    expect(expectedFollowUpType(4, 3)).toBeNull();
+    expect(expectedFollowUpType(1, 3, "PRACTITIONER")).toBe("CONCEPT");
+    expect(expectedFollowUpType(2, 3, "PRACTITIONER")).toBe("CODE_POINTER");
+    expect(expectedFollowUpType(3, 3, "PRACTITIONER")).toBeNull();
+    expect(expectedFollowUpType(4, 3, "PRACTITIONER")).toBeNull();
 
     // decideFollowUp ở lượt 3 trả về null (lượt cuối không gợi ý, mở đáp án)
     const hintL3 = decideFollowUp(
@@ -581,5 +582,46 @@ describe("evaluate-feynman - Bộ chấm bài AI", () => {
     expect(usage.tokens_in).toBe(180);
     expect(usage.tokens_out).toBe(40);
     expect(usage.requests).toBe(1);
+  });
+});
+
+describe("C-08 — D-74 trong lời gọi chấm", () => {
+  it("AI-31 (A1): gợi ý theo bậc × lượt", () => {
+    expect([1, 2, 3].map((a) => expectedFollowUpType(a, 3, "NOVICE"))).toEqual(["CODE_POINTER", "CODE_POINTER", null]);
+    expect([1, 2, 3].map((a) => expectedFollowUpType(a, 3, "PRACTITIONER"))).toEqual(["CONCEPT", "CODE_POINTER", null]);
+    expect([1, 2, 3].map((a) => expectedFollowUpType(a, 3, "ARCHITECT"))).toEqual(["CONCEPT", "CONCEPT", null]);
+  });
+
+  it("AI-31 (A1, 50 2.4): NOVICE lượt 1, AI trả CONCEPT ⇒ sai loại ⇒ mẫu tĩnh CODE_POINTER", () => {
+    const hint = decideFollowUp(fixtureGradingRaw, 1, 3, false, { ...mockGradeContext, tier: "NOVICE" }, "câu trả lời");
+    expect(hint?.type).toBe("CODE_POINTER");
+  });
+
+  it("AI-28 (A1): hint_rule theo bậc — NOVICE lượt 1 là luật CODE_POINTER", () => {
+    const req = gradeRequest({ ...mockGradeContext, tier: "NOVICE" }, "trả lời", 1, 3, mockSession);
+    expect(req.user).toContain('follow_up_type = "CODE_POINTER"');
+  });
+
+  it("AI-28 (A5a): lượt 1 không có khối lượt trước; lượt 2 có đủ 2 khối", () => {
+    const r1 = gradeRequest(mockGradeContext, "trả lời", 1, 3, mockSession);
+    expect(r1.user).not.toContain("<previous_answer>");
+    expect(r1.user).not.toContain("<previous_points>");
+
+    const r2 = gradeRequest(mockGradeContext, "trả lời mới", 2, 3, mockSession, {
+      previous: { answer: "trả lời cũ", points: [true, false] },
+    });
+    expect(r2.user).toContain("<previous_answer>\ntrả lời cũ\n</previous_answer>");
+    expect(r2.user).toContain("1. Mỗi sản phẩm tốn thêm 1 truy vấn để lấy loại hàng [đã trúng]");
+    expect(r2.user).toContain("2. Số truy vấn tăng theo số sản phẩm, không cố định [chưa trúng]");
+    expect(r2.user.indexOf("<previous_answer>")).toBeLessThan(r2.user.indexOf("<student_answer>"));
+    expect(r2.system).toContain("NHỚ LƯỢT TRƯỚC");
+  });
+
+  it("AI-28 (M1): có tên xuyên bài ⇒ khối <referenced_steps> không chứa code", () => {
+    const req = gradeRequest(mockGradeContext, "trả lời", 1, 3, mockSession, {
+      referenced: [{ function_name: "OrderService.checkout", file_path: "src/services/order.service.ts", title: "Order Checkout", conditional: true }],
+    });
+    expect(req.user).toContain("<referenced_steps>\nOrderService.checkout · src/services/order.service.ts · Order Checkout · bài điều kiện\n</referenced_steps>");
+    expect(req.system).toContain("TRA TÊN XUYÊN BÀI");
   });
 });

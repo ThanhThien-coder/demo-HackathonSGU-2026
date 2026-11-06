@@ -194,6 +194,21 @@ export function planNodeQuestions(
     }
   }
 
+  // BKT-50 (D-81): câu 1 luôn là FLOW; áp sau BKT-46, BKT-49, các câu khác giữ thứ tự
+  let flowIdx = items.findIndex((it) => it.focus === "FLOW");
+  if (flowIdx < 0) {
+    flowIdx = items.findIndex((it) => it.focus !== "WEAKNESS");
+    if (flowIdx >= 0) {
+      items[flowIdx] = { ...items[flowIdx], focus: "FLOW" };
+    } else if (items.length > 0) {
+      items.unshift({ skill: items[0].skill, tier: items[0].tier, focus: "FLOW" });
+      flowIdx = 0;
+    }
+  }
+  if (flowIdx > 0) {
+    items.unshift(...items.splice(flowIdx, 1));
+  }
+
   return items.map((it, idx) => ({
     question_index: idx + 1,
     skill: it.skill,

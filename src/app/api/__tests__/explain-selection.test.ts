@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CONFIG, type StaticEngineResult } from "@/contracts";
 import { clearEngineCache } from "@/server/cache";
 import type { SessionRecord } from "@/server/session";
+import { explainSelection } from "@/server/ai/explain";
 import { POST } from "../explain-selection/route";
 
 const { mockGetUser, mockSql } = vi.hoisted(() => {
@@ -27,6 +28,10 @@ vi.mock("@supabase/supabase-js", () => ({
       getUser: mockGetUser,
     },
   })),
+}));
+
+vi.mock("@/server/ai/explain", () => ({
+  explainSelection: vi.fn(async () => ({ explanation: null, references: [], tokens_used: 0 })),
 }));
 
 vi.mock("@/server/db", () => ({
@@ -171,7 +176,7 @@ describe("POST /api/explain-selection (TASK_15 — AI-38)", () => {
     );
   });
 
-  it("AI-38 vùng chọn đúng ⇒ 503 ERR_AI_UNAVAILABLE, không gọi AI", async () => {
+  it("AI-38 vùng chọn đúng ⇒ 200, gọi explainSelection (C-11)", async () => {
     // slice-cart step 1, line 7 starts with "router"
     const req = createMockRequest({
       session_id: "session-explain-test-1",
@@ -187,10 +192,10 @@ describe("POST /api/explain-selection (TASK_15 — AI-38)", () => {
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error.code).toBe("ERR_AI_UNAVAILABLE");
-    expect(body.error.retryable).toBe(true);
+    expect(body.explanation).toBeNull();
+    expect(explainSelection).toHaveBeenCalled();
   });
 
   it("AI-38 selected_text khác đoạn cắt ⇒ 400 ERR_SELECTION_INVALID", async () => {
@@ -229,9 +234,10 @@ describe("POST /api/explain-selection (TASK_15 — AI-38)", () => {
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error.code).toBe("ERR_AI_UNAVAILABLE");
+    expect(body.explanation).toBeNull();
+    expect(explainSelection).toHaveBeenCalled();
   });
 
   it("AI-38 nhiều dòng, cột đúng ⇒ hợp lệ", async () => {
@@ -256,9 +262,10 @@ describe("POST /api/explain-selection (TASK_15 — AI-38)", () => {
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error.code).toBe("ERR_AI_UNAVAILABLE");
+    expect(body.explanation).toBeNull();
+    expect(explainSelection).toHaveBeenCalled();
   });
 
   it("AI-38 dòng không có trong map, dòng marker, marker xen giữa ⇒ 400", async () => {

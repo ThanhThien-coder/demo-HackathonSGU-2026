@@ -193,17 +193,9 @@ describe("C10a: record-bundle (scripts/record-bundle.ts)", () => {
       main_path_node_ids: ["slice-product-list"],
     },
     ai: {
-      architecture_style: "LAYERED",
       summary: "Kiến trúc 3 tầng",
-      layers: [
-        {
-          layer: "ENTRY_POINT",
-          role: "Nhận HTTP request",
-          nodes: ["slice-product-list"],
-        },
-      ],
-      main_flow: "Request đi qua controller tới service và repo",
-      notes: [],
+      groups: [],
+      node_titles: [{ node_id: "slice-product-list", title: "Xem danh sách sản phẩm" }],
     },
   };
 

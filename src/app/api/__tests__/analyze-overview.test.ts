@@ -65,22 +65,9 @@ const typedShopApi: StaticEngineResult = JSON.parse(
 );
 
 const mockOverviewFixture: RepoOverviewRaw = {
-  architecture_style: "LAYERED",
-  summary: "Web bán hàng chia 3 tầng.",
-  layers: [
-    {
-      layer: "MIDDLEWARE",
-      role: "Kiểm tra token trước khi vào trang cần đăng nhập",
-      nodes: ["slice-profile", "slice-order-checkout"],
-    },
-  ],
-  main_flow: "Đăng ký -> Profile -> Cart -> Checkout -> Email / Report",
-  notes: [
-    {
-      text: "Hai chỗ truy vấn database trong vòng lặp.",
-      nodes: ["slice-product-list", "slice-order-checkout"],
-    },
-  ],
+  summary: "Web bán hàng cho khách mua trực tuyến. Khách đăng ký, xem sản phẩm, thêm vào giỏ rồi thanh toán.",
+  groups: [],
+  node_titles: [{ node_id: "slice-product-list", title: "Xem danh sách sản phẩm" }],
 };
 
 function createMockNodeAnalysis(nodeId: string): NodeAnalysis {
@@ -198,8 +185,6 @@ describe("POST /api/analyze-overview (TASK_10 — C09)", () => {
       async (
         _session: unknown,
         _graph: unknown,
-        _analyses: unknown,
-        _failedIds: unknown,
         usage?: OverviewUsage,
       ) => {
         if (usage) {
@@ -359,22 +344,17 @@ describe("POST /api/analyze-overview (TASK_10 — C09)", () => {
   });
 
   describe("Ca bắt buộc theo TASK_10 bước 6", () => {
-    it("ca 1: còn node chưa có bản phân tích và không analysis_failed ⇒ HTTP 409 ERR_OVERVIEW_NOT_READY", async () => {
-      // Chỉ nạp 5 node vào dbAiCache, thiếu 2 node (slice-send-email và slice-revenue-report)
-      for (const node of typedShopApi.nodes.slice(0, 5)) {
-        const naKey = `na|${currentSessionRecord.source}|${currentSessionRecord.snapshot_id}|${currentSessionRecord.subdir}|${currentSessionRecord.engine_version}|${node.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
-        dbAiCache.set(naKey, createMockNodeAnalysis(node.id));
-      }
-
+    it("ca 1 (D-83, AI-19): chưa có bản phân tích nào ⇒ vẫn gọi analyzeOverview(session, graph, usage), HTTP 200", async () => {
       const req = createMockRequest({
         session_id: "session-test-overview-1",
       });
       const res = await POST(req);
 
-      expect(res.status).toBe(409);
-      const json = await res.json();
-      expect(json.error.code).toBe("ERR_OVERVIEW_NOT_READY");
-      expect(mockAnalyzeOverview).not.toHaveBeenCalled();
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as AnalyzeOverviewResponse;
+      expect(json.overview.ai).toEqual(mockOverviewFixture);
+      expect(mockAnalyzeOverview).toHaveBeenCalledTimes(1);
+      expect(mockAnalyzeOverview.mock.calls[0]).toHaveLength(3);
     });
 
     it("ca 2: trúng cache ⇒ HTTP 200, analyzeOverview không được gọi, không có câu SQL INSERT INTO ai_usage", async () => {
@@ -461,31 +441,6 @@ describe("POST /api/analyze-overview (TASK_10 — C09)", () => {
       const ovKey = `ov|${currentSessionRecord.source}|${currentSessionRecord.snapshot_id}|${currentSessionRecord.subdir}|${currentSessionRecord.engine_version}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
       expect(dbAiCache.has(ovKey)).toBe(false);
       expect(dbAiUsage).toHaveLength(0);
-    });
-
-    it("ca 5: node có analysis_failed = true thì không đòi hỏi có bản phân tích trong cache", async () => {
-      // 6 node có trong cache, 1 node (slice-revenue-report) có analysis_failed = true trong node_progress
-      for (const node of typedShopApi.nodes.filter(
-        (n) => n.id !== "slice-revenue-report",
-      )) {
-        const naKey = `na|${currentSessionRecord.source}|${currentSessionRecord.snapshot_id}|${currentSessionRecord.subdir}|${currentSessionRecord.engine_version}|${node.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
-        dbAiCache.set(naKey, createMockNodeAnalysis(node.id));
-      }
-
-      dbNodeProgress.set("slice-revenue-report", {
-        status: null,
-        analysis_failed: true,
-      });
-
-      const req = createMockRequest({
-        session_id: "session-test-overview-1",
-      });
-      const res = await POST(req);
-
-      expect(res.status).toBe(200);
-      const json = (await res.json()) as AnalyzeOverviewResponse;
-      expect(json.overview.ai).toEqual(mockOverviewFixture);
-      expect(mockAnalyzeOverview).toHaveBeenCalledTimes(1);
     });
   });
 });
