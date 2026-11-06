@@ -16,10 +16,10 @@ File này là nơi duy nhất ghi lỗi và việc sửa lỗi. Không tạo fil
 
 ### Mẫu thêm lỗi
 
-Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-35`, `D-16`, `C-07`, `A-07`.
+Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-40`, `D-19`, `C-10`, `A-08`.
 
 ```markdown
-### B-35 · Nặng | Vừa | Nhẹ · Tên ngắn
+### B-40 · Nặng | Vừa | Nhẹ · Tên ngắn
 
 - **Hiện tượng:** thấy gì, ở repo nào, bài nào. Có thể làm lại theo các bước nào.
 - **Nguyên nhân:** ghi nếu đã biết, chưa chắc thì ghi "nghi".
@@ -34,13 +34,15 @@ Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác min
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 3 | 15 | 15 | 33 |
-| D — Giao diện | 2 | 6 | 6 | 14 |
-| C — AI | 0 | 6 | 0 | 6 |
-| A — Tích hợp, deploy | 0 | 3 | 2 | 5 |
-| **Tổng** | **5** | **30** | **23** | **58** |
+| B — Engine | 6 | 17 | 15 | 38 |
+| D — Giao diện | 2 | 7 | 8 | 17 |
+| C — AI | 0 | 9 | 0 | 9 |
+| A — Tích hợp, deploy | 0 | 4 | 2 | 6 |
+| **Tổng** | **8** | **37** | **25** | **70** |
 
-Vai B có 33 mã, gộp thành 23 nhóm sửa, xem mục **Vai B theo phiếu**.
+Bảng trên đã tính 12 lỗi ở mục [Lỗi mới ngày 06/11/2026](#lỗi-mới-ngày-06112026).
+
+Vai B có 38 mã: 33 mã gộp thành 23 nhóm sửa, xem mục **Vai B theo phiếu**, 5 mã mới chưa xếp nhóm.
 
 - **Nặng:** ban giám khảo thấy ngay, hoặc chặn thao tác chính.
 - **Vừa:** khó dùng, gây hiểu sai, hoặc khó tìm lỗi.
@@ -674,3 +676,273 @@ Agent không tự trả lời các câu này. Nhóm chốt xong thì đổi cộ
 - Biến môi trường và log của Vercel.
 - `Auth Login` sau bài `Auth Me` chưa đạt có mở kèm ⚠ không.
 - Nút "Báo sai kết quả chấm" có đổi màu node ngay không.
+
+---
+
+## Lỗi mới ngày 06/11/2026
+
+Kiểm trên `main` commit `15f7fa7`. Số liệu engine đo bằng cách quét chính code `main` qua zip. Lỗi giao diện đã kiểm ở cả `main` và nhánh `feat/giao-dien-ide`.
+
+Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp vào **Thứ tự nên sửa**, **Vai B theo phiếu**, **Việc sửa spec**. Lỗi ghi "cần quyết định mới" đang đúng spec hiện tại, nên nhóm phải chốt luật mới rồi mới sửa code.
+
+### B-35 · Vừa · Component giao diện thành bài thuật toán
+
+- **Hiện tượng:** quét code `main` ra 7 bài `ALGORITHMIC_CORE`, cả 7 đều là trang giao diện, không có thuật toán thật. Trong đó 5 bài là `<module>`, thuộc B-27. 2 bài còn lại là component React: `History Content` (16 điểm) và `Learn Cockpit Content` (124 điểm).
+- **Nguyên nhân:** ENG-71 cộng điểm cho `? :`, `&&` và hàm lồng. JSX dùng nhiều `a ? b : c`, `x && <div/>`, `.map(() => …)` lồng nhau, nên component dễ vượt `CONFIG.VIP_COMPLEXITY_MIN`. Code đang đúng `11` Mục 7.
+- **Cần sửa:** đề xuất không chọn hàm trả về JSX làm VIP, hoặc không tính `? :`, `&&` nằm trong JSX. Ghi quyết định mới vào `00`, sửa `11` Mục 7 và `complexity.ts`, đổi `ENGINE_VERSION`. Làm cùng B-27.
+- **Kiểm tra:** quét code `main`, không còn bài `ALGORITHMIC_CORE` nào trỏ tới file `.tsx`. Quét riêng phần server vẫn còn bài thuật toán thật như `Tarjan Scc`.
+- **Ảnh hưởng demo:** chỉ khi repo demo có giao diện React.
+- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+
+### B-36 · Vừa · Cắt còn 20 bài thì bài server bị mất
+
+- **Hiện tượng:** quét code `main` ra 93 bài, giữ 20, bỏ 73. Trong 20 bài giữ lại có 10 bài bắt đầu từ file `.tsx`. Các luồng `/api/sessions/[id]/history`, `/api/sessions/[id]/progress`, `/api/health`, `/api/demo/persona` bị bỏ.
+- **Nguyên nhân:** ENG-114 giữ bài có `cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN` trước, rồi mới xét `rank_score` (`nodes.ts`). Bài có điểm cao do B-35 chiếm chỗ của bài server. Code đang đúng spec.
+- **Cần sửa:** đề xuất ưu tiên bài luồng trên đường chính trước bài thuật toán. Ghi quyết định mới vào `00`, sửa ENG-114 và `nodes.ts`, đổi `ENGINE_VERSION`. Làm sau B-35 rồi đo lại, vì B-35 có thể đã giảm phần lớn lỗi này.
+- **Kiểm tra:** quét code `main`, phần lớn bài giữ lại là luồng server. Chạy thêm repo fullstack lớn mà nhóm gặp lỗi này.
+- **Ảnh hưởng demo:** chỉ khi repo demo có trên 20 bài và có giao diện.
+- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+
+### B-37 · Nặng · Lát cắt toàn hàm vặt, thiếu phần xử lý chính
+
+- **Hiện tượng:** bài `Create Evaluate-feynman` có 7 bước: `POST /api/evaluate-feynman`, `authenticateRequest`, `extractBearerToken`, `verifyToken`, `getSupabaseAuth`, `ApiHttpError.constructor`, `defaultMessage`. Bài không có `evaluateFeynman`, nên người học không thấy phần chấm. 6/10 bài API có cùng chuỗi xác thực này. Chỉ quét phần server vẫn ra kết quả đó.
+- **Nguyên nhân:** ENG-81 giữ hàm có giá trị trả về được dùng hoặc có `throw`, nên hàm xác thực và hàm dựng lỗi đều được giữ. Nghi ENG-88 (`slicing.ts`, trần `NODE_MAX_LINES`, `NODE_MAX_CODE_TOKENS`) cắt các bước cuối, làm mất hàm chính đứng sau. Code còn sắp callee theo tên, trong khi ENG-80 ghi theo dòng, cột của lời gọi. Chưa đo riêng từng nguyên nhân.
+- **Cần sửa:** đo xem bước nào bị bỏ ở đâu, rồi chốt luật bỏ hàm vặt khỏi lát cắt. Đề xuất: hàm ngắn, không đụng database, được nhiều route gọi. Ghi quyết định mới vào `00`, sửa ENG-80, ENG-81, ENG-88 nếu cần, và `slicing.ts`. Đổi `ENGINE_VERSION`.
+- **Kiểm tra:** quét code `main`, bài `Create Evaluate-feynman` có `evaluateFeynman` và hàm chấm, các bài API không còn chung chuỗi xác thực. Chạy thêm trên BrewLite.
+- **Ảnh hưởng demo:** cần đo trên BrewLite.
+- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+
+### D-16 · Vừa · Khung code nối mọi file thành một file dài
+
+- **Hiện tượng:** bài có nhiều file nhưng Monaco chỉ hiện một khối dài, nên khác cách đọc code trong VS Code. Gặp ở cả `CodePane.tsx` của `main` và `MonacoPane.tsx` của `feat/giao-dien-ide`.
+- **Nguyên nhân:** `buildSliceModel` nối mọi bước thành một model. Code đang đúng phần tả model node trong `30`.
+- **Cần sửa:** đề xuất mỗi file một tab, bấm bước nào thì mở tab file đó. Sửa `30`, `slice-model.ts`, `CodeSnippetViewer.tsx`. Dữ liệu chỉ có `snippet` của từng bước, nên tab chỉ hiện được các lát cắt của file, không phải cả file.
+- **Kiểm tra:** bài có 3 file hiện 3 tab, bấm bước thì đúng tab mở ra, tô sáng và gợi ý `CODE_POINTER` vẫn đúng bước. Chạy lại T1–T41 phần code.
+- **Trạng thái:** đã kiểm code, chưa làm. Cần quyết định mới.
+
+### D-17 · Nhẹ · Bấm điểm dở chỉ tô cả bước
+
+- **Hiện tượng:** bấm điểm dở ở X-Ray hoặc bảng dưới chỉ đổi `active_step`, nên cả bước được tô, dù server đã trả `line_start`, `line_end` của điểm dở.
+- **Nguyên nhân:** UI-33 chỉ yêu cầu đổi `active_step`, code đang đúng spec. Điểm hay chỉ có `step`, `text`, không có số dòng, nên chưa tô từng dòng được.
+- **Cần sửa:** đổi dòng gốc sang dòng trong model bằng `snippet_line_map`, rồi tô và cuộn tới đúng dòng. Sửa UI-33 trong `30`. Muốn làm cả điểm hay thì phải đổi contract, cần hỏi nhóm trước.
+- **Kiểm tra:** bấm một điểm dở, Monaco cuộn và tô đúng dòng ghi ở X-Ray.
+- **Trạng thái:** đã kiểm code, chưa làm. Cần quyết định mới.
+
+### D-18 · Nhẹ · Câu không đặt được vẫn hiện ô ⊘
+
+- **Hiện tượng:** câu `DROPPED` vẫn hiện "⊘ AI không đặt được câu này — không tính". Gặp ở `FeynmanQuestionSection.tsx` của cả `main` và `feat/giao-dien-ide`.
+- **Nguyên nhân:** `30` yêu cầu hiện biểu tượng ⊘. Không thay bằng câu mẫu được, vì quyết định D-03 đã bỏ câu dự phòng.
+- **Cần sửa:** sửa `30`, rồi ẩn câu `DROPPED` ở danh sách và không đếm vào `Câu {k}/{n}`. Giữ nguyên dữ liệu `DROPPED` và luật BKT.
+- **Kiểm tra:** run có 1 câu `DROPPED` không hiện ô ⊘, số câu đếm đúng, node vẫn chốt đúng theo bảng ở `22`.
+- **Trạng thái:** đã kiểm code, chưa làm. Cần quyết định mới.
+
+### C-07 · Vừa · Tóm tắt không nói phần này giúp người dùng làm gì
+
+- **Hiện tượng:** phần tóm tắt được yêu cầu nói về cách chia việc trong code, nên người học không biết bài này giúp người dùng làm gì.
+- **Nguyên nhân:** `src/server/ai/prompts/analyze.ts` và `20` đều ghi `summary = tối đa 2 câu: các bước chia việc ra sao`.
+- **Cần sửa:** đổi thành câu 1 nói phần này giúp người dùng làm gì, câu 2 nói các bước chia việc. Sửa `20`, prompt, đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`. Không đổi contract. Sau đó Vai D đưa câu 1 lên đầu tab X-Ray.
+- **Kiểm tra:** chạy AI thật trên repo demo, duyệt tay ít nhất 3 bài, câu đầu nói đúng việc của người dùng.
+- **Trạng thái:** đã kiểm prompt, chưa chạy AI thật, chưa làm.
+
+### C-08 · Vừa · Code AI chưa theo quyết định D-74
+
+- **Hiện tượng:** `main` chưa có gợi ý theo bậc người học, chấm nhớ lượt trước, câu hỏi nhớ ý đã hụt, tra tên xuyên bài. `grade.ts` chỉ xét số lượt: lượt 1 là `CONCEPT`, sau đó là `CODE_POINTER`. Prompt chưa có `<previous_answer>`, `<previous_points>`, `<learner_history>`. `config.ts` thiếu `HISTORY_MISSED_POINTS_MAX`, `GRADE_REFERENCED_MAX`, và `PROMPT_VERSION` còn `1.0.0` trong khi spec ghi `1.1.0`.
+- **Nguyên nhân:** quyết định D-74 chốt sau khi code AI của `main` đã xong. `feat/giao-dien-ide` đã có các phần này nhưng dùng tên file khác spec, nên phải viết lại trên `main`, không chép thẳng.
+- **Cần sửa:** làm theo các ô D-74 trong phiếu `vai-C/C07-cau-hoi.md`, `vai-C/C08-cham.md`. Phần trần `retryDelay` thuộc C-05.
+- **Kiểm tra:** test AI-31 xanh theo từng bậc. Chạy AI thật một câu qua 3 lượt sai, gợi ý đổi đúng bảng trong quyết định D-74.
+- **Trạng thái:** đã kiểm code, chưa làm.
+
+### A-07 · Vừa · Chưa có test tích hợp đủ luồng trên `main`
+
+- **Hiện tượng:** `main` chỉ có 1 ca đi qua Postgres thật ở `src/server/__tests__/postgres-that.test.ts`, và ca này bị bỏ qua khi thiếu `TEST_DATABASE_URL`. 21 ca ở `tests/integration/flow.test.ts` chỉ có trên `feat/giao-dien-ide`. `ci.yml` không dựng Postgres. Vì vậy chưa có test tự động cho luồng trả lời sai, nhận gợi ý, trả lời đúng, rồi kiểm điểm BKT qua `/api/me`.
+- **Nguyên nhân:** test cần database riêng, nhưng máy nhóm và CI chưa đặt sẵn.
+- **Cần sửa:** dựng Postgres riêng cho test, trên máy hoặc service của CI, không trỏ tới database thật. Chuyển `flow.test.ts` về `main` và đổi lại fixture theo code `main`.
+- **Kiểm tra:** chạy test với `TEST_DATABASE_URL`, không ca tích hợp nào bị bỏ qua. Chạy tay trọn một bài và kiểm điểm BKT qua `/api/me`.
+- **Trạng thái:** đã kiểm code, chưa làm.
+
+### C-09 · Vừa · Có điểm hay nhưng không có điểm dở
+
+- **Hiện tượng:** Minh chạy thử thì bản phân tích chỉ có điểm hay, không có điểm dở, nên người học chỉ thấy code được khen. Lỗi này cùng nhóm với C-06, nhưng C-06 chỉ đo `weak_points` rỗng, chưa so với điểm hay.
+- **Nguyên nhân:** chưa rõ phần nào chính. Code đang xử lý hai loại không ngang nhau:
+  - Prompt `analyze.ts` ghi điểm hay "không có thì mảng rỗng", còn điểm dở ghi "Không chắc thì mảng rỗng — không bịa lỗi cho có".
+  - Cổng gác `guard/analysis.ts` chỉ cần điểm hay có bước hợp lệ và không trùng bước. Điểm dở phải có bước hợp lệ, kỹ năng nằm trong số kỹ năng đã chọn, và `symbol` nằm trong bước (A3).
+  - Điểm dở bị A3 lọc mà bản phân tích vẫn đạt thì không gọi lại AI, cũng không ghi log, vì `logGuardBlock` chỉ chạy khi bản phân tích hỏng hoặc thành `skeleton_only`.
+  - Nghi lát cắt thiếu phần xử lý chính (B-37) cũng làm AI ít thứ để chê.
+- **Cần sửa:** làm cùng C-06, theo thứ tự:
+  1. Ghi log mọi điểm dở bị A3 lọc, kèm lý do.
+  2. Trên repo demo, đếm điểm hay, điểm dở ở bản thô và bản sau cổng gác.
+  3. Bản thô đã rỗng thì sửa prompt: yêu cầu soát lần lượt hiệu năng, bảo mật, toàn vẹn dữ liệu, xử lý lỗi trước khi kết luận không có điểm dở. Đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`.
+  4. Cổng gác lọc nhiều thì đưa số liệu cho nhóm chốt, không tự nới A3.
+  
+  Không ép số điểm dở tối thiểu, vì AI sẽ bịa lỗi.
+- **Kiểm tra:** chạy AI thật trên repo demo, có số liệu bản thô và bản sau cổng gác. Bài có lỗi thật, ví dụ truy vấn trong vòng lặp, phải có điểm dở hợp lý qua duyệt tay.
+- **Trạng thái:** cần xác minh.
+
+### B-38 · Nặng · Mở hỗ trợ Java để demo bằng repo Java
+
+- **Hiện tượng:** chưa học được repo Java. `huynhthanhnhannnh-pixel/SGU-quan-ly-nha-hang` báo `no_code`, `spring-petclinic` báo `only_manifests` (đo ở B-07). Minh muốn demo vấn đáp bằng repo Java, vì đây là ngôn ngữ nhóm quen nhất và dễ trả lời nhất.
+- **Nguyên nhân:** quyết định D-76 đã cắt Java khỏi bản thi. `LANGUAGE_REGISTRY` chỉ có 4 ngôn ngữ. `main` chưa có grammar Java, `queries/java.scm` và resolver Java. Spec `11` đã có luật resolver `JAVA` nhưng chưa có luật route Spring. `fingerprint.ts` đã đọc được `pom.xml`, `build.gradle` và nhận ra Spring.
+- **Cần sửa:**
+  1. Sửa quyết định D-76 trong `00` trước, rồi sửa `01`, `02`, `10`, `11`, `docs/doc-de-hieu/07_ke_hoach_21h.md`. Java không còn vào `KNOWN_NO_GRAMMAR`, nên B-07 và S-05 đổi theo. Go, Dart giữ như cũ.
+  2. Thêm `tree-sitter-java.wasm` vào `public/grammars/`, bản chạy được với `web-tree-sitter` 0.27.1. Thêm `queries/java.scm` và adapter `JAVA` trong `registry.ts`.
+  3. Đọc class, method, import, thêm `resolvers/java.ts` theo luật `JAVA` trong `11`.
+  4. Viết luật mới trong `11`, rồi code: route Spring (`@RestController`, `@RequestMapping`, `@GetMapping`, `@PostMapping`…), tầng controller, service, repository, và lời gọi JPA thành `DATA_ACCESS`.
+  5. Bỏ `src/test/java` khỏi bài học. Kiểm Monaco tô màu Java, AI đọc được code Java, comment bước dùng `//`.
+  6. Thêm repo mẫu Spring vào test engine. Đổi `ENGINE_VERSION`.
+  7. Chốt một repo Java làm repo demo, rồi dựng lại gói Offline và kịch bản demo theo repo đó.
+- **Kiểm tra:** quét `spring-petclinic` và `SGU-quan-ly-nha-hang`: `primary_language` là Java, tier `RESOLVED`, tên bài theo route đúng, có bài đi đủ controller, service, repository và tới `DATA_ACCESS`. Chạy AI thật trọn một bài trên repo demo Java.
+- **Ảnh hưởng demo:** có, đổi repo demo và kịch bản vấn đáp.
+- **Trạng thái:** chưa làm. Phải sửa quyết định D-76 trước khi code.
+
+### B-39 · Nặng · Bản đồ không nối các chức năng với nhau
+
+- **Hiện tượng:** `main` có nhiều chức năng không nối với nhau nên bị kéo thành một hàng. `feat/giao-dien-ide` nối theo thư mục nên ra các cột không có nghĩa, ví dụ `App Hello → Health`, `Auth Me → Login → Register`, tức Đăng nhập đứng trước Đăng ký. Sơ đồ cần có là các chức năng nối theo nghiệp vụ: Đăng ký và Danh sách sản phẩm là điểm bắt đầu, cùng dẫn tới Thanh toán, còn Health và bài thuật toán học riêng.
+- **Nguyên nhân:** quyết định D-07 chỉ nối 2 bài khi dùng chung hàm, nên chức năng không chung hàm thì không có cạnh. Quyết định D-73 và `lessonTree` của `feat` nối theo thư mục, không theo nghiệp vụ. Tài liệu gốc của sơ đồ mẫu cũng ghi cạnh là "thứ tự học giả định", tức chưa từng có thuật toán sinh ra nó.
+- **Cần sửa:** đổi sang đồ thị phụ thuộc dữ liệu giữa các chức năng, theo ý "có dữ liệu rồi mới dùng được". Bản này thay hướng nối theo module của B-04, B-05 và TASK_21.
+  1. **Đọc thực thể:** mỗi bài có tập thực thể và thao tác tạo, đọc, sửa, xóa, lấy từ bước `DATA_ACCESS`. Làm cho Prisma, TypeORM, Mongoose, JPA. Không đọc được thì lấy tài nguyên từ route, ví dụ `POST /orders` là tạo `orders`.
+  2. **Đọc khóa ngoại:** `@relation` của Prisma, `@ManyToOne` của TypeORM và JPA.
+  3. **Tìm nguồn của thực thể:** bài dễ nhất có thao tác tạo. Không có bài tạo vì dữ liệu nhập sẵn thì lấy bài dễ nhất đụng tới thực thể đó.
+  4. **Nối cạnh:** nguồn của `E` tới mọi bài dùng `E`. Bài tạo `E` mà `E` có khóa ngoại tới `P` thì nguồn của `P` tới bài đó.
+  5. **Bỏ vòng và cạnh thừa:** dùng Tarjan và rút gọn bắc cầu đã có, giữ chiều bài dễ tới bài khó.
+  6. **Xếp nhóm:** bài có cạnh ra mà không có cạnh vào là "Bắt đầu". Bài không có cạnh nào là "Học riêng", không khóa, xếp thành cột riêng trong `layout.ts`. Không cần đổi contract, vì nhóm suy ra được từ `prerequisites` và `edges`.
+  7. **Repo không đọc được dữ liệu:** quay về luật D-07.
+  
+  Ghi quyết định mới thay D-07, D-73, sửa D-55 vì quyết định này đang cấm nhãn "Bắt đầu". Phải làm sau B-06, B-37, vì thuật toán cần bước `DATA_ACCESS` đầy đủ. Đổi `ENGINE_VERSION`. Khung nhóm trên bản đồ làm ở đợt giao diện.
+- **Thử nghiệm:** đã chạy bản thử chỉ đọc Prisma, trên bản sao tạm, chưa nằm trong repo.
+
+  | Repo | Bài | Hiện tại không có cha | Bản thử |
+  | :-- | --: | --: | :-- |
+  | `kuuhakubee/CNPM_BrewLite` (`apps/api`) | 13 | 7 | 2 bài bắt đầu, 1 học riêng, 11 cạnh |
+  | `gothinkster/node-express-realworld-example-app` | 20 | 9 | 1 bài bắt đầu, 2 học riêng, 17 cạnh |
+
+  BrewLite ra `Auth Register` và `List Products` cùng dẫn tới `Create Order`, rồi tới các bài thanh toán, còn `List Healths` học riêng. Realworld ra `Create User → Create Article → Create Article Comments`. Bài tạo có thể có nhiều bài con, như `Create Article` có 9 bài con. `Auth Register` đang mất lệnh `create` do B-37, nên phải nhờ luật ở bước 3.
+- **Kiểm tra:** BrewLite ra đúng các nhóm trên, không còn `Auth Me → Login → Register`. Repo demo Java ra sơ đồ theo nghiệp vụ. Bài học riêng mở được ngay, bài có cha vẫn khóa đúng.
+- **Ảnh hưởng demo:** có, ban giám khảo thấy bản đồ ngay từ đầu.
+- **Trạng thái:** đã thử bản tạm trên 2 repo, chưa làm. Cần quyết định mới.
+
+---
+
+## Lộ trình sửa backend ngày 06/11/2026
+
+Lộ trình này thay mục [Thứ tự nên sửa](#thứ-tự-nên-sửa) trong đợt này. Làm trên `main` commit `15f7fa7`, code `main` chưa đổi từ lúc lập danh sách nên mọi trạng thái ở trên vẫn đúng.
+
+- **Phạm vi:** 51 trong 53 lỗi Vai B, C, A. Sửa trên backend `main`, không dùng backend của `feat/giao-dien-ide`.
+- **Để sang đợt giao diện:** toàn bộ lỗi Vai D, B-09, B-10 (2 lỗi này chỉ sửa ở phần hiển thị), phần `CockpitHeader` của B-22, phần X-Ray của C-07.
+- **Người ở bảng dưới là đề xuất** theo commit trước đây, nhóm đổi được. Mỗi luồng giữ nguyên file của mình dù đổi người.
+
+### Bước 0 · Chốt trước khi code (xong trước 13:00)
+
+| Việc | Ai | Chặn lỗi nào | Đề xuất |
+| :-- | :-- | :-- | :-- |
+| Mở Java, sửa quyết định D-76 | Cả nhóm | B-38, B-07 | Mở Java cho Spring Boot, Go và Dart giữ như cũ |
+| Chốt repo demo, sửa tiêu chí Q-03 | Cả nhóm | B-31, B-38 | Chọn repo Java nhóm hiểu nhất. Thử `SGU-quan-ly-nha-hang` và `spring-petclinic`, chưa đo số file của 2 repo này |
+| Chốt luật mới cho engine | Cả nhóm | B-35, B-36, B-37, B-39 | Theo mục **Cần sửa** của từng lỗi. B-39 thay quyết định D-07, D-73 và sửa D-55 |
+| Trả lời Q-C, host chính | Cả nhóm | A-01 | Vercel, tắt workflow Cloud Run |
+| PR nền: ghi 2 quyết định mới vào `00`, thêm hằng số còn thiếu vào `config.ts` | Luồng 5 | Mọi luồng | `PREFLIGHT_TIMEOUT_MS` thành 1500, thêm `PREFLIGHT_PAGE_TIMEOUT_MS`, `LLM_RETRY_DELAY_MAX_MS`, `HISTORY_MISSED_POINTS_MAX`, `GRADE_REFERENCED_MAX` theo `02` |
+
+Quyết định mới lấy số từ D-80. Luật chưa chốt thì bỏ qua lỗi đó, làm lỗi kế tiếp trong luồng.
+
+### Chia luồng
+
+| Luồng | Người | Giữ file | Mã lỗi |
+| :-- | :-- | :-- | :-- |
+| 1. Engine đồ thị | Minh | `graph/symbols.ts`, `callgraph.ts`, `slicing.ts`, `nodes.ts`, `complexity.ts`, `layout.ts`, `graph/index.ts` | B-01, B-02, B-03, B-04, B-05, B-06, B-11, B-20, B-27, B-28, B-33, B-34, B-35, B-36, B-37, B-39 |
+| 2. Ingest | Phat107 | `src/server/engine/ingest/*`, `resolvers/ts_js.ts`, `graph/naming.ts` | B-14, B-15, B-16, B-17, B-18, B-19, B-21, B-22, B-23, B-24, B-25, B-26, B-29, B-30, B-32 |
+| 3. Java | Lê Ngọc Quý | `graph/registry.ts`, `graph/parser.ts`, `resolvers/java.ts`, `queries/java.scm`, `public/grammars/` | B-07, B-12, B-31, B-38 |
+| 4. AI | Huynh Nhan | `src/server/ai/*`, `review/loi_da_gap.md` | C-01, C-02, C-03, C-04, C-05, C-06, C-07, C-08, C-09 |
+| 5. Tích hợp | Thiện | `src/contracts/*`, `src/server/errors.ts`, `src/app/api/*`, `.github/workflows/*`, test tích hợp | A-01, A-02, A-03, A-04, A-05, A-07, B-13 |
+
+### Thứ tự trong từng luồng
+
+Làm từ trên xuống. Cột **Chờ** rỗng thì làm được ngay sau Bước 0.
+
+**Luồng 1 · Engine đồ thị**
+
+| Bước | Mã | Việc | Chờ |
+| --: | :-- | :-- | :-- |
+| 1 | B-01 | Lấy commit `1066d4d`, không làm lại | |
+| 2 | B-03, B-34, B-02, B-20 | TASK_20: nhận route đúng, bỏ file test và mock | Bước 1 |
+| 3 | B-27, B-35 | Bỏ `<module>` và component giao diện khỏi bài thuật toán | Luật B-35 |
+| 4 | B-37, B-06 | Đo trước bước nào bị bỏ, rồi sửa lát cắt và Prisma | Luật B-37 |
+| 5 | B-11, B-28 | Bỏ bước rỗng, dựng lại `snippet_line_map` | Bước 3 |
+| | | **Đổi `ENGINE_VERSION` thành `1.7.0`, báo cả nhóm** | Bước 1–5 |
+| 6 | B-36 | Sửa luật cắt còn 20 bài | Luật B-36 |
+| 7 | B-39, B-04, B-05 | Nối bài theo phụ thuộc dữ liệu. Không làm TASK_21, đo lại B-04, B-05 sau khi xong | Bước 4, 6, luật B-39 |
+| 8 | B-33 | Tăng tốc `buildSlice` | Bước 7 |
+
+**Luồng 2 · Ingest**
+
+| Bước | Mã | Việc | Chờ |
+| --: | :-- | :-- | :-- |
+| 1 | B-14 | Thăm dò GitHub theo `10` | PR nền |
+| 2 | B-22 | Che secret, phần server | |
+| 3 | B-25, B-26 | Parser JSONC dùng chung, đọc alias `@/` | |
+| 4 | B-17 | Monorepo chọn nhầm gói | |
+| 5 | B-16, B-23, B-24 | `ref_label`, đọc gói, ngôn ngữ `.vue` | |
+| 6 | B-15, B-21 | Hoa thường ở link và thư mục | |
+| 7 | B-32 | Tải manifest song song | Luồng 1 xong bước 2, vì cùng sửa `selective.ts` |
+| 8 | B-18, B-19 | Zip độc, zip macOS | |
+| 9 | B-29, B-30 | Tên bước, tên bài. Đổi tên là đổi id, nên vào `1.8.0` | Mốc 1 |
+
+**Luồng 3 · Java**
+
+| Bước | Mã | Việc | Chờ |
+| --: | :-- | :-- | :-- |
+| 1 | B-12 | Báo lỗi khi thiếu query, cần trước khi thêm query Java | |
+| 2 | B-07 | Go, Dart vào `KNOWN_NO_GRAMMAR`, báo đúng ngôn ngữ | Quyết định Java |
+| 3 | B-38 bước 2–3 | Grammar, query, adapter, đọc class, method, import, `resolvers/java.ts` | Luồng 1 xong bước 1, vì cùng đụng `symbols.ts` |
+| 4 | B-38 bước 4–5 | Route Spring, tầng, JPA, `@ManyToOne` cho B-39. Viết trong file riêng, chỉ thêm lời gọi vào `callgraph.ts`, `slicing.ts` | Mốc 1 |
+| 5 | B-31, B-38 bước 6–7 | Repo mẫu Spring trong test, ngưỡng repo demo, gói Offline | Bước 4 |
+
+**Luồng 4 · AI**
+
+| Bước | Mã | Việc | Chờ |
+| --: | :-- | :-- | :-- |
+| 1 | C-01, C-05 | Log lỗi Gemini, gọi lại theo `retryDelay` | PR nền |
+| 2 | C-08 | Code D-74: gợi ý theo bậc, nhớ lượt trước, nhớ ý đã hụt, tra tên | PR nền |
+| 3 | C-06, C-09 | Ghi log điểm dở bị lọc | |
+| 4 | C-03, C-04, C-07 | Sửa prompt câu hỏi và tóm tắt | |
+| 5 | C-06, C-09, C-02 | Chạy AI thật trên lát cắt mới, đếm bản thô và bản qua cổng gác, sửa prompt nếu cần | Mốc 1 |
+| 6 | | Đổi `PROMPT_VERSION` một lần, chạy lại các ca trong `review/loi_da_gap.md` | Bước 5 |
+
+**Luồng 5 · Tích hợp**
+
+| Bước | Mã | Việc | Chờ |
+| --: | :-- | :-- | :-- |
+| 1 | | PR nền ở Bước 0 | |
+| 2 | A-02 | Log lỗi lạ an toàn | |
+| 3 | A-04, B-13 | Kiểm biến AI và nạp grammar lúc khởi động, thêm `instrumentation.ts` | |
+| 4 | A-05 | Trả `analyses` khi mở lại phiên | |
+| 5 | A-07 | Dựng Postgres test, chuyển `flow.test.ts` về `main` | |
+| 6 | A-01 | Làm theo Q-C | Q-C |
+| 7 | A-03 | Không sửa theo phỏng đoán. Gặp lại thì lưu request và phản hồi | |
+
+Luồng 5 đồng thời duyệt và merge PR của cả nhóm.
+
+### Mốc trong ngày
+
+| Giờ | Mốc | Đạt khi |
+| :-- | :-- | :-- |
+| 13:00 | Bước 0 | Quyết định đã ghi, PR nền đã merge |
+| 16:30 | Mốc 1, engine `1.7.0` | Luồng 1 xong bước 5. Quét repo demo và BrewLite không còn bài từ file test, route giả, bài `<module>`, bài API đi tới phần xử lý chính |
+| 19:00 | Mốc Java | Repo demo Java ra bài theo route, có bài đi đủ controller, service, repository |
+| 21:00 | Mốc 2, engine `1.8.0` | Luồng 1, 2, 3 xong, bản đồ nối theo chức năng, tên bài đọc được |
+| 22:00 | Đóng băng backend | Luồng 4, 5 xong. `npm run typecheck`, `npm run lint`, `npm test` xanh. Chạy online trọn một bài: đăng nhập, quét repo, phân tích, trả lời sai, nhận gợi ý, trả lời đúng, kiểm BKT |
+| Sau 22:00 | Sang giao diện | Ghép frontend `feat/giao-dien-ide`, sửa lỗi Vai D |
+
+**Nếu 19:00 Java chưa đạt:** dừng B-38, giữ phần đã làm ở nhánh riêng, dùng lại BrewLite làm repo demo. Luồng 3 chuyển sang B-31 cho BrewLite.
+
+### Luật tránh đụng nhau
+
+- Mỗi nhóm lỗi một nhánh nhỏ từ `main`, ví dụ `b/fix-...`, xong là mở PR ngay. Không gom cả buổi vào một PR.
+- Chỉ sửa file luồng mình giữ. Cần sửa file luồng khác thì nhắn người giữ file.
+- `config.ts` chỉ Luồng 5 sửa, trừ 2 dòng: Luồng 1 đổi `ENGINE_VERSION`, Luồng 4 đổi `PROMPT_VERSION`.
+- Sửa đổi đồ thị thì chưa đổi `ENGINE_VERSION`. Chỉ đổi ở 2 mốc `1.7.0`, `1.8.0` theo Q-F, Java vào `1.8.0`.
+- Mỗi PR chỉ đổi **Trạng thái** của lỗi trong PR đó, không sửa bảng khác của file này.
+- Mọi lỗi vẫn theo [Sửa một lỗi](#3-sửa-một-lỗi): spec trước, test thất bại trước, kiểm trên repo thật.
+
+### Nếu trễ thì bỏ trước
+
+Sau 21:00 mà chưa làm tới thì để lại, theo thứ tự: B-33, B-18, B-19, B-32, B-15, B-21, B-23, B-24, B-28. Các lỗi này không ảnh hưởng buổi demo, hoặc chưa ảnh hưởng nhiều tới người học.
+
+Không bỏ: B-01, B-02, B-03, B-06, B-27, B-37, B-39, B-22, C-05, C-06, C-08, C-09.
