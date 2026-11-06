@@ -7,17 +7,22 @@ const REDACTED_SECRET = "<REDACTED_SECRET>";
 const PRIVATE_KEY_BLOCK_REGEX =
   /^[ \t]*-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?^[ \t]*-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[^\r\n]*/gm;
 
-// 2. Regex cho các token bí mật (AWS, GitHub, OpenAI, JWT, Google AI)
+// 1b. Khối private key nằm trong 1 dòng (chuỗi có "\n" dạng chữ): thay cả đoạn (ING-110)
+const INLINE_PRIVATE_KEY_REGEX =
+  /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----(?:(?!-----END)[^\r\n])*-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g;
+
+// 2. Regex cho các token bí mật (AWS, GitHub, OpenAI, JWT, Google AI, Stripe, Slack)
 const SECRET_TOKEN_REGEX =
-  /(?:AKIA[0-9A-Z]{16}|\b(?:ghp|gho|ghs|ghu)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{22,}\b|\bsk-[A-Za-z0-9_-]{20,}\b|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b|\bAIza[0-9A-Za-z_-]{35}\b)/g;
+  /(?:AKIA[0-9A-Z]{16}|\b(?:ghp|gho|ghs|ghu)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{22,}\b|\bsk-[A-Za-z0-9_-]{20,}\b|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b|\bAIza[0-9A-Za-z_-]{35}\b|\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b|\bxox[abprs]-[A-Za-z0-9-]{10,}\b)/g;
 
-// 3. Regex cho phép gán secret, password, key... (khớp cả trong JWT_SECRET)
+// 3. Regex cho phép gán secret (ING-110: K có tiền tố và hậu tố, có thể nằm trong cặp nháy;
+//    khớp JWT_SECRET, SECRET_KEY, DB_PASSWORD_PROD, "password":, 'apiKey':)
 const ASSIGNMENT_SECRET_REGEX =
-  /(\b[A-Za-z0-9_]*(?:password|passwd|pwd|secret|api_?key|token|private_?key|access_?key)\b\s*[:=]\s*)(["'`])([^"'`\r\n\s]+)\2/gi;
+  /([A-Za-z0-9_]*(?:password|passwd|pwd|secret|api_?key|token|private_?key|access_?key)(?:_[A-Za-z0-9]+)*["'`]?\s*[:=]\s*)(["'`])([^"'`\r\n\s]+)\2/gi;
 
-// 4. Regex cho chuỗi kết nối database / message broker
+// 4. Regex cho chuỗi kết nối database / message broker / URL có user:pass
 const CONNECTION_STRING_REGEX =
-  /((?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqp):\/\/)([^:/\s]+):([^@\s]+)(@)/gi;
+  /((?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqp|https?):\/\/)([^:/\s]+):([^@\s]+)(@)/gi;
 
 // ING-113: Regex kiểm tra cờ injection
 const INJECTION_REGEX =
@@ -67,6 +72,12 @@ export function redactSecrets(code: string): { code: string; count: number } {
       return `${indent}${REDACTED_SECRET}`;
     });
     return redactedLines.join("\n");
+  });
+
+  // Bước 1b: Khối private key viết trong 1 dòng
+  result = result.replace(INLINE_PRIVATE_KEY_REGEX, () => {
+    count++;
+    return REDACTED_SECRET;
   });
 
   // Bước 2: Token bí mật
