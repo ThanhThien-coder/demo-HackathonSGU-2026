@@ -454,14 +454,14 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
     │       ├── enrich-node/route.ts · evaluate-feynman/route.ts · reveal/route.ts
     │       ├── report-wrong/route.ts · demo/persona/route.ts
     ├── server/
-    │   ├── auth.ts · db.ts · errors.ts · http.ts · session.ts · store.ts · cache.ts · quota.ts · semaphore.ts · log.ts   # log.ts: pino (04)
+    │   ├── auth.ts · db.ts · errors.ts · session.ts · cache.ts · quota.ts · log.ts   # log.ts: pino (04)
     │   ├── progress.ts                          # deriveNodeStates (gọi lib), finalizeRunIfDone
-    │   ├── ingestService.ts · analysis.ts · enrich.ts · evaluate.ts · reveal.ts   # reveal.ts gồm bỏ qua, báo sai, persona
+    │   ├── enrich.ts · evaluate.ts · reveal.ts · report.ts · persona.ts
     │   ├── engine/index.ts                      # runEngine()
     │   ├── engine/ingest/*.ts                   # 10
     │   ├── engine/graph/*.ts · engine/graph/resolvers/*.ts   # 11
-    │   ├── ai/{gemini,analyze,questions,grade}.ts · ai/prompts/*.ts · ai/schemas.ts      # 20
-    │   └── ai/guard/{text,checks,followup}.ts  # 21
+    │   ├── ai/{gemini,analyze,overview,questions,grade}.ts · ai/prompts/*.ts · ai/schemas.ts      # 20
+    │   └── ai/guard/{text,names,forbidden,lines,analysis,overview,questions,followup,injection,log}.ts  # 21
     ├── lib/{bkt-engine,plan,derive,similarity}.ts   # 22 — hàm thuần dùng chung server + client
     ├── lib/{graph,moderation}.ts · lib/supabase/client.ts   # mainPath · bộ lọc an toàn · Supabase ở trình duyệt
     ├── lib/{api,offline,messages}.ts            # Client gọi API có kiểu · bản Offline cùng chữ ký · bảng thông điệp lỗi (30)
