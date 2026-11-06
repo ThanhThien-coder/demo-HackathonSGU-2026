@@ -838,7 +838,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 - **Hiện tượng:** tổng quan mới (D-83) cần biết sản phẩm làm gì, nhưng bước nạp repo không giữ README hay mô tả manifest.
 - **Cần sửa:** giữ `readme_excerpt` (đã che secret, cắt theo `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description`. Sửa `10`, `src/server/engine/ingest/*`.
 - **Kiểm tra:** repo có README ra đoạn đầu; repo không có ra `null`; secret trong README bị che.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42` (tên nhánh lỡ đặt, nội dung là B-41). Theo ING-123: `pickReadmeEntry` (README ở offset, không có thì ở gốc, path nhỏ nhất, bỏ nếu quá `MAX_MANIFEST_BYTES`), `buildProjectText` (che secret rồi cắt `OVERVIEW_README_MAX_CHARS`, `manifest_description` từ `package.json`, `pyproject.toml`, `pom.xml`), nối vào `runIngest`. README giải nén riêng, không vào `code` hay `manifests`, không tính số file. Thêm 2 trường vào `IngestOutput` (`src/contracts/engine-internal.ts`, theo `spec/02` đã merge). Quét thật: BrewLite có README 2000 ký tự và mô tả `BrewLite - Backend NestJS + Prisma + PostgreSQL`; `nestjs/nest` có cả hai; Django có README, mô tả `null`. Test `mo-ta.test.ts` (T-ING-35, T-ING-36). Typecheck sạch, lint 0 lỗi, test xanh. Chưa làm: chép hai trường vào `StaticEngineResult` (`graph/index.ts`, thuộc Minh, cùng B-40); đường tải chọn lọc (`selective.ts`) trả `null` vì README nằm ngoài phần đã tải; chưa sửa `spec/10` Mục 8 vì đã có ING-123.
 
 ### D-19 · Nặng · X-Ray chưa là tour
 

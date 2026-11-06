@@ -29,7 +29,13 @@ import {
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
 import { selectFiles } from "./priority";
 import { rememberScope } from "./rescope";
-import { detectScope, buildFingerprint, assertNotEmpty } from "./fingerprint";
+import {
+  detectScope,
+  buildFingerprint,
+  buildProjectText,
+  pickReadmeEntry,
+  assertNotEmpty,
+} from "./fingerprint";
 import { extractNotebook, extractSfcScript } from "./special";
 import { hasInjectionText, redactAndMaskCode } from "./secrets";
 
@@ -126,6 +132,7 @@ export async function runIngest(
   let scopeDecision: ScopeDecision | null = null;
   let rawCodeMap: Map<string, string> | null = null;
   let manifests: Map<string, string> | null = null;
+  let readmeText: string | null = null; // ING-123; đường tải chọn lọc không có README (nằm ngoài phần đã tải)
   let snapshot: RepoSnapshotKey | null = null;
   let inflated_cap_hit = false;
   let lastError: unknown = null;
@@ -273,6 +280,20 @@ export async function runIngest(
         rawCodeMap = inflated.code;
         manifests = inflated.manifests;
         inflated_cap_hit = inflated.inflated_cap_hit;
+
+        // README (ING-123): giải nén riêng, không vào code hay manifests, không tính số file
+        readmeText = null;
+        const readmeEntry = pickReadmeEntry(classifiedEntries, scopeDecision);
+        if (readmeEntry) {
+          const scratch = structuredClone(report);
+          const res = inflateSelected(
+            rawArchive.bytes,
+            { manifests: [readmeEntry], ordered_candidates: [] },
+            scratch,
+            attemptController.signal
+          );
+          readmeText = res.manifests.get(readmeEntry.path) ?? null;
+        }
 
         // Định danh phiên bản Snapshot (Mục 5)
         snapshot = computeSnapshot(rawArchive, {
@@ -457,6 +478,9 @@ export async function runIngest(
     DEFAULT_LANGUAGE_REGISTRY
   );
 
+  // Mô tả dự án cho tổng quan (ING-123)
+  const projectText = buildProjectText(readmeText, manifests, scopeDecision, report);
+
   // 11. Kiểm tra kết quả rỗng (Mục 13)
   const scopeCodeEntries = classifiedEntries.filter((e) => {
     const inScope =
@@ -526,6 +550,8 @@ export async function runIngest(
     manifests: sortedManifests,
     source_map: sortedSourceMap,
     module_info,
+    readme_excerpt: projectText.readme_excerpt,
+    manifest_description: projectText.manifest_description,
   };
 
   rememberScope(out, classifiedEntries, scopeDecision);
