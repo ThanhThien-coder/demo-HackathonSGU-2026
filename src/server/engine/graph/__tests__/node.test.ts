@@ -914,6 +914,102 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
   });
 
   // ---------------------------------------------------------------------------
+  // ENG-90 (B-27): <module> không là ứng viên node thuật toán
+  // ---------------------------------------------------------------------------
+  const lapLong = (n: number) => {
+    let code = "const table: number[] = [];\n";
+    for (let i = 0; i < n; i++) code += `for (const v${i} of [1, 2]) { if (v${i} > 0) {\n`;
+    code += "table.push(1);\n" + "} }\n".repeat(n);
+    return code;
+  };
+  const routeFile = (body: string) => `
+import express from "express";
+const app = express();
+const router = express.Router();
+${body}
+router.get("/items", (req, res) => { res.json({ ok: true }); });
+app.use(router);
+`;
+
+  it("ENG-90: <module> trên VIP_COMPLEXITY_MIN không thành node thuật toán, hàm thật vẫn thành (a)", async () => {
+    const zip = fflate.zipSync({
+      "src/app.ts": fflate.strToU8(routeFile(lapLong(4))),
+      "src/algo.ts": fflate.strToU8(`
+export function realAlgo(items: number[]) {
+  let res = 0;
+  for (const a of items) {
+    if (a > 0) {
+      for (const b of items) {
+        if (b > a) {
+          for (const c of items) {
+            if (c > b) { res += a * b * c; }
+          }
+        }
+      }
+    }
+  }
+  return res;
+}
+`),
+    });
+    const res = await runEngine({ kind: "ZIP_UPLOAD", file_name: "module-vip.zip", bytes: zip, subdir_override: null });
+    const algos = res.nodes.filter((n) => n.node_type === "ALGORITHMIC_CORE");
+
+    expect(res.ingestion_report.degraded_mode).toBeNull();
+    expect(algos.map((n) => n.trace_steps[0]?.function_name)).toEqual(["realAlgo"]);
+  });
+
+  it("ENG-90: <module> đủ VIP_FALLBACK_MIN_SCORE không được bù ở (b)", async () => {
+    const zip = fflate.zipSync({ "src/app.ts": fflate.strToU8(routeFile(lapLong(2))) });
+    const res = await runEngine({ kind: "ZIP_UPLOAD", file_name: "module-bu.zip", bytes: zip, subdir_override: null });
+
+    expect(res.ingestion_report.degraded_mode).toBeNull();
+    expect(res.nodes.filter((n) => n.node_type === "ALGORITHMIC_CORE")).toEqual([]);
+    expect(res.nodes.flatMap((n) => n.trace_steps.map((s) => s.function_name))).not.toContain("<module>");
+  });
+
+  // ---------------------------------------------------------------------------
+  // T-ENG-51 (B-35, D-86): hàm trả JSX không là ứng viên node thuật toán
+  // ---------------------------------------------------------------------------
+  const lapTrongHam = `
+  let total = 0;
+  for (const a of items) {
+    if (a > 0) {
+      for (const b of items) {
+        if (b > a) {
+          for (const c of items) {
+            if (c > b) { total += a * b * c; }
+          }
+        }
+      }
+    }
+  }`;
+
+  it("T-ENG-51: component trả JSX không thành node thuật toán, hàm chỉ có callback trả JSX vẫn thành", async () => {
+    const zip = fflate.zipSync({
+      "src/app.ts": fflate.strToU8(routeFile("")),
+      "src/ui/Big.tsx": fflate.strToU8(`
+export function BigPage({ items }: { items: number[] }) {${lapTrongHam}
+  if (!items) return null;
+  return <div>{total}</div>;
+}
+export const ArrowPage = ({ a, b, c, d, e, f }: Record<string, boolean>) => (
+  <div>{a ? (b ? (c ? (d ? (e ? (f ? 1 : 2) : 3) : 4) : 5) : 6) : 7}</div>
+);
+export function countRows(items: number[]) {${lapTrongHam}
+  const rows = items.map((i) => <li key={i}>{i}</li>);
+  return rows.length + total;
+}
+`),
+    });
+    const res = await runEngine({ kind: "ZIP_UPLOAD", file_name: "jsx-vip.zip", bytes: zip, subdir_override: null });
+    const algos = res.nodes.filter((n) => n.node_type === "ALGORITHMIC_CORE");
+
+    expect(res.ingestion_report.degraded_mode).toBeNull();
+    expect(algos.map((n) => n.trace_steps[0]?.function_name)).toEqual(["countRows"]);
+  });
+
+  // ---------------------------------------------------------------------------
   // T-ENG-38: Nối node thuật toán theo D-07 / D-56
   // ---------------------------------------------------------------------------
   it("T-ENG-38: Lát cắt gọi VIP ở hop > SLICE_MAX_HOPS có cạnh D-56; VIP chỉ là callback hoặc không ai gọi thì đứng riêng", () => {
