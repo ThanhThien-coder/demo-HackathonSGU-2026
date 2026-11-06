@@ -121,6 +121,8 @@ function createDummyNode(data: Partial<HybridArchitecturalNode> & { id: string }
     },
     trace_steps: data.trace_steps ?? [],
     dto_snippet: data.dto_snippet ?? "",
+    group_id: "",
+    entities: [],
   };
 }
 
@@ -257,9 +259,9 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
 
     const fg1 = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
     // order -> other1 (Ce = 1)
-    fg1.set("src/order.ts", new Map([["src/other1.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg1.set("src/order.ts", new Map([["src/other1.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
     // in1 -> order (Ca = 1)
-    fg1.set("src/in1.ts", new Map([["src/order.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg1.set("src/in1.ts", new Map([["src/order.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
 
     const ub1 = diagnoseUncleBob(node1, fg1, ctx);
     expect(ub1.is_exempt).toBe(false);
@@ -281,9 +283,9 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
     ctx.idx.symbols.set("src/pain.ts#P2", { key: "src/pain.ts#P2", kind: "CLASS", name: "P2", file_path: "src/pain.ts", line_start: 1, line_end: 1, is_exported: true });
 
     const fg2 = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
-    fg2.set("src/in1.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
-    fg2.set("src/in2.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
-    fg2.set("src/in3.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg2.set("src/in1.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
+    fg2.set("src/in2.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
+    fg2.set("src/in3.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
 
     const ub2 = diagnoseUncleBob(node2, fg2, ctx);
     expect(ub2.is_exempt).toBe(false);
@@ -822,6 +824,9 @@ app.get("/ping", (req, res) => res.send("pong"));
       total_files: 1,
       nodes: [],
       edges: [],
+      groups: [],
+      readme_excerpt: null,
+      manifest_description: null,
       symbol_whitelist: ["secretSymbol", "leakCheck"],
       file_index: ["src/index.ts"],
       ingestion_report: {
@@ -891,11 +896,14 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
         createDummyNode({ id: "n-d", prerequisites: ["n-b", "n-c"] }),
       ],
       edges: [
-        { id: "n-a->n-b", source: "n-a", target: "n-b", confidence: "RESOLVED" },
-        { id: "n-b->n-d", source: "n-b", target: "n-d", confidence: "RESOLVED" },
-        { id: "n-a->n-c", source: "n-a", target: "n-c", confidence: "RESOLVED" },
-        { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED" },
+        { id: "n-a->n-b", source: "n-a", target: "n-b", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-b->n-d", source: "n-b", target: "n-d", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-a->n-c", source: "n-a", target: "n-c", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED", via_entities: [] },
       ],
+      groups: [],
+      readme_excerpt: null,
+      manifest_description: null,
       symbol_whitelist: [],
       file_index: [],
       ingestion_report: createEmptyReport(),
@@ -925,6 +933,54 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
   });
 
   // ---------------------------------------------------------------------------
+  // T-ENG-53 (B-36, D-88): thứ tự giữ node khi vượt DISPLAY_MAX_NODES
+  // ---------------------------------------------------------------------------
+  const budgetCandidate = (id: string, kind: "HTTP" | "PAGE" | "ALGO", cc: number, rank: number): Candidate => ({
+    ...createDummyCandidate({ id, kind: kind === "ALGO" ? "ALGO" : "SLICE", cognitive_complexity: cc, rank_score: rank }),
+    binding:
+      kind === "ALGO"
+        ? null
+        : { file_path: "src/a.ts", line_start: 1, line_end: 2, kind, method: "GET", path: "/" + id, handler: id, middlewares: [], display_name: id },
+  });
+  const pad = (i: number) => String(i).padStart(2, "0");
+
+  it("T-ENG-53: giữ tối đa VIP_FALLBACK_TOP_K node thuật toán, bài API trước bài trang dù hạng thấp hơn", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`page-${pad(i)}`, "PAGE", 40, 0.9));
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`algo-${pad(i)}`, "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+    const count = (prefix: string) => nodes.filter((n) => n.entry_symbol?.startsWith(prefix)).length;
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(count("algo-")).toBe(CONFIG.VIP_FALLBACK_TOP_K);
+    expect(count("api-")).toBe(12);
+  });
+
+  it("T-ENG-53: thiếu bài luồng thì trả chỗ lại cho node thuật toán", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 3; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    for (let i = 0; i < 25; i++) candidates.push(budgetCandidate(`algo-${pad(i)}`, "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(nodes.filter((n) => n.entry_symbol?.startsWith("api-")).length).toBe(3);
+  });
+
+  it("T-ENG-53: thiếu node thuật toán thì bài luồng lấp đủ chỗ", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 25; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    candidates.push(budgetCandidate("algo-00", "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(nodes.filter((n) => n.entry_symbol?.startsWith("algo-")).length).toBe(1);
+  });
+
+  // ---------------------------------------------------------------------------
   // T-ENG-37: Mọi điểm bắt đầu nằm trên cùng hàng trên cùng (D-55)
   // ---------------------------------------------------------------------------
   it("T-ENG-37: Gốc A (A->B->C->D), gốc E (E->D), gốc F lẻ => A, E, F cùng position.y nhỏ nhất; không có nút __start__", () => {
@@ -937,10 +993,10 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
 
     const nodes = [nodeA, nodeB, nodeC, nodeD, nodeE, nodeF];
     const edges = [
-      { id: "node-A->node-B", source: "node-A", target: "node-B", confidence: "RESOLVED" as const },
-      { id: "node-B->node-C", source: "node-B", target: "node-C", confidence: "RESOLVED" as const },
-      { id: "node-C->node-D", source: "node-C", target: "node-D", confidence: "RESOLVED" as const },
-      { id: "node-E->node-D", source: "node-E", target: "node-D", confidence: "RESOLVED" as const },
+      { id: "node-A->node-B", source: "node-A", target: "node-B", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-B->node-C", source: "node-B", target: "node-C", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-C->node-D", source: "node-C", target: "node-D", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-E->node-D", source: "node-E", target: "node-D", confidence: "RESOLVED" as const, via_entities: [] },
     ];
 
     layoutGraph(nodes, edges);

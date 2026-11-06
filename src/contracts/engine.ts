@@ -68,6 +68,8 @@ export interface HybridArchitecturalNode {
   is_capstone: boolean;                // Đúng 1 node / đồ thị (D-12)
   uncle_bob: UncleBobMetrics;
   trace_steps: ExecutionTraceStep[];   // Tổng dòng snippet ≤ CONFIG.NODE_MAX_LINES
+  group_id: string;                    // = group_id của 1 phần tử StaticEngineResult.groups (D-84)
+  entities: Array<{ name: string; ops: EntityOp[] }>;   // Thực thể bài chạm tới và thao tác (D-84)
   dto_snippet: string;                 // Khai báo kiểu dữ liệu mà các step dùng (≤ CONFIG.STEP_MAX_LINES dòng), "" nếu không có
 }
 
@@ -75,6 +77,7 @@ export interface GraphEdge {
   id: string;                          // `${source}->${target}`
   source: string;
   target: string;
+  via_entities: string[];              // Thực thể mà cạnh đi qua, [] nếu không qua thực thể (D-84)
   confidence: "RESOLVED" | "INFERRED"; // INFERRED nếu chuỗi lời gọi tạo ra cạnh có ≥ 1 cạnh hàm suy luận
 }
 
@@ -117,13 +120,21 @@ export interface StaticEngineResult {
   total_files: number;
   nodes: HybridArchitecturalNode[];    // DISPLAY_MIN_NODES..DISPLAY_MAX_NODES khi repo đủ lớn
   edges: GraphEdge[];
+  groups: Array<{                      // Nhóm chức năng tất định (D-84)
+    group_id: string;
+    key: string;                       // Nhãn dự phòng khi AI chưa đặt tên
+    key_kind: "ENTITY" | "ROUTE_PREFIX" | "STANDALONE";
+    node_ids: string[];
+  }>;
   symbol_whitelist: string[];          // Phạm vi repo, đã sort (D-19)
   file_index: string[];                // Mọi file code đã nạp, đã sort
+  readme_excerpt: string | null;       // Chép từ IngestOutput để analyze-overview đọc từ snapshot (D-83)
+  manifest_description: string | null; // Chép từ IngestOutput (D-83)
   ingestion_report: IngestionReport;
 }
 
 // Bản gửi trình duyệt — server dựng bằng toClientResult() theo danh sách trường cho phép
 export type ClientStaticEngineResult =
-  Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report"> & {
+  Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report" | "readme_excerpt" | "manifest_description"> & {
     ingestion_report: Omit<IngestionReport, "suspicious_instruction_files">;
   };

@@ -66,6 +66,8 @@ describe("AI-13 — Đóng gói XML và renderSteps", () => {
         is_exempt: false,
       },
       dto_snippet: "",
+      group_id: "",
+      entities: [],
       trace_steps: [
         {
           step_number: 2,

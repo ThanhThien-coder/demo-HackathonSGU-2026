@@ -133,7 +133,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** quyết định D-07 chỉ nối bài gọi chung hàm, nên nhiều bài không có bài cha.
 - **Cần sửa:** thêm `addTreeEdges` trong `nodes.ts`, nối bài theo module thành cây, cạnh thêm là `INFERRED` và có khóa bài (đề xuất D-73).
 - **Kiểm tra:** BrewLite mở lúc đầu không quá 6 bài.
-- **Trạng thái:** đã xác nhận trên site, chưa làm. Làm theo B-39, không nối theo module. Đổi cách khóa bài nên cần thử kỹ trước khi demo.
+- **Trạng thái:** chờ kiểm. Làm theo B-39. BrewLite mở lúc đầu 6 bài: 4 điểm bắt đầu, 2 học riêng.
 
 ### B-05 · Vừa · Node tách rời, bản đồ quá dài
 
@@ -141,7 +141,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** như B-04, cộng quyết định D-55 đưa mọi bài không có cha lên hàng đầu.
 - **Cần sửa:** làm cùng B-04, rồi đo lại. Bản đồ chỉ đọc được khi đã sửa thêm lỗi D-01.
 - **Kiểm tra:** BrewLite hết node lẻ, còn khoảng 3 cây (theo mô phỏng).
-- **Trạng thái:** đã xác nhận trên site, chưa làm. Làm theo B-39.
+- **Trạng thái:** chờ kiểm. Làm theo B-39. BrewLite còn 2 bài lẻ đúng nghĩa học riêng (`App Hello`, `List Healths`), 15 cạnh.
 
 ### B-06 · Vừa · Không có luồng tới tầng dữ liệu
 
@@ -267,7 +267,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** Pipfile chỉ có `[packages]` cho danh sách rỗng. Pipfile có `pytz` trước `fastapi` cũng rỗng, nên không nhận ra framework. `Cargo.toml` và `pubspec.yaml` có mục gói nằm cuối file cũng rỗng.
 - **Nguyên nhân:** `fingerprint.ts` dùng `\z` trong regex. JavaScript không có `\z`, ký hiệu này khớp chữ `z` thường, nên regex không nhận ra cuối file và dừng ở chữ `z` đầu tiên.
 - **Cần sửa:** đổi `\z` thành `$(?![\s\S])` như nhánh poetry, thêm test.
-- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. Đổi 3 chỗ `\z` (Pipfile, pubspec, Cargo) thành `$(?![\s\S])`. Tìm thêm: regex pubspec dùng `\s*` nuốt luôn dấu thụt đầu của gói đầu tiên nên gói đầu bị mất, đã đổi thành `[ 	]*?
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. Đổi 3 chỗ `\z` (Pipfile, pubspec, Cargo) thành `$(?![\s\S])`. Tìm thêm: regex pubspec dùng `\s*` nuốt luôn dấu thụt đầu của gói đầu tiên nên gói đầu bị mất, đã đổi thành `[ 	]*?
 `. Test trong `goi-ngon-ngu.test.ts` (Pipfile có `pytz` trước `fastapi`, Cargo, pubspec, tên gói chứa chữ `z`). Chạy thật `flutter/samples`: nhận framework Flutter, 68 gói trong `tech_stack`. Typecheck sạch, lint 0 lỗi, 876 test qua.
 
 ### B-24 · Nhẹ · Repo Vue JavaScript bị báo TypeScript
@@ -351,7 +351,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** lập chỉ mục hàm theo file và cạnh theo caller một lần, rồi dùng lại cho mọi entry.
 - **Kiểm tra:** `django/django` dưới 10 giây, kết quả đồ thị không đổi.
 - **Ảnh hưởng demo:** không, chỉ gặp với repo rất lớn.
-- **Trạng thái:** đã đo bằng CPU profile, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b33-toc-do`. Đo bằng CPU profile: nặng nhất là vòng tìm dòng trong hàm ở `buildSlice` và `findFunctionNode` dò lại cả cây cho mỗi hàm. Sửa: lập sẵn dòng thuộc hàm, mẫu regex theo tên biến, danh sách node hàm theo file. `buildGraph`: `django/django` 5,9 → 2,9 giây, `nestjs/nest` 21,1 → 3,0, `pallets/click` 17,1 → 3,9, repo này 26,6 → 9,5, BrewLite 2,2 → 1,2. So băm `nodes`, `edges`, `groups`, `symbol_whitelist`, `file_index` trước và sau: giống hệt trên cả 5 repo, repo này so trên cùng commit.
 
 ### B-34 · Vừa · Mock API bị nhận là route Express
 
@@ -703,7 +703,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đề xuất ưu tiên bài luồng trên đường chính trước bài thuật toán. Ghi quyết định mới vào `00`, sửa ENG-114 và `nodes.ts`, đổi `ENGINE_VERSION`. Làm sau B-35 rồi đo lại, vì B-35 có thể đã giảm phần lớn lỗi này.
 - **Kiểm tra:** quét code `main`, phần lớn bài giữ lại là luồng server. Chạy thêm repo fullstack lớn mà nhóm gặp lỗi này.
 - **Ảnh hưởng demo:** chỉ khi repo demo có trên 20 bài và có giao diện.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b36-budget`. Quyết định D-88, Minh chốt 06/11/2026: sau đường chính giữ tối đa `CONFIG.VIP_FALLBACK_TOP_K` node thuật toán, chỗ còn lại cho bài API, rồi bài khác, thiếu loại nào thì loại kia lấp. Không chọn "bài luồng trước hẳn" vì xóa sạch bài thuật toán. Quét repo này: 20 bài gồm 13/13 API, 1 trang, 6 thuật toán, có lại `/api/sessions`, `/api/health`, `/api/me`. `nestjs/nest` 14 luồng, 6 thuật toán. `cal.com` 18 API, 1 thuật toán. BrewLite không đổi vì dưới 20 bài. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.8.0`.
 
 ### B-37 · Nặng · Lát cắt toàn hàm vặt, thiếu phần xử lý chính
 
@@ -821,7 +821,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   BrewLite ra `Auth Register` và `List Products` cùng dẫn tới `Create Order`, rồi tới các bài thanh toán, còn `List Healths` học riêng. Realworld ra `Create User → Create Article → Create Article Comments`. Bài tạo có thể có nhiều bài con, như `Create Article` có 9 bài con. `Auth Register` đang mất lệnh `create` do B-37, nên phải nhờ luật ở bước 3.
 - **Kiểm tra:** BrewLite ra đúng các nhóm trên, không còn `Auth Me → Login → Register`. Repo demo Java ra sơ đồ theo nghiệp vụ. Bài học riêng mở được ngay, bài có cha vẫn khóa đúng.
 - **Ảnh hưởng demo:** có, ban giám khảo thấy bản đồ ngay từ đầu.
-- **Trạng thái:** đã thử bản tạm trên 2 repo, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `graph/data-deps.ts` theo ENG-116 … ENG-119, cột Học riêng ở `layout.ts`, đọc `schema.prisma` (`prune.ts`, `fingerprint.ts`). `shop-api` ra đúng T-ENG-48. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: `Auth Register → Create Order`, hết `Auth Me → Login → Register`, `List Healths` học riêng, chạy 2 lần cùng kết quả. **Lệch T-ENG-49:** điểm bắt đầu là `Get Product`, không phải `List Products`, vì `Get Product` dễ hơn theo luật "bài dễ nhất". `Create Order Cancel`, `Update Order Status` vào nhóm `User` vì thực thể ghi đầu tiên là `User`. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.8.0`.
 
 ## Việc mới theo quy trình học mới
 
@@ -831,8 +831,8 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Hiện tượng:** bản đồ là một danh sách bài ngang hàng, không biết bài nào thuộc chức năng nào, đọc ghi dữ liệu gì.
 - **Cần sửa:** theo D-84, cùng đợt với B-39: mỗi bài có `entities`, cạnh có `via_entities`, `StaticEngineResult.groups` gom tất định. Sửa `11`, `graph/nodes.ts`, `graph/index.ts`.
-- **Kiểm tra:** `shop-api` ra 3 nhóm như `prototype.html`; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
-- **Trạng thái:** chưa làm.
+- **Kiểm tra:** `shop-api` ra 4 nhóm theo T-ENG-48; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `entities`, `group_id`, `via_entities`, `groups` vào `src/contracts/engine.ts` đúng `spec/02`, `toClientResult` trả đủ. `shop-api` ra 4 nhóm theo T-ENG-48, BrewLite có nhóm theo thực thể, chạy 2 lần cùng kết quả.
 
 ### B-41 · Nhẹ · Bước nạp repo bỏ README
 

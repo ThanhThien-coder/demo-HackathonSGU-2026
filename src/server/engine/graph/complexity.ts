@@ -36,16 +36,23 @@ function isElseIfNode(n: Node): boolean {
   return false;
 }
 
-// Tìm AST node tương ứng với định nghĩa hàm
-function findFunctionNode(root: Node, fn: SymbolDefinition): Node | null {
-  if (fn.name === "<module>") {
-    return root;
-  }
+interface FunctionNodeEntry {
+  node: Node;
+  start: number;
+  end: number;
+  next: number; // Vị trí sau toàn bộ hàm lồng của node này
+}
 
-  let bestNode: Node | null = null;
-  let minSpan = Infinity;
+const functionNodeCache = new WeakMap<object, FunctionNodeEntry[]>();
 
-  function search(n: Node): void {
+// Mọi node hàm của file theo tiền thứ tự, dò 1 lần cho mỗi cây (B-33).
+function functionNodesOf(root: Node): FunctionNodeEntry[] {
+  const key = root.tree as object;
+  const cached = functionNodeCache.get(key);
+  if (cached) return cached;
+
+  const entries: FunctionNodeEntry[] = [];
+  const visit = (n: Node): void => {
     const isFnType =
       n.type === "function_declaration" ||
       n.type === "function_expression" ||
@@ -55,32 +62,50 @@ function findFunctionNode(root: Node, fn: SymbolDefinition): Node | null {
       n.type === "method_declaration" ||
       n.type === "constructor_declaration" ||
       n.type === "compact_constructor_declaration";
-
-    if (isFnType) {
-      const endLine = n.endPosition.row + 1;
-      const startLine = n.startPosition.row + 1;
-      // Khớp chính xác dòng kết thúc
-      if (endLine === fn.line_end) {
-        bestNode = n;
-        return;
-      }
-      // Bao phủ dòng hàm
-      if (startLine <= fn.line_start && endLine >= fn.line_end) {
-        const span = endLine - startLine;
-        if (span < minSpan) {
-          minSpan = span;
-          bestNode = n;
-        }
-      }
-    }
-
+    const entry: FunctionNodeEntry | null = isFnType
+      ? { node: n, start: n.startPosition.row + 1, end: n.endPosition.row + 1, next: 0 }
+      : null;
+    if (entry) entries.push(entry);
     for (let i = 0; i < n.childCount; i++) {
       const child = n.child(i);
-      if (child) search(child);
+      if (child) visit(child);
     }
+    if (entry) entry.next = entries.length;
+  };
+  visit(root);
+  functionNodeCache.set(key, entries);
+  return entries;
+}
+
+// Tìm AST node tương ứng với định nghĩa hàm
+function findFunctionNode(root: Node, fn: SymbolDefinition): Node | null {
+  if (fn.name === "<module>") {
+    return root;
   }
 
-  search(root);
+  const entries = functionNodesOf(root);
+  let bestNode: Node | null = null;
+  let minSpan = Infinity;
+
+  for (let i = 0; i < entries.length; ) {
+    const entry = entries[i]!;
+    // Khớp chính xác dòng kết thúc: không xét hàm lồng trong node này
+    if (entry.end === fn.line_end) {
+      bestNode = entry.node;
+      i = entry.next;
+      continue;
+    }
+    // Bao phủ dòng hàm
+    if (entry.start <= fn.line_start && entry.end >= fn.line_end) {
+      const span = entry.end - entry.start;
+      if (span < minSpan) {
+        minSpan = span;
+        bestNode = entry.node;
+      }
+    }
+    i++;
+  }
+
   return bestNode ?? root;
 }
 
