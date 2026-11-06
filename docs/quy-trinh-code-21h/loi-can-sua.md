@@ -342,7 +342,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** tải manifest song song theo `SELECTIVE_FETCH_CONCURRENCY`, chỉ tải manifest trong scope và ở gốc. Xóa cảnh báo phạm vi khi lùi.
 - **Kiểm tra:** `vercel/next.js` có `selective_fetch = true`.
 - **Ảnh hưởng demo:** không, BrewLite không cần tải chọn lọc.
-- **Trạng thái:** đã chạy thật ở chế độ ẩn danh, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b32-manifest-song-song`. `selective.ts`: tải manifest theo lô song song `SELECTIVE_FETCH_CONCURRENCY`, chỉ manifest trong scope và ở gốc, nhận kết quả theo thứ tự plan nên đầu ra tất định; khi lùi về zip (ING-49) thì bỏ cảnh báo phạm vi và khôi phục số đo `skipped` đã ghi dở (trước đó cảnh báo "đang phân tích X" vẫn còn và số đo bị đếm đôi). 4 test mock GitHub trong `chon-loc-song-song.test.ts` (song song và không quá 16, chỉ manifest trong scope, tất định, cảnh báo bị xóa khi lùi). **Chưa chạy thật** `vercel/next.js`, `calcom/cal.com`: cần `GITHUB_TOKEN` mà luật nhóm không cho đọc `.env*`; người có token cần đo `selective_fetch = true` và thời gian. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-33 · Vừa · Engine rất chậm khi có nhiều route
 
