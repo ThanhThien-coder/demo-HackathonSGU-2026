@@ -23,17 +23,24 @@ async function loadAll(): Promise<void> {
     const lang = await Language.load(bytes);
     languages.set(adapter.id, lang);
 
-    if (adapter.query_file) {
-      try {
-        const scmPath = path.isAbsolute(adapter.query_file)
-          ? adapter.query_file
-          : path.join(process.cwd(), adapter.query_file);
-        const scmText = await readFile(scmPath, "utf-8");
-        const query = new Query(lang, scmText);
-        queries.set(adapter.id, query);
-      } catch {
-        // Nếu không có file scm hoặc lỗi query thì bỏ qua
-      }
+    if (!adapter.query_file) {
+      throw new Error(`Ngôn ngữ ${adapter.id} thiếu cấu hình query_file`);
+    }
+
+    const scmPath = path.isAbsolute(adapter.query_file)
+      ? adapter.query_file
+      : path.join(process.cwd(), adapter.query_file);
+
+    try {
+      const scmText = await readFile(scmPath, "utf-8");
+      const query = new Query(lang, scmText);
+      queries.set(adapter.id, query);
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Không thể nạp truy vấn cho ngôn ngữ ${adapter.id}: ${reason}`,
+        { cause: err }
+      );
     }
   }
 }
