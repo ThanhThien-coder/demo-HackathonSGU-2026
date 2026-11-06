@@ -676,6 +676,8 @@ describe("T-ING-32", () => {
         dart_package_name: null,
         package_entry_files: [],
       },
+      readme_excerpt: null,
+      manifest_description: null,
     };
 
     expect(() =>
@@ -709,6 +711,8 @@ describe("T-ING-32", () => {
         dart_package_name: null,
         package_entry_files: [],
       },
+      readme_excerpt: null,
+      manifest_description: null,
     };
 
     expect(() =>
@@ -742,6 +746,8 @@ describe("T-ING-32", () => {
         dart_package_name: null,
         package_entry_files: [],
       },
+      readme_excerpt: null,
+      manifest_description: null,
     };
 
     expect(() =>

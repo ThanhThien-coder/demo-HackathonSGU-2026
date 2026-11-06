@@ -204,7 +204,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** `https://GitHub.com/...` và `HTTPS://github.com/...` báo `ERR_INVALID_GITHUB_URL`, dù trình duyệt mở được.
 - **Nguyên nhân:** `url.ts` so chuỗi phân biệt hoa thường. Spec cũng không nói tới trường hợp này.
 - **Cần sửa:** chuẩn hóa phần scheme và host về chữ thường, giữ nguyên owner và repo.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b15-b21-hoa-thuong`. `url.ts` đưa scheme và host (`https://`, `www.`, `github.com`, `git@github.com:`) về chữ thường trước khi chuẩn hóa, giữ nguyên owner và repo; ING-11 đã có luật này. 10 ca trong `hoa-thuong.test.ts` (`https://GitHub.com/...`, `HTTPS://github.com/...`, `GITHUB.COM/...`, `git@GitHub.com:...`); host khác vẫn bị từ chối. Chạy thật `HTTPS://GitHub.com/kuuhakubee/CNPM_BrewLite` qua `runIngest`: nhận được repo. Typecheck sạch, lint 0 lỗi, 890 test qua.
 
 ### B-16 · Nhẹ · `ref_label` chứa SHA thay vì tên nhánh
 
@@ -212,7 +212,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-32 giả định link chuyển hướng của `archive/HEAD.zip` chứa tên nhánh, nhưng GitHub hiện trả commit SHA. `refs.ts` gán `ref_label = ref` nên SHA đi vào chỗ của tên nhánh.
 - **Cần sửa:** trong `resolveRef`, `ref` là SHA 40 ký tự thì đặt `ref_label = null`, giữ nguyên `ref`. Sửa ING-32 theo. Muốn hiện tên nhánh thật thì phải lấy thêm từ nguồn khác.
 - **Kiểm tra:** nạp BrewLite, thanh trên chỉ còn `@ 5da6ad1`.
-- **Trạng thái:** đã thấy trên site, chưa làm. Làm cùng D-14.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b16-ref-label`. `headZipToResolvedRef` trong `refs.ts`: `ref` là SHA 40 hex thì `ref_label = null`, giữ nguyên `ref`; tên nhánh dài 40 ký tự không phải hex vẫn là nhãn. Spec ING-32 đã có luật này. Có 2 test trong `tai.test.ts`. Chạy thật BrewLite: `ref_label = null`, `snapshot_id` bắt đầu `6cd0cf1`. `CockpitHeader.tsx` đã hiện `· @ <sha7>` khi nhãn là `null`, nên không sửa file Vai D; phần bố cục thanh trên vẫn là D-14. Typecheck sạch, lint 0 lỗi, 837 test qua. Chưa đổi `ENGINE_VERSION`.
 
 ### B-17 · Vừa · Monorepo chọn nhầm gói nhỏ rồi báo lỗi
 
@@ -250,7 +250,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** repo có `Backend/`, nhập `backend` ở "Đổi thư mục" nhận `ERR_NO_SOURCE_FILES_FOUND`.
 - **Nguyên nhân:** `detectScope` so `startsWith` phân biệt hoa thường, trong khi phần tự dò thì không.
 - **Cần sửa:** so không phân biệt hoa thường rồi dùng đúng tên thư mục thật.
-- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b15-b21-hoa-thuong`. `detectScope` so thư mục tường minh không phân biệt hoa thường, dùng tên thật trong repo (`backend` → `Backend/`); khớp đúng hoa thường thì giữ nguyên; không khớp thì vẫn `ERR_NO_SOURCE_FILES_FOUND`. 5 ca trong `hoa-thuong.test.ts`. Chạy thật `subdir_override: "APPS/API"` trên BrewLite: offset `apps/api/`. Chưa làm: `snapshot.subdir` vẫn lưu đúng chuỗi người dùng nhập (`APPS/API`), chưa đổi sang tên thật; chưa sửa spec 10 Mục 8 ý 1 (đã có luật này).
 
 ### B-22 · Vừa · Che secret bỏ sót nhiều mẫu phổ biến
 
@@ -267,14 +267,15 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Hiện tượng:** Pipfile chỉ có `[packages]` cho danh sách rỗng. Pipfile có `pytz` trước `fastapi` cũng rỗng, nên không nhận ra framework. `Cargo.toml` và `pubspec.yaml` có mục gói nằm cuối file cũng rỗng.
 - **Nguyên nhân:** `fingerprint.ts` dùng `\z` trong regex. JavaScript không có `\z`, ký hiệu này khớp chữ `z` thường, nên regex không nhận ra cuối file và dừng ở chữ `z` đầu tiên.
 - **Cần sửa:** đổi `\z` thành `$(?![\s\S])` như nhánh poetry, thêm test.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. Đổi 3 chỗ `\z` (Pipfile, pubspec, Cargo) thành `$(?![\s\S])`. Tìm thêm: regex pubspec dùng `\s*` nuốt luôn dấu thụt đầu của gói đầu tiên nên gói đầu bị mất, đã đổi thành `[ 	]*?
+`. Test trong `goi-ngon-ngu.test.ts` (Pipfile có `pytz` trước `fastapi`, Cargo, pubspec, tên gói chứa chữ `z`). Chạy thật `flutter/samples`: nhận framework Flutter, 68 gói trong `tech_stack`. Typecheck sạch, lint 0 lỗi, 876 test qua.
 
 ### B-24 · Nhẹ · Repo Vue JavaScript bị báo TypeScript
 
 - **Hiện tượng:** `gothinkster/vue-realworld-example-app` có 19 file `.vue` đều là JavaScript, nhưng `primary_language` là `TYPESCRIPT`.
 - **Nguyên nhân:** `buildFingerprint` cộng mọi `.vue`, `.svelte` vào `TYPESCRIPT`, không dùng ngôn ngữ ING-101 đã tìm được.
 - **Cần sửa:** tính phần `.vue`, `.svelte` theo `file_language` sau khi trích xuất. File không được giữ thì mới dùng giá trị mặc định.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. `buildFingerprint` nhận thêm tham số tùy chọn `fileLanguage` (từ `runIngest` và `rescopeIngest`): `.vue`, `.svelte` tính theo file ảo `.js` hoặc `.ts` của ING-101; file không được giữ thì mặc định `TYPESCRIPT`. 3 test trong `goi-ngon-ngu.test.ts`. Chạy thật `gothinkster/vue-realworld-example-app`: `primary_language` thành `JAVASCRIPT` (58 949 byte, kèm 868 byte `TYPESCRIPT` từ file `.ts`). Chưa đổi `ENGINE_VERSION`. Hàm `buildFingerprint` có thêm tham số so với chữ ký trong spec 10 Mục 12 (đã có thêm `registry` từ trước); chưa sửa spec.
 
 ### B-25 · Nhẹ · Báo nhầm tsconfig hợp lệ là hỏng
 
@@ -314,7 +315,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `callgraph.ts` lấy nguyên text receiver làm `display_name`.
 - **Cần sửa:** dựng tên gọn như `router.delete('/:userId')`.
 - **Kiểm tra:** chạy `hagopj13/node-express-boilerplate`, tên bước nằm trên 1 dòng và có path.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b29-route-name`. `callgraph.ts` thêm `resolveRouteChain`: với `R.route(path).get(a).post(b)`, mỗi động từ thành 1 binding có `path` lấy từ `route()`, `display_name` 1 dòng `router.delete('/:userId')`, nhận cả động từ chỉ có 1 đối số; cú pháp thường và `cache.get('k')` không đổi. Có 4 test trong `route-chain.test.ts`. Chạy thật `hagopj13/node-express-boilerplate`: bước route nằm 1 dòng và có path (`router.get('/:userId')`, `router.delete('/:userId')`, `router.post('/')`). Tên bài vẫn còn `Get User` và `Get User #2` (cho `GET /` và `GET /:userId`): đó là luật đặt tên của B-30, chưa sửa ở đây. `callgraph.ts` thuộc luồng Minh, cần báo để tránh xung đột. Typecheck sạch, lint 0 lỗi, test xanh. Chưa đổi `ENGINE_VERSION`.
 
 ### B-30 · Vừa · Tên bài tự sinh khó hiểu hoặc sai nghĩa
 
@@ -324,7 +325,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Lưu ý:** id node có `slug(base_title)`, đổi tên là đổi id. Phải đổi `ENGINE_VERSION`, và tiến độ của phiên cũ không dùng lại được.
 - **Kiểm tra:** cập nhật bảng T-ENG-22, tên 6 repo trên đọc được thành câu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b30-ten-bai`. `naming.ts` làm theo spec 11 Mục 13 Bậc 1 đã sửa: `ACTION_SEGMENTS` dùng thẳng (`Cancel Order`, `Login`, `Health`; bỏ `auth`), `DELETE` nhiều đoạn giữ động từ (`Delete Article Comment`), tách `-` và `_`, có tham số xen thì chèn tài nguyên (`List User Orders`). Thêm bảng T-ENG-22b trong `node.test.ts` (13 ca). Sửa 2 test cũ theo luật mới (`User Register` → `Register User`, `Create Register` → `Register`). Chạy thật: BrewLite ra `Health`, `Login`, `Register`; microblog ra `Search`, `List Reset Password Requests`, không còn `List Logins`, `List Searchs`; boilerplate ra `Create Forgot Password`. Còn lại ngoài luật đã chốt: `Get User` và `Get User #2` (GET `/` và `GET /:userId` cùng đoạn `users`, vì path `/` không có đoạn tĩnh), `List Explores`, `Order Me`. Đổi tên là đổi `id` nên phải đổi `ENGINE_VERSION` (vào mốc `1.8.0`), chưa đổi; tiến độ của phiên cũ không dùng lại được. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-31 · Vừa · Test và bản offline không theo repo demo thật
 
@@ -838,7 +839,7 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 - **Hiện tượng:** tổng quan mới (D-83) cần biết sản phẩm làm gì, nhưng bước nạp repo không giữ README hay mô tả manifest.
 - **Cần sửa:** giữ `readme_excerpt` (đã che secret, cắt theo `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description`. Sửa `10`, `src/server/engine/ingest/*`.
 - **Kiểm tra:** repo có README ra đoạn đầu; repo không có ra `null`; secret trong README bị che.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42` (tên nhánh lỡ đặt, nội dung là B-41). Theo ING-123: `pickReadmeEntry` (README ở offset, không có thì ở gốc, path nhỏ nhất, bỏ nếu quá `MAX_MANIFEST_BYTES`), `buildProjectText` (che secret rồi cắt `OVERVIEW_README_MAX_CHARS`, `manifest_description` từ `package.json`, `pyproject.toml`, `pom.xml`), nối vào `runIngest`. README giải nén riêng, không vào `code` hay `manifests`, không tính số file. Thêm 2 trường vào `IngestOutput` (`src/contracts/engine-internal.ts`, theo `spec/02` đã merge). Quét thật: BrewLite có README 2000 ký tự và mô tả `BrewLite - Backend NestJS + Prisma + PostgreSQL`; `nestjs/nest` có cả hai; Django có README, mô tả `null`. Test `mo-ta.test.ts` (T-ING-35, T-ING-36). Typecheck sạch, lint 0 lỗi, test xanh. Chưa làm: chép hai trường vào `StaticEngineResult` (`graph/index.ts`, thuộc Minh, cùng B-40); đường tải chọn lọc (`selective.ts`) trả `null` vì README nằm ngoài phần đã tải; chưa sửa `spec/10` Mục 8 vì đã có ING-123.
 
 ### D-19 · Nặng · X-Ray chưa là tour
 

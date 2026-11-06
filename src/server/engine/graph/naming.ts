@@ -48,6 +48,19 @@ const TECH_TOKENS = new Set([
 // Tên viết tắt giữ in hoa (Mục 13 ý 1 (3))
 const ACRONYMS = new Set(["id", "ui", "ai", "io", "os", "qr"]);
 
+// Đoạn cuối path là hành động, dùng thẳng làm tên (Mục 13 ý 2, lỗi B-30)
+const ACTION_SEGMENTS = new Set([
+  "cancel",
+  "login",
+  "logout",
+  "register",
+  "search",
+  "verify",
+  "refresh",
+  "reset",
+  "health",
+]);
+
 // Tên quá chung chung bị bỏ ở Bậc 2 và Bậc 3 (Mục 13 ý 3, 4)
 const GENERIC_NAMES = new Set([
   "main",
@@ -239,6 +252,32 @@ function shannonEntropy(s: string): number {
   return h;
 }
 
+/** Tách đoạn path theo `-`, `_` rồi Title Case từng từ (forgot-password => Forgot Password). */
+function routeWords(seg: string): string {
+  return seg
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => titleCaseToken(w))
+    .join(" ");
+}
+
+/** Số ít của đoạn path: chỉ đổi từ cuối (reset_password_requests => Reset Password Request). */
+function routeSingular(seg: string): string {
+  const words = seg.split(/[-_]+/).filter(Boolean);
+  if (words.length === 0) return "";
+  words[words.length - 1] = toSingular(words[words.length - 1]!);
+  return words.map((w) => titleCaseToken(w)).join(" ");
+}
+
+/** Số nhiều của đoạn path cho tên "List ...": đã là số nhiều thì giữ, chưa thì thêm s. */
+function routePlural(seg: string): string {
+  const words = seg.split(/[-_]+/).filter(Boolean);
+  if (words.length === 0) return "";
+  const lastWord = words[words.length - 1]!;
+  if (toSingular(lastWord) === lastWord) words[words.length - 1] = `${lastWord}s`;
+  return words.map((w) => titleCaseToken(w)).join(" ");
+}
+
 /**
  * Bậc 1: ROUTE (cần binding).
  */
@@ -287,75 +326,61 @@ function tryNameFromRoute(
 
   if (binding.kind !== "HTTP") return null;
 
-  // HTTP route naming
+  // HTTP route naming (Mục 13 ý 2, lỗi B-30)
   const method = (binding.method ?? "GET").toUpperCase();
   const S = staticSegments;
   if (S.length === 0) return null;
 
-  const hasParamAtEnd = segments.length > 0 && /^[:{[<]/.test(segments[segments.length - 1] ?? "");
-  const hasParamBetweenLastTwo =
-    S.length >= 2 &&
-    rawPath.indexOf(S[S.length - 2]!) < rawPath.lastIndexOf(":") &&
-    rawPath.lastIndexOf(":") < rawPath.indexOf(S[S.length - 1]!);
+  const isParam = (seg: string): boolean => /^[:{[<]/.test(seg);
+  const hasParamAtEnd = segments.length > 0 && isParam(segments[segments.length - 1] ?? "");
 
+  // Có tham số nằm giữa hai đoạn tĩnh cuối (ví dụ /users/:id/orders)
+  let paramBetween = false;
   if (S.length >= 2) {
-    const s2 = S[S.length - 2]!;
-    const s1 = S[S.length - 1]!;
-    const singularS2 = toSingular(titleCaseToken(s2));
-
-    if (hasParamBetweenLastTwo) {
-      // Có tham số xen (ví dụ /users/:id/orders)
-      let verbWord = "List";
-      if (method === "POST") verbWord = "Create";
-      else if (method === "PUT" || method === "PATCH") verbWord = "Update";
-      else if (method === "DELETE") verbWord = "Delete";
-      else if (method === "GET" && hasParamAtEnd) verbWord = "Get";
-
-      const title = `${verbWord} ${singularS2} ${titleCaseToken(s1)}`;
-      return {
-        base_title: title,
-        title_source: "ROUTE",
-        title_evidence: evidence,
-      };
-    }
-
-    // Hai đoạn cuối liền nhau (ví dụ /orders/checkout => Order Checkout)
-    const title = `${singularS2} ${titleCaseToken(s1)}`;
-    return {
-      base_title: title,
-      title_source: "ROUTE",
-      title_evidence: evidence,
-    };
+    const lastIdx = segments.lastIndexOf(S[S.length - 1]!);
+    const prevIdx = segments.lastIndexOf(S[S.length - 2]!, lastIdx - 1);
+    paramBetween = prevIdx >= 0 && segments.slice(prevIdx + 1, lastIdx).some(isParam);
   }
 
-  // S.length === 1
-  const x = S[0]!;
-  const singularX = toSingular(titleCaseToken(x));
-
-  let verbWord = "";
-  if (method === "POST") {
-    verbWord = `Create ${singularX}`;
-  } else if (method === "GET") {
-    if (hasParamAtEnd) {
-      verbWord = `Get ${singularX}`;
-    } else {
-      // Không có tham số cuối => List Orders
-      const pluralX = toSingular(x) === x ? `${x}s` : x;
-      verbWord = `List ${titleCaseToken(pluralX)}`;
-    }
-  } else if (method === "PUT" || method === "PATCH") {
-    verbWord = `Update ${singularX}`;
-  } else if (method === "DELETE") {
-    verbWord = `Delete ${singularX}`;
-  } else {
-    verbWord = `${method} ${singularX}`;
-  }
-
-  return {
-    base_title: verbWord,
-    title_source: "ROUTE",
+  const result = (base_title: string) => ({
+    base_title,
+    title_source: "ROUTE" as NodeTitleSource,
     title_evidence: evidence,
-  };
+  });
+
+  const last = S[S.length - 1]!;
+  const prev = S.length >= 2 ? S[S.length - 2]! : null;
+
+  // Đoạn cuối là hành động: dùng thẳng, kèm tài nguyên đứng trước (trừ auth)
+  if (ACTION_SEGMENTS.has(last.toLowerCase())) {
+    const action = routeWords(last);
+    return result(
+      prev && prev.toLowerCase() !== "auth" ? `${action} ${routeSingular(prev)}` : action
+    );
+  }
+
+  if (method === "DELETE" && prev) {
+    return result(`Delete ${routeSingular(prev)} ${routeSingular(last)}`);
+  }
+
+  if (prev && !paramBetween) {
+    // Hai đoạn cuối liền nhau (ví dụ /orders/checkout => Order Checkout)
+    return result(`${routeSingular(prev)} ${routeWords(last)}`);
+  }
+
+  // Một đoạn (S[-1]); có tham số xen thì chèn Singular(S[-2]) sau động từ
+  const owner = prev ? `${routeSingular(prev)} ` : "";
+  if (method === "POST") return result(`Create ${owner}${routeSingular(last)}`);
+  if (method === "GET") {
+    return result(
+      hasParamAtEnd
+        ? `Get ${owner}${routeSingular(last)}`
+        : `List ${owner}${routePlural(last)}`
+    );
+  }
+  if (method === "PUT" || method === "PATCH") return result(`Update ${owner}${routeSingular(last)}`);
+  if (method === "DELETE") return result(`Delete ${routeSingular(last)}`);
+  return result(`${method} ${owner}${routeSingular(last)}`);
 }
 
 /**

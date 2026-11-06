@@ -37,7 +37,7 @@ it("ENG-40: cả 3 repo ra đúng tên, middleware và bước DATA_ACCESS", asy
   expect(steps(fa.nodes[0]!)).toEqual(["ENTRY_POINT:@router.post('/')", "MIDDLEWARE:get_db", "DATA_ACCESS:create_item"]);
   // Không so rỗng: warning vượt CONFIG.ENGINE_BUDGET_MS (ENG-02) có thể xuất hiện khi máy/CI tải nặng.
   expect(fa.ingestion_report.warnings.filter((w) => w.includes("cụm phụ thuộc vòng"))).toEqual([]);
-  expect(fl.nodes.map((n) => n.title)).toEqual(["User Register"]);
+  expect(fl.nodes.map((n) => n.title)).toEqual(["Register User"]);
   expect(steps(fl.nodes[0]!)).toEqual(["ENTRY_POINT:@bp.route('/register')", "MIDDLEWARE:login_required", "DATA_ACCESS:save_user"]);
   expect(ne.nodes.map((n) => n.title)).toEqual(["Order Checkout"]);
   expect(steps(ne.nodes[0]!)).toEqual(["ENTRY_POINT:@Post('/orders/checkout')", "MIDDLEWARE:AuthGuard.canActivate", "DATA_ACCESS:OrdersService.checkout"]);

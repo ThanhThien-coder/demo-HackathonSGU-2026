@@ -99,7 +99,9 @@ export function headZipToResolvedRef(
   const match = location?.match(CODELOAD_ZIP_REGEX);
   if (location && match) {
     const ref = match[1];
-    return { download_url: location, ref, ref_label: ref };
+    // GitHub có thể trả commit SHA thay vì tên nhánh: không dùng làm nhãn (lỗi B-16, ING-32)
+    const ref_label = /^[0-9a-f]{40}$/i.test(ref) ? null : ref;
+    return { download_url: location, ref, ref_label };
   }
   return { download_url: headZipUrl, ref: null, ref_label: null };
 }
