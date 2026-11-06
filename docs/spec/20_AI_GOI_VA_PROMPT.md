@@ -173,9 +173,11 @@ export async function analyzeNode(session: SessionRow, graph: StaticEngineResult
   for (let i = 0; i <= CONFIG.LLM_MAX_RETRIES; i++) {
     const r = await callLLMOnce(withGuardFeedback(analyzeRequest(session, graph, node), issues));  // AI-16, AI-17, AI-37
     issues = [];  // lỗi mạng, JSON hỏng ⇒ request sau không có lý do
+    const stats = {} as WeakPointStats;
     if (r.ok) {
-      const g = checkAnalysis(r.value, node, graph, issues);  // 21 GUARD-10
+      const g = checkAnalysis(r.value, node, graph, issues, stats);  // 21 GUARD-10
       if (!g || g.skeleton_only) logGuardBlock("analyze", i + 1, node.id, issues);  // 21 GUARD-22
+      else if (stats.kept < stats.raw) logWeakPointsFiltered(i + 1, node.id, stats);  // C-09
       best = better(best, g);
     }
     if ((best && !best.skeleton_only) || (!r.ok && r.kind === "FATAL")) break;
@@ -183,6 +185,8 @@ export async function analyzeNode(session: SessionRow, graph: StaticEngineResult
   return best;   // null ⇒ analysis_failed (D-03 #20); skeleton_only ⇒ vẫn cache
 }                // better: đầy đủ > skeleton_only > null; bằng nhau ⇒ giữ bản đến trước
 ```
+
+`checkAnalysis` nhận thêm `stats` (nội bộ): số điểm dở trước và sau cổng gác, số bị lọc theo lý do (`bad_step`, `skill_not_chosen`, `symbol_not_in_step`, `over_limit`), số điểm hay trước và sau. Bản phân tích đạt mà có điểm dở bị lọc ⇒ 1 dòng log `weak_points_filtered` chỉ có các số này, không có tên, bước, văn bản AI (lỗi C-09).
 
 ### Prompt phân tích (AI-16)
 
@@ -201,11 +205,11 @@ LUẬT VIẾT
 - Chỉ nhắc tên có trong <code_data>, <dto_data> hoặc tên file trong <repo_info>; không bịa tên. Không nhắc công nghệ trong <forbidden_tech>. Không viết số dòng.
 
 VIỆC CẦN LÀM
-1. skills: {{MIN}}–{{MAX}} kỹ năng trong <skill_catalogue> mà code THỂ HIỆN RÕ NHẤT, quan trọng nhất trước, không lặp. step = số bước chứa bằng chứng; symbol = MỘT tên (hàm, biến, thuộc tính) xuất hiện nguyên văn trong code của ĐÚNG bước đó; reason = 1 câu: code ở đó làm gì để thể hiện kỹ năng.
+1. skills: {{MIN}}–{{MAX}} kỹ năng trong <skill_catalogue>: PHẢI gồm kỹ năng của mọi điểm dở đã viết ở weak_points, rồi thêm kỹ năng code THỂ HIỆN RÕ NHẤT cho đủ, quan trọng nhất trước, không lặp. step = số bước chứa bằng chứng; symbol = MỘT tên (hàm, biến, thuộc tính) xuất hiện nguyên văn trong code của ĐÚNG bước đó; reason = 1 câu: code ở đó làm gì để thể hiện kỹ năng.
 2. architecture: patterns = 1–{{MAX_PATTERNS}} mã trong <pattern_catalogue>, mẫu chính trước, không chắc thì "OTHER"; summary = tối đa 2 câu: các bước chia việc ra sao.
 3. steps: ĐÚNG 1 mục cho MỖI bước trong <code_data>, theo thứ tự; text = 1–2 câu: bước đó nhận gì, làm gì, chuyển gì cho bước sau.
 4. strengths: điểm hay có thật của thiết kế, mỗi bước tối đa 1; không có thì mảng rỗng.
-5. weak_points: điểm dở có thật (hiệu năng, bảo mật, toàn vẹn dữ liệu, xử lý lỗi…), tối đa {{WP_MAX}} điểm mỗi kỹ năng; skill phải là kỹ năng đã chọn ở mục 1; step, symbol theo luật mục 1; what = 1 câu: cái gì chưa ổn, ở đâu; consequence = 1 câu: hậu quả chung. Không chắc thì mảng rỗng — không bịa lỗi cho có.
+5. weak_points: soát lần lượt 4 mặt: hiệu năng (VD truy vấn database trong vòng lặp, tải hết dữ liệu không giới hạn), bảo mật (VD thiếu kiểm quyền, nhận dữ liệu vào không kiểm tra), toàn vẹn dữ liệu (VD ghi nhiều chỗ không có transaction), xử lý lỗi (VD bỏ qua lỗi, không kiểm giá trị rỗng). Mặt nào có bằng chứng ngay trong code thì nêu; soát hết 4 mặt mà không thấy thì mảng rỗng; không nêu lỗi không có trong code. Tối đa {{WP_MAX}} điểm mỗi kỹ năng; viết weak_points TRƯỚC skills; skill của điểm dở phải có mặt trong skills ở mục 1; step, symbol theo luật mục 1; what = 1 câu: cái gì chưa ổn, ở đâu; consequence = 1 câu: hậu quả chung.
 6. strengths và weak_points KHÔNG viết cách sửa, con số theo tình huống (VD "200 sản phẩm thì 201 truy vấn"), tình huống biên cụ thể — những thứ đó dành cho câu hỏi.
 ```
 
@@ -250,11 +254,11 @@ const arr = (items: Schema, min?: number, max?: number): Schema => ({ type: Type
   ...(min !== undefined && { minItems: String(min) }), ...(max !== undefined && { maxItems: String(max) }) });
 const LAYERS: readonly ArchitecturalLayer[] = ["ENTRY_POINT","MIDDLEWARE","BUSINESS_LOGIC","DATA_ACCESS","ALGO_SETUP","ALGO_EXECUTION","ALGO_TERMINATION"]; // nội bộ
 
-export const ANALYZE_SCHEMA = obj({                                // = NodeAnalysisRaw
+export const ANALYZE_SCHEMA = obj({                                // = NodeAnalysisRaw; thứ tự = propertyOrdering
+  weak_points: arr(obj({ skill: en(SWE_SKILLS), step: I, symbol: S, what: S, consequence: S })),  // viết trước skills (C-09)
   skills: arr(obj({ skill: en(SWE_SKILLS), step: I, symbol: S, reason: S }), CONFIG.ANALYSIS_MIN_SKILLS, CONFIG.ANALYSIS_MAX_SKILLS),
   architecture: obj({ patterns: arr(en(ARCHITECTURE_PATTERNS), 1, CONFIG.ANALYSIS_MAX_PATTERNS), summary: S }),
   steps: arr(obj({ step: I, text: S })), strengths: arr(obj({ step: I, text: S })),
-  weak_points: arr(obj({ skill: en(SWE_SKILLS), step: I, symbol: S, what: S, consequence: S })),
 });
 ```
 

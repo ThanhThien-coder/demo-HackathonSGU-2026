@@ -20,6 +20,7 @@ vi.mock("../gemini", async (importOriginal) => {
 
 vi.mock("../guard/log", () => ({
   logGuardBlock: vi.fn(),
+  logWeakPointsFiltered: vi.fn(),
 }));
 
 vi.mock("@/server/quota", () => ({
@@ -35,7 +36,7 @@ import {
 } from "../analyze";
 import { callLLMOnce, retryDelay } from "../gemini";
 import { checkAnalysis } from "../guard/analysis";
-import { logGuardBlock } from "../guard/log";
+import { logGuardBlock, logWeakPointsFiltered } from "../guard/log";
 import {
   ANALYZE_SCHEMA,
   analyzeRequest,
@@ -438,6 +439,42 @@ describe("analyzeNode (C06 / AI-15, AI-18, AI-37)", () => {
     const parsed = req.parse(rawN3);
     expect(parsed).not.toBeNull();
     expect(parsed?.skills.length).toBe(rawN3.skills.length);
+  });
+
+  it("C-09: điểm dở bị cổng gác lọc mà bản phân tích vẫn đạt ⇒ logWeakPointsFiltered 1 lần, có số theo lý do", async () => {
+    vi.mocked(callLLMOnce).mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...rawN3,
+        weak_points: [
+          ...rawN3.weak_points,
+          { skill: "ERROR_HANDLING", step: 2, symbol: "findById", what: "x", consequence: "y" },
+        ],
+      },
+      tokens_in: 10,
+      tokens_out: 5,
+    });
+
+    const result = await analyzeNode(session, graph, nodeN3);
+    expect(result?.skeleton_only).toBe(false);
+    expect(logWeakPointsFiltered).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(logWeakPointsFiltered).mock.calls[0][0]).toBe(1);
+    expect(vi.mocked(logWeakPointsFiltered).mock.calls[0][1]).toBe(nodeN3.id);
+    expect(vi.mocked(logWeakPointsFiltered).mock.calls[0][2]).toMatchObject({ raw: 2, kept: 1, skill_not_chosen: 1 });
+  });
+
+  it("C-09: không điểm dở nào bị lọc ⇒ không ghi log weak_points_filtered", async () => {
+    vi.mocked(callLLMOnce).mockResolvedValueOnce({ ok: true, value: rawN3, tokens_in: 10, tokens_out: 5 });
+    await analyzeNode(session, graph, nodeN3);
+    expect(logWeakPointsFiltered).not.toHaveBeenCalled();
+  });
+
+  it("C-06: prompt bắt soát 4 mặt trước khi kết luận không có điểm dở, bỏ câu 'Không chắc thì mảng rỗng'", () => {
+    const req = analyzeRequest(session, graph, nodeN3);
+    expect(req.system).toContain("soát lần lượt 4 mặt");
+    expect(req.system).toContain("PHẢI gồm kỹ năng của mọi điểm dở");
+    expect(ANALYZE_SCHEMA.propertyOrdering?.[0]).toBe("weak_points");
+    expect(req.system).not.toContain("Không chắc thì mảng rỗng");
   });
 
   it("ANALYZE_SCHEMA có type OBJECT và chứa đủ properties", () => {

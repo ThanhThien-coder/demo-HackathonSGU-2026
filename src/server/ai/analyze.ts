@@ -10,8 +10,8 @@ import {
 } from "@/contracts";
 import { checkTokenQuota } from "@/server/quota";
 import { callLLMOnce, retryDelay } from "./gemini";
-import { checkAnalysis } from "./guard/analysis";
-import { logGuardBlock } from "./guard/log";
+import { checkAnalysis, type WeakPointStats } from "./guard/analysis";
+import { logGuardBlock, logWeakPointsFiltered } from "./guard/log";
 import { norm } from "./guard/text";
 import { analyzeRequest } from "./prompts/analyze";
 import { withGuardFeedback } from "./prompts/common";
@@ -71,9 +71,12 @@ export async function analyzeNode(
     issues = []; // reset sau mỗi request
 
     if (r.ok) {
-      const g = checkAnalysis(r.value, node, graph, issues);
+      const stats = {} as WeakPointStats;
+      const g = checkAnalysis(r.value, node, graph, issues, stats);
       if (!g || g.skeleton_only) {
         logGuardBlock("analyze", i + 1, node.id, issues);
+      } else if (stats.kept < stats.raw) {
+        logWeakPointsFiltered(i + 1, node.id, stats); // C-06, C-09
       }
       best = better(best, g);
     }

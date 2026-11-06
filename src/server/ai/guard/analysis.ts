@@ -22,11 +22,24 @@ import { invalidLineRefs, stepLines, symbolInStep } from "./lines";
 import { checkNames, nodeScope } from "./names";
 import { nodeCodeText } from "./text";
 
+/** Số điểm dở, điểm hay trước và sau cổng gác, theo lý do lọc (lỗi C-06, C-09). Chỉ có số, không có tên. // nội bộ */
+export interface WeakPointStats {
+  raw: number;
+  kept: number;
+  bad_step: number;
+  skill_not_chosen: number;
+  symbol_not_in_step: number;
+  over_limit: number;
+  strengths_raw: number;
+  strengths_kept: number;
+}
+
 export function checkAnalysis(
   raw: NodeAnalysisRaw,
   node: HybridArchitecturalNode,
   graph: StaticEngineResult,
-  issues: GuardIssue[] = []
+  issues: GuardIssue[] = [],
+  stats?: WeakPointStats
 ): NodeAnalysis | null {
   const n = node.trace_steps.length;
   const st = (k: number) =>
@@ -69,6 +82,7 @@ export function checkAnalysis(
 
   // A3: Kiểm tra điểm dở
   const weak: AnalysisWeakPoint[] = [];
+  const ws = { bad_step: 0, skill_not_chosen: 0, symbol_not_in_step: 0, over_limit: 0 };
   for (const w of raw.weak_points) {
     const step = st(w.step);
     if (
@@ -76,6 +90,9 @@ export function checkAnalysis(
       !skills.some((k) => k.skill === w.skill) ||
       !symbolInStep(w.symbol, step)
     ) {
+      if (!step) ws.bad_step++;
+      else if (!skills.some((k) => k.skill === w.skill)) ws.skill_not_chosen++;
+      else ws.symbol_not_in_step++;
       issues.push({
         code: "A3",
         step: step ? w.step : undefined,
@@ -86,6 +103,8 @@ export function checkAnalysis(
       CONFIG.WEAK_POINTS_PER_SKILL_MAX
     ) {
       weak.push(w);
+    } else {
+      ws.over_limit++;
     }
   }
 
@@ -130,6 +149,15 @@ export function checkAnalysis(
   issues.push(...a6);
   const textOk = stepsOk && a6.length === 0;
   if (!textOk) issues.push({ code: "A7" });
+
+  if (stats) {
+    Object.assign(stats, ws, {
+      raw: raw.weak_points.length,
+      kept: textOk ? weak.length : 0,
+      strengths_raw: raw.strengths.length,
+      strengths_kept: textOk ? strengths.length : 0,
+    });
+  }
 
   return textOk
     ? {

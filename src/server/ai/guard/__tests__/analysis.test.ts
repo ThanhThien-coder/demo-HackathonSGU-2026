@@ -15,7 +15,7 @@ import {
   type StaticEngineResult,
 } from "@/contracts";
 import { logGuardBlocked } from "@/server/log";
-import { checkAnalysis } from "../analysis";
+import { checkAnalysis, type WeakPointStats } from "../analysis";
 import { logGuardBlock } from "../log";
 
 vi.mock("@/server/log", () => ({
@@ -200,6 +200,35 @@ describe("checkAnalysis (GUARD-10 & GUARD-22)", () => {
     // Entry không có khóa name, step:
     expect("name" in entry).toBe(false);
     expect("step" in entry).toBe(false);
+  });
+
+  it("C-09 thống kê lọc điểm dở: đếm đúng theo từng lý do, kept chỉ tính điểm được giữ", () => {
+    const db = raw.weak_points[0];
+    const raw2: NodeAnalysisRaw = {
+      ...raw,
+      weak_points: [
+        db,
+        { skill: "AUTH_SECURITY", step: 3, symbol: "verifyToken", what: "x", consequence: "y" },
+        { ...db, step: 99 },
+        { ...db, symbol: "khongCoTrongCode" },
+        { ...db },
+      ],
+    };
+    const stats = {} as WeakPointStats;
+    const result = checkAnalysis(raw2, node, graph, [], stats);
+
+    expect(result?.skeleton_only).toBe(false);
+    expect(result?.weak_points).toHaveLength(1);
+    expect(stats).toEqual({
+      raw: 5,
+      kept: 1,
+      bad_step: 1,
+      skill_not_chosen: 1,
+      symbol_not_in_step: 1,
+      over_limit: 1,
+      strengths_raw: raw.strengths.length,
+      strengths_kept: raw.strengths.length,
+    });
   });
 
   it("Thêm: gọi checkAnalysis không truyền issues cho ra kết quả toEqual khi truyền []", () => {

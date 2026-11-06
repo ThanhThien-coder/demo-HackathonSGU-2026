@@ -505,7 +505,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** nghi chủ yếu do prompt hoặc model (bản thô chưa qua gác cũng gần như luôn rỗng); chưa loại trừ cổng gác chặn bớt, cần ghi lý do chặn để biết. Prompt `analyze-node` có câu "Không chắc thì mảng rỗng — không bịa lỗi cho có", nghi model nhỏ hiểu quá chặt.
 - **Cần sửa:** chạy thêm 1–2 repo khác. Nếu vẫn rỗng thì sửa prompt `analyze-node` và đổi `PROMPT_VERSION`.
 - **Kiểm tra:** repo demo có ít nhất 1 bài có điểm dở hợp lý, qua duyệt tay.
-- **Trạng thái:** cần xác minh.
+- **Trạng thái:** chờ kiểm. Nguyên nhân đo được: schema viết `skills` trước `weak_points`, model chọn đủ 3 kỹ năng rồi gắn điểm dở vào kỹ năng chưa chọn nên A3 lọc (log `weak_points_filtered`, lý do `skill_not_chosen`). Đã sửa prompt và thứ tự schema, không nới A3. Đo `realworld` 12 bài, mỗi cách 1 lần: trước 0/12 bài có điểm dở sau cổng gác, sau 2/12, cả 2 hợp lý qua duyệt tay. **Chưa đo trên repo demo** (Q-03 chưa chốt), mới đo 1 lần nên chưa kết luận chắc. `PROMPT_VERSION` code đổi `1.0.0` ⇒ `1.1.0` cho khớp `02`, để cache phân tích cũ hết hiệu lực. Ca ghi ở `review/loi_da_gap.md`.
 
 ---
 
@@ -778,7 +778,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   
   Không ép số điểm dở tối thiểu, vì AI sẽ bịa lỗi.
 - **Kiểm tra:** chạy AI thật trên repo demo, có số liệu bản thô và bản sau cổng gác. Bài có lỗi thật, ví dụ truy vấn trong vòng lặp, phải có điểm dở hợp lý qua duyệt tay.
-- **Trạng thái:** cần xác minh.
+- **Trạng thái:** chờ kiểm, làm cùng C-06 (xem trạng thái C-06).
 
 ### B-38 · Nặng · Mở hỗ trợ Java để demo bằng repo Java
 
