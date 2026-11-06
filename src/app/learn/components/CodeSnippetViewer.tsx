@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   FileCode,
@@ -111,10 +111,15 @@ export function CodeSnippetViewer({
   if (dtoOpenAt !== null && dtoOpenAt !== dtoKey) setDtoOpenAt(null);
   // Tô dòng hoặc gợi ý đến từ ngoài khung mà vẫn cùng bước: phải về code thì mới thấy.
   const hl = useWorkbenchStore((s) => s.ui.hl);
-  const [seenPointer, setSeenPointer] = useState({ hl, step: highlightedStep });
-  if (seenPointer.hl !== hl || seenPointer.step !== highlightedStep) {
-    setSeenPointer({ hl, step: highlightedStep });
-    if (hl.length > 0 || highlightedStep === currentStepNum) setDtoOpenAt(null);
+  const returnQuestion = useWorkbenchStore((s) => s.ui.return_question);
+  const [seenPointer, setSeenPointer] = useState({ hl, step: highlightedStep, returnQuestion });
+  if (
+    seenPointer.hl !== hl ||
+    seenPointer.step !== highlightedStep ||
+    seenPointer.returnQuestion !== returnQuestion
+  ) {
+    setSeenPointer({ hl, step: highlightedStep, returnQuestion });
+    if (hl.length > 0 || highlightedStep === currentStepNum || returnQuestion) setDtoOpenAt(null);
   }
   const showDto = hasDto && dtoOpenAt === dtoKey;
   const gapAbove = showDto ? null : stepGapAbove(currentStep);
@@ -123,6 +128,20 @@ export function CodeSnippetViewer({
   const handleSelectStep = (step: number) => {
     setDtoOpenAt(null);
     onSelectStep?.(step);
+  };
+
+  // Màn hẹp xếp cột dọc nên băng có thể nằm ngoài màn hình: đưa vào tầm nhìn khi vừa mở bước.
+  const returnBannerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (returnQuestion) {
+      returnBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [returnQuestion]);
+
+  // UI-32b: về đúng câu đang làm, nháp nằm trong store nên vẫn còn.
+  const handleBackToQuestion = () => {
+    useWorkbenchStore.getState().setActiveTab("FEYNMAN");
+    document.getElementById("feynman-explanation")?.focus();
   };
 
   const handleCopy = async () => {
@@ -476,6 +495,23 @@ export function CodeSnippetViewer({
           </div>
         )}
       </div>
+
+      {/* Băng UI-32b: đang xem lại tour theo gợi ý của câu hỏi */}
+      {returnQuestion && (
+        <div
+          ref={returnBannerRef}
+          className="flex items-center justify-between gap-2.5 flex-wrap px-4 py-2 bg-[#f5f3ff] border-b border-[#ddd6fe] text-xs text-[#5b21b6] font-medium"
+        >
+          <span>Bạn đang xem lại theo gợi ý.</span>
+          <button
+            type="button"
+            onClick={handleBackToQuestion}
+            className="font-bold text-[11px] text-[#6d28d9] bg-white hover:bg-[#ede9fe] border border-[#c4b5fd] px-2.5 py-1 rounded-[6px] transition-colors cursor-pointer"
+          >
+            Quay lại câu hỏi
+          </button>
+        </div>
+      )}
 
       {/* XRayPanel (UI-33, Mục 6.1) - Chứa banner Điểm dở và toàn bộ khối X-Ray */}
       {analysis && (

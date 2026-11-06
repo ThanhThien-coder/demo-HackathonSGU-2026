@@ -16,6 +16,8 @@ import type { EvaluateFeynmanResponse } from "@/contracts";
 import { CONFIG } from "@/contracts/config";
 import { tierOf } from "@/lib/bkt-engine";
 import { isOfflineMode } from "@/lib/offline";
+import { followUpStep } from "./question-list";
+import { AiText } from "./XRayPanel";
 
 interface SubmitEvaluationDialogProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ interface SubmitEvaluationDialogProps {
   onNextQuestion?: () => void;
   hasNextQuestion?: boolean;
   onOpenReportWrong?: () => void;
+  onOpenHintStep?: (step: number) => void;
 }
 
 export function SubmitEvaluationDialog({
@@ -35,8 +38,11 @@ export function SubmitEvaluationDialog({
   onNextQuestion,
   hasNextQuestion = false,
   onOpenReportWrong,
+  onOpenHintStep,
 }: SubmitEvaluationDialogProps) {
   if (!evaluation) return null;
+
+  const hintStep = followUpStep(evaluation.follow_up);
 
   const isPassed = evaluation.is_passed;
   const accuracyPercent = Math.round(evaluation.core_accuracy);
@@ -213,14 +219,17 @@ export function SubmitEvaluationDialog({
                 <span>Gợi ý</span>
               </div>
               <p className="text-[#5b21b6] leading-relaxed pl-5 font-medium">
-                {evaluation.follow_up.question}
+                <AiText text={evaluation.follow_up.question} />
               </p>
-              {evaluation.follow_up.type === "CODE_POINTER" &&
-                evaluation.follow_up.step_index !== null && (
-                  <span className="text-[11px] font-bold text-[#7c3aed] pl-5">
-                    Xem bước {evaluation.follow_up.step_index}
-                  </span>
-                )}
+              {hintStep !== null && (
+                <button
+                  type="button"
+                  onClick={() => onOpenHintStep?.(hintStep)}
+                  className="ml-5 self-start text-[11px] font-bold text-[#6d28d9] bg-white hover:bg-[#ede9fe] border border-[#c4b5fd] px-2.5 py-1 rounded-[6px] transition-colors cursor-pointer"
+                >
+                  Mở Bước {hintStep} trong tour
+                </button>
+              )}
             </div>
           )}
 
@@ -275,7 +284,7 @@ export function SubmitEvaluationDialog({
                 <span>Câu tiếp theo</span>
                 <ArrowRight className="size-3.5" />
               </button>
-            ) : (
+            ) : evaluation.question?.finished ? (
               <Link
                 href="/report"
                 className="w-full sm:w-auto px-5 py-2.5 rounded-[10px] text-xs font-bold text-white bg-[#8b4600] hover:bg-[#944b00] drop-shadow-[0px_4px_5px_rgba(139,70,0,0.3)] flex items-center justify-center gap-1.5 transition-all"
@@ -283,7 +292,7 @@ export function SubmitEvaluationDialog({
                 <span>Xem Báo Cáo Phiên Học</span>
                 <ArrowRight className="size-3.5" />
               </Link>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

@@ -11,8 +11,10 @@ import {
   Sparkles,
   RefreshCw,
   Clock,
+  Lightbulb,
 } from "lucide-react";
 import type {
+  FollowUp,
   QuestionView,
   QuestionState,
   QuestionFocus,
@@ -26,6 +28,12 @@ import { isOfflineMode } from "@/lib/offline";
 import { tierOf } from "@/lib/bkt-engine";
 import { AiText } from "./XRayPanel";
 import { RunSummary } from "./RunSummary";
+import {
+  canOpenQuestion,
+  followUpStep,
+  questionPosition,
+  visibleQuestions,
+} from "./question-list";
 import characterWalkingAnimation from "../../../../public/assets/character-walking.json";
 
 const Lottie = dynamic(() => import("lottie-react").then((mod) => mod.Lottie), {
@@ -33,19 +41,13 @@ const Lottie = dynamic(() => import("lottie-react").then((mod) => mod.Lottie), {
 });
 
 export const QUESTION_FOCUS_LABELS: Record<QuestionFocus, string> = {
-  FLOW: "Luồng",
+  FLOW: "Luồng xử lý",
   ARCHITECTURE: "Kiến trúc",
-  WEAKNESS: "Điểm dở",
+  WEAKNESS: "Điểm yếu",
   CHANGE: "Thay đổi",
 };
 
 function getQuestionStatusBadge(q: QuestionView, isCurrent: boolean) {
-  if (q.state?.ended_by === "DROPPED") {
-    return {
-      text: "⊘ AI không đặt được câu này — không tính",
-      className: "text-[#64748b] bg-gray-100 border-gray-200",
-    };
-  }
   if (q.state?.disputed) {
     return {
       text: "🚩 Đã báo sai",
@@ -79,7 +81,6 @@ function getQuestionStatusBadge(q: QuestionView, isCurrent: boolean) {
 interface FeynmanQuestionSectionProps {
   question?: QuestionView | null;
   questionIndex?: number;
-  totalQuestions?: number;
   questions?: QuestionView[];
   onSelectQuestion?: (index: number) => void;
   isLoadingQuestion?: boolean;
@@ -103,12 +104,13 @@ interface FeynmanQuestionSectionProps {
   nodeState?: NodeStateView | null;
   unlockedNodeIds?: string[];
   onRetrySubmit?: () => void;
+  followUp?: FollowUp | null;
+  onOpenHintStep?: (step: number) => void;
 }
 
 export function FeynmanQuestionSection({
   question,
   questionIndex = 1,
-  totalQuestions = 1,
   questions = [],
   onSelectQuestion,
   isLoadingQuestion = false,
@@ -132,6 +134,8 @@ export function FeynmanQuestionSection({
   nodeState = null,
   unlockedNodeIds = [],
   onRetrySubmit,
+  followUp = null,
+  onOpenHintStep,
 }: FeynmanQuestionSectionProps) {
   const [answer, setAnswer] = useState("");
   const [clientError, setClientError] = useState<string | null>(null);
@@ -141,6 +145,9 @@ export function FeynmanQuestionSection({
 
   const currentQIdx = question?.question_index ?? questionIndex;
   const isQuestionDropped = question?.state?.ended_by === "DROPPED";
+  const shownQuestions = visibleQuestions(questions);
+  const position = questionPosition(questions, currentQIdx);
+  const hintStep = followUpStep(followUp);
 
   // Restore draft when switching question index
   useEffect(() => {
@@ -285,7 +292,7 @@ export function FeynmanQuestionSection({
               {/* Question metadata badge */}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-[11px] font-bold bg-[#ffedd4] text-[#944b00] px-2.5 py-0.5 rounded-full border border-[#ff9640]/30">
-                  Câu hỏi {currentQIdx}/{totalQuestions}
+                  Câu {position.k}/{position.n}
                 </span>
 
                 {question?.skill && (
@@ -332,46 +339,46 @@ export function FeynmanQuestionSection({
           </div>
 
           {/* Danh sách câu hỏi theo Mục 6.2 */}
-          {questions && questions.length > 0 && (
+          {shownQuestions.length > 0 && (
             <div className="flex flex-col gap-2 p-3 bg-[#faf8ff] rounded-xl border border-[#eaedff]">
               <span className="text-[11px] font-bold text-[#554337] uppercase tracking-wider">
-                Danh sách câu hỏi phản biện ({questions.length})
+                Danh sách câu hỏi phản biện ({shownQuestions.length})
               </span>
               <div className="flex flex-col gap-1.5">
-                {questions.map((q, idx) => {
-                  const isCurrent = idx === (currentQIdx - 1);
+                {shownQuestions.map((q, idx) => {
+                  const isCurrent = q.question_index === currentQIdx;
                   const k = idx + 1;
-                  const n = questions.length;
+                  const n = shownQuestions.length;
                   const focusText = q.focus ? QUESTION_FOCUS_LABELS[q.focus] || q.focus : "";
                   const status = getQuestionStatusBadge(q, isCurrent);
+                  const isOpenable = !isSubmitting && canOpenQuestion(questions, q.question_index);
+                  const select = () => {
+                    if (isOpenable) onSelectQuestion?.(questions.indexOf(q));
+                  };
 
                   return (
                     <div
-                      key={idx}
+                      key={q.question_index}
                       role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        if (!isSubmitting) {
-                          onSelectQuestion?.(idx);
-                        }
-                      }}
+                      tabIndex={isOpenable ? 0 : -1}
+                      aria-disabled={!isOpenable}
+                      title={`${q.skill} · ${q.tier}`}
+                      onClick={select}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          if (!isSubmitting) {
-                            onSelectQuestion?.(idx);
-                          }
+                          select();
                         }
                       }}
                       className={`p-2 rounded-lg border text-xs transition-all flex items-center justify-between gap-2 ${
                         isCurrent
                           ? "bg-[#fff0e4] border-[#ff9640] ring-1 ring-[#ff9640]"
                           : "bg-white border-[#eaedff] hover:bg-[#f2f3ff]/60"
-                      } ${isSubmitting ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                      } ${isOpenable ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
                     >
                       <div className="flex items-center gap-1.5 flex-wrap font-medium">
                         <span className="font-bold text-[#131b2e]">
-                          Câu {k}/{n} · {q.skill} · {q.tier} · {focusText}
+                          Câu {k}/{n}{focusText ? ` · ${focusText}` : ""}
                         </span>
                       </div>
                       <span
@@ -423,22 +430,23 @@ export function FeynmanQuestionSection({
           </div>
         )}
 
-        {/* Thông báo câu DROPPED */}
-        {isQuestionDropped && (
-          <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded-[12px] p-4 flex items-center justify-between gap-3 text-xs text-[#374151]">
-            <div className="flex items-center gap-2.5">
-              <span className="font-semibold text-sm">
-                ⊘ AI không đặt được câu này — không tính
-              </span>
+        {/* Khung Gợi ý (Mục 6.2): còn hiện sau khi đóng hộp thoại kết quả */}
+        {followUp && (
+          <div className="bg-[#f5f3ff] border-l-4 border-[#7c3aed] rounded-[8px] p-3.5 flex flex-col gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-[#6d28d9]">
+              <Lightbulb className="size-4 text-[#7c3aed]" />
+              <span>Gợi ý</span>
             </div>
-            {hasNextQuestion && onNextQuestion && (
+            <p className="text-[#5b21b6] leading-relaxed pl-5 font-medium">
+              <AiText text={followUp.question} />
+            </p>
+            {hintStep !== null && (
               <button
                 type="button"
-                onClick={onNextQuestion}
-                className="bg-[#00bc7d] hover:bg-[#009b67] text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shrink-0"
+                onClick={() => onOpenHintStep?.(hintStep)}
+                className="ml-5 self-start text-[11px] font-bold text-[#6d28d9] bg-white hover:bg-[#ede9fe] border border-[#c4b5fd] px-2.5 py-1 rounded-[6px] transition-colors cursor-pointer"
               >
-                <span>Câu tiếp theo</span>
-                <Send className="size-3.5" />
+                Mở Bước {hintStep} trong tour
               </button>
             )}
           </div>

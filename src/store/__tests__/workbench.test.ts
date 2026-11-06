@@ -189,6 +189,7 @@ describe("src/store/workbench.ts", () => {
           offline_persona: "SENIOR_RUSTY",
           xray_stage: "SUMMARY",
           hl: [],
+          return_question: false,
         },
       });
 

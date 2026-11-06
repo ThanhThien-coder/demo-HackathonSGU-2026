@@ -49,6 +49,7 @@ export interface WorkbenchUiSlice {
   // D12 — tour X-Ray: ROLE ⇒ TOUR ⇒ SUMMARY
   xray_stage: XrayStage;
   hl: HlRange[]; // D14
+  return_question: boolean; // D15 — đang xem lại tour theo gợi ý (UI-32b)
 }
 
 export interface WorkbenchStoreState extends ClientWorkbenchState {
@@ -102,6 +103,9 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   goToStep: (step: number) => void;
   tourNext: (stepNumbers: number[]) => void;
   tourPrev: (stepNumbers: number[]) => void;
+
+  // D15 — gợi ý CODE_POINTER mở lại bước trong tour (UI-32b)
+  openHintStep: (step: number) => void;
 }
 
 const initialUiSlice: WorkbenchUiSlice = {
@@ -115,6 +119,7 @@ const initialUiSlice: WorkbenchUiSlice = {
   offline_persona: "NEWBIE",
   xray_stage: "ROLE",
   hl: [],
+  return_question: false,
 };
 
 /**
@@ -471,16 +476,26 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       active_node_id: nodeId,
       active_tab: "XRAY",
       active_step: nodeId ? 1 : null,
-      active_question_index: null,
+      // D15 — bài đã có run ⇒ loadRun không gán lại, nên gán ở đây để câu đang mở không tự nhảy
+      active_question_index:
+        state.runs[nodeId ?? ""]?.questions?.find(
+          (q) => !q.state?.finished && q.state?.ended_by !== "DROPPED"
+        )?.question_index ?? null,
       ui: {
         ...state.ui,
         hint_step: null,
         xray_stage: "ROLE",
         hl: [],
+        return_question: false,
       },
     })),
 
-  setActiveTab: (tab) => set({ active_tab: tab }),
+  // D15 — về tab Feynman thì không còn đang xem lại theo gợi ý
+  setActiveTab: (tab) =>
+    set((state) => ({
+      active_tab: tab,
+      ui: tab === "FEYNMAN" ? { ...state.ui, return_question: false } : state.ui,
+    })),
 
   setActiveQuestionIndex: (index) => set({ active_question_index: index }),
 
@@ -816,6 +831,12 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         xray_stage: "TOUR",
       },
     })),
+
+  // ===== D15 — gợi ý trỏ về tour =====
+  openHintStep: (step) => {
+    get().goToStep(step);
+    set((state) => ({ ui: { ...state.ui, return_question: true } }));
+  },
 
   tourNext: (stepNumbers) =>
     set((state) => {
