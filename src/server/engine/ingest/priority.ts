@@ -63,6 +63,7 @@ const TEST_SEGMENTS = new Set([
   "demos",
   "e2e",
   "fixtures",
+  "mocks",
   "__mocks__",
   "migrations",
   "seeds",
@@ -85,6 +86,35 @@ function splitCamelCase(str: string): string[] {
     .replace(/([A-Z]+)([A-Z][a-z0-9])/g, "$1 $2")
     .split(/\s+/)
     .filter(Boolean);
+}
+
+// Chỉ tính khi là segment đầu đường dẫn: src/integration/ thường là nghiệp vụ thật
+const ROOT_TEST_SEGMENTS = new Set(["integration", "sample", "samples"]);
+
+/** Đường dẫn có mang cờ test ING-87 không. Nơi duy nhất giữ luật này. */
+export function isTestPath(filePath: string): boolean {
+  const segments = filePath.split("/");
+  // Từ src/main/ trở xuống là mã chạy thật: package như com/example/demo (mặc định của Spring Initializr)
+  // không phải cờ test, chỉ xét tên file bên dưới (lỗi B-42)
+  const mainIdx = segments.findIndex((seg, i) => i > 0 && seg === "main" && segments[i - 1] === "src");
+  for (const [i, seg] of segments.entries()) {
+    if (mainIdx >= 0 && i >= mainIdx) break;
+    const lower = seg.toLowerCase();
+    if (TEST_SEGMENTS.has(lower)) return true;
+    if (i === 0 && ROOT_TEST_SEGMENTS.has(lower)) return true;
+    if (seg.startsWith(".") && seg !== "." && seg !== "..") return true;
+    if (lower.endsWith("_src")) return true;
+  }
+
+  const basename = segments[segments.length - 1] ?? "";
+  const dotIdx = basename.lastIndexOf(".");
+  const stem = (dotIdx > 0 ? basename.slice(0, dotIdx) : basename).toLowerCase();
+  return (
+    stem.endsWith(".test") ||
+    stem.endsWith(".spec") ||
+    stem.endsWith("_test") ||
+    stem.startsWith("test_")
+  );
 }
 
 /**
@@ -145,34 +175,7 @@ export function filePriorityScore(
   const roleScore = hasRole ? CONFIG.FPS_ROLE_NAME : 0;
 
   // 2. Cờ test (ING-87)
-  let isTest = false;
-  for (const seg of segments) {
-    const lower = seg.toLowerCase();
-    if (TEST_SEGMENTS.has(lower)) {
-      isTest = true;
-      break;
-    }
-    if (seg.startsWith(".") && seg !== "." && seg !== "..") {
-      isTest = true;
-      break;
-    }
-    if (lower.endsWith("_src")) {
-      isTest = true;
-      break;
-    }
-  }
-
-  if (!isTest) {
-    const lowerStem = stem.toLowerCase();
-    if (
-      lowerStem.endsWith(".test") ||
-      lowerStem.endsWith(".spec") ||
-      lowerStem.endsWith("_test") ||
-      lowerStem.startsWith("test_")
-    ) {
-      isTest = true;
-    }
-  }
+  const isTest = isTestPath(filePath);
 
   const testPenalty = isTest ? CONFIG.FPS_TEST_PENALTY : 0;
 

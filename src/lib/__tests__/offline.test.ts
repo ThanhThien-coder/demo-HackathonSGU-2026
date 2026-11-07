@@ -105,6 +105,8 @@ describe("Offline Mode (D08a & spec/30_UI.md Section 8)", () => {
             },
             trace_steps: [],
             dto_snippet: "",
+            group_id: "",
+            entities: [],
           },
           {
             id: "node-2",
@@ -131,14 +133,18 @@ describe("Offline Mode (D08a & spec/30_UI.md Section 8)", () => {
             },
             trace_steps: [],
             dto_snippet: "",
+            group_id: "",
+            entities: [],
           },
         ],
+        groups: [],
         edges: [
           {
             id: "node-1->node-2",
             source: "node-1",
             target: "node-2",
             confidence: "RESOLVED",
+            via_entities: [],
           },
         ],
       },
@@ -224,11 +230,9 @@ describe("Offline Mode (D08a & spec/30_UI.md Section 8)", () => {
         main_path_node_ids: ["node-1", "node-2"],
       },
       ai: {
-        architecture_style: "LAYERED",
         summary: "E-commerce order system",
-        layers: [{ layer: "BUSINESS_LOGIC", role: "Business Logic", nodes: ["node-1", "node-2"] }],
-        main_flow: "Request -> Controller -> Service -> Database",
-        notes: [],
+        groups: [],
+        node_titles: [{ node_id: "node-1", title: "Đặt đơn hàng" }],
       },
     },
     enrich: {

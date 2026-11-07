@@ -1,6 +1,6 @@
 # Vai D — Giao diện: website bài học, lộ trình tương tác, hiển thị và offline
 
-Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập token 2 chủ đề sáng / tối, dựng website học tập nhiều trang (Trang chủ, Lộ trình, trang học kiểu IDE 3 cột với Bản đồ ReactFlow, Code Monaco, tab X-Ray / Feynman, Báo cáo và Lịch sử), quản lý trạng thái máy khách bằng Zustand theo nguyên tắc bản sao chỉ đọc dữ liệu máy chủ, tích hợp toàn bộ các API route học tập, xây dựng chế độ Offline tự vận hành và hỗ trợ trình chiếu demo.
+Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập token 2 chủ đề sáng / tối, dựng website học tập nhiều trang (Trang chủ, Lộ trình, trang học kiểu IDE 3 cột với Bản đồ bài học chia nhóm, Code Monaco theo tab file, tab X-Ray (tour) / Feynman, Báo cáo và Lịch sử), quản lý trạng thái máy khách bằng Zustand theo nguyên tắc bản sao chỉ đọc dữ liệu máy chủ, tích hợp toàn bộ các API route học tập, xây dựng chế độ Offline tự vận hành và hỗ trợ trình chiếu demo.
 
 Đọc chung: [README tổng](../README.md) · lịch gốc [`07`](../../doc-de-hieu/07_ke_hoach_21h.md)
 
@@ -9,9 +9,9 @@ Bạn chịu trách nhiệm toàn bộ giao diện SimpliFey: thiết lập toke
 Người học trải qua hành trình học tập hoàn chỉnh trên giao diện SimpliFey:
 1. **Đăng nhập:** Người học đăng nhập bằng tài khoản GitHub qua Supabase Auth.
 2. **Dán link repo:** Tại trang chủ, người học dán đường link GitHub (hoặc kéo thả file zip) để quét kiến trúc dự án.
-3. **Thấy bản đồ:** Sau khi quét xong, hệ thống vào `/learn`, tự mở cửa sổ Tổng quan; đóng cửa sổ là thấy Bản đồ bài học ở cột trái.
-4. **Bấm bài:** Người học bấm một node sẵn sàng trên bản đồ để mở bài.
-5. **Đọc code và phân tích:** Người học xem các đoạn lát cắt mã nguồn thật ở cột giữa, đọc tab X-Ray ở cột phải giải thích luồng nghiệp vụ từng bước, điểm hay và điểm dở do AI nhận định (không lộ cách sửa).
+3. **Thấy bản đồ:** Sau khi quét xong, hệ thống vào `/learn`: cột trái là Bản đồ bài học chia nhóm, cột giữa là Tổng quan 2 nhịp với nút bắt đầu ở bài gốc của đường chính.
+4. **Bấm bài:** Người học bấm một bài sẵn sàng trên bản đồ để mở bài.
+5. **Đọc code và phân tích:** Tab X-Ray đi theo tour: thẻ vai trò ⇒ từng bước (code cột giữa đổi tab file theo bước, chip mở thẻ khái niệm) ⇒ tóm tắt điểm hay, điểm dở do AI nhận định (không lộ cách sửa). Bôi đen code để AI giải thích đoạn chọn.
 6. **Trả lời:** Người học chuyển sang tab Feynman, giải thích cơ chế hoạt động qua các câu hỏi nhằm củng cố kỹ năng còn yếu.
 7. **Được chấm, mở khóa:** Hệ thống gửi câu trả lời lên máy chủ, nhận kết quả đánh giá, hiển thị gợi ý hoặc đáp án, cập nhật điểm kỹ năng và mở khóa bài học kế tiếp.
 8. **Xem kết quả:** Người học theo dõi báo cáo tiến độ, xem lại lịch sử các câu trả lời và hành trình làm chủ kiến trúc.
@@ -47,6 +47,22 @@ Máy không có Antigravity (agy) hoặc không có ai-kit: làm cùng phiếu n
 | 00:30–03:00 | 💤 Ngủ (agy chạy [D09](D09-phu.md)) | Giao agy trước 00:30: trang phụ lịch sử, báo cáo, menu, bố cục kéo tỉ lệ, trình chiếu |
 | 03:00–05:00 | [D10](D10-hoan-thien.md) · **Mốc H+16, H+17** | Kiểm việc agy D09, sửa giao diện theo Issue, xóa trang nháp `/dev` |
 | 05:00–09:00 | Về đích (xem bên dưới) | Sửa lỗi có nhãn bug hoặc ui, không đổi bố cục, tập demo cùng E |
+
+## Phiếu theo quy trình học mới
+
+Theo D-81 … D-85, do Lê Ngọc Quý làm ở luồng 6, đặc tả ở [`spec/30`](../../spec/30_UI.md). Làm từ trên xuống. Phần bản đồ của D03, phần X-Ray, Tổng quan của D05, phần tổng quan của D06 đã được các phiếu dưới thay; khác nhau thì theo `spec/30`.
+
+| Phiếu | Việc | Lỗi | Giờ |
+| :-- | :-- | :-- | :-- |
+| [D11](D11-tab-file.md) | Khung code theo tab file | D-16 | Xong trước 19:00 |
+| [D12](D12-tour.md) | Tab X-Ray dạng tour | D-19 | Xong trước 19:00 |
+| [D13](D13-the-khai-niem.md) | Thẻ khái niệm | D-20 | Xong trước 19:00 |
+| [D14](D14-to-dung-dong.md) | Tô đúng dòng | D-17 | Xong trước 19:00 |
+| [D15](D15-goi-y-tour.md) | Gợi ý trỏ về tour, ẩn câu DROPPED | D-18, gợi ý `CODE_POINTER` | Xong trước 19:00 |
+| [D16](D16-the-vai-tro.md) | Thẻ vai trò | D-22 | Sau 22:00. Dòng "Dữ liệu" bỏ được nếu trễ |
+| [D17](D17-ban-do-nhom.md) | Bản đồ chia nhóm | D-21 phần bản đồ | Sau 22:00 |
+| [D18](D18-tong-quan.md) | Tổng quan 2 nhịp | D-21 phần Tổng quan | Sau 22:00 |
+| [D19](D19-popover-doan-chon.md) | Popover giải thích đoạn chọn | D-23 | Sau 22:00. **Bỏ trước nếu trễ** |
 
 ## Việc lặp lại suốt 21 giờ
 

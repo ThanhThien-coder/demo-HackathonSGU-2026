@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { LANGUAGE_VERSION, MIN_COMPATIBLE_VERSION } from "web-tree-sitter";
-import { createParser, getLanguage, initParsers } from "../parser";
+import { createParser, getLanguage, getQuery, initParsers } from "../parser";
 import { LANGUAGE_REGISTRY, tierOf } from "../registry";
 
 const SAMPLES: Record<string, { code: string; root: string }> = {
@@ -59,5 +59,44 @@ describe("ENG-11 nạp grammar Tree-sitter", () => {
   it("ENG-11 ngôn ngữ chưa nạp thì createParser báo lỗi", () => {
     expect(getLanguage("COBOL")).toBeNull();
     expect(() => createParser("COBOL")).toThrow();
+  });
+
+  it("ENG-11 mọi adapter RESOLVED có getQuery(id) khác null sau initParsers()", () => {
+    for (const adapter of LANGUAGE_REGISTRY.filter((a) => tierOf(a) === "RESOLVED")) {
+      expect(getQuery(adapter.id), adapter.id).not.toBeNull();
+    }
+  });
+
+  it("ENG-11 adapter RESOLVED trỏ tới file query không tồn tại ⇒ initParsers() reject, thông điệp có adapter.id", async () => {
+    vi.resetModules();
+    vi.doMock("../registry", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("../registry")>();
+      return {
+        ...actual,
+        LANGUAGE_REGISTRY: [
+          {
+            ...actual.LANGUAGE_REGISTRY[0],
+            id: "MOCK_FAIL_LANG",
+            wasm_grammar: "tree-sitter-typescript.wasm",
+            query_file: "queries/non_existent_query.scm",
+          },
+        ],
+      };
+    });
+
+    try {
+      const { initParsers: mockInitParsers } = await import("../parser");
+      let caughtError: Error | null = null;
+      try {
+        await mockInitParsers();
+      } catch (err: unknown) {
+        caughtError = err as Error;
+      }
+      expect(caughtError).not.toBeNull();
+      expect(caughtError!.message).toContain("MOCK_FAIL_LANG");
+    } finally {
+      vi.doUnmock("../registry");
+      vi.resetModules();
+    }
   });
 });

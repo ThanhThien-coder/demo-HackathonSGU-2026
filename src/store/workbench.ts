@@ -14,14 +14,32 @@ import type {
   NodeStateView,
   QuestionState,
   SkillChange,
+  ExplainSelectionRequest,
+  ExplainSelectionResponse,
 } from "@/contracts";
 import {
   analyzeNodeSafe,
   analyzeOverviewSafe,
   enrichNodeSafe,
   getSessionProgressSafe,
+  explainSelectionSafe,
 } from "@/lib/api";
+import { buildOverviewFacts } from "@/lib/overview-view";
 import { ERROR_MESSAGES } from "@/lib/messages";
+import { explanationKey, explainErrorText } from "@/lib/selection-explain";
+import {
+  tourForward,
+  tourBackward,
+  type XrayStage,
+} from "@/app/learn/components/xray-tour";
+import { findStep, stepHl, weakPointHl } from "@/components/code/slice-model";
+
+// D14 — dải dòng tô sáng theo số dòng gốc (UI-32)
+export interface HlRange {
+  line_start: number;
+  line_end: number;
+  kind: "FOCUS" | "GOOD" | "BAD";
+}
 
 export interface WorkbenchUiSlice {
   pending: Record<string, boolean>;
@@ -32,6 +50,11 @@ export interface WorkbenchUiSlice {
   presentation_pane: boolean;
   hint_step: number | null;
   offline_persona: PersonaMode;
+  explanations: Record<string, ExplainSelectionResponse>; // D19
+  // D12 — tour X-Ray: ROLE ⇒ TOUR ⇒ SUMMARY
+  xray_stage: XrayStage;
+  hl: HlRange[]; // D14
+  return_question: boolean; // D15 — đang xem lại tour theo gợi ý (UI-32b)
 }
 
 export interface WorkbenchStoreState extends ClientWorkbenchState {
@@ -73,7 +96,31 @@ export interface WorkbenchStoreState extends ClientWorkbenchState {
   setSkillChange: (key: string, change: SkillChange) => void;
   setPresentationPane: (enabled: boolean) => void;
   setHintStep: (step: number | null) => void;
+
+  // D14 — tô đúng dòng (UI-33, UI-44)
+  setHl: (hl: HlRange[]) => void;
+  showStrength: (step: number) => void;
+  showWeakPoint: (weakPoint: { step: number; symbol: string }) => void;
   setOfflinePersona: (persona: PersonaMode) => void;
+
+  // D19: Lời gọi giải thích đoạn chọn
+  explainSelection: (
+    nodeId: string,
+    stepNumber: number,
+    range: ExplainSelectionRequest["range"],
+    selectedText: string
+  ) => Promise<
+    | { ok: true; data: ExplainSelectionResponse }
+    | { ok: false; code: ErrorCode | null; message: string }
+  >;
+  // D12 — tour X-Ray
+  setXrayStage: (stage: XrayStage) => void;
+  goToStep: (step: number) => void;
+  tourNext: (stepNumbers: number[]) => void;
+  tourPrev: (stepNumbers: number[]) => void;
+
+  // D15 — gợi ý CODE_POINTER mở lại bước trong tour (UI-32b)
+  openHintStep: (step: number) => void;
 }
 
 const initialUiSlice: WorkbenchUiSlice = {
@@ -85,6 +132,10 @@ const initialUiSlice: WorkbenchUiSlice = {
   presentation_pane: false,
   hint_step: null,
   offline_persona: "NEWBIE",
+  explanations: {}, // D19
+  xray_stage: "ROLE",
+  hl: [],
+  return_question: false,
 };
 
 /**
@@ -178,8 +229,61 @@ function resetQueue(): void {
   overviewRequested = false;
 }
 
+// D18: Tải trước tối đa PREFETCH_NEXT_NODES node đầu theo tô-pô sau khi tổng quan trả về
+function prefetchStart(
+  get: () => WorkbenchStoreState,
+  set: (
+    partial:
+      | Partial<WorkbenchStoreState>
+      | ((state: WorkbenchStoreState) => Partial<WorkbenchStoreState>)
+  ) => void
+): void {
+  const state = get();
+  if (!state.session_id || !state.result?.nodes) return;
+  if ((state.progress?.tokens_used ?? 0) >= CONFIG.SESSION_TOKEN_QUOTA) return;
+  // D18: Nếu người học đã mở bài trong lúc chờ thì không nạp đè
+  if (state.active_node_id !== null) return;
+
+  const topo = topologicalOrder(state.result.nodes);
+  const targets: string[] = [];
+
+  for (const nodeId of topo) {
+    if (targets.length >= PREFETCH_NEXT_NODES) break;
+
+    const analysis = state.analyses[nodeId];
+    const isAnalysisObj = typeof analysis === "object" && analysis !== null;
+    const isFailed = Boolean(state.progress?.nodes?.[nodeId]?.analysis_failed);
+    const isInQueue = waiting.includes(nodeId) || inFlight.has(nodeId);
+
+    if (!isAnalysisObj && !isFailed && !isInQueue) {
+      targets.push(nodeId);
+    }
+  }
+
+  if (targets.length === 0) return;
+
+  // D18: đặt "PENDING", thêm vào cuối waiting, gọi pump
+  const updatedAnalyses = { ...get().analyses };
+  for (const tid of targets) {
+    updatedAnalyses[tid] = "PENDING";
+    if (!waiting.includes(tid)) {
+      waiting.push(tid);
+    }
+  }
+
+  set({ analyses: updatedAnalyses });
+
+  pump(get, set);
+}
+
+// D18: maybeRequestOverview gọi 1 lần mỗi phiên
 function maybeRequestOverview(
-  get: () => WorkbenchStoreState
+  get: () => WorkbenchStoreState,
+  set: (
+    partial:
+      | Partial<WorkbenchStoreState>
+      | ((state: WorkbenchStoreState) => Partial<WorkbenchStoreState>)
+  ) => void
 ): void {
   const state = get();
   if (
@@ -197,18 +301,9 @@ function maybeRequestOverview(
     return;
   }
 
-  const allReady = state.result.nodes.every((n) => {
-    const a = state.analyses[n.id];
-    const isObject = typeof a === "object" && a !== null;
-    const isFailed = Boolean(state.progress?.nodes?.[n.id]?.analysis_failed);
-    return isObject || isFailed;
-  });
-
-  if (!allReady) {
-    return;
-  }
-
+  // D18: Trước khi gọi ⇒ setOverview("PENDING")
   overviewRequested = true;
+  get().setOverview("PENDING");
   const sid = state.session_id;
 
   void (async () => {
@@ -216,21 +311,26 @@ function maybeRequestOverview(
     if (get().session_id !== sid) {
       return;
     }
-    if (res?.ok) {
+    // D18: Thành công ⇒ setOverview(res.data.overview), setTokensUsed(res.data.tokens_used)
+    if (res?.ok && res.data) {
       get().setOverview(res.data.overview);
       get().setTokensUsed(res.data.tokens_used);
-    } else if (res) {
-      overviewRequested = false;
-      const code = res.error?.error?.code as ErrorCode | undefined;
-      const rawMsg = res.error?.error?.message;
-      if (code !== "ERR_OVERVIEW_NOT_READY") {
-        const msg =
-          (code && ERROR_MESSAGES[code]) ||
-          rawMsg ||
-          "Lỗi phân tích tổng quan";
-        get().setUiError("overview", msg);
-      }
+    } else {
+      // D18: Lỗi hoặc res rỗng ⇒ setOverview({ facts, ai: null }), không setUiError, không đặt lại overviewRequested
+      const currentResult = get().result;
+      const rawFacts = currentResult ? buildOverviewFacts(currentResult) : null;
+      const facts: RepoOverviewView["facts"] = {
+        archetype: rawFacts?.archetype ?? "WEB_BACKEND",
+        framework: rawFacts?.framework ?? null,
+        tech_stack: rawFacts?.tech_stack ?? [],
+        root_node_ids: rawFacts?.root_node_ids ?? [],
+        main_path_node_ids: rawFacts?.main_path_node_ids ?? [],
+      };
+      get().setOverview({ facts, ai: null });
     }
+
+    // D18: Về (thành công hay lỗi, cùng phiên) ⇒ gọi hàm mới prefetchStart(get, set)
+    prefetchStart(get, set);
   })();
 }
 
@@ -293,8 +393,8 @@ function pump(
         get().setUiError("analyze:" + nodeId, msg);
       }
 
+      // D18: pump không gọi maybeRequestOverview(get)
       pump(get, set);
-      maybeRequestOverview(get);
     })();
   }
 }
@@ -335,6 +435,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         offline_persona: state.ui.offline_persona,
       },
     }));
+    // D18: Sau set(...) hiện có ⇒ gọi maybeRequestOverview(get, set)
+    maybeRequestOverview(get, set);
   },
 
   resetSession: () => {
@@ -390,14 +492,26 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       active_node_id: nodeId,
       active_tab: "XRAY",
       active_step: nodeId ? 1 : null,
-      active_question_index: null,
+      // D15 — bài đã có run ⇒ loadRun không gán lại, nên gán ở đây để câu đang mở không tự nhảy
+      active_question_index:
+        state.runs[nodeId ?? ""]?.questions?.find(
+          (q) => !q.state?.finished && q.state?.ended_by !== "DROPPED"
+        )?.question_index ?? null,
       ui: {
         ...state.ui,
         hint_step: null,
+        xray_stage: "ROLE",
+        hl: [],
+        return_question: false,
       },
     })),
 
-  setActiveTab: (tab) => set({ active_tab: tab }),
+  // D15 — về tab Feynman thì không còn đang xem lại theo gợi ý
+  setActiveTab: (tab) =>
+    set((state) => ({
+      active_tab: tab,
+      ui: tab === "FEYNMAN" ? { ...state.ui, return_question: false } : state.ui,
+    })),
 
   setActiveQuestionIndex: (index) => set({ active_question_index: index }),
 
@@ -524,8 +638,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       },
     }));
 
+    // D18: Bỏ dòng gọi maybeRequestOverview(get) khỏi requestAnalysis
     pump(get, set);
-    maybeRequestOverview(get);
   },
 
   loadRun: async (nodeId: string) => {
@@ -713,4 +827,151 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         offline_persona,
       },
     })),
+
+  // D19: Lời gọi giải thích đoạn chọn
+  explainSelection: async (nodeId, stepNumber, range, selectedText) => {
+    const key = explanationKey(nodeId, stepNumber, range);
+    const cached = get().ui.explanations[key];
+    if (cached) {
+      return { ok: true, data: cached };
+    }
+
+    const limitErr = get().ui.errors["explain_limit"];
+    if (limitErr) {
+      return {
+        ok: false,
+        code: "ERR_EXPLAIN_LIMIT",
+        message: limitErr,
+      };
+    }
+
+    const sid = get().session_id;
+    if (!sid) {
+      return {
+        ok: false,
+        code: null,
+        message: "Chưa có phiên học.",
+      };
+    }
+
+    const res = await explainSelectionSafe({
+      session_id: sid,
+      node_id: nodeId,
+      step_number: stepNumber,
+      range,
+      selected_text: selectedText,
+    });
+
+    if (get().session_id !== sid) {
+      return {
+        ok: false,
+        code: null,
+        message: "Phiên học đã thay đổi.",
+      };
+    }
+
+    if (res.ok) {
+      const data = res.data;
+      get().setTokensUsed(data.tokens_used);
+      if (data.explanation !== null) {
+        set((state) => ({
+          ui: {
+            ...state.ui,
+            explanations: {
+              ...state.ui.explanations,
+              [key]: data,
+            },
+          },
+        }));
+      }
+      return { ok: true, data };
+    }
+
+    const code = (res.error?.error?.code as ErrorCode) || null;
+    const message = explainErrorText(code);
+    if (code === "ERR_EXPLAIN_LIMIT") {
+      get().setUiError("explain_limit", message);
+    }
+
+    return { ok: false, code, message };
+  },
+  // ===== D12 — tour X-Ray =====
+  setXrayStage: (xray_stage) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        xray_stage,
+      },
+    })),
+
+  // Mở lại bước n trong tour (D12; D15 gọi hàm này cho gợi ý CODE_POINTER)
+  goToStep: (step) =>
+    set((state) => ({
+      active_tab: "XRAY",
+      active_step: step,
+      ui: {
+        ...state.ui,
+        xray_stage: "TOUR",
+      },
+    })),
+
+  // ===== D15 — gợi ý trỏ về tour =====
+  openHintStep: (step) => {
+    get().goToStep(step);
+    set((state) => ({ ui: { ...state.ui, return_question: true } }));
+  },
+
+  tourNext: (stepNumbers) =>
+    set((state) => {
+      const next = tourForward(
+        { stage: state.ui.xray_stage, step: state.active_step ?? stepNumbers[0] },
+        stepNumbers
+      );
+      return {
+        active_step: next.step,
+        ui: { ...state.ui, xray_stage: next.stage },
+      };
+    }),
+
+  tourPrev: (stepNumbers) =>
+    set((state) => {
+      const prev = tourBackward(
+        { stage: state.ui.xray_stage, step: state.active_step ?? stepNumbers[0] },
+        stepNumbers
+      );
+      return {
+        active_step: prev.step,
+        ui: { ...state.ui, xray_stage: prev.stage },
+      };
+    }),
+  // ===== D14 — tô đúng dòng =====
+  setHl: (hl) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        hl,
+      },
+    })),
+
+  showStrength: (step) => set((state) => applyStepHl(state, step, (s) => stepHl(s, "GOOD"))),
+
+  showWeakPoint: ({ step, symbol }) =>
+    set((state) => applyStepHl(state, step, (s) => weakPointHl(s, symbol))),
 }));
+
+// D14 — gán active_step và ui.hl trong cùng 1 lần cập nhật để lớp xóa dưới đây không xóa nhầm.
+function applyStepHl(
+  state: WorkbenchStoreState,
+  step: number,
+  toHl: (s: ReturnType<typeof findStep>) => HlRange[]
+): Partial<WorkbenchStoreState> {
+  const node = state.result?.nodes.find((n) => n.id === state.active_node_id);
+  if (!node) return {};
+  return { active_step: step, ui: { ...state.ui, hl: toHl(findStep(node, step)) } };
+}
+
+// D14 — đổi bước ⇒ ui.hl = [] (UI-32). Đặt ở đây để mọi hàm gán active_step đều được áp dụng.
+useWorkbenchStore.subscribe((state, prev) => {
+  if (state.active_step === prev.active_step || state.ui.hl !== prev.ui.hl) return;
+  if (state.ui.hl.length > 0) state.setHl([]);
+});

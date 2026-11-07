@@ -145,21 +145,11 @@ describe("Kịch bản mức hàm (Spec 50 Mục 3 & Spec 22)", () => {
   describe("3.1. Kịch bản A — Lan (người mới), N3: câu 1 sai → gợi ý → đúng; câu 2 đúng ngay", () => {
     it("A3: Lập kế hoạch câu hỏi cho N3 (hồ sơ rỗng)", () => {
       const plan = planNodeQuestions(fixtureN3, {}, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "DB_OPTIMIZATION",
-        tier: "NOVICE",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "LAYERED_SEPARATION",
-        tier: "NOVICE",
-        focus: "FLOW",
-        step_indices: [1, 2, 3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW; spec/50 Mục 3 chưa cập nhật thứ tự này
+      expect(plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices])).toEqual([
+        [1, "LAYERED_SEPARATION", "NOVICE", "FLOW", [1, 2, 3]],
+        [2, "DB_OPTIMIZATION", "NOVICE", "WEAKNESS", [2]],
+      ]);
     });
 
     it("A4: Nộp Q1 lượt 1 (chưa đạt) — outcome chưa chốt, BKT chưa đổi", () => {
@@ -236,21 +226,11 @@ describe("Kịch bản mức hàm (Spec 50 Mục 3 & Spec 22)", () => {
 
     it("B1: enrich-node N2 LEARN — Q1 AUTH_SECURITY NOVICE WEAKNESS; Q2 HTTP_ROUTING PRACTITIONER ARCHITECTURE", () => {
       const plan = planNodeQuestions(fixtureN2, skillsBeforeB, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "AUTH_SECURITY",
-        tier: "NOVICE",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "HTTP_ROUTING",
-        tier: "PRACTITIONER",
-        focus: "ARCHITECTURE",
-        step_indices: [1, 2],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW; spec/50 Mục 3 chưa cập nhật thứ tự này
+      expect(plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices])).toEqual([
+        [1, "HTTP_ROUTING", "PRACTITIONER", "FLOW", [1, 2, 3]],
+        [2, "AUTH_SECURITY", "NOVICE", "WEAKNESS", [2]],
+      ]);
     });
 
     it("B4: Q1 lượt 3 không đạt — FAILED; AUTH_SECURITY 0.25 → 0.0791", () => {
@@ -320,21 +300,11 @@ describe("Kịch bản mức hàm (Spec 50 Mục 3 & Spec 22)", () => {
     it("C4: N3 LEARN — Q1 DB_OPTIMIZATION PF: 0.8413 → 0.9532; Q2 LAYERED_SEPARATION PF: 0.25 → 0.5767 ⇒ COMPLETED", () => {
       // Kiểm tra plan cho N3 với hồ sơ Minh
       const plan = planNodeQuestions(fixtureN3, skillsMinh, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "DB_OPTIMIZATION",
-        tier: "ARCHITECT",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "LAYERED_SEPARATION",
-        tier: "NOVICE",
-        focus: "FLOW",
-        step_indices: [1, 2, 3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW; spec/50 Mục 3 chưa cập nhật thứ tự này
+      expect(plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices])).toEqual([
+        [1, "LAYERED_SEPARATION", "NOVICE", "FLOW", [1, 2, 3]],
+        [2, "DB_OPTIMIZATION", "ARCHITECT", "WEAKNESS", [2]],
+      ]);
 
       // Q1 PF: 0.8413 → 0.9532
       const nextDb = updateSkill("DB_OPTIMIZATION", skillsMinh.DB_OPTIMIZATION, "PASS_FIRST", T0);
@@ -381,14 +351,11 @@ describe("Kịch bản mức hàm (Spec 50 Mục 3 & Spec 22)", () => {
       const plan = planNodeQuestions(fixtureN5, skillsBeforeC6, T0, 3);
       // Cả DB_OPTIMIZATION (0.9532) và HTTP_ROUTING (0.9532) đều >= CONFIG.MASTERED_MIN (0.92)
       // Chỉ còn TRANSACTION_INTEGRITY (0.5767) < 0.92
-      expect(plan).toHaveLength(1);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "TRANSACTION_INTEGRITY",
-        tier: "PRACTITIONER",
-        focus: "WEAKNESS",
-        step_indices: [3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW; spec/50 Mục 3 chưa cập nhật thứ tự này
+      expect(plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices])).toEqual([
+        [1, "TRANSACTION_INTEGRITY", "PRACTITIONER", "FLOW", [1, 2, 3]],
+        [2, "TRANSACTION_INTEGRITY", "PRACTITIONER", "WEAKNESS", [3]],
+      ]);
 
       // PAH: 0.5767 → 0.7292
       const nextTx = updateSkill(
@@ -425,14 +392,11 @@ describe("Kịch bản mức hàm (Spec 50 Mục 3 & Spec 22)", () => {
       };
 
       const plan = planNodeQuestions(fixtureN5, skillsAllMastered, T0, 3);
-      expect(plan).toHaveLength(1);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "TRANSACTION_INTEGRITY",
-        tier: "ARCHITECT",
-        focus: "WEAKNESS",
-        step_indices: [3],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW; spec/50 Mục 3 chưa cập nhật thứ tự này
+      expect(plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices])).toEqual([
+        [1, "TRANSACTION_INTEGRITY", "ARCHITECT", "FLOW", [1, 2, 3]],
+        [2, "TRANSACTION_INTEGRITY", "ARCHITECT", "WEAKNESS", [3]],
+      ]);
     });
   });
 
@@ -468,21 +432,11 @@ describe("Kịch bản mức hàm (Spec 50 Mục 3 & Spec 22)", () => {
       };
 
       const plan = planNodeQuestions(fixtureN3, skillsHuy, T0, 3);
-      expect(plan).toHaveLength(2);
-      expect(plan[0]).toEqual({
-        question_index: 1,
-        skill: "DB_OPTIMIZATION",
-        tier: "NOVICE",
-        focus: "WEAKNESS",
-        step_indices: [2],
-      });
-      expect(plan[1]).toEqual({
-        question_index: 2,
-        skill: "LAYERED_SEPARATION",
-        tier: "PRACTITIONER",
-        focus: "ARCHITECTURE",
-        step_indices: [1],
-      });
+      // BKT-50 (D-81): câu 1 là FLOW; spec/50 Mục 3 chưa cập nhật thứ tự này
+      expect(plan.map((q) => [q.question_index, q.skill, q.tier, q.focus, q.step_indices])).toEqual([
+        [1, "LAYERED_SEPARATION", "PRACTITIONER", "FLOW", [1, 2, 3]],
+        [2, "DB_OPTIMIZATION", "NOVICE", "WEAKNESS", [2]],
+      ]);
     });
 
     it("E3a: Q1 đúng ngay (PF) — 0.4092 → 0.7324; nhãn 'đang mài mòn' tắt", () => {

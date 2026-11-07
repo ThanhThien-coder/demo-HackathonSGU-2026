@@ -48,6 +48,7 @@ Trước khi tạo task: kiểm các phiếu cần có trước đã có trên n
 
 **Bắt buộc theo bản chạy thử** (chi tiết lỗi ở `docs/quy-trinh-code-21h/loi-can-sua.md`):
 - **Điểm dở rỗng (lỗi C-06):** câu "Không chắc thì mảng rỗng" có thể làm model nhỏ không nêu điểm dở. Chạy 2 repo thật, đếm `weak_points` trước và sau cổng gác, ghi lý do bị chặn.
+- **Câu vai trò và lời từng bước (lỗi C-07, D-81, D-84):** `summary` đúng 2 câu, câu 1 nói phần này giúp người dùng làm gì (thẻ vai trò dùng câu này); `steps[].text` viết cho người mới, vì tour hiện từng câu.
 - **Trần token (lỗi C-02):** phân tích hết repo demo trên AI thật, đếm bài lỗi cắt chữ rồi mới chỉnh `LLM_MAX_OUTPUT_TOKENS`.
 
 ## Tiêu chí xong
@@ -86,6 +87,7 @@ agy chạy quá 30 phút chưa xong ⇒ nhắn Claude dừng, chia task theo cá
 - [ ] Có test cho ca D2, D3 của `docs/spec/50_TEST_VA_FIXTURE.md` Mục 3.4 và test đó xanh.
 - [ ] Chạy AI thật trên repo demo, đọc phần điểm dở: không phải bài nào cũng rỗng (lỗi C-06).
 - [ ] Chạy AI thật trên repo demo, có ít nhất 1 bài có điểm dở hợp lý, đọc tay nội dung, không chỉ xem test xanh.
+- [ ] Đọc tay 3 bài: câu 1 của `summary` nói đúng việc của người dùng; lời từng bước đọc hiểu được khi chưa đọc code (lỗi C-07).
 ```text
 Task "C06 — Lời gọi analyze-node" chưa đạt: <ghi lỗi bạn thấy>. Chạy `ak lai` cho task đó với lý do trên, rồi làm lại đúng như Bước 2 của phiếu này (không commit).
 ```

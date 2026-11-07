@@ -17,7 +17,7 @@
 | 2 | Kiểu nền: `SWE_SKILLS`, `LearnerTier`, `NodeStatus` | `22`, `10`, `20` |
 | 3 | Đầu ra Engine: `HybridArchitecturalNode`, `StaticEngineResult` | `10`, `11`, `21` |
 | 4 | Kiểu nội bộ Engine: `LanguageAdapter`, `SymbolDefinition` | `10`, `11` |
-| 5 | AI: `NodeAnalysis` (5.1), `RepoOverviewRaw` (5.2), `QuestionPlanItem` (5.3), `GradingRaw` (5.4) | `20`, `22`, `21` |
+| 5 | AI: `NodeAnalysis` (5.1), `RepoOverviewRaw` (5.2), `QuestionPlanItem` (5.3), `GradingRaw` (5.4), `ExplainSelectionRaw` (5.5) | `20`, `22`, `21` |
 | 6 | Người học, BKT, tiến độ: `QuestionState`, `NodeStateView`, `PERSONAS` | `22`, `30`, `03` |
 | 7 | Lưu trữ: `GraphSkeletonNode`, `RunStepRef`, `RunQuestion`, `SessionRow` | `03`, `30` |
 | 8 | API: request / response từng endpoint | `03`, `30` |
@@ -31,8 +31,8 @@
 ```typescript
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
-  ENGINE_VERSION: "1.6.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
-  PROMPT_VERSION: "1.1.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI (D-74)
+  ENGINE_VERSION: "1.7.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
+  PROMPT_VERSION: "1.2.0",            // Đổi khi đổi prompt hoặc responseSchema của 5 lời gọi AI (D-74)
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------
   MAX_STREAM_BYTES: 15 * 1024 * 1024, // Byte nén tải từ GitHub
@@ -123,10 +123,13 @@ export const CONFIG = {
   LLM_RETRY_JITTER_MS: 100,           // Cộng ngẫu nhiên [0, JITTER)
   GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
   GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
-  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 600, QUESTIONS: 900, GRADE: 500 },
+  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 1400, OVERVIEW: 1500, QUESTIONS: 900, GRADE: 500, EXPLAIN: 400 },   // Đo thật: OVERVIEW 13 bài vượt 600 (C-12); ANALYZE bài 5 bước vượt 900 (C-02)
   LLM_PRICE_INPUT_USD_PER_M: 0.30,    // USD / 1 triệu token vào (D-69)
   LLM_PRICE_OUTPUT_USD_PER_M: 2.50,   // USD / 1 triệu token ra, gồm token suy nghĩ (D-69)
   ANALYZE_CONCURRENCY: 3,             // Số lời gọi analyze-node chạy cùng lúc / phiên
+  OVERVIEW_README_MAX_CHARS: 2000,    // Trần readme_excerpt, chưa đo (D-83)
+  EXPLAIN_SELECTION_MAX_CHARS: 300,   // Trần vùng chọn của explain-selection, chưa đo (D-82)
+  EXPLAIN_MAX_PER_SESSION: 30,        // Số lời gọi AI explain-selection / phiên, chưa đo (D-82)
   SESSION_TOKEN_QUOTA: 200000,        // Tổng token vào + ra / phiên học, đếm ở server
   ANALYSIS_MIN_SKILLS: 1,
   ANALYSIS_MAX_SKILLS: 3,
@@ -189,8 +192,9 @@ export const CONFIG = {
 | **Cold-start bản đồ (0 token)** | **< 1.5 s** | Repo ≤ 15 MB nén, mạng ổn định |
 | Repo lớn, tải chọn lọc (D-63) | ~6–8 s | Đo 01/11 trên 3 repo từ máy dev: zip cắt 2,2–2,6 s + danh sách và 100 file 3,9–5,5 s; chưa đo trên Cloud Run |
 | `analyze-node` / `enrich-node` | 6,5–8 s, đo 31/10 bằng đề ngắn; prompt thật chưa đo | Phân tích node đang mở và 1–2 node kế tiếp (D-46), `ANALYZE_CONCURRENCY` song song |
-| `analyze-overview` | chưa đo, dự kiến cùng bậc | Sau khi mọi node phân tích xong |
+| `analyze-overview` | chưa đo, dự kiến cùng bậc | Ngay sau khi quét, trước khi tải trước node (D-83) |
 | `evaluate-feynman` | chưa đo, dự kiến cùng bậc | |
+| `explain-selection` | chưa đo, dự kiến cùng bậc | Chỉ khi người học bấm nút (D-82) |
 | Đọc hồ sơ `GET /api/me` | 0.05 – 0.1 s | Server và Supabase cùng vùng |
 | Token: phân tích / tổng quan / đặt câu hỏi / chấm | ~2,000→700 · ~1,500→400 · ~1,600→650 · ~800→200 (vào→ra) | Mỗi lời gọi ra ≤ `LLM_MAX_OUTPUT_TOKENS` |
 | **Người học đầu tiên của 1 repo (7 node, ~15 câu)** | ~37 lời gọi · **~58,500 token** · ~$0.05 | Đơn giá `CONFIG.LLM_PRICE_*` (D-69) |
@@ -286,6 +290,8 @@ export interface UncleBobMetrics {
   is_exempt: boolean;           // Miễn trừ ⇒ D = 0, BALANCED
 }
 
+export type EntityOp = "CREATE" | "READ" | "UPDATE" | "DELETE";   // D-84
+
 export interface HybridArchitecturalNode {
   id: string;                   // Tất định (D-08)
   title: string;                // Thuật toán đặt tên tất định, 0 token, AI không đổi
@@ -305,6 +311,8 @@ export interface HybridArchitecturalNode {
   uncle_bob: UncleBobMetrics;
   trace_steps: ExecutionTraceStep[];   // Tổng dòng snippet ≤ CONFIG.NODE_MAX_LINES
   dto_snippet: string;                 // Khai báo kiểu dữ liệu mà các step dùng (≤ CONFIG.STEP_MAX_LINES dòng), "" nếu không có
+  group_id: string;                    // = group_id của 1 phần tử StaticEngineResult.groups (D-84)
+  entities: Array<{ name: string; ops: EntityOp[] }>;   // Thực thể bài chạm tới và thao tác (D-84)
 }
 
 export interface GraphEdge {
@@ -312,6 +320,7 @@ export interface GraphEdge {
   source: string;
   target: string;
   confidence: "RESOLVED" | "INFERRED"; // INFERRED nếu chuỗi lời gọi tạo ra cạnh có ≥ 1 cạnh hàm suy luận, hoặc là cạnh cây D-73
+  via_entities: string[];              // Thực thể mà cạnh đi qua, [] nếu không qua thực thể (D-84)
 }
 
 export type IngestionErrorCode =
@@ -353,14 +362,22 @@ export interface StaticEngineResult {
   total_files: number;
   nodes: HybridArchitecturalNode[];    // DISPLAY_MIN_NODES..DISPLAY_MAX_NODES khi repo đủ lớn
   edges: GraphEdge[];
+  groups: Array<{                      // Nhóm chức năng tất định (D-84)
+    group_id: string;
+    key: string;                       // Nhãn dự phòng khi AI chưa đặt tên
+    key_kind: "ENTITY" | "ROUTE_PREFIX" | "STANDALONE";
+    node_ids: string[];
+  }>;
   symbol_whitelist: string[];          // Phạm vi repo, đã sort (D-19)
   file_index: string[];                // Mọi file code đã nạp, đã sort
+  readme_excerpt: string | null;       // Chép từ IngestOutput để analyze-overview đọc từ snapshot (D-83)
+  manifest_description: string | null; // Chép từ IngestOutput (D-83)
   ingestion_report: IngestionReport;
 }
 
 // Bản gửi trình duyệt — server dựng bằng toClientResult() theo danh sách trường cho phép
 export type ClientStaticEngineResult =
-  Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report"> & {
+  Omit<StaticEngineResult, "symbol_whitelist" | "ingestion_report" | "readme_excerpt" | "manifest_description"> & {
     ingestion_report: Omit<IngestionReport, "suspicious_instruction_files">;
   };
 ```
@@ -430,6 +447,8 @@ export interface IngestOutput {       // Chỉ sống trong runEngine
   manifests: Map<string, string>;     // ManifestStore — không tính vào CONFIG.MAX_CLEAN_FILES
   source_map: Map<string, VirtualFileOrigin>;
   module_info: { go_module_path: string | null; dart_package_name: string | null; package_entry_files: string[] };
+  readme_excerpt: string | null;      // Đoạn đầu README, đã che secret, ≤ CONFIG.OVERVIEW_README_MAX_CHARS (D-83)
+  manifest_description: string | null;
 }
 ```
 
@@ -468,19 +487,17 @@ export interface NodeAnalysisView {     // Gửi trình duyệt (phần X-Ray)
 }
 
 // ---------- 5.2 analyze-overview ----------
-export interface RepoOverviewRaw {
-  architecture_style: ArchitecturePattern;
-  summary: string;
-  layers: Array<{ layer: ArchitecturalLayer; role: string; nodes: string[] }>;
-  main_flow: string;
-  notes: Array<{ text: string; nodes: string[] }>;
+export interface RepoOverviewRaw {      // = responseSchema của lời gọi overview (D-83)
+  summary: string;                      // Tối đa 2 câu
+  groups: Array<{ group_id: string; name: string }>;
+  node_titles: Array<{ node_id: string; title: string }>;   // Tên tiếng Việt; node.id không đổi (D-08)
 }
 export interface RepoOverviewView {
   facts: {                              // Do code tính
     archetype: ProjectArchetype; framework: string | null; tech_stack: string[];
     root_node_ids: string[]; main_path_node_ids: string[];
   };
-  ai: RepoOverviewRaw | null;           // null ⇒ AI hỏng sau thử lại, chỉ hiện phần facts
+  ai: RepoOverviewRaw | null;           // null ⇒ AI hỏng sau thử lại hoặc bị cổng gác chặn, chỉ hiện phần facts (D-83)
 }
 
 // ---------- 5.3 enrich-node (đặt câu hỏi) ----------
@@ -535,11 +552,12 @@ export interface GradingRaw {           // = responseSchema của lời gọi ch
 }
 // Đầu vào chấm đọc từ node_runs.questions (03), không có code_context (D-36)
 
-export type GuardCall = "analyze" | "overview" | "questions" | "grade";
-export type GuardCode =                                  // 21: A1–A7, O1–O4, Q1–Q8, G1–G2
+export type GuardCall = "analyze" | "overview" | "questions" | "grade" | "explain";
+export type GuardCode =                                  // 21: A1–A7, O1–O6, Q1–Q9, E1–E4, G1–G2
   | "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7"
-  | "O1" | "O2" | "O3" | "O4"
-  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8"
+  | "O1" | "O2" | "O3" | "O4" | "O5" | "O6"
+  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8" | "Q9"
+  | "E1" | "E2" | "E3" | "E4"
   | "G1" | "G2";
 export interface GuardIssue {                            // Lý do cổng gác, do code dựng (GUARD-22)
   code: GuardCode;
@@ -555,6 +573,15 @@ export interface GuardLogEntry {                         // Một dòng log mỗ
   codes: GuardCode[];                                    // Không trùng
   prompt_version: string;
   llm_model: string;
+}
+
+// ---------- 5.5 explain-selection (D-82) ----------
+export interface ExplainSelectionRaw {  // = responseSchema của lời gọi explain
+  kind: "KEYWORD" | "NAME" | "CODE";
+  what: string;                         // 2–3 câu
+  here: string;                         // 1–2 câu
+  analogy: string;                      // 0–1 câu, "" nếu không hợp
+  skill: SWESkill | null;
 }
 ```
 
@@ -748,6 +775,20 @@ export interface AnalyzeNodeResponse {
 export interface AnalyzeOverviewRequest { session_id: string }
 export interface AnalyzeOverviewResponse { overview: RepoOverviewView; tokens_used: number }
 
+// POST /api/explain-selection — server cắt lại vùng chọn từ snapshot phiên (03 Mục 6.9)
+export interface ExplainSelectionRequest {
+  session_id: string;
+  node_id: string;
+  step_number: number;
+  range: { line_start: number; col_start: number; line_end: number; col_end: number };   // Số dòng gốc; cột tính từ 1 như Monaco; col_end loại trừ
+  selected_text: string;
+}
+export interface ExplainSelectionResponse {
+  explanation: ExplainSelectionRaw | null;   // null ⇒ cổng gác chặn
+  references: Array<{ node_id: string; step_number: number; name: string }>;
+  tokens_used: number;
+}
+
 // POST /api/enrich-node
 export interface EnrichNodeRequest { session_id: string; node_id: string; mode: RunMode }
 export interface QuestionView {
@@ -820,15 +861,16 @@ export type PersonaResponse = MeResponse;
 export type LearningErrorCode =
   | "ERR_NODE_NOT_AVAILABLE"        // Tạo run cho node không AVAILABLE
   | "ERR_ANALYSIS_NOT_READY"        // enrich khi node chưa có bản phân tích
-  | "ERR_OVERVIEW_NOT_READY"        // Còn node chưa phân tích xong
   | "ERR_QUESTION_FINISHED"         // Nộp / bỏ qua câu đã xong
   | "ERR_ATTEMPT_OUT_OF_SYNC"       // attempt_number lệch số lượt thật (2 tab)
   | "ERR_ANSWER_TOO_SHORT" | "ERR_ANSWER_TOO_LONG" | "ERR_ANSWER_DUPLICATE" | "ERR_ANSWER_INAPPROPRIATE"   // Không tính lượt
-  | "ERR_REPORT_NOT_ALLOWED";       // Báo sai câu không FAILED / đã báo
+  | "ERR_REPORT_NOT_ALLOWED"        // Báo sai câu không FAILED / đã báo
+  | "ERR_SELECTION_INVALID"         // Vùng chọn không khớp code hoặc quá dài
+  | "ERR_EXPLAIN_LIMIT";            // Phiên đã dùng hết EXPLAIN_MAX_PER_SESSION
 
 export type AiErrorCode =
   | "ERR_AI_UNAVAILABLE"            // Timeout / 429 / 503 / JSON hỏng sau LLM_MAX_RETRIES — không tính lượt
-  | "ERR_AI_REJECTED"               // Bị cổng gác chặn sau thử lại (overview / mọi câu hỏi hỏng)
+  | "ERR_AI_REJECTED"               // Mọi câu hỏi hỏng sau thử lại
   | "ERR_TOKEN_QUOTA_EXCEEDED";     // Phiên đã dùng ≥ SESSION_TOKEN_QUOTA — khóa lời gọi AI mới
 
 export type PersistenceErrorCode =
@@ -856,15 +898,15 @@ export interface ApiError {
 
 | HTTP | Mã lỗi |
 | :-: | :-- |
-| 400 | `ERR_INVALID_GITHUB_URL`, `ERR_UPLOAD_INVALID`, `ERR_ANSWER_TOO_SHORT`, `ERR_ANSWER_TOO_LONG`, `ERR_ANSWER_DUPLICATE`, `ERR_ANSWER_INAPPROPRIATE` |
+| 400 | `ERR_INVALID_GITHUB_URL`, `ERR_UPLOAD_INVALID`, `ERR_ANSWER_TOO_SHORT`, `ERR_ANSWER_TOO_LONG`, `ERR_ANSWER_DUPLICATE`, `ERR_ANSWER_INAPPROPRIATE`, `ERR_SELECTION_INVALID` |
 | 401 | `ERR_UNAUTHENTICATED` |
 | 403 | `ERR_DEMO_MODE_DISABLED`, `ERR_REPORT_NOT_ALLOWED` |
 | 404 | `ERR_PREFLIGHT_404_OR_PRIVATE`, `ERR_BRANCH_NOT_FOUND`, `ERR_SESSION_NOT_FOUND` |
-| 409 | `ERR_ATTEMPT_OUT_OF_SYNC`, `ERR_NODE_NOT_AVAILABLE`, `ERR_QUESTION_FINISHED`, `ERR_ANALYSIS_NOT_READY`, `ERR_OVERVIEW_NOT_READY` |
+| 409 | `ERR_ATTEMPT_OUT_OF_SYNC`, `ERR_NODE_NOT_AVAILABLE`, `ERR_QUESTION_FINISHED`, `ERR_ANALYSIS_NOT_READY` |
 | 410 | `ERR_SESSION_ENGINE_OUTDATED` |
 | 413 | `ERR_STREAM_QUOTA_EXCEEDED` |
 | 422 | `ERR_EMPTY_REPOSITORY`, `ERR_UNSUPPORTED_LANGUAGE`, `ERR_NO_SOURCE_FILES_FOUND`, `ERR_NO_ARCHITECTURAL_SLICE`, `ERR_STREAM_CORRUPTED`, `ERR_AI_REJECTED` |
-| 429 | `ERR_GITHUB_RATE_LIMIT_CDN`, `ERR_TOKEN_QUOTA_EXCEEDED` |
+| 429 | `ERR_GITHUB_RATE_LIMIT_CDN`, `ERR_TOKEN_QUOTA_EXCEEDED`, `ERR_EXPLAIN_LIMIT` |
 | 451 | `ERR_REPO_UNAVAILABLE_451` |
 | 503 | `ERR_AI_UNAVAILABLE`, `ERR_PERSISTENCE_UNAVAILABLE`, `ERR_SERVER_BUSY` |
 | 504 | `ERR_NETWORK_TIMEOUT`, `ERR_STREAM_TIMEOUT` |

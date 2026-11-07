@@ -159,22 +159,9 @@ const mockAnalysisFixture: NodeAnalysis = {
 };
 
 const mockOverviewFixture: RepoOverviewRaw = {
-  architecture_style: "LAYERED",
-  summary: "Web bán hàng chia 3 tầng.",
-  layers: [
-    {
-      layer: "MIDDLEWARE",
-      role: "Kiểm tra token trước khi vào trang cần đăng nhập",
-      nodes: ["slice-profile", "slice-order-checkout"],
-    },
-  ],
-  main_flow: "Đăng ký -> Profile -> Cart -> Checkout -> Email / Report",
-  notes: [
-    {
-      text: "Hai chỗ truy vấn database trong vòng lặp.",
-      nodes: ["slice-product-list", "slice-order-checkout"],
-    },
-  ],
+  summary: "Web bán hàng cho khách mua trực tuyến. Khách đăng ký, xem sản phẩm, thêm vào giỏ rồi thanh toán.",
+  groups: [],
+  node_titles: [{ node_id: "slice-product-list", title: "Xem danh sách sản phẩm" }],
 };
 
 const mockQuestionsFixture: RunQuestion[] = [
@@ -659,7 +646,7 @@ describe("X-13", () => {
   });
 
   it("analyze-overview trượt cache, AI thành công: đúng 1 dòng", async () => {
-    // Chuẩn bị ai_cache cho tất cả node để vượt qua điều kiện ERR_OVERVIEW_NOT_READY
+    // Chuẩn bị ai_cache cho tất cả node để phân tích tổng quan có dữ liệu
     for (const n of typedShopApi.nodes) {
       const naKey = `na|${mockSession.source}|${mockSession.snapshot_id}|${mockSession.subdir}|${mockSession.engine_version}|${n.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
       dbAiCache.set(naKey, {
@@ -672,8 +659,6 @@ describe("X-13", () => {
       async (
         _session: unknown,
         _graph: unknown,
-        _analyses: unknown,
-        _failedIds: unknown,
         usage?: OverviewUsage,
       ) => {
         if (usage) {

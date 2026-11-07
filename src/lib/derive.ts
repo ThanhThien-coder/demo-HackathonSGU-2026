@@ -1,8 +1,11 @@
 import type {
   GraphSkeletonNode,
+  HybridArchitecturalNode,
   NodeStateView,
   NodeStatus,
+  RepoOverviewView,
 } from "@/contracts";
+import { CONFIG } from "@/contracts/config";
 
 export interface ProgressRowLike {
   node_id: string;
@@ -14,6 +17,31 @@ export type DerivedNodeState = Pick<
   NodeStateView,
   "node_id" | "status" | "has_warning" | "analysis_failed"
 >;
+
+/** D-83: tên AI của bài, chưa có tổng quan hoặc AI chưa đặt tên thì null. */
+export function aiTitleOf(
+  nodeId: string,
+  overview: RepoOverviewView | null | undefined
+): string | null {
+  return overview?.ai?.node_titles?.find((t) => t.node_id === nodeId)?.title ?? null;
+}
+
+/** spec 30 Mục 4: tên bài hiển thị. Tên engine suy ra có tiền tố "~". */
+export function displayTitle(
+  node: Pick<HybridArchitecturalNode, "id" | "title" | "title_source">,
+  overview: RepoOverviewView | null | undefined
+): string {
+  const aiTitle = aiTitleOf(node.id, overview);
+  const name = aiTitle ?? node.title;
+  const shown =
+    name.length > CONFIG.TITLE_MAX_CHARS
+      ? name.slice(0, CONFIG.TITLE_MAX_CHARS - 1) + "…"
+      : name;
+  const isGuessed =
+    aiTitle === null &&
+    ["DOMAIN_TERMS", "DIRECTORY", "FILE_BASENAME"].includes(node.title_source);
+  return (isGuessed ? "~" : "") + shown;
+}
 
 /**
  * Suy ra trạng thái của các node trong đồ thị học tập (03 Mục 5.1).

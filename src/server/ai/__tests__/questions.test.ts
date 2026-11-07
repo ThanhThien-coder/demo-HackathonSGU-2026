@@ -17,12 +17,16 @@ vi.mock("../gemini", async (importOriginal) => {
   return {
     ...actual,
     callLLMOnce: vi.fn(),
-    retryDelay: vi.fn(),
+    retryDelay: vi.fn(async () => true), // D-74 R1: true = được gọi lại
   };
 });
 
 vi.mock("../guard/log", () => ({
   logGuardBlock: vi.fn(),
+}));
+
+vi.mock("../history", () => ({
+  loadMissedPoints: vi.fn(async () => ({})),
 }));
 
 vi.mock("@/server/quota", () => ({
@@ -33,8 +37,10 @@ import { checkTokenQuota } from "@/server/quota";
 import { callLLMOnce, retryDelay } from "../gemini";
 import { checkAnalysis } from "../guard/analysis";
 import { logGuardBlock } from "../guard/log";
-import { checkQuestions } from "../guard/questions";
+import { checkQuestions, FLOW_GENERIC_RE } from "../guard/questions";
 import { generateQuestions, type QuestionsUsage } from "../questions";
+import { loadMissedPoints } from "../history";
+import { questionsRequest } from "../prompts/questions";
 
 const shopApiFixturePath = resolve(
   __dirname,
@@ -565,3 +571,96 @@ describe("questions (C07 / AI-22, AI-23, AI-25, AI-37, GUARD-12)", () => {
     });
   });
 });
+
+describe("C-08 — D-74 trong lời gọi đặt câu hỏi", () => {
+  it("AI-25 (A5b): có ý hụt ⇒ khối <learner_history> nằm trước <code_data>; không có ⇒ không có khối", () => {
+    const withHist = questionsRequest(session, graph, nodeN3, analysisN3, planN3, { DB_OPTIMIZATION: ["Mỗi sản phẩm tốn thêm 1 truy vấn"] });
+    expect(withHist.user).toContain("<learner_history>\n- [DB_OPTIMIZATION] Mỗi sản phẩm tốn thêm 1 truy vấn\n</learner_history>");
+    expect(withHist.user.indexOf("<learner_history>")).toBeLessThan(withHist.user.indexOf("<code_data>"));
+    const noHist = questionsRequest(session, graph, nodeN3, analysisN3, planN3, {});
+    expect(noHist.user).not.toContain("<learner_history>");
+  });
+
+  it("S-09, A5b: prompt có luật 8, 9, 10", () => {
+    const req = questionsRequest(session, graph, nodeN3, analysisN3, planN3);
+    expect(req.system).toContain("8. Khi câu hỏi hoặc đáp án mẫu nói về quan hệ");
+    expect(req.system).toContain("9. Câu hỏi phải bắt suy luận");
+    expect(req.system).toContain("10. Khối <learner_history>");
+  });
+
+  it("A5b: generateQuestions đọc ý hụt theo user_id và kỹ năng trong kế hoạch", async () => {
+    vi.mocked(loadMissedPoints).mockResolvedValueOnce({});
+    vi.mocked(callLLMOnce).mockResolvedValue({ ok: false, kind: "FATAL", tokens_in: 0, tokens_out: 0 });
+    await generateQuestions(session, graph, nodeN3, analysisN3, planN3).catch(() => undefined);
+    expect(loadMissedPoints).toHaveBeenCalledWith(session.user_id, [...new Set(planN3.map((p) => p.skill))]);
+  });
+});
+
+describe("C-04 — luật FLOW chế độ A (AI-25)", () => {
+  it("FLOW đặt tình huống code xử lý thấy được, cấm dạng câu \"đi qua những bước / hàm nào\"", () => {
+    const req = questionsRequest(session, graph, nodeN3, analysisN3, planN3);
+    expect(req.system).toContain("- FLOW: đặt 1 tình huống cụ thể mà code xử lý thấy được");
+    expect(req.system).toContain('Câu hỏi KHÔNG có dạng "đi qua những bước / hàm nào"');
+  });
+});
+
+describe("C-04 — GUARD-12 Q9", () => {
+  it("FLOW_GENERIC_RE khớp câu hỏi chung, không khớp tình huống cụ thể", () => {
+    expect(
+      FLOW_GENERIC_RE.test("Luồng xử lý đi qua những hàm nào trước khi lưu?"),
+    ).toBe(true);
+    expect(
+      FLOW_GENERIC_RE.test("dữ liệu đi qua những bước kiểm tra và xử lý nào"),
+    ).toBe(true);
+    expect(
+      FLOW_GENERIC_RE.test(
+        "Khi email sai định dạng, xử lý dừng ở bước nào?",
+      ),
+    ).toBe(false);
+    expect(
+      FLOW_GENERIC_RE.test("Hàm nào ném lỗi khi không tìm thấy đơn?"),
+    ).toBe(false);
+  });
+
+  it("checkQuestions: câu FLOW hỏi chung bị chặn mã Q9, hỏi cụ thể không bị chặn", () => {
+    const planFlowFirst: QuestionPlanItem[] = [
+      {
+        question_index: 1,
+        skill: "LAYERED_SEPARATION",
+        tier: "NOVICE",
+        focus: "FLOW",
+        step_indices: [1, 2, 3],
+      },
+      planN3[0],
+    ];
+
+    const genericQ1: GeneratedQuestionRaw = {
+      ...questionsFixture[1],
+      feynman_question:
+        "Luồng xử lý đi qua những hàm nào trước khi trả danh sách?",
+    };
+    const checksGeneric = checkQuestions(
+      { questions: [genericQ1, questionsFixture[0]] },
+      planFlowFirst,
+      nodeN3,
+      graph,
+      analysisN3,
+    );
+    expect(checksGeneric[0].issues).toContainEqual({ code: "Q9" });
+
+    const specificQ1: GeneratedQuestionRaw = {
+      ...questionsFixture[1],
+      feynman_question:
+        "Khi danh sách có 2 sản phẩm, loại hàng được gắn vào từng sản phẩm ở bước nào?",
+    };
+    const checksSpecific = checkQuestions(
+      { questions: [specificQ1, questionsFixture[0]] },
+      planFlowFirst,
+      nodeN3,
+      graph,
+      analysisN3,
+    );
+    expect(checksSpecific[0].issues.some((i) => i.code === "Q9")).toBe(false);
+  });
+});
+

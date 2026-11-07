@@ -35,7 +35,7 @@ flowchart TD
 
     User <-- "Giao diện Web / REST API JSON<br/>(HTTPS / Bearer Token)" --> System
     System -- "HEAD probe & Tải zip vào RAM<br/>(HTTPS, 0 token)" --> GH
-    System <-- "4 lời gọi AI có responseSchema<br/>(HTTPS / SDK @google/genai)" --> Gemini
+    System <-- "5 lời gọi AI có responseSchema<br/>(HTTPS / SDK @google/genai)" --> Gemini
     System <-- "Đọc/Ghi dữ liệu học tập & Auth<br/>(HTTPS / PostgREST & Supavisor)" --> Supabase
     User -. "Xác thực phiên (GitHub OAuth)" .-> Supabase
 ```
@@ -310,7 +310,7 @@ Số trong ví dụ chỉ minh họa định dạng, không phải số đo. Dò
 5. Dòng `guard_blocked` chỉ có các trường của `GuardLogEntry`; `node_id` giữ như Mục 9.1; không ghi thêm tên hàm, văn bản AI hoặc tên trong `GuardIssue`.
 
 - **Lỗi lạ:** ghi thêm `error_name` và `error_message` đã che secret; không ghi biến môi trường, body request.
-- **Khởi động:** kiểm biến môi trường bắt buộc 1 lần ở `instrumentation.ts`, thiếu ⇒ log `error`.
+- **Khởi động:** kiểm biến môi trường bắt buộc 1 lần ở `instrumentation.ts`, thiếu ⇒ không khởi động (D-66). Nạp grammar ở đó, lỗi ⇒ log `warn`, `parseAll` nạp lại.
 
 ---
 
@@ -452,7 +452,7 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
     │       ├── sessions/route.ts · sessions/[id]/history/route.ts · sessions/[id]/progress/route.ts  # [id] = session_id
     │       ├── ingest/route.ts · analyze-node/route.ts · analyze-overview/route.ts
     │       ├── enrich-node/route.ts · evaluate-feynman/route.ts · reveal/route.ts
-    │       ├── report-wrong/route.ts · demo/persona/route.ts
+    │       ├── report-wrong/route.ts · demo/persona/route.ts · explain-selection/route.ts
     ├── server/
     │   ├── auth.ts · db.ts · errors.ts · session.ts · cache.ts · quota.ts · log.ts   # log.ts: pino (04)
     │   ├── progress.ts                          # deriveNodeStates (gọi lib), finalizeRunIfDone
@@ -460,8 +460,8 @@ Bản thi phục vụ mục tiêu thử thách 21 giờ. Bảng dưới đây ch
     │   ├── engine/index.ts                      # runEngine()
     │   ├── engine/ingest/*.ts                   # 10
     │   ├── engine/graph/*.ts · engine/graph/resolvers/*.ts   # 11
-    │   ├── ai/{gemini,analyze,overview,questions,grade}.ts · ai/prompts/*.ts · ai/schemas.ts      # 20
-    │   └── ai/guard/{text,names,forbidden,lines,analysis,overview,questions,followup,injection,log}.ts  # 21
+    │   ├── ai/{gemini,analyze,overview,questions,grade,explain}.ts · ai/prompts/*.ts · ai/schemas.ts      # 20
+    │   └── ai/guard/{text,names,forbidden,lines,analysis,overview,questions,followup,injection,explain,log}.ts  # 21
     ├── lib/{bkt-engine,plan,derive,similarity}.ts   # 22 — hàm thuần dùng chung server + client
     ├── lib/{graph,moderation}.ts · lib/supabase/client.ts   # mainPath · bộ lọc an toàn · Supabase ở trình duyệt
     ├── lib/{api,offline,messages}.ts            # Client gọi API có kiểu · bản Offline cùng chữ ký · bảng thông điệp lỗi (30)

@@ -89,6 +89,7 @@ const BASE_MANIFEST_BASENAMES = [
   "Cargo.toml",
   "composer.json",
   "Gemfile",
+  "schema.prisma",
 ];
 
 /**

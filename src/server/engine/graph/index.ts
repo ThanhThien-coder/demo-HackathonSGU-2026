@@ -9,15 +9,15 @@ import { parseAll } from "./parser";
 import { collectSymbols, resolveImports } from "./symbols";
 import { buildCallGraph, fileGraph, findEntries } from "./callgraph";
 import { rankFiles } from "./pagerank";
-import { cognitiveComplexity } from "./complexity";
-import { buildSlice } from "./slicing";
+import { cognitiveComplexity, returnsJsx } from "./complexity";
+import { buildSlice, findSharedHelpers } from "./slicing";
 import { chooseMode, buildProceduralCandidates } from "./degraded";
-import { assembleGraph, buildAlgoCandidates } from "./nodes";
+import { assembleGraph, buildAlgoCandidates, isTestCandidate } from "./nodes";
 import { diagnoseUncleBob } from "./unclebob";
 import { dedupeTitles } from "./naming";
 import { layoutGraph } from "./layout";
 import { buildSymbolWhitelist } from "./whitelist";
-import type { Candidate, EngineContext } from "./types";
+import type { Candidate, EngineContext, FunctionInfo } from "./types";
 
 export * from "./types";
 export * from "./registry";
@@ -117,6 +117,7 @@ export async function buildGraph(
     edges: callGraphRes.edges,
     external: callGraphRes.external,
     tech_stack: input.fingerprint.tech_stack,
+    manifests: input.manifests,
     rank,
     source_map: input.source_map,
   };
@@ -126,19 +127,23 @@ export async function buildGraph(
   if (degradedMode === "PROCEDURAL") {
     candidates = buildProceduralCandidates(parsedFiles, ctx);
   } else {
-    // NORMAL mode: cắt lát từ từng entry point
+    // NORMAL mode: cắt lát từ từng entry point, bỏ hàm vặt dùng chung (D-87)
+    const helpers = findSharedHelpers(entries, ctx);
     for (const e of entries) {
       try {
-        const slice = buildSlice(e, ctx);
+        const slice = buildSlice(e, ctx, helpers);
         candidates.push(slice);
       } catch {
         // Bỏ qua nếu lát cắt thất bại
       }
     }
 
-    // Node thuật toán (ENG-90 (a)): VIP trong scope không là bước của lát cắt
+    // Node thuật toán (ENG-90 (a)): VIP trong scope không là bước của lát cắt.
+    // <module> không là ứng viên của (a), (b); PROCEDURAL đi nhánh riêng ở trên.
     const inScopeFns = Array.from(idx.functions.values()).filter(
-      (fn) => !rootDirOffset || fn.file_path.startsWith(rootDirOffset)
+      (fn) =>
+        fn.name !== "<module>" &&
+        (!rootDirOffset || fn.file_path.startsWith(rootDirOffset))
     );
 
     const usedFunctionKeys = new Set<string>();
@@ -148,10 +153,16 @@ export async function buildGraph(
       }
     }
 
+    const isComponent = (fn: FunctionInfo): boolean => {
+      const pf = ctx.files.get(fn.file_path);
+      return pf !== undefined && returnsJsx(fn, pf);
+    };
+
     const vipFns = inScopeFns.filter(
       (fn) =>
         fn.complexity > CONFIG.VIP_COMPLEXITY_MIN &&
-        !usedFunctionKeys.has(fn.key)
+        !usedFunctionKeys.has(fn.key) &&
+        !isComponent(fn)
     );
 
     const algoCandidates = buildAlgoCandidates(vipFns, ctx);
@@ -159,13 +170,15 @@ export async function buildGraph(
 
     // ENG-90 (b): NORMAL có < DISPLAY_MIN_NODES candidate sau ENG-110
     // ⇒ thêm hàm có complexity >= VIP_FALLBACK_MIN_SCORE
-    if (candidates.length < CONFIG.DISPLAY_MIN_NODES) {
+    let cleanCount = candidates.filter((c) => !isTestCandidate(c)).length;
+    if (cleanCount < CONFIG.DISPLAY_MIN_NODES) {
       const remainingFns = inScopeFns
         .filter(
           (fn) =>
             fn.complexity >= CONFIG.VIP_FALLBACK_MIN_SCORE &&
             !usedFunctionKeys.has(fn.key) &&
-            !algoCandidates.some((ac) => ac.entry_symbol === fn.key)
+            !algoCandidates.some((ac) => ac.entry_symbol === fn.key) &&
+            !isComponent(fn)
         )
         .sort((a, b) => {
           if (b.complexity !== a.complexity) return b.complexity - a.complexity;
@@ -177,8 +190,10 @@ export async function buildGraph(
 
       const fallbackAlgos = buildAlgoCandidates(remainingFns, ctx);
       for (const fa of fallbackAlgos) {
-        if (candidates.length >= CONFIG.DISPLAY_MIN_NODES) break;
+        const isClean = !isTestCandidate(fa);
+        if ((isClean ? cleanCount : candidates.length) >= CONFIG.DISPLAY_MIN_NODES) continue;
         candidates.push(fa);
+        if (isClean) cleanCount++;
       }
     }
   }
@@ -192,7 +207,7 @@ export async function buildGraph(
   }
 
   // G9: ASSEMBLE (ENG-110, ENG-111, ENG-112, ENG-114, D-12)
-  const { nodes, edges } = assembleGraph(candidates, ctx, input.report);
+  const { nodes, edges, groups } = assembleGraph(candidates, ctx, input.report);
 
   // G10: UNCLE_BOB (ENG-120)
   for (const node of nodes) {
@@ -236,8 +251,11 @@ export async function buildGraph(
     total_files: input.report.code_file_count,
     nodes: nodes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     edges: edges.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    groups,
     symbol_whitelist,
     file_index,
+    readme_excerpt: input.readme_excerpt,
+    manifest_description: input.manifest_description,
     ingestion_report: input.report,
   };
 }

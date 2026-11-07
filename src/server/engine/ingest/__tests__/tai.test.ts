@@ -122,7 +122,6 @@ it("T-ING-06: ném ERR_INVALID_GITHUB_URL với host khác hoặc link không đ
   );
 });
 
-// ---------------------------------------------------------------------------
 // T-ING-07
 // ---------------------------------------------------------------------------
 describe("T-ING-07: Thăm dò repo (probeRepo)", () => {
@@ -132,52 +131,39 @@ describe("T-ING-07: Thăm dò repo (probeRepo)", () => {
     path_trimmed: false,
     clean_url: "https://github.com/a/b",
   };
+  const HEAD_ZIP = "https://github.com/a/b/archive/HEAD.zip";
+  const PAGE = "https://github.com/a/b";
 
-  it("T-ING-07 (ING-21): Probe trả 404 => ném ERR_PREFLIGHT_404_OR_PRIVATE", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(null, { status: 404 })
-    );
+  /** Mock fetch theo URL; URL không khai báo trả 404 */
+  function mockByUrl(map: Record<string, () => Response>) {
+    const fn = vi.fn(async (url: string | URL | Request) => {
+      const make = map[url.toString()];
+      return make ? make() : new Response(null, { status: 404 });
+    });
+    globalThis.fetch = fn as unknown as typeof fetch;
+    return fn;
+  }
 
+  it("T-ING-07 (ING-21): HEAD.zip 404 và trang repo 404 => ERR_PREFLIGHT_404_OR_PRIVATE", async () => {
+    mockByUrl({});
     await expect(probeRepo(repoInfo)).rejects.toMatchObject({
       code: "ERR_PREFLIGHT_404_OR_PRIVATE",
     });
   });
 
-  it("T-ING-07 (ING-21): Probe trả 451 => ném ERR_REPO_UNAVAILABLE_451", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(null, { status: 451 })
-    );
-
-    await expect(probeRepo(repoInfo)).rejects.toMatchObject({
-      code: "ERR_REPO_UNAVAILABLE_451",
-    });
-  });
-
-  it("T-ING-07 (ING-21): Probe trả 429 => ném ERR_GITHUB_RATE_LIMIT_CDN", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(null, { status: 429 })
-    );
-
-    await expect(probeRepo(repoInfo)).rejects.toMatchObject({
-      code: "ERR_GITHUB_RATE_LIMIT_CDN",
-    });
-  });
-
-  it("T-ING-07 (ING-21): Probe trả 403 => ném ERR_GITHUB_RATE_LIMIT_CDN", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(null, { status: 403 })
-    );
-
-    await expect(probeRepo(repoInfo)).rejects.toMatchObject({
-      code: "ERR_GITHUB_RATE_LIMIT_CDN",
-    });
+  it.each([
+    [451, "ERR_REPO_UNAVAILABLE_451"],
+    [429, "ERR_GITHUB_RATE_LIMIT_CDN"],
+    [403, "ERR_GITHUB_RATE_LIMIT_CDN"],
+  ])("T-ING-07 (ING-21): HEAD.zip trả %i => %s", async (status, code) => {
+    mockByUrl({ [HEAD_ZIP]: () => new Response(null, { status }) });
+    await expect(probeRepo(repoInfo)).rejects.toMatchObject({ code });
   });
 
   it(
-    "T-ING-07 (ING-21, ING-22): Probe bị timeout 2 lần => ném ERR_NETWORK_TIMEOUT",
+    "T-ING-07 (ING-21, ING-22): lỗi mạng 2 lần => ERR_NETWORK_TIMEOUT",
     async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error("Probe network timeout"));
-
       await expect(probeRepo(repoInfo)).rejects.toMatchObject({
         code: "ERR_NETWORK_TIMEOUT",
       });
@@ -185,76 +171,132 @@ describe("T-ING-07: Thăm dò repo (probeRepo)", () => {
     10000
   );
 
-  it("T-ING-07 (ING-21): Probe 200 sau chuyển hướng tới /c/d => trả OK với owner c, repo d", async () => {
-    const redirectedResponse = new Response(null, {
-      status: 200,
+  it("B-14: HEAD.zip 302 => OK, trả head_zip, không gọi trang repo", async () => {
+    const fn = mockByUrl({
+      [HEAD_ZIP]: () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://codeload.github.com/a/b/zip/refs/heads/develop" },
+        }),
     });
-    Object.defineProperty(redirectedResponse, "url", {
-      value: "https://github.com/c/d",
-    });
-
-    globalThis.fetch = vi.fn().mockResolvedValue(redirectedResponse);
-
     const res = await probeRepo(repoInfo);
     expect(res).toEqual({
       result: "OK",
+      owner: "a",
+      repo: "b",
+      head_zip: {
+        download_url: "https://codeload.github.com/a/b/zip/refs/heads/develop",
+        ref: "develop",
+        ref_label: "develop",
+      },
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("T-ING-07 (ING-21): 301 tới /c/d/archive/HEAD.zip rồi 302 => OK, owner c, repo d", async () => {
+    mockByUrl({
+      [HEAD_ZIP]: () =>
+        new Response(null, {
+          status: 301,
+          headers: { location: "https://github.com/c/d/archive/HEAD.zip" },
+        }),
+      "https://github.com/c/d/archive/HEAD.zip": () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://codeload.github.com/c/d/zip/refs/heads/main" },
+        }),
+    });
+    const res = await probeRepo(repoInfo);
+    expect(res).toMatchObject({
+      result: "OK",
       owner: "c",
       repo: "d",
+      head_zip: { ref: "main" },
     });
+  });
+
+  it("B-16 (ING-32): HEAD.zip 302 tới SHA 40 hex => giữ ref, ref_label = null", async () => {
+    const sha = "5da6ad13f8be8e571a9fc2eb4d9b421adfa53a78";
+    mockByUrl({
+      [HEAD_ZIP]: () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: `https://codeload.github.com/a/b/zip/${sha}` },
+        }),
+    });
+    const res = await probeRepo(repoInfo);
+    expect(res.head_zip).toEqual({
+      download_url: `https://codeload.github.com/a/b/zip/${sha}`,
+      ref: sha,
+      ref_label: null,
+    });
+  });
+
+  it("B-16 (ING-32): tên nhánh 40 ký tự không phải hex vẫn là nhãn", async () => {
+    const name = "feature-" + "x".repeat(32);
+    mockByUrl({
+      [HEAD_ZIP]: () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: `https://codeload.github.com/a/b/zip/refs/heads/${name}` },
+        }),
+    });
+    const res = await probeRepo(repoInfo);
+    expect(res.head_zip?.ref_label).toBe(name);
+  });
+
+  it("B-14: HEAD.zip 404 nhưng trang repo 200 => OK, head_zip = null", async () => {
+    mockByUrl({ [PAGE]: () => new Response(null, { status: 200 }) });
+    const res = await probeRepo(repoInfo);
+    expect(res).toEqual({ result: "OK", owner: "a", repo: "b", head_zip: null });
+  });
+
+  it("B-14: lần đầu 503, lần hai 302 => OK sau 1 lần thử lại", async () => {
+    let calls = 0;
+    mockByUrl({
+      [HEAD_ZIP]: () =>
+        ++calls === 1
+          ? new Response(null, { status: 503 })
+          : new Response(null, {
+              status: 302,
+              headers: { location: "https://codeload.github.com/a/b/zip/refs/heads/main" },
+            }),
+    });
+    const res = await probeRepo(repoInfo);
+    expect(res.result).toBe("OK");
+    expect(calls).toBe(2);
   });
 });
 
 // ---------------------------------------------------------------------------
 // T-ING-08
 // ---------------------------------------------------------------------------
-it("T-ING-08: HEAD.zip 302 => lấy ref 'develop', không gọi thử main", async () => {
-  const mockFetch = vi.fn().mockImplementation((url: string) => {
-    if (url.includes("archive/HEAD.zip")) {
-      return Promise.resolve(
-        new Response(null, {
-          status: 302,
-          headers: {
-            location: "https://codeload.github.com/a/b/zip/refs/heads/develop",
-          },
-        })
-      );
-    }
-    return Promise.resolve(new Response(null, { status: 404 }));
-  });
-
+it("T-ING-08: có head_zip từ probe => dùng luôn, không gọi mạng", async () => {
+  const mockFetch = vi.fn();
   globalThis.fetch = mockFetch;
 
-  const res = await resolveRef("a", "b");
-  expect(res).toEqual({
+  const headZip = {
     download_url: "https://codeload.github.com/a/b/zip/refs/heads/develop",
     ref: "develop",
     ref_label: "develop",
-  });
-
-  // Xác nhận không thử fallback tới main
-  expect(mockFetch).toHaveBeenCalledTimes(1);
-  expect(mockFetch).not.toHaveBeenCalledWith(
-    expect.stringContaining("zip/main"),
-    expect.anything()
-  );
+  };
+  const res = await resolveRef("a", "b", headZip);
+  expect(res).toEqual(headZip);
+  expect(mockFetch).not.toHaveBeenCalled();
 });
 
 // ---------------------------------------------------------------------------
 // T-ING-09
 // ---------------------------------------------------------------------------
-it("T-ING-09: HEAD.zip, main, master, dev đều 404 => ném ERR_EMPTY_REPOSITORY", async () => {
-  const mockFetch = vi.fn().mockResolvedValue(
-    new Response(null, { status: 404 })
-  );
-
+it("T-ING-09: head_zip null, main, master, dev đều 404 => ném ERR_EMPTY_REPOSITORY", async () => {
+  const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
   globalThis.fetch = mockFetch;
 
-  await expect(resolveRef("a", "b")).rejects.toMatchObject({
+  await expect(resolveRef("a", "b", null)).rejects.toMatchObject({
     code: "ERR_EMPTY_REPOSITORY",
   });
 
-  // Xác nhận đã thử HEAD.zip và các fallback main, master, dev
-  expect(mockFetch).toHaveBeenCalledWith(
+  expect(mockFetch).not.toHaveBeenCalledWith(
     expect.stringContaining("archive/HEAD.zip"),
     expect.anything()
   );

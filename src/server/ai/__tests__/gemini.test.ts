@@ -48,6 +48,7 @@ import {
   retryDelay,
   type LlmRequest,
 } from "../gemini";
+import { logger } from "../../log";
 
 const dummyReq: LlmRequest<{ status: string }> = {
   kind: "ANALYZE",
@@ -368,6 +369,66 @@ describe("AI-12 — Phân loại lỗi, gọi lại và tính token", () => {
     // FATAL => không chờ
     await retryDelay({ ok: false, kind: "FATAL", status: 404, tokens_in: 0, tokens_out: 0 }, sleepFn);
     expect(sleepFn).not.toHaveBeenCalled();
+  });
+
+  it("AI-12 (R1) 503 có retryDelay 15s ⇒ chờ ≥ 15s rồi gọi lại", async () => {
+    const err = Object.assign(
+      new Error('{"error":{"code":503,"details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"15s"}]}}'),
+      { status: 503 },
+    );
+    sdk.generateContent.mockRejectedValueOnce(err);
+
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const result = await callLLMWithRetry(dummyReq, sleepFn);
+
+    expect(result.ok).toBe(true);
+    expect(sdk.generateContent).toHaveBeenCalledTimes(2);
+    expect(sleepFn).toHaveBeenCalledTimes(1);
+    expect(sleepFn.mock.calls[0][0]).toBeGreaterThanOrEqual(15000);
+    expect(sleepFn.mock.calls[0][0]).toBeLessThan(15000 + CONFIG.LLM_RETRY_JITTER_MS);
+  });
+
+  it("AI-12 (R1) 429 có retryDelay > LLM_RETRY_DELAY_MAX_MS ⇒ không gọi lại, ERR_AI_UNAVAILABLE", async () => {
+    const err = Object.assign(new Error('Quota exceeded. "retryDelay": "57s"'), { status: 429 });
+    sdk.generateContent.mockRejectedValueOnce(err);
+
+    const outcome = await callLLMOnce(dummyReq);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.retry_after_ms).toBe(57000);
+
+    sdk.generateContent.mockRejectedValueOnce(err);
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const result = await callLLMWithRetry(dummyReq, sleepFn);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("ERR_AI_UNAVAILABLE");
+    expect(sdk.generateContent).toHaveBeenCalledTimes(2); // 1 lần callLLMOnce ở trên + 1 lần trong callLLMWithRetry
+    expect(sleepFn).not.toHaveBeenCalled();
+  });
+
+  it("AI-12 (R1) retryDelay trả false khi retry_after_ms vượt trần, true khi được gọi lại", async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined);
+    const over = CONFIG.LLM_RETRY_DELAY_MAX_MS + 1;
+    expect(await retryDelay({ ok: false, kind: "TRANSIENT", status: 429, retry_after_ms: over, tokens_in: 0, tokens_out: 0 }, sleepFn)).toBe(false);
+    expect(sleepFn).not.toHaveBeenCalled();
+    expect(await retryDelay({ ok: false, kind: "TRANSIENT", status: 503, tokens_in: 0, tokens_out: 0 }, sleepFn)).toBe(true);
+    expect(await retryDelay({ ok: false, kind: "INVALID_JSON", tokens_in: 0, tokens_out: 0 }, sleepFn)).toBe(true);
+  });
+
+  it("AI-12 (C-01) lỗi ⇒ 1 dòng log warn có loại lời gọi, kind, status; không có khóa, prompt", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    sdk.generateContent.mockRejectedValueOnce(Object.assign(new Error("Service Unavailable"), { status: 503 }));
+
+    await callLLMOnce(dummyReq);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const payload = warn.mock.calls[0][0] as unknown as Record<string, unknown>;
+    expect(payload).toMatchObject({ event: "llm_error", call: "ANALYZE", kind: "TRANSIENT", status: 503 });
+    const text = JSON.stringify(warn.mock.calls[0]);
+    expect(text).not.toContain("khoa-gia");
+    expect(text).not.toContain("user prompt");
+    expect(text).not.toContain("system prompt");
+    warn.mockRestore();
   });
 
   it("aiCostUsd tính đúng theo đơn vị 1M token (D-69)", () => {

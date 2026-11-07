@@ -1,7 +1,7 @@
 export const CONFIG = {
   // ---------- Phiên bản (đổi ⇒ khóa cache mới) ----------
-  ENGINE_VERSION: "1.6.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
-  PROMPT_VERSION: "1.0.0",            // Đổi khi đổi prompt hoặc responseSchema của 4 lời gọi AI
+  ENGINE_VERSION: "1.7.0",      // Đổi khi đổi bất kỳ luật Tầng 0–2 làm đổi đồ thị / node_id (D-10, D-53 … D-58, D-61, D-63, D-65)
+  PROMPT_VERSION: "1.2.0",            // Đổi khi đổi prompt hoặc responseSchema của 5 lời gọi AI (D-74)
 
   // ---------- Tầng 0: tải & lọc (10_ENGINE_INGEST) ----------
   MAX_STREAM_BYTES: 15 * 1024 * 1024, // Byte nén tải từ GitHub
@@ -92,10 +92,13 @@ export const CONFIG = {
   LLM_RETRY_JITTER_MS: 100,           // Cộng ngẫu nhiên [0, JITTER)
   GUARD_FEEDBACK_MAX_CHARS: 400,     // Trần khối <guard_feedback> khi gọi lại (AI-37)
   GRADING_QUOTE_MIN_CHARS: 3,         // Đoạn trích (đã chuẩn hóa) ngắn hơn ⇒ ý đó không tính (D-13)
-  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 900, OVERVIEW: 600, QUESTIONS: 900, GRADE: 500 },
+  LLM_MAX_OUTPUT_TOKENS: { ANALYZE: 1400, OVERVIEW: 1500, QUESTIONS: 900, GRADE: 500, EXPLAIN: 400 },   // Đo thật: OVERVIEW 13 bài vượt 600 (C-12); ANALYZE bài 5 bước vượt 900 (C-02)
   LLM_PRICE_INPUT_USD_PER_M: 0.30,    // USD / 1 triệu token vào (D-69)
   LLM_PRICE_OUTPUT_USD_PER_M: 2.50,   // USD / 1 triệu token ra, gồm token suy nghĩ (D-69)
   ANALYZE_CONCURRENCY: 3,             // Số lời gọi analyze-node chạy cùng lúc / phiên
+  OVERVIEW_README_MAX_CHARS: 2000,    // Trần readme_excerpt, chưa đo (D-83)
+  EXPLAIN_SELECTION_MAX_CHARS: 300,   // Trần vùng chọn của explain-selection, chưa đo (D-82)
+  EXPLAIN_MAX_PER_SESSION: 30,        // Số lời gọi AI explain-selection / phiên, chưa đo (D-82)
   SESSION_TOKEN_QUOTA: 200000,        // Tổng token vào + ra / phiên học, đếm ở server
   ANALYSIS_MIN_SKILLS: 1,
   ANALYSIS_MAX_SKILLS: 3,

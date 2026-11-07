@@ -3,11 +3,12 @@ import type { IngestionErrorCode } from "./engine";
 export type LearningErrorCode =
   | "ERR_NODE_NOT_AVAILABLE"        // Tạo run cho node không AVAILABLE
   | "ERR_ANALYSIS_NOT_READY"        // enrich khi node chưa có bản phân tích
-  | "ERR_OVERVIEW_NOT_READY"        // Còn node chưa phân tích xong
   | "ERR_QUESTION_FINISHED"         // Nộp / bỏ qua câu đã xong
   | "ERR_ATTEMPT_OUT_OF_SYNC"       // attempt_number lệch số lượt thật (2 tab)
   | "ERR_ANSWER_TOO_SHORT" | "ERR_ANSWER_TOO_LONG" | "ERR_ANSWER_DUPLICATE" | "ERR_ANSWER_INAPPROPRIATE"   // Không tính lượt
-  | "ERR_REPORT_NOT_ALLOWED";       // Báo sai câu không FAILED / đã báo
+  | "ERR_REPORT_NOT_ALLOWED"        // Báo sai câu không FAILED / đã báo
+  | "ERR_SELECTION_INVALID"         // Vùng chọn không khớp code hoặc quá dài
+  | "ERR_EXPLAIN_LIMIT";            // Phiên đã dùng hết EXPLAIN_MAX_PER_SESSION
 
 export type AiErrorCode =
   | "ERR_AI_UNAVAILABLE"            // Timeout / 429 / 503 / JSON hỏng sau LLM_MAX_RETRIES — không tính lượt

@@ -1,7 +1,10 @@
 import {
   CONFIG,
+  type HybridArchitecturalNode,
   type IngestResponse,
   type IngestSource,
+  type NodeAnalysis,
+  type NodeAnalysisView,
   type StaticEngineResult,
 } from "@/contracts";
 import { authenticateRequest } from "@/server/auth";
@@ -9,7 +12,9 @@ import { sql } from "@/server/db";
 import { runEngine, toClientResult } from "@/server/engine";
 import { IngestionError } from "@/server/engine/ingest/types";
 import { ApiHttpError, toErrorResponse } from "@/server/errors";
+import { logger } from "@/server/log";
 import { getSessionProgress } from "@/server/progress";
+import { toAnalysisView } from "@/server/ai/analyze";
 import {
   createOrResumeSession,
   getSessionStaticResult,
@@ -44,6 +49,51 @@ async function executeEngine(
   }
 }
 
+/**
+ * Doc phan tich co san tu ai_cache (03 Muc 6.6, A-05).
+ * Chi doc ai_cache: khong goi AI, khong kiem quota, khong ghi ai_usage,
+ * khong doi tokens_used, khong sua analysis_failed.
+ */
+async function loadCachedAnalyses(
+  staticResult: StaticEngineResult
+): Promise<Record<string, NodeAnalysisView>> {
+  if (!staticResult.nodes || staticResult.nodes.length === 0) {
+    return {};
+  }
+
+  const nodeByKey = new Map<string, HybridArchitecturalNode>();
+  for (const node of staticResult.nodes) {
+    const cacheKey = `na|${staticResult.snapshot.source}|${staticResult.snapshot.snapshot_id}|${staticResult.snapshot.subdir}|${staticResult.engine_version}|${node.id}|${CONFIG.PROMPT_VERSION}|${CONFIG.LLM_MODEL}`;
+    nodeByKey.set(cacheKey, node);
+  }
+
+  const keys = Array.from(nodeByKey.keys());
+  if (keys.length === 0) {
+    return {};
+  }
+
+  const rows = await sql<Array<{ cache_key: string; payload: NodeAnalysis | string }>>`
+    SELECT cache_key, payload FROM ai_cache WHERE cache_key IN ${sql(keys)}
+  `;
+
+  const analyses: Record<string, NodeAnalysisView> = {};
+  for (const row of rows) {
+    const node = nodeByKey.get(row.cache_key);
+    if (!node) continue;
+
+    try {
+      const rawPayload = row.payload;
+      const cachedAnalysis: NodeAnalysis =
+        typeof rawPayload === "string" ? JSON.parse(rawPayload) : rawPayload;
+      analyses[node.id] = toAnalysisView(cachedAnalysis, node, staticResult);
+    } catch {
+      logger.warn({ node_id: node.id });
+    }
+  }
+
+  return analyses;
+}
+
 /** Dung IngestResponse chung cho moi nhanh (03 Muc 6.6). */
 async function buildResponse(
   sessionId: string,
@@ -53,14 +103,13 @@ async function buildResponse(
   fromCache: boolean
 ): Promise<Response> {
   const progress = await getSessionProgress(sessionId, userId);
+  const analyses = await loadCachedAnalyses(staticResult);
 
   const body: IngestResponse = {
     session_id: sessionId,
     result: toClientResult(staticResult), // API-03: bo symbol_whitelist, suspicious_instruction_files
     progress,
-    // 03 Muc 6.6 "Tra analyses co san trong cache": ai_cache luu NodeAnalysis, can toAnalysisView
-    // (C06, spec 20 AI-18) de doi sang NodeAnalysisView. Chua co ham do => tra rong; A07 noi sau.
-    analyses: {},
+    analyses,
     resumed,
     from_cache: fromCache,
   };

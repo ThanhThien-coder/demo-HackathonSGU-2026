@@ -28,6 +28,8 @@ import {
   type GradeUsage,
 } from "./ai/grade";
 import { isInjection } from "./ai/guard/injection";
+import { findReferencedSteps, loadPreviousAttempt } from "./ai/history";
+import type { GradeExtras } from "./ai/prompts/grade";
 import { db, sql } from "./db";
 import { redactSecrets } from "./engine/ingest/secrets";
 import { ApiHttpError } from "./errors";
@@ -44,7 +46,7 @@ import {
   withDbRetry,
 } from "./progress";
 import { addSessionTokens } from "./quota";
-import { verifyRunOwnership, type RunRecord, type SessionRecord } from "./session";
+import { getSessionStaticResult, verifyRunOwnership, type RunRecord, type SessionRecord } from "./session";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -182,11 +184,28 @@ export async function evaluateFeynman(
     grading = injectionGrading(q); // AI-33: 0 diem, OFF_TOPIC, khong goi y, 0 token — van tinh 1 luot
   } else {
     const usage: GradeUsage = { tokens_in: 0, tokens_out: 0, requests: 0 };
+    // D-74 (20 AI-27): A5a lượt trước từ lượt 2; M1 tên hàm bài khác, chỉ tên (D-36), snapshot lỗi ⇒ bỏ khối
+    const extras: GradeExtras = {};
+    if (req.attempt_number >= 2) {
+      extras.previous = await loadPreviousAttempt(run.id, req.question_index);
+    }
+    try {
+      const graph = await getSessionStaticResult(session, userId);
+      extras.referenced = findReferencedSteps(
+        graph,
+        run.node_id,
+        cleanAnswer,
+        new Set(run.steps.map((s) => s.function_name))
+      );
+    } catch {
+      // M1: đọc snapshot lỗi ⇒ chấm như cũ
+    }
     try {
       // Het quota ⇒ ERR_TOKEN_QUOTA_EXCEEDED; AI hong ⇒ ERR_AI_UNAVAILABLE; ca hai khong tinh luot
       grading = await gradeWithAI(t, cleanAnswer, req.attempt_number, maxAttempts, session, {
         usage,
         nodeId: run.node_id,
+        extras,
       });
     } finally {
       tokensUsed = await recordGradeUsage(session, usage);

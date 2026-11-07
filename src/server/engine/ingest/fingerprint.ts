@@ -16,8 +16,13 @@ import type {
   ScopeDecision,
 } from "./types";
 import { DEFAULT_LANGUAGE_REGISTRY } from "./prune";
+import { stripJsonc } from "../jsonc";
+import { redactAndMaskCode } from "./secrets";
 
 const SERVER_SEGMENTS = new Set(["server", "backend", "api"]);
+
+// Gói backend JS chỉ tính khi nằm ở dependencies (spec 10 Mục 12 ý 3, ý 5)
+const BACKEND_JS_FRAMEWORKS = new Set(["@nestjs/core", "express", "fastify", "koa"]);
 
 const CLIENT_SEGMENTS = new Set([
   "client",
@@ -45,7 +50,9 @@ export function detectScope(
   );
 
   const manifestPaths = new Set(
-    entries.filter((e) => e.cls === "MANIFEST").map((e) => e.path)
+    entries
+      .filter((e) => e.cls === "MANIFEST" && !e.path.endsWith("schema.prisma"))
+      .map((e) => e.path)
   );
 
   const hasManifestInDir = (dirPrefix: string): boolean => {
@@ -121,6 +128,19 @@ export function detectScope(
   }
 
   const sortedServers = Array.from(serverDirs).sort();
+  const sortedClients = Array.from(clientDirs).sort();
+
+  // Ứng viên scope cho đường lùi (B-17): server rồi client, bytes giảm dần, hòa thì path nhỏ hơn
+  const bytesUnder = (dir: string): number =>
+    codeEntries.filter((e) => e.path.startsWith(dir)).reduce((sum, e) => sum + e.size, 0);
+  const byBytesDesc = (dirs: string[]): string[] => {
+    const bytes = new Map(dirs.map((d) => [d, bytesUnder(d)] as const));
+    return [...dirs].sort((a, b) => {
+      const diff = (bytes.get(b) ?? 0) - (bytes.get(a) ?? 0);
+      return diff !== 0 ? diff : a < b ? -1 : a > b ? 1 : 0;
+    });
+  };
+  const candidateDirs = [...byBytesDesc(sortedServers), ...byBytesDesc(sortedClients)];
 
   // 2. Scope tường minh (ING-80)
   if (explicit_subdir !== null && explicit_subdir.trim() !== "") {
@@ -129,11 +149,19 @@ export function detectScope(
       normalized += "/";
     }
 
-    const hasCodeInSubdir = codeEntries.some((e) =>
-      e.path.startsWith(normalized)
-    );
-
+    // So không phân biệt hoa thường, dùng đúng tên thư mục thật trong repo (lỗi B-21).
+    // Khớp đúng hoa thường thì giữ nguyên; không thì lấy path nhỏ nhất để kết quả tất định.
+    const lowerNorm = normalized.toLowerCase();
+    const hasCodeInSubdir = codeEntries.some((e) => e.path.startsWith(normalized));
     if (!hasCodeInSubdir) {
+      const match = codeEntries
+        .filter((e) => e.path.toLowerCase().startsWith(lowerNorm))
+        .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))[0];
+      if (match) normalized = match.path.slice(0, normalized.length);
+    }
+    const resolvedExists = hasCodeInSubdir || codeEntries.some((e) => e.path.startsWith(normalized));
+
+    if (!resolvedExists) {
       throw new IngestionError(
         "ERR_NO_SOURCE_FILES_FOUND",
         `No source files found in subdirectory: ${normalized}`,
@@ -147,7 +175,7 @@ export function detectScope(
     return {
       root_dir_offset: normalized,
       is_monorepo,
-      candidates: sortedServers,
+      candidates: candidateDirs,
       explicit: true,
     };
   }
@@ -212,7 +240,7 @@ export function detectScope(
   return {
     root_dir_offset,
     is_monorepo,
-    candidates: sortedServers,
+    candidates: candidateDirs,
     explicit: false,
   };
 }
@@ -220,6 +248,8 @@ export function detectScope(
 export interface ParsedManifest {
   path: string;
   packages: string[];
+  /** Gói chỉ có trong devDependencies của package.json (spec 10 Mục 12 ý 3, lỗi B-34) */
+  dev_only_packages: string[];
   has_bin: boolean;
   main: string | null;
   bin_paths: string[];
@@ -231,11 +261,7 @@ export interface ParsedManifest {
  * Làm sạch JSON có comment hoặc trailing comma theo ING-120
  */
 function cleanJson(str: string): string {
-  return str
-    .replace(/^\uFEFF/, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/[^\r\n]*/g, "")
-    .replace(/,\s*([\]}])/g, "$1");
+  return stripJsonc(str);
 }
 
 /**
@@ -347,6 +373,7 @@ export function parseManifests(
     const dirPrefix = dir === "." ? "" : `${dir}/`;
 
     let packages: string[] = [];
+    let dev_only_packages: string[] = [];
     let has_bin = false;
     let main: string | null = null;
     let bin_paths: string[] = [];
@@ -365,7 +392,7 @@ export function parseManifests(
         try {
           parsed = JSON.parse(cleanJson(content)) as Record<string, unknown>;
         } catch {
-          if (report) {
+          if (report && basename === "package.json") {
             const warn = `Tệp cấu hình ${manifestPath} bị hỏng định dạng.`;
             if (!report.warnings.includes(warn)) {
               report.warnings.push(warn);
@@ -404,6 +431,19 @@ export function parseManifests(
         }
 
         packages = Array.from(pkgSet);
+
+        // Gói chỉ nằm ở devDependencies (không có ở dependencies, peerDependencies)
+        const runtimeKeys = new Set<string>();
+        for (const group of [deps, peerDeps]) {
+          if (group && typeof group === "object") {
+            for (const k of Object.keys(group)) runtimeKeys.add(k.trim().toLowerCase());
+          }
+        }
+        if (devDeps && typeof devDeps === "object") {
+          dev_only_packages = Object.keys(devDeps)
+            .map((k) => k.trim().toLowerCase())
+            .filter((k) => !runtimeKeys.has(k));
+        }
 
         // bin
         if (typeof parsed.bin === "string" && parsed.bin.trim() !== "") {
@@ -470,7 +510,7 @@ export function parseManifests(
     } else if (basename === "Pipfile") {
       const pkgSet = new Set<string>();
       const sections = content.matchAll(
-        /\[(?:packages|dev-packages)\]([\s\S]*?)(?=\n\s*\[|\z)/g
+        /\[(?:packages|dev-packages)\]([\s\S]*?)(?=\n\s*\[|$(?![\s\S]))/g
       );
       for (const sec of sections) {
         const lines = sec[1].split(/\r?\n/);
@@ -534,7 +574,7 @@ export function parseManifests(
       }
       const pkgSet = new Set<string>();
       const depSections = content.matchAll(
-        /^(?:dependencies|dev_dependencies):\s*([\s\S]*?)(?=^\w|\z)/gm
+        /^(?:dependencies|dev_dependencies):[ \t]*\r?\n([\s\S]*?)(?=^\w|$(?![\s\S]))/gm
       );
       for (const ds of depSections) {
         const lines = ds[1].split(/\r?\n/);
@@ -551,7 +591,7 @@ export function parseManifests(
     } else if (basename === "Cargo.toml") {
       const pkgSet = new Set<string>();
       const sections = content.matchAll(
-        /\[(?:dependencies|dev-dependencies)\]([\s\S]*?)(?=\n\s*\[|\z)/g
+        /\[(?:dependencies|dev-dependencies)\]([\s\S]*?)(?=\n\s*\[|$(?![\s\S]))/g
       );
       for (const s of sections) {
         const lines = s[1].split(/\r?\n/);
@@ -596,6 +636,7 @@ export function parseManifests(
     }
 
     result.push({
+      dev_only_packages,
       path: manifestPath,
       packages,
       has_bin,
@@ -617,7 +658,8 @@ export function buildFingerprint(
   manifests: Map<string, string>,
   scope: ScopeDecision,
   report: IngestionReport,
-  registry: LanguageRegistry = DEFAULT_LANGUAGE_REGISTRY
+  registry: LanguageRegistry = DEFAULT_LANGUAGE_REGISTRY,
+  fileLanguage?: Map<string, LanguageId>
 ): {
   fingerprint: ProjectFingerprint;
   module_info: IngestOutput["module_info"];
@@ -646,6 +688,20 @@ export function buildFingerprint(
       for (const pkg of pm.packages) {
         scopePackagesSet.add(pkg);
       }
+    }
+  }
+
+  // Gói chạy thật trong scope: bỏ gói chỉ có ở devDependencies (spec 10 Mục 12 ý 3, lỗi B-34)
+  const runtimePackagesSet = new Set<string>();
+  for (const pm of parsedManifestList) {
+    const isInScope =
+      scope.root_dir_offset === "" ||
+      pm.path.startsWith(scope.root_dir_offset) ||
+      !pm.path.includes("/");
+    if (!isInScope) continue;
+    const devOnly = new Set(pm.dev_only_packages);
+    for (const pkg of pm.packages) {
+      if (!devOnly.has(pkg)) runtimePackagesSet.add(pkg);
     }
   }
 
@@ -704,11 +760,11 @@ export function buildFingerprint(
   }
   // Luật 3: WEB_BACKEND
   else if (
-    scopePackagesSet.has("express") ||
-    scopePackagesSet.has("koa") ||
-    scopePackagesSet.has("fastify") ||
-    scopePackagesSet.has("@nestjs/core") ||
-    scopePackagesSet.has("@hapi/hapi") ||
+    runtimePackagesSet.has("express") ||
+    runtimePackagesSet.has("koa") ||
+    runtimePackagesSet.has("fastify") ||
+    runtimePackagesSet.has("@nestjs/core") ||
+    runtimePackagesSet.has("@hapi/hapi") ||
     scopePackagesSet.has("fastapi") ||
     scopePackagesSet.has("flask") ||
     scopePackagesSet.has("django") ||
@@ -784,7 +840,9 @@ export function buildFingerprint(
         break;
       }
     } else {
-      if (scopePackagesSet.has(fw.pkg)) {
+      // Nhãn backend JS chỉ nhận khi là gói chạy thật, không phải gói kiểm thử ở devDependencies
+      const pool = BACKEND_JS_FRAMEWORKS.has(fw.pkg) ? runtimePackagesSet : scopePackagesSet;
+      if (pool.has(fw.pkg)) {
         detected_framework = fw.label;
         break;
       }
@@ -812,7 +870,9 @@ export function buildFingerprint(
       if (e.path.endsWith(".ipynb")) {
         langId = "PYTHON";
       } else if (e.path.endsWith(".vue") || e.path.endsWith(".svelte")) {
-        langId = "TYPESCRIPT";
+        // Ngôn ngữ đã quyết ở ING-101: file ảo path + ".ts" hoặc path + ".js". File không được giữ thì mặc định (lỗi B-24).
+        langId =
+          fileLanguage?.get(`${e.path}.js`) ?? fileLanguage?.get(`${e.path}.ts`) ?? "TYPESCRIPT";
       }
     }
 
@@ -981,4 +1041,114 @@ export function assertNotEmpty(
     `No source code files found in repository (${hint})`,
     { hint }
   );
+}
+
+const README_BASENAME_REGEX = /^readme(\.(md|rst|txt))?$/i;
+
+/**
+ * Chọn file README theo ING-123: ở root_dir_offset, không có thì ở gốc repo; nhiều file thì path nhỏ nhất.
+ * Trả null nếu không có hoặc size > CONFIG.MAX_MANIFEST_BYTES.
+ */
+export function pickReadmeEntry(
+  entries: ClassifiedEntry[],
+  scope: ScopeDecision
+): ClassifiedEntry | null {
+  const inDir = (dir: string): ClassifiedEntry[] =>
+    entries
+      .filter((e) => {
+        if (e.is_dir || e.is_symlink || e.is_encrypted || !e.path.startsWith(dir)) return false;
+        const rest = e.path.slice(dir.length);
+        return !rest.includes("/") && README_BASENAME_REGEX.test(rest);
+      })
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
+  let found = scope.root_dir_offset ? inDir(scope.root_dir_offset) : [];
+  if (found.length === 0) found = inDir("");
+  const chosen = found[0];
+  if (!chosen || chosen.size > CONFIG.MAX_MANIFEST_BYTES) return null;
+  return chosen;
+}
+
+/** Che secret và PII rồi cắt theo CONFIG.OVERVIEW_README_MAX_CHARS. Rỗng sau trim thì null. */
+function sanitizeProjectText(text: string, report: IngestionReport): string | null {
+  const cleaned = redactAndMaskCode(text);
+  // Mất bảo toàn dòng nghĩa là bản che không dùng được: bỏ, không giữ bản chưa che
+  if (!cleaned.linePreserved) return null;
+  report.redacted_secret_count += cleaned.count;
+  const cut = cleaned.code.trim().slice(0, CONFIG.OVERVIEW_README_MAX_CHARS).trim();
+  return cut === "" ? null : cut;
+}
+
+function tomlProjectDescription(content: string): string | null {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  let inProject = false;
+  for (const line of lines) {
+    const header = line.match(/^\s*\[([^\]]+)\]\s*$/);
+    if (header) {
+      inProject = header[1].trim() === "project";
+      continue;
+    }
+    if (!inProject) continue;
+    const m = line.match(/^\s*description\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/);
+    if (m) return (m[1] ?? m[2] ?? "").trim() || null;
+  }
+  return null;
+}
+
+function pomDescription(content: string): string | null {
+  // Bỏ comment và các khối có <description> lồng (dependency, plugin, parent...)
+  const stripped = content
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(parent|dependencies|dependencyManagement|build|profiles|reporting|modules)>[\s\S]*?<\/\1>/g, "");
+  const m = stripped.match(/<description>([\s\S]*?)<\/description>/);
+  return m ? m[1].trim() || null : null;
+}
+
+function manifestDescription(manifestPath: string, content: string): string | null {
+  const base = manifestPath.slice(manifestPath.lastIndexOf("/") + 1);
+  if (base === "package.json") {
+    try {
+      const parsed = JSON.parse(stripJsonc(content)) as { description?: unknown };
+      return typeof parsed.description === "string" && parsed.description.trim() !== ""
+        ? parsed.description.trim()
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  if (base === "pyproject.toml") return tomlProjectDescription(content);
+  if (base === "pom.xml") return pomDescription(content);
+  return null;
+}
+
+/**
+ * Mô tả dự án cho tổng quan (ING-123, D-83): README đầu tiên và mô tả trong manifest.
+ * Cả hai đã che secret, cắt theo CONFIG.OVERVIEW_README_MAX_CHARS; không có thì null.
+ */
+export function buildProjectText(
+  readme: string | null,
+  manifests: Map<string, string>,
+  scope: ScopeDecision,
+  report: IngestionReport
+): Pick<IngestOutput, "readme_excerpt" | "manifest_description"> {
+  const readme_excerpt = readme === null ? null : sanitizeProjectText(readme, report);
+
+  // Manifest trong offset trước, rồi ở gốc repo; trong mỗi nhóm path tăng dần
+  const paths = Array.from(manifests.keys()).sort();
+  const inOffset = scope.root_dir_offset
+    ? paths.filter((p) => p.startsWith(scope.root_dir_offset))
+    : [];
+  const atRoot = paths.filter((p) => !p.includes("/"));
+  let manifest_description: string | null = null;
+  for (const p of [...inOffset, ...atRoot]) {
+    const raw = manifestDescription(p, manifests.get(p) ?? "");
+    if (raw === null) continue;
+    const cleaned = sanitizeProjectText(raw, report);
+    if (cleaned !== null) {
+      manifest_description = cleaned;
+      break;
+    }
+  }
+
+  return { readme_excerpt, manifest_description };
 }

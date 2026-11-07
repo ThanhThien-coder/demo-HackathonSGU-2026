@@ -1,4 +1,6 @@
 import { CONFIG, type ApiError, type ClientErrorCode, type ErrorCode } from "@/contracts";
+import { maskSensitive } from "@/lib/moderation";
+import { redactSecrets } from "./engine/ingest/secrets";
 import { logger } from "./log";
 
 export type ServerErrorCode = Exclude<ErrorCode, ClientErrorCode>;
@@ -12,6 +14,7 @@ export const ERROR_HTTP_STATUS: Record<ServerErrorCode, number> = {
   ERR_ANSWER_TOO_LONG: 400,
   ERR_ANSWER_DUPLICATE: 400,
   ERR_ANSWER_INAPPROPRIATE: 400,
+  ERR_SELECTION_INVALID: 400,
 
   // HTTP 401
   ERR_UNAUTHENTICATED: 401,
@@ -30,7 +33,6 @@ export const ERROR_HTTP_STATUS: Record<ServerErrorCode, number> = {
   ERR_NODE_NOT_AVAILABLE: 409,
   ERR_QUESTION_FINISHED: 409,
   ERR_ANALYSIS_NOT_READY: 409,
-  ERR_OVERVIEW_NOT_READY: 409,
 
   // HTTP 410
   ERR_SESSION_ENGINE_OUTDATED: 410,
@@ -49,6 +51,7 @@ export const ERROR_HTTP_STATUS: Record<ServerErrorCode, number> = {
   // HTTP 429
   ERR_GITHUB_RATE_LIMIT_CDN: 429,
   ERR_TOKEN_QUOTA_EXCEEDED: 429,
+  ERR_EXPLAIN_LIMIT: 429,
 
   // HTTP 451
   ERR_REPO_UNAVAILABLE_451: 451,
@@ -122,8 +125,6 @@ export function defaultMessage(
       return "Node này chưa mở hoặc đã học xong.";
     case "ERR_ANALYSIS_NOT_READY":
       return "";
-    case "ERR_OVERVIEW_NOT_READY":
-      return "";
     case "ERR_QUESTION_FINISHED":
       return "Câu này đã kết thúc.";
     case "ERR_ATTEMPT_OUT_OF_SYNC":
@@ -138,6 +139,10 @@ export function defaultMessage(
       return "Câu trả lời chứa từ ngữ không phù hợp — vui lòng diễn đạt lại bằng ngôn ngữ chuẩn mực.";
     case "ERR_REPORT_NOT_ALLOWED":
       return "Chỉ báo sai được câu bị chấm trượt, mỗi câu một lần.";
+    case "ERR_SELECTION_INVALID":
+      return "Vùng chọn không khớp với mã nguồn hoặc vượt quá độ dài cho phép.";
+    case "ERR_EXPLAIN_LIMIT":
+      return `Phiên này đã dùng hết giới hạn ${CONFIG.EXPLAIN_MAX_PER_SESSION} lần giải thích code.`;
     case "ERR_AI_UNAVAILABLE":
       return "AI chấm bài đang bận — bài chưa được chấm, không tính lượt.";
     case "ERR_AI_REJECTED":
@@ -177,7 +182,6 @@ export const ERROR_DEFAULT_MESSAGES: Record<ServerErrorCode, string> = {
   ERR_SERVER_BUSY: defaultMessage("ERR_SERVER_BUSY"),
   ERR_NODE_NOT_AVAILABLE: defaultMessage("ERR_NODE_NOT_AVAILABLE"),
   ERR_ANALYSIS_NOT_READY: defaultMessage("ERR_ANALYSIS_NOT_READY"),
-  ERR_OVERVIEW_NOT_READY: defaultMessage("ERR_OVERVIEW_NOT_READY"),
   ERR_QUESTION_FINISHED: defaultMessage("ERR_QUESTION_FINISHED"),
   ERR_ATTEMPT_OUT_OF_SYNC: defaultMessage("ERR_ATTEMPT_OUT_OF_SYNC"),
   ERR_ANSWER_TOO_SHORT: defaultMessage("ERR_ANSWER_TOO_SHORT"),
@@ -185,6 +189,8 @@ export const ERROR_DEFAULT_MESSAGES: Record<ServerErrorCode, string> = {
   ERR_ANSWER_DUPLICATE: defaultMessage("ERR_ANSWER_DUPLICATE"),
   ERR_ANSWER_INAPPROPRIATE: defaultMessage("ERR_ANSWER_INAPPROPRIATE"),
   ERR_REPORT_NOT_ALLOWED: defaultMessage("ERR_REPORT_NOT_ALLOWED"),
+  ERR_SELECTION_INVALID: defaultMessage("ERR_SELECTION_INVALID"),
+  ERR_EXPLAIN_LIMIT: defaultMessage("ERR_EXPLAIN_LIMIT"),
   ERR_AI_UNAVAILABLE: defaultMessage("ERR_AI_UNAVAILABLE"),
   ERR_AI_REJECTED: defaultMessage("ERR_AI_REJECTED"),
   ERR_TOKEN_QUOTA_EXCEEDED: defaultMessage("ERR_TOKEN_QUOTA_EXCEEDED"),
@@ -271,8 +277,19 @@ export function toErrorResponse(error: unknown): Response {
     return error.toResponse();
   }
 
-  const err_name = error instanceof Error ? error.name : typeof error;
-  logger.error({ err_name });
+  const error_name = error instanceof Error ? error.name : typeof error;
+  let rawMessage = error instanceof Error ? error.message : "";
+  if (rawMessage) {
+    rawMessage = rawMessage.replace(
+      /(\b[A-Za-z0-9_]*(?:password|passwd|pwd|secret|api_?key|token|private_?key|access_?key)\b\s*[:=]\s*)(["'`]?)([^"'`\r\n\s]+)\2/gi,
+      "$1$2<REDACTED_SECRET>$2"
+    );
+  }
+  const error_message = rawMessage
+    ? maskSensitive(redactSecrets(rawMessage).code)
+    : "";
+
+  logger.error({ error_name, error_message });
 
   const fallback = new ApiHttpError("ERR_PERSISTENCE_UNAVAILABLE");
   return fallback.toResponse();

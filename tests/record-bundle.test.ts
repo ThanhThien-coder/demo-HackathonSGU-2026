@@ -51,6 +51,8 @@ describe("C10a: record-bundle (scripts/record-bundle.ts)", () => {
       is_exempt: rawProductNode.uncle_bob.is_exempt,
     },
     dto_snippet: rawProductNode.dto_snippet,
+    group_id: "",
+    entities: [],
     trace_steps: rawProductNode.trace_steps.map((s) => ({
       step_number: s.step_number,
       layer: "ENTRY_POINT",
@@ -92,6 +94,7 @@ describe("C10a: record-bundle (scripts/record-bundle.ts)", () => {
     },
     total_files: shopApiJson.total_files,
     nodes: [mockProductListNode],
+    groups: [],
     edges: [],
     file_index: [...shopApiJson.file_index],
     ingestion_report: {
@@ -193,17 +196,9 @@ describe("C10a: record-bundle (scripts/record-bundle.ts)", () => {
       main_path_node_ids: ["slice-product-list"],
     },
     ai: {
-      architecture_style: "LAYERED",
       summary: "Kiến trúc 3 tầng",
-      layers: [
-        {
-          layer: "ENTRY_POINT",
-          role: "Nhận HTTP request",
-          nodes: ["slice-product-list"],
-        },
-      ],
-      main_flow: "Request đi qua controller tới service và repo",
-      notes: [],
+      groups: [],
+      node_titles: [{ node_id: "slice-product-list", title: "Xem danh sách sản phẩm" }],
     },
   };
 

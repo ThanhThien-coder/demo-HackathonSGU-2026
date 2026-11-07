@@ -28,7 +28,14 @@ import {
 } from "./unzip";
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
 import { selectFiles } from "./priority";
-import { detectScope, buildFingerprint, assertNotEmpty } from "./fingerprint";
+import { rememberScope } from "./rescope";
+import {
+  detectScope,
+  buildFingerprint,
+  buildProjectText,
+  pickReadmeEntry,
+  assertNotEmpty,
+} from "./fingerprint";
 import { extractNotebook, extractSfcScript } from "./special";
 import { hasInjectionText, redactAndMaskCode } from "./secrets";
 
@@ -45,6 +52,7 @@ export * from "./priority";
 export * from "./special";
 export * from "./secrets";
 export * from "./fingerprint";
+export * from "./rescope";
 
 /**
  * Điều phối toàn bộ quy trình Ingest Tầng 0 theo docs/spec/10_ENGINE_INGEST.md Mục 0..13
@@ -89,7 +97,7 @@ export async function runIngest(
   if (src.kind === "GITHUB_URL") {
     const repoInfo = parseGithubUrl(src.repo_url);
     const probe = await probeRepo(repoInfo);
-    const resolvedRef = await resolveRef(probe.owner, probe.repo);
+    const resolvedRef = await resolveRef(probe.owner, probe.repo, probe.head_zip);
 
     owner = probe.owner;
     repo_name = probe.repo;
@@ -124,6 +132,7 @@ export async function runIngest(
   let scopeDecision: ScopeDecision | null = null;
   let rawCodeMap: Map<string, string> | null = null;
   let manifests: Map<string, string> | null = null;
+  let readmeText: string | null = null; // ING-123; đường tải chọn lọc không có README (nằm ngoài phần đã tải)
   let snapshot: RepoSnapshotKey | null = null;
   let inflated_cap_hit = false;
   let lastError: unknown = null;
@@ -271,6 +280,20 @@ export async function runIngest(
         rawCodeMap = inflated.code;
         manifests = inflated.manifests;
         inflated_cap_hit = inflated.inflated_cap_hit;
+
+        // README (ING-123): giải nén riêng, không vào code hay manifests, không tính số file
+        readmeText = null;
+        const readmeEntry = pickReadmeEntry(classifiedEntries, scopeDecision);
+        if (readmeEntry) {
+          const scratch = structuredClone(report);
+          const res = inflateSelected(
+            rawArchive.bytes,
+            { manifests: [readmeEntry], ordered_candidates: [] },
+            scratch,
+            attemptController.signal
+          );
+          readmeText = res.manifests.get(readmeEntry.path) ?? null;
+        }
 
         // Định danh phiên bản Snapshot (Mục 5)
         snapshot = computeSnapshot(rawArchive, {
@@ -452,8 +475,12 @@ export async function runIngest(
     manifests,
     scopeDecision,
     report,
-    DEFAULT_LANGUAGE_REGISTRY
+    DEFAULT_LANGUAGE_REGISTRY,
+    file_language
   );
+
+  // Mô tả dự án cho tổng quan (ING-123)
+  const projectText = buildProjectText(readmeText, manifests, scopeDecision, report);
 
   // 11. Kiểm tra kết quả rỗng (Mục 13)
   const scopeCodeEntries = classifiedEntries.filter((e) => {
@@ -524,7 +551,11 @@ export async function runIngest(
     manifests: sortedManifests,
     source_map: sortedSourceMap,
     module_info,
+    readme_excerpt: projectText.readme_excerpt,
+    manifest_description: projectText.manifest_description,
   };
+
+  rememberScope(out, classifiedEntries, scopeDecision);
 
   assertNotEmpty(out, {
     stream_cut: rawArchive.stream_cut,

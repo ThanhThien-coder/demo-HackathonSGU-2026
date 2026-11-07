@@ -63,6 +63,29 @@ export function repoScope(graph: StaticEngineResult): NameScope {
 }
 
 /**
+ * Phạm vi tên khi giải thích đoạn chọn (explain-selection, 21 GUARD-23, D-82):
+ * code của bước, dto_snippet, tên ở references, file của node.
+ */
+export function explainScope(
+  node: HybridArchitecturalNode,
+  stepNumber: number,
+  refNames: string[],
+  graph: StaticEngineResult
+): NameScope {
+  void graph; // giữ chữ ký theo spec 21; phạm vi không lấy tên toàn repo
+  const step = node.trace_steps.find((s) => s.step_number === stepNumber);
+  const words = identWords(
+    [step ? `${step.function_name}\n${step.snippet}` : "", node.dto_snippet, ...refNames, ...node.files].join("\n")
+  );
+  return {
+    files: node.files,
+    words,
+    extra: new Set<string>(refNames),
+    relaxed: node.support_tier === "STRUCTURAL",
+  };
+}
+
+/**
  * Phạm vi tên khi chấm bài (evaluate-feynman, D-36).
  */
 export function gradeScope(t: GradeContext, answer: string): NameScope {

@@ -4,7 +4,7 @@ import { CONFIG, type HybridArchitecturalNode, type IngestionReport } from "@/co
 import { initParsers, parseAll } from "../parser";
 import { buildCallGraph, findEntries } from "../callgraph";
 import { collectSymbols, resolveImports } from "../symbols";
-import { hash6, slug, nameCandidate, dedupeTitles } from "../naming";
+import { hash6, slug, nameCandidate, dedupeTitles, sanitizeTitle } from "../naming";
 import { diagnoseUncleBob } from "../unclebob";
 import { layoutGraph } from "../layout";
 import { buildSymbolWhitelist, mainPath } from "../whitelist";
@@ -121,6 +121,8 @@ function createDummyNode(data: Partial<HybridArchitecturalNode> & { id: string }
     },
     trace_steps: data.trace_steps ?? [],
     dto_snippet: data.dto_snippet ?? "",
+    group_id: "",
+    entities: [],
   };
 }
 
@@ -257,9 +259,9 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
 
     const fg1 = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
     // order -> other1 (Ce = 1)
-    fg1.set("src/order.ts", new Map([["src/other1.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg1.set("src/order.ts", new Map([["src/other1.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
     // in1 -> order (Ca = 1)
-    fg1.set("src/in1.ts", new Map([["src/order.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg1.set("src/in1.ts", new Map([["src/order.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
 
     const ub1 = diagnoseUncleBob(node1, fg1, ctx);
     expect(ub1.is_exempt).toBe(false);
@@ -281,9 +283,9 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
     ctx.idx.symbols.set("src/pain.ts#P2", { key: "src/pain.ts#P2", kind: "CLASS", name: "P2", file_path: "src/pain.ts", line_start: 1, line_end: 1, is_exported: true });
 
     const fg2 = new Map<string, Map<string, { weight: number; confidence: "RESOLVED" | "INFERRED" }>>();
-    fg2.set("src/in1.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
-    fg2.set("src/in2.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
-    fg2.set("src/in3.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED" }]]));
+    fg2.set("src/in1.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
+    fg2.set("src/in2.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
+    fg2.set("src/in3.ts", new Map([["src/pain.ts", { weight: 1, confidence: "RESOLVED", via_entities: [] }]]));
 
     const ub2 = diagnoseUncleBob(node2, fg2, ctx);
     expect(ub2.is_exempt).toBe(false);
@@ -341,6 +343,52 @@ describe("ENG-90..ENG-155: Ghép node, tên, bố cục, xuất runEngine", () =
     const c6 = makeCand("DELETE", "/orders/:id");
     c6.binding = { file_path: "r.ts", line_start: 1, line_end: 1, kind: "HTTP", method: "DELETE", path: "/orders/:id", handler: "h", middlewares: [], display_name: "" };
     expect(nameCandidate(c6, ctx).base_title).toBe("Delete Order");
+  });
+
+  // ---------------------------------------------------------------------------
+  // T-ENG-22b: Đoạn cuối là hành động, tách - và _ (lỗi B-30)
+  // ---------------------------------------------------------------------------
+  it.each([
+    ["POST", "/orders/:id/cancel", "Cancel Order"],
+    ["POST", "/auth/login", "Login"],
+    ["GET", "/health", "Health"],
+    ["DELETE", "/articles/:slug/comments/:id", "Delete Article Comment"],
+    ["POST", "/auth/register", "Register"],
+    ["POST", "/users/register", "Register User"],
+    ["GET", "/search", "Search"],
+    ["GET", "/login", "Login"],
+    ["GET", "/reset_password_requests", "List Reset Password Requests"],
+    ["POST", "/reset-password", "Create Reset Password"],
+    ["POST", "/orders/:id/items", "Create Order Item"],
+    ["GET", "/users/:id/orders/:orderId", "Get User Order"],
+    ["PATCH", "/users/:id/orders", "Update User Order"],
+  ])("T-ENG-22b: %s %s => %s", (method, path, expected) => {
+    const ctx = createDummyContext();
+    const c = createDummyCandidate({ id: `cand-${method}-${path}`, base_title: "" });
+    c.binding = { file_path: "r.ts", line_start: 1, line_end: 1, kind: "HTTP", method, path, handler: "h", middlewares: [], display_name: "" };
+    expect(nameCandidate(c, ctx).base_title).toBe(expected);
+  });
+
+  // ---------------------------------------------------------------------------
+  // T-ENG-22c: Tên bài không chứa ký tự ngoài bộ cho phép (lỗi B-34)
+  // ---------------------------------------------------------------------------
+  it.each(["<DELETE :name>", "<anon@L111>", "<GET", "<module>", "<POST /todo>"])(
+    "T-ENG-22c: khóa tổng hợp %s không thành tên bài ở Bậc 2",
+    (key) => {
+      const ctx = createDummyContext();
+      const c = createDummyCandidate({ id: `cand-${key}`, base_title: "" });
+      c.entry_symbol = `src/routes/todo.ts#${key}`;
+      const named = nameCandidate(c, ctx);
+      expect(named.title_source).not.toBe("ENTRY_SYMBOL");
+      expect(named.base_title).not.toMatch(/[<>@]/);
+      expect(named.base_title.length).toBeGreaterThan(0);
+    }
+  );
+
+  it("T-ENG-22c: sanitizeTitle chỉ giữ chữ, số, khoảng trắng và / & : - ( ) #", () => {
+    expect(sanitizeTitle("<GET :name>")).toBe("GET :name");
+    expect(sanitizeTitle("Order  <b>Checkout</b> @1")).toBe("Order bCheckout/b 1");
+    expect(sanitizeTitle("Checkout (cart) #2 / A&B - C:D")).toBe("Checkout (cart) #2 / A&B - C:D");
   });
 
   // ---------------------------------------------------------------------------
@@ -776,6 +824,9 @@ app.get("/ping", (req, res) => res.send("pong"));
       total_files: 1,
       nodes: [],
       edges: [],
+      groups: [],
+      readme_excerpt: null,
+      manifest_description: null,
       symbol_whitelist: ["secretSymbol", "leakCheck"],
       file_index: ["src/index.ts"],
       ingestion_report: {
@@ -845,11 +896,14 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
         createDummyNode({ id: "n-d", prerequisites: ["n-b", "n-c"] }),
       ],
       edges: [
-        { id: "n-a->n-b", source: "n-a", target: "n-b", confidence: "RESOLVED" },
-        { id: "n-b->n-d", source: "n-b", target: "n-d", confidence: "RESOLVED" },
-        { id: "n-a->n-c", source: "n-a", target: "n-c", confidence: "RESOLVED" },
-        { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED" },
+        { id: "n-a->n-b", source: "n-a", target: "n-b", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-b->n-d", source: "n-b", target: "n-d", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-a->n-c", source: "n-a", target: "n-c", confidence: "RESOLVED", via_entities: [] },
+        { id: "n-c->n-d", source: "n-c", target: "n-d", confidence: "RESOLVED", via_entities: [] },
       ],
+      groups: [],
+      readme_excerpt: null,
+      manifest_description: null,
       symbol_whitelist: [],
       file_index: [],
       ingestion_report: createEmptyReport(),
@@ -879,6 +933,54 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
   });
 
   // ---------------------------------------------------------------------------
+  // T-ENG-53 (B-36, D-88): thứ tự giữ node khi vượt DISPLAY_MAX_NODES
+  // ---------------------------------------------------------------------------
+  const budgetCandidate = (id: string, kind: "HTTP" | "PAGE" | "ALGO", cc: number, rank: number): Candidate => ({
+    ...createDummyCandidate({ id, kind: kind === "ALGO" ? "ALGO" : "SLICE", cognitive_complexity: cc, rank_score: rank }),
+    binding:
+      kind === "ALGO"
+        ? null
+        : { file_path: "src/a.ts", line_start: 1, line_end: 2, kind, method: "GET", path: "/" + id, handler: id, middlewares: [], display_name: id },
+  });
+  const pad = (i: number) => String(i).padStart(2, "0");
+
+  it("T-ENG-53: giữ tối đa VIP_FALLBACK_TOP_K node thuật toán, bài API trước bài trang dù hạng thấp hơn", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`page-${pad(i)}`, "PAGE", 40, 0.9));
+    for (let i = 0; i < 12; i++) candidates.push(budgetCandidate(`algo-${pad(i)}`, "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+    const count = (prefix: string) => nodes.filter((n) => n.entry_symbol?.startsWith(prefix)).length;
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(count("algo-")).toBe(CONFIG.VIP_FALLBACK_TOP_K);
+    expect(count("api-")).toBe(12);
+  });
+
+  it("T-ENG-53: thiếu bài luồng thì trả chỗ lại cho node thuật toán", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 3; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    for (let i = 0; i < 25; i++) candidates.push(budgetCandidate(`algo-${pad(i)}`, "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(nodes.filter((n) => n.entry_symbol?.startsWith("api-")).length).toBe(3);
+  });
+
+  it("T-ENG-53: thiếu node thuật toán thì bài luồng lấp đủ chỗ", () => {
+    const candidates: Candidate[] = [];
+    for (let i = 0; i < 25; i++) candidates.push(budgetCandidate(`api-${pad(i)}`, "HTTP", 2, 0.1));
+    candidates.push(budgetCandidate("algo-00", "ALGO", 50, 0.8));
+
+    const { nodes } = assembleGraph(candidates, createDummyContext(), createEmptyReport());
+
+    expect(nodes.length).toBe(CONFIG.DISPLAY_MAX_NODES);
+    expect(nodes.filter((n) => n.entry_symbol?.startsWith("algo-")).length).toBe(1);
+  });
+
+  // ---------------------------------------------------------------------------
   // T-ENG-37: Mọi điểm bắt đầu nằm trên cùng hàng trên cùng (D-55)
   // ---------------------------------------------------------------------------
   it("T-ENG-37: Gốc A (A->B->C->D), gốc E (E->D), gốc F lẻ => A, E, F cùng position.y nhỏ nhất; không có nút __start__", () => {
@@ -891,10 +993,10 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
 
     const nodes = [nodeA, nodeB, nodeC, nodeD, nodeE, nodeF];
     const edges = [
-      { id: "node-A->node-B", source: "node-A", target: "node-B", confidence: "RESOLVED" as const },
-      { id: "node-B->node-C", source: "node-B", target: "node-C", confidence: "RESOLVED" as const },
-      { id: "node-C->node-D", source: "node-C", target: "node-D", confidence: "RESOLVED" as const },
-      { id: "node-E->node-D", source: "node-E", target: "node-D", confidence: "RESOLVED" as const },
+      { id: "node-A->node-B", source: "node-A", target: "node-B", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-B->node-C", source: "node-B", target: "node-C", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-C->node-D", source: "node-C", target: "node-D", confidence: "RESOLVED" as const, via_entities: [] },
+      { id: "node-E->node-D", source: "node-E", target: "node-D", confidence: "RESOLVED" as const, via_entities: [] },
     ];
 
     layoutGraph(nodes, edges);
@@ -911,6 +1013,102 @@ app.post("/items", (req, res) => res.json({ id: 1 }));
     // Các node con phải có y lớn hơn minY
     expect(nodeB.position.y).toBeGreaterThan(minY);
     expect(nodeD.position.y).toBeGreaterThan(minY);
+  });
+
+  // ---------------------------------------------------------------------------
+  // ENG-90 (B-27): <module> không là ứng viên node thuật toán
+  // ---------------------------------------------------------------------------
+  const lapLong = (n: number) => {
+    let code = "const table: number[] = [];\n";
+    for (let i = 0; i < n; i++) code += `for (const v${i} of [1, 2]) { if (v${i} > 0) {\n`;
+    code += "table.push(1);\n" + "} }\n".repeat(n);
+    return code;
+  };
+  const routeFile = (body: string) => `
+import express from "express";
+const app = express();
+const router = express.Router();
+${body}
+router.get("/items", (req, res) => { res.json({ ok: true }); });
+app.use(router);
+`;
+
+  it("ENG-90: <module> trên VIP_COMPLEXITY_MIN không thành node thuật toán, hàm thật vẫn thành (a)", async () => {
+    const zip = fflate.zipSync({
+      "src/app.ts": fflate.strToU8(routeFile(lapLong(4))),
+      "src/algo.ts": fflate.strToU8(`
+export function realAlgo(items: number[]) {
+  let res = 0;
+  for (const a of items) {
+    if (a > 0) {
+      for (const b of items) {
+        if (b > a) {
+          for (const c of items) {
+            if (c > b) { res += a * b * c; }
+          }
+        }
+      }
+    }
+  }
+  return res;
+}
+`),
+    });
+    const res = await runEngine({ kind: "ZIP_UPLOAD", file_name: "module-vip.zip", bytes: zip, subdir_override: null });
+    const algos = res.nodes.filter((n) => n.node_type === "ALGORITHMIC_CORE");
+
+    expect(res.ingestion_report.degraded_mode).toBeNull();
+    expect(algos.map((n) => n.trace_steps[0]?.function_name)).toEqual(["realAlgo"]);
+  });
+
+  it("ENG-90: <module> đủ VIP_FALLBACK_MIN_SCORE không được bù ở (b)", async () => {
+    const zip = fflate.zipSync({ "src/app.ts": fflate.strToU8(routeFile(lapLong(2))) });
+    const res = await runEngine({ kind: "ZIP_UPLOAD", file_name: "module-bu.zip", bytes: zip, subdir_override: null });
+
+    expect(res.ingestion_report.degraded_mode).toBeNull();
+    expect(res.nodes.filter((n) => n.node_type === "ALGORITHMIC_CORE")).toEqual([]);
+    expect(res.nodes.flatMap((n) => n.trace_steps.map((s) => s.function_name))).not.toContain("<module>");
+  });
+
+  // ---------------------------------------------------------------------------
+  // T-ENG-51 (B-35, D-86): hàm trả JSX không là ứng viên node thuật toán
+  // ---------------------------------------------------------------------------
+  const lapTrongHam = `
+  let total = 0;
+  for (const a of items) {
+    if (a > 0) {
+      for (const b of items) {
+        if (b > a) {
+          for (const c of items) {
+            if (c > b) { total += a * b * c; }
+          }
+        }
+      }
+    }
+  }`;
+
+  it("T-ENG-51: component trả JSX không thành node thuật toán, hàm chỉ có callback trả JSX vẫn thành", async () => {
+    const zip = fflate.zipSync({
+      "src/app.ts": fflate.strToU8(routeFile("")),
+      "src/ui/Big.tsx": fflate.strToU8(`
+export function BigPage({ items }: { items: number[] }) {${lapTrongHam}
+  if (!items) return null;
+  return <div>{total}</div>;
+}
+export const ArrowPage = ({ a, b, c, d, e, f }: Record<string, boolean>) => (
+  <div>{a ? (b ? (c ? (d ? (e ? (f ? 1 : 2) : 3) : 4) : 5) : 6) : 7}</div>
+);
+export function countRows(items: number[]) {${lapTrongHam}
+  const rows = items.map((i) => <li key={i}>{i}</li>);
+  return rows.length + total;
+}
+`),
+    });
+    const res = await runEngine({ kind: "ZIP_UPLOAD", file_name: "jsx-vip.zip", bytes: zip, subdir_override: null });
+    const algos = res.nodes.filter((n) => n.node_type === "ALGORITHMIC_CORE");
+
+    expect(res.ingestion_report.degraded_mode).toBeNull();
+    expect(algos.map((n) => n.trace_steps[0]?.function_name)).toEqual(["countRows"]);
   });
 
   // ---------------------------------------------------------------------------

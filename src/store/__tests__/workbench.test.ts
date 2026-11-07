@@ -8,7 +8,9 @@ import {
   analyzeOverviewSafe,
   enrichNodeSafe,
   getSessionProgressSafe,
+  explainSelectionSafe,
 } from "@/lib/api";
+import { ERROR_MESSAGES } from "@/lib/messages";
 import type {
   IngestResponse,
   NodeAnalysisView,
@@ -17,9 +19,21 @@ import type {
   NodeStateView,
   QuestionState,
   SkillChange,
+  ExplainSelectionResponse,
 } from "@/contracts";
 
 vi.mock("@/lib/api", () => ({
+  explainSelectionSafe: vi.fn().mockResolvedValue({
+    ok: false,
+    data: null,
+    error: {
+      error: {
+        code: "ERR_AI_UNAVAILABLE",
+        message: "Chưa sẵn sàng",
+        retryable: false,
+      },
+    },
+  }),
   analyzeNodeSafe: vi.fn().mockResolvedValue({
     ok: true,
     data: {
@@ -42,7 +56,7 @@ vi.mock("@/lib/api", () => ({
     data: null,
     error: {
       error: {
-        code: "ERR_OVERVIEW_NOT_READY",
+        code: "ERR_AI_UNAVAILABLE",
         message: "Chưa sẵn sàng",
         retryable: false,
       },
@@ -187,6 +201,10 @@ describe("src/store/workbench.ts", () => {
           presentation_pane: true,
           hint_step: 3,
           offline_persona: "SENIOR_RUSTY",
+          explanations: {},
+          xray_stage: "SUMMARY",
+          hl: [],
+          return_question: false,
         },
       });
 
@@ -225,13 +243,14 @@ describe("src/store/workbench.ts", () => {
       expect(state.progress).toBe(mockIngest.progress);
       expect(state.analyses).toEqual(mockIngest.analyses);
       expect(state.runs).toEqual({});
-      expect(state.overview).toBeNull();
+      expect(state.overview).toBe("PENDING");
       expect(state.active_node_id).toBeNull();
       expect(state.active_tab).toBe("XRAY");
       expect(state.active_step).toBeNull();
       expect(state.active_question_index).toBeNull();
       expect(state.last_failed_answers).toEqual({});
       expect(state.ui.offline_persona).toBe("SENIOR_RUSTY");
+      expect(state.ui.xray_stage).toBe("ROLE");
       expect(state.ui.pending).toEqual({});
       expect(state.ui.errors).toEqual({});
       expect(state.ui.hint_step).toBeNull();
@@ -552,6 +571,9 @@ describe("src/store/workbench.ts", () => {
 
       useWorkbenchStore.getState().openNode("node-1");
 
+      // D18: tổng quan phiên 2 treo ⇒ phiên 2 chưa tải trước node, chỉ còn response cũ của phiên 1
+      vi.mocked(analyzeOverviewSafe).mockImplementationOnce(() => new Promise(() => {}) as never);
+
       // Chuyển sang phiên mới trước khi response kịp về
       useWorkbenchStore.getState().applyIngest({
         session_id: "session-2",
@@ -598,117 +620,206 @@ describe("src/store/workbench.ts", () => {
       // Analyses của session-2 không bị gán dữ liệu của session-1
       const state = useWorkbenchStore.getState();
       expect(state.session_id).toBe("session-2");
-      expect(state.analyses["node-1"]).toBeUndefined();
+      expect(state.analyses["node-1"]).not.toEqual(
+        expect.objectContaining({ node_id: "node-1" })
+      );
     });
   });
 
   // ---------------------------------------------------------------------------
-  // 7. analyzeOverviewSafe
+  // 7. T-UI-10: analyzeOverviewSafe & prefetchStart (D18)
   // ---------------------------------------------------------------------------
-  describe("analyzeOverviewSafe", () => {
-    it("gọi đúng 1 lần khi đủ node; ERR_OVERVIEW_NOT_READY không ghi lỗi", async () => {
+  describe("T-UI-10: analyzeOverviewSafe & prefetchStart", () => {
+    it("ca lỗi: analyzeOverviewSafe gọi 1 lần và overview === PENDING; analyzeNodeSafe chưa được gọi khi promise chưa giải; giải promise ⇒ analyzeNodeSafe được gọi (node đầu theo tô-pô), overview thành { facts, ai: null }, ui.errors['overview'] không có giá trị", async () => {
       const nodes = [
         { id: "node-1", prerequisites: [] },
-        { id: "node-2", prerequisites: [] },
+        { id: "node-2", prerequisites: ["node-1"] },
+        { id: "node-3", prerequisites: ["node-2"] },
       ];
 
-      useWorkbenchStore.getState().applyIngest({
-        session_id: "overview-session",
-        result: { nodes } as never,
-        progress: {
-          session_id: "overview-session",
-          tokens_used: 0,
-          nodes: {
-            "node-1": {
-              node_id: "node-1",
-              status: "AVAILABLE",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
-            "node-2": {
-              node_id: "node-2",
-              status: "AVAILABLE",
-              has_warning: false,
-              analysis_failed: false,
-              last_run: null,
-            },
+      let resolveOverview: (val: unknown) => void;
+      const overviewPromise = new Promise((resolve) => {
+        resolveOverview = resolve;
+      });
+
+      vi.mocked(analyzeOverviewSafe).mockImplementation(() => overviewPromise as never);
+      vi.mocked(analyzeNodeSafe).mockClear();
+
+      const mockIngest: IngestResponse = {
+        session_id: "session-t-ui-10-err",
+        result: {
+          repo_name: "test-repo",
+          fingerprint: {
+            archetype: "WEB_BACKEND",
+            detected_framework: "Express",
+            tech_stack: ["express"],
           },
+          nodes,
+          edges: [],
+          groups: [],
+        } as never,
+        progress: {
+          session_id: "session-t-ui-10-err",
+          tokens_used: 0,
+          nodes: Object.fromEntries(
+            nodes.map((n) => [
+              n.id,
+              {
+                node_id: n.id,
+                status: "AVAILABLE",
+                has_warning: false,
+                analysis_failed: false,
+                last_run: null,
+              },
+            ])
+          ),
         },
         analyses: {},
         resumed: false,
         from_cache: false,
-      });
+      };
 
-      vi.mocked(analyzeOverviewSafe).mockResolvedValue({
+      // 1. Gọi applyIngest(res) với res có 3 node chưa có bản phân tích
+      useWorkbenchStore.getState().applyIngest(mockIngest);
+
+      // 2. Kiểm: analyzeOverviewSafe được gọi đúng 1 lần và overview === "PENDING" ngay sau applyIngest
+      expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
+      expect(analyzeOverviewSafe).toHaveBeenCalledWith("session-t-ui-10-err");
+      expect(useWorkbenchStore.getState().overview).toBe("PENDING");
+
+      // 3. analyzeNodeSafe chưa được gọi khi promise tổng quan chưa giải
+      expect(analyzeNodeSafe).not.toHaveBeenCalled();
+
+      // 4. Giải promise với kết quả lỗi
+      resolveOverview!({
         ok: false,
         data: null,
         error: {
           error: {
-            code: "ERR_OVERVIEW_NOT_READY",
-            message: "Hệ thống đang phân tích tiếp.",
-            retryable: true,
+            code: "ERR_AI_UNAVAILABLE",
+            message: "x",
           },
         },
       });
 
-      vi.mocked(analyzeNodeSafe).mockImplementation(async (sid, nid) => ({
-        ok: true,
-        data: {
-          node_id: nid,
-          analysis: createMockAnalysis(nid),
-          node_state: {
-            node_id: nid,
-            status: "AVAILABLE",
-            has_warning: false,
-            analysis_failed: false,
-            last_run: null,
-          },
-          tokens_used: 50,
-          unlocked_node_ids: [],
-        },
-        error: null,
-      }));
-
-      // Kích hoạt phân tích cho cả 2 node
-      useWorkbenchStore.getState().requestAnalysis("node-1");
-      useWorkbenchStore.getState().requestAnalysis("node-2");
-
-      // Khi cả 2 node hoàn thành, analyzeOverviewSafe được gọi
+      // 5. Chờ microtask xử lý response
       await vi.waitFor(() => {
-        expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
+        expect(analyzeNodeSafe).toHaveBeenCalled();
       });
 
-      // Lỗi ERR_OVERVIEW_NOT_READY không được ghi vào ui.errors["overview"]
-      expect(useWorkbenchStore.getState().ui.errors["overview"]).toBeUndefined();
+      const state = useWorkbenchStore.getState();
 
-      // Giả lập lời gọi thành công
+      // analyzeNodeSafe được gọi (node đầu theo tô-pô là node-1)
+      expect(analyzeNodeSafe).toHaveBeenCalledWith("session-t-ui-10-err", "node-1");
+
+      // overview thành { facts: {…}, ai: null }
+      expect(state.overview).toEqual({
+        facts: {
+          archetype: "WEB_BACKEND",
+          framework: "Express",
+          tech_stack: ["express"],
+          root_node_ids: ["node-1"],
+          main_path_node_ids: expect.any(Array),
+        },
+        ai: null,
+      });
+
+      // ui.errors["overview"] không có giá trị
+      expect(state.ui.errors["overview"]).toBeUndefined();
+
+      // analyzeOverviewSafe vẫn chỉ 1 lần
+      expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
+    });
+
+    it("ca thành công: tổng quan về { ok: true, data: { overview, tokens_used: 5 } } ⇒ overview là object đó, sau đó analyzeNodeSafe mới được gọi", async () => {
+      const nodes = [
+        { id: "node-1", prerequisites: [] },
+        { id: "node-2", prerequisites: ["node-1"] },
+        { id: "node-3", prerequisites: ["node-2"] },
+      ];
+
+      let resolveOverview: (val: unknown) => void;
+      const overviewPromise = new Promise((resolve) => {
+        resolveOverview = resolve;
+      });
+
+      vi.mocked(analyzeOverviewSafe).mockImplementation(() => overviewPromise as never);
+      vi.mocked(analyzeNodeSafe).mockClear();
+
       const mockOverview: RepoOverviewView = {
         facts: {
           archetype: "WEB_BACKEND",
-          framework: "express",
-          tech_stack: ["typescript", "express"],
+          framework: "Express",
+          tech_stack: ["express"],
           root_node_ids: ["node-1"],
-          main_path_node_ids: ["node-1", "node-2"],
+          main_path_node_ids: ["node-1"],
         },
-        ai: null,
+        ai: {
+          summary: "Tóm tắt từ AI thành công",
+          groups: [{ group_id: "g1", name: "Nhóm 1" }],
+          node_titles: [{ node_id: "node-1", title: "Tiêu đề tiếng Việt 1" }],
+        },
       };
 
-      vi.mocked(analyzeOverviewSafe).mockResolvedValueOnce({
+      const mockIngest: IngestResponse = {
+        session_id: "session-t-ui-10-ok",
+        result: {
+          repo_name: "test-repo",
+          fingerprint: {
+            archetype: "WEB_BACKEND",
+            detected_framework: "Express",
+            tech_stack: ["express"],
+          },
+          nodes,
+          edges: [],
+          groups: [],
+        } as never,
+        progress: {
+          session_id: "session-t-ui-10-ok",
+          tokens_used: 0,
+          nodes: Object.fromEntries(
+            nodes.map((n) => [
+              n.id,
+              {
+                node_id: n.id,
+                status: "AVAILABLE",
+                has_warning: false,
+                analysis_failed: false,
+                last_run: null,
+              },
+            ])
+          ),
+        },
+        analyses: {},
+        resumed: false,
+        from_cache: false,
+      };
+
+      useWorkbenchStore.getState().applyIngest(mockIngest);
+
+      // analyzeOverviewSafe được gọi 1 lần, overview = "PENDING", analyzeNodeSafe chưa gọi
+      expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
+      expect(useWorkbenchStore.getState().overview).toBe("PENDING");
+      expect(analyzeNodeSafe).not.toHaveBeenCalled();
+
+      // Giải promise với kết quả thành công
+      resolveOverview!({
         ok: true,
         data: {
           overview: mockOverview,
-          tokens_used: 120,
+          tokens_used: 5,
         },
         error: null,
       });
 
-      // Trigger lại bơm hàng (ví dụ retry phân tích node)
-      useWorkbenchStore.getState().requestAnalysis("node-1", true);
-
       await vi.waitFor(() => {
-        expect(useWorkbenchStore.getState().overview).toEqual(mockOverview);
+        expect(analyzeNodeSafe).toHaveBeenCalled();
       });
+
+      const state = useWorkbenchStore.getState();
+      expect(state.overview).toEqual(mockOverview);
+      expect(analyzeOverviewSafe).toHaveBeenCalledTimes(1);
+      expect(analyzeNodeSafe).toHaveBeenCalledWith("session-t-ui-10-ok", "node-1");
     });
   });
 
@@ -1034,6 +1145,148 @@ describe("src/store/workbench.ts", () => {
       useWorkbenchStore.getState().setSkillChange(key, mockChange);
 
       expect(useWorkbenchStore.getState().ui.skill_changes[key]).toEqual(mockChange);
+    });
+  });
+
+  describe("T-UI-11: Giải thích đoạn chọn (D-82, UI-34, D19)", () => {
+    const mockRange = {
+      line_start: 12,
+      col_start: 1,
+      line_end: 12,
+      col_end: 6,
+    };
+    const key = "node-1:2:12:1-12:6";
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      useWorkbenchStore.setState({
+        session_id: "sess-explain-1",
+        progress: {
+          session_id: "sess-explain-1",
+          tokens_used: 100,
+          nodes: {},
+        },
+        ui: {
+          ...useWorkbenchStore.getState().ui,
+          explanations: {},
+          errors: {},
+        },
+      });
+    });
+
+    it("gọi explainSelection lần 1: gọi mock 1 lần, lưu ui.explanations và cập nhật tokens_used; gọi lại đúng vùng trả kết quả đã nhớ (0 request mới)", async () => {
+      const mockResponseData: ExplainSelectionResponse = {
+        explanation: {
+          kind: "KEYWORD",
+          what: "Từ khóa await dùng để đợi một Promise giải quyết.",
+          here: "Đợi kết quả trả về từ hàm gọi mạng.",
+          analogy: "Như việc đứng chờ lấy đồ ăn nhanh.",
+          skill: null,
+        },
+        references: [
+          {
+            node_id: "node-2",
+            step_number: 1,
+            name: "fetchUserData",
+          },
+        ],
+        tokens_used: 250,
+      };
+
+      vi.mocked(explainSelectionSafe).mockResolvedValueOnce({
+        ok: true,
+        data: mockResponseData,
+        error: null,
+      });
+
+      const result = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(explainSelectionSafe).toHaveBeenCalledWith({
+        session_id: "sess-explain-1",
+        node_id: "node-1",
+        step_number: 2,
+        range: mockRange,
+        selected_text: "await",
+      });
+
+      expect(result).toEqual({ ok: true, data: mockResponseData });
+      expect(useWorkbenchStore.getState().ui.explanations[key]).toEqual(
+        mockResponseData
+      );
+      expect(useWorkbenchStore.getState().progress?.tokens_used).toBe(250);
+
+      // Gọi lại đúng vùng đó => mock vẫn 1 lần (0 request mới), trả kết quả đã nhớ
+      const resultCached = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(resultCached).toEqual({ ok: true, data: mockResponseData });
+    });
+
+    it("response explanation: null ⇒ trả về kết quả đó nhưng KHÔNG ghi vào ui.explanations", async () => {
+      const mockNullExplanation: ExplainSelectionResponse = {
+        explanation: null,
+        references: [],
+        tokens_used: 120,
+      };
+
+      vi.mocked(explainSelectionSafe).mockResolvedValueOnce({
+        ok: true,
+        data: mockNullExplanation,
+        error: null,
+      });
+
+      const result = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ ok: true, data: mockNullExplanation });
+      expect(useWorkbenchStore.getState().ui.explanations[key]).toBeUndefined();
+      expect(useWorkbenchStore.getState().progress?.tokens_used).toBe(120);
+    });
+
+    it("lỗi ERR_EXPLAIN_LIMIT ⇒ không ghi ui.explanations; ui.errors['explain_limit'] có thông điệp Mục 10", async () => {
+      vi.mocked(explainSelectionSafe).mockResolvedValueOnce({
+        ok: false,
+        data: null,
+        error: {
+          error: {
+            code: "ERR_EXPLAIN_LIMIT",
+            message: "Hết lượt",
+            retryable: false,
+          },
+        },
+      });
+
+      const result = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "await");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(result.ok).toBe(false);
+      expect(useWorkbenchStore.getState().ui.explanations[key]).toBeUndefined();
+
+      const expectedMsg = ERROR_MESSAGES.ERR_EXPLAIN_LIMIT;
+      expect(useWorkbenchStore.getState().ui.errors["explain_limit"]).toBe(
+        expectedMsg
+      );
+
+      // Khi ui.errors['explain_limit'] đã có giá trị, gọi tiếp phải trả lỗi ngay mà không gọi API (0 request mới)
+      const resultBlocked = await useWorkbenchStore
+        .getState()
+        .explainSelection("node-1", 2, mockRange, "other_code");
+
+      expect(explainSelectionSafe).toHaveBeenCalledTimes(1);
+      expect(resultBlocked).toEqual({
+        ok: false,
+        code: "ERR_EXPLAIN_LIMIT",
+        message: expectedMsg,
+      });
     });
   });
 });

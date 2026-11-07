@@ -2,6 +2,7 @@ import type { LearnerTier, SWESkill } from "./base";
 import type { ClientStaticEngineResult } from "./engine";
 import type {
   AnswerIntent,
+  ExplainSelectionRaw,
   FollowUpType,
   NodeAnalysisView,
   QuestionFocus,
@@ -58,6 +59,20 @@ export interface AnalyzeNodeResponse {
 // POST /api/analyze-overview
 export interface AnalyzeOverviewRequest { session_id: string }
 export interface AnalyzeOverviewResponse { overview: RepoOverviewView; tokens_used: number }
+
+// POST /api/explain-selection — server cắt lại vùng chọn từ snapshot phiên (03 Mục 6.9)
+export interface ExplainSelectionRequest {
+  session_id: string;
+  node_id: string;
+  step_number: number;
+  range: { line_start: number; col_start: number; line_end: number; col_end: number };   // Số dòng gốc; cột tính từ 1 như Monaco; col_end loại trừ
+  selected_text: string;
+}
+export interface ExplainSelectionResponse {
+  explanation: ExplainSelectionRaw | null;   // null ⇒ cổng gác chặn
+  references: Array<{ node_id: string; step_number: number; name: string }>;
+  tokens_used: number;
+}
 
 // POST /api/enrich-node
 export interface EnrichNodeRequest { session_id: string; node_id: string; mode: RunMode }

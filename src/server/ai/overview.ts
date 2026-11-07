@@ -1,13 +1,12 @@
 /**
  * src/server/ai/overview.ts
  *
- * Lời gọi analyze-overview và tính facts cho tổng quan repo (AI-19, AI-20).
+ * Lời gọi analyze-overview (đầu phiên, gói ngữ cảnh, D-83) và tính facts cho tổng quan repo (AI-19).
  */
 
 import {
   CONFIG,
   type GuardIssue,
-  type NodeAnalysis,
   type RepoOverviewRaw,
   type RepoOverviewView,
   type SessionRow,
@@ -60,7 +59,8 @@ export function overviewFacts(
 }
 
 /**
- * Gọi AI sinh tổng quan kiến trúc repo (AI-19).
+ * Gọi AI viết bức tranh chung, đặt tên nhóm và tên bài (AI-19, D-83).
+ * Gọi ngay sau khi quét, không chờ analyze-node; không gửi code.
  * - Kiểm tra quota trước bằng checkTokenQuota(session.tokens_used).
  * - Tối đa 1 + CONFIG.LLM_MAX_RETRIES request.
  * - r.ok: kiểm tra qua checkOverview.
@@ -74,8 +74,6 @@ export function overviewFacts(
 export async function analyzeOverview(
   session: SessionRow,
   graph: StaticEngineResult,
-  analyses: Record<string, NodeAnalysis>,
-  failedIds: Set<string>,
   usage?: OverviewUsage,
 ): Promise<RepoOverviewRaw | null> {
   checkTokenQuota(session.tokens_used); // AI-06
@@ -83,7 +81,7 @@ export async function analyzeOverview(
   let issues: GuardIssue[] = [];
 
   for (let i = 0; i <= CONFIG.LLM_MAX_RETRIES; i++) {
-    const baseReq = overviewRequest(session, graph, analyses, failedIds);
+    const baseReq = overviewRequest(session, graph);
     const req = withGuardFeedback(baseReq, issues);
     const r = await callLLMOnce(req);
 
@@ -96,7 +94,7 @@ export async function analyzeOverview(
     issues = []; // reset sau mỗi request
 
     if (r.ok) {
-      const g = checkOverview(r.value, graph, analyses, issues);
+      const g = checkOverview(r.value, graph, issues);
       if (g) {
         return g;
       }
@@ -107,8 +105,8 @@ export async function analyzeOverview(
       break;
     }
 
-    if (i < CONFIG.LLM_MAX_RETRIES && !r.ok) {
-      await retryDelay(r);
+    if (i < CONFIG.LLM_MAX_RETRIES && !r.ok && !(await retryDelay(r))) {
+      break; // Google bắt chờ quá CONFIG.LLM_RETRY_DELAY_MAX_MS ⇒ không gọi lại (D-74 R1)
     }
   }
 

@@ -36,48 +36,76 @@ function isElseIfNode(n: Node): boolean {
   return false;
 }
 
+interface FunctionNodeEntry {
+  node: Node;
+  start: number;
+  end: number;
+  next: number; // Vị trí sau toàn bộ hàm lồng của node này
+}
+
+const functionNodeCache = new WeakMap<object, FunctionNodeEntry[]>();
+
+// Mọi node hàm của file theo tiền thứ tự, dò 1 lần cho mỗi cây (B-33).
+function functionNodesOf(root: Node): FunctionNodeEntry[] {
+  const key = root.tree as object;
+  const cached = functionNodeCache.get(key);
+  if (cached) return cached;
+
+  const entries: FunctionNodeEntry[] = [];
+  const visit = (n: Node): void => {
+    const isFnType =
+      n.type === "function_declaration" ||
+      n.type === "function_expression" ||
+      n.type === "arrow_function" ||
+      n.type === "method_definition" ||
+      n.type === "function_definition" ||
+      n.type === "method_declaration" ||
+      n.type === "constructor_declaration" ||
+      n.type === "compact_constructor_declaration";
+    const entry: FunctionNodeEntry | null = isFnType
+      ? { node: n, start: n.startPosition.row + 1, end: n.endPosition.row + 1, next: 0 }
+      : null;
+    if (entry) entries.push(entry);
+    for (let i = 0; i < n.childCount; i++) {
+      const child = n.child(i);
+      if (child) visit(child);
+    }
+    if (entry) entry.next = entries.length;
+  };
+  visit(root);
+  functionNodeCache.set(key, entries);
+  return entries;
+}
+
 // Tìm AST node tương ứng với định nghĩa hàm
 function findFunctionNode(root: Node, fn: SymbolDefinition): Node | null {
   if (fn.name === "<module>") {
     return root;
   }
 
+  const entries = functionNodesOf(root);
   let bestNode: Node | null = null;
   let minSpan = Infinity;
 
-  function search(n: Node): void {
-    const isFnType =
-      n.type === "function_declaration" ||
-      n.type === "function_expression" ||
-      n.type === "arrow_function" ||
-      n.type === "method_definition" ||
-      n.type === "function_definition";
-
-    if (isFnType) {
-      const endLine = n.endPosition.row + 1;
-      const startLine = n.startPosition.row + 1;
-      // Khớp chính xác dòng kết thúc
-      if (endLine === fn.line_end) {
-        bestNode = n;
-        return;
-      }
-      // Bao phủ dòng hàm
-      if (startLine <= fn.line_start && endLine >= fn.line_end) {
-        const span = endLine - startLine;
-        if (span < minSpan) {
-          minSpan = span;
-          bestNode = n;
-        }
+  for (let i = 0; i < entries.length; ) {
+    const entry = entries[i]!;
+    // Khớp chính xác dòng kết thúc: không xét hàm lồng trong node này
+    if (entry.end === fn.line_end) {
+      bestNode = entry.node;
+      i = entry.next;
+      continue;
+    }
+    // Bao phủ dòng hàm
+    if (entry.start <= fn.line_start && entry.end >= fn.line_end) {
+      const span = entry.end - entry.start;
+      if (span < minSpan) {
+        minSpan = span;
+        bestNode = entry.node;
       }
     }
-
-    for (let i = 0; i < n.childCount; i++) {
-      const child = n.child(i);
-      if (child) search(child);
-    }
+    i++;
   }
 
-  search(root);
   return bestNode ?? root;
 }
 
@@ -92,9 +120,15 @@ function checkDirectRecursion(fnNode: Node, fnName: string): boolean {
   let found = false;
   function walk(n: Node): void {
     if (found) return;
-    if (n.type === "call_expression" || n.type === "call") {
+    if (
+      n.type === "call_expression" ||
+      n.type === "call" ||
+      n.type === "method_invocation"
+    ) {
       const funcNode =
-        n.childForFieldName("function") ?? n.child(0);
+        n.childForFieldName("function") ??
+        n.childForFieldName("name") ??
+        n.child(0);
       if (funcNode) {
         if (
           funcNode.type === "identifier" &&
@@ -150,7 +184,10 @@ export function cognitiveComplexity(
         n.type === "function_declaration" ||
         n.type === "class_declaration" ||
         n.type === "method_definition" ||
-        n.type === "function_definition"
+        n.type === "function_definition" ||
+        n.type === "method_declaration" ||
+        n.type === "constructor_declaration" ||
+        n.type === "compact_constructor_declaration"
       ) {
         return;
       }
@@ -164,8 +201,10 @@ export function cognitiveComplexity(
       type === "ternary_expression" ||
       type === "conditional_expression" ||
       type === "switch_statement" ||
+      type === "switch_expression" ||
       type === "match_statement" ||
       type === "for_statement" ||
+      type === "enhanced_for_statement" ||
       type === "for_in_statement" ||
       type === "for_of_statement" ||
       type === "while_statement" ||
@@ -185,6 +224,7 @@ export function cognitiveComplexity(
           child.type === "statement_block" ||
           child.type === "block" ||
           child.type === "switch_body" ||
+          child.type === "switch_block" ||
           child.type === "match_block" ||
           n.childForFieldName("consequence")?.id === child.id ||
           n.childForFieldName("body")?.id === child.id;
@@ -288,6 +328,7 @@ export function cognitiveComplexity(
         type === "function_expression" ||
         type === "function_declaration" ||
         type === "lambda" ||
+        type === "lambda_expression" ||
         type === "function_definition");
 
     const nextNesting = isNestedFunction ? nesting + 1 : nesting;
@@ -311,6 +352,46 @@ export function cognitiveComplexity(
   }
 
   return score;
+}
+
+const FUNCTION_NODE_TYPES = new Set([
+  "function_declaration",
+  "function_expression",
+  "arrow_function",
+  "method_definition",
+  "function_definition",
+  "method_declaration",
+  "constructor_declaration",
+  "compact_constructor_declaration",
+]);
+
+function hasJsx(n: Node): boolean {
+  if (n.type.startsWith("jsx_")) return true;
+  for (let i = 0; i < n.childCount; i++) {
+    const child = n.child(i);
+    if (child && hasJsx(child)) return true;
+  }
+  return false;
+}
+
+// Có câu `return` của chính hàm trả JSX. Bỏ qua hàm lồng (D-86).
+function hasJsxReturn(n: Node): boolean {
+  for (let i = 0; i < n.childCount; i++) {
+    const child = n.child(i);
+    if (!child || FUNCTION_NODE_TYPES.has(child.type)) continue;
+    if (child.type === "return_statement" ? hasJsx(child) : hasJsxReturn(child)) return true;
+  }
+  return false;
+}
+
+/** Hàm trả JSX không là ứng viên node thuật toán (ENG-90, D-86). */
+export function returnsJsx(fn: SymbolDefinition, file: ParsedFile): boolean {
+  const root = file.tree.rootNode;
+  const node = findFunctionNode(root, fn);
+  if (!node || node.id === root.id) return false;
+  const body = node.childForFieldName("body");
+  if (!body) return false;
+  return body.type === "statement_block" ? hasJsxReturn(body) : hasJsx(body);
 }
 
 export function pickVipFunctions(

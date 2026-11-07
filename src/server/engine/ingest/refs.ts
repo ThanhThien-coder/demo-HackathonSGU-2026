@@ -89,119 +89,38 @@ export async function refExists(
 }
 
 /**
- * Tìm URL tải nhánh mặc định theo docs/spec/10_ENGINE_INGEST.md Mục 3 (ING-31..33, D-38)
+ * Đổi kết quả HEAD archive/HEAD.zip (3xx) thành ResolvedRef (ING-32 bước 1).
+ * Location khớp mẫu codeload thì lấy ref; khác mẫu hoặc thiếu thì tải chính HEAD.zip.
+ */
+export function headZipToResolvedRef(
+  location: string | null,
+  headZipUrl: string
+): ResolvedRef {
+  const match = location?.match(CODELOAD_ZIP_REGEX);
+  if (location && match) {
+    const ref = match[1];
+    // GitHub có thể trả commit SHA thay vì tên nhánh: không dùng làm nhãn (lỗi B-16, ING-32)
+    const ref_label = /^[0-9a-f]{40}$/i.test(ref) ? null : ref;
+    return { download_url: location, ref, ref_label };
+  }
+  return { download_url: headZipUrl, ref: null, ref_label: null };
+}
+
+/**
+ * Tìm URL tải nhánh mặc định theo docs/spec/10_ENGINE_INGEST.md Mục 3 (ING-31..33, D-38).
+ * `headZip` là kết quả `probeRepo` đã gọi archive/HEAD.zip, không gọi lại (lỗi B-14).
+ * `headZip = null` (HEAD.zip 404 nhưng trang repo 200) thì thử lần lượt nhánh dự phòng.
  */
 export async function resolveRef(
   owner: string,
-  repo: string
+  repo: string,
+  headZip: ResolvedRef | null
 ): Promise<ResolvedRef> {
-  const headZipUrl = `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
-  let headZip404 = false;
-
-  // (1) Thử HEAD https://github.com/{owner}/{repo}/archive/HEAD.zip với redirect: manual
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, CONFIG.PREFLIGHT_RETRY_DELAY_MS));
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CONFIG.PREFLIGHT_TIMEOUT_MS);
-
-    try {
-      let res = await fetch(headZipUrl, {
-        method: "HEAD",
-        redirect: "manual",
-        headers: { "User-Agent": "SimpliFey" },
-        signal: controller.signal,
-      });
-
-      // Fallback: nếu HEAD trả 405 hoặc 501 thì dùng GET rồi abort ngay
-      if (res.status === 405 || res.status === 501) {
-        const getController = new AbortController();
-        const getTimer = setTimeout(() => getController.abort(), CONFIG.PREFLIGHT_TIMEOUT_MS);
-        try {
-          res = await fetch(headZipUrl, {
-            method: "GET",
-            redirect: "manual",
-            headers: { "User-Agent": "SimpliFey" },
-            signal: getController.signal,
-          });
-          getController.abort();
-        } finally {
-          clearTimeout(getTimer);
-        }
-      }
-
-      clearTimeout(timer);
-
-      if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get("location");
-        if (location) {
-          const match = location.match(CODELOAD_ZIP_REGEX);
-          if (match) {
-            const ref = match[1];
-            return {
-              download_url: location,
-              ref,
-              ref_label: ref,
-            };
-          }
-        }
-        // 3xx khác mẫu => tải chuyển hướng từ HEAD.zip
-        return {
-          download_url: headZipUrl,
-          ref: null,
-          ref_label: null,
-        };
-      }
-
-      if (res.status === 200) {
-        return {
-          download_url: headZipUrl,
-          ref: null,
-          ref_label: null,
-        };
-      }
-
-      if (res.status === 404) {
-        headZip404 = true;
-        break;
-      }
-
-      if (res.status === 429 || res.status === 403) {
-        throw new IngestionError(
-          "ERR_GITHUB_RATE_LIMIT_CDN",
-          `GitHub CDN rate limit resolving default branch (HTTP ${res.status})`
-        );
-      }
-
-      if (res.status === 451) {
-        throw new IngestionError(
-          "ERR_REPO_UNAVAILABLE_451",
-          `Repository unavailable (HTTP 451) resolving default branch`
-        );
-      }
-
-      if (res.status >= 500) {
-        continue;
-      }
-    } catch (err) {
-      clearTimeout(timer);
-      if (err instanceof IngestionError) {
-        throw err;
-      }
-      // Thử lại nếu timeout hoặc lỗi mạng
-    }
+  if (headZip) {
+    return headZip;
   }
 
-  if (!headZip404) {
-    throw new IngestionError(
-      "ERR_NETWORK_TIMEOUT",
-      `Network timeout or failure checking HEAD.zip for ${owner}/${repo}`
-    );
-  }
-
-  // (2) archive/HEAD.zip trả 404 => thử lần lượt CONFIG.DEFAULT_BRANCH_FALLBACKS
+  // ING-32 (2): thử lần lượt CONFIG.DEFAULT_BRANCH_FALLBACKS
   for (const branch of CONFIG.DEFAULT_BRANCH_FALLBACKS) {
     const exists = await refExists(owner, repo, branch);
     if (exists) {
@@ -213,7 +132,7 @@ export async function resolveRef(
     }
   }
 
-  // (3) ING-33: Mọi bước đều 404 => repo rỗng
+  // ING-33: mọi bước đều 404 => repo rỗng
   throw new IngestionError(
     "ERR_EMPTY_REPOSITORY",
     `Repository ${owner}/${repo} is empty or has no default branch`

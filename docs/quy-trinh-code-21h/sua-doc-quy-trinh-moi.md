@@ -30,7 +30,7 @@ không đoán tên. Xong thì chạy lệnh kiểm ở Mục 5, báo kết quả
 
 **Đã bỏ:** Màn 6 (câu hỏi nâng cao riêng), so trùng lời giải thích với câu hỏi, agent, graphDB, tra mạng, phần gom nhận định từ các bản phân tích ở Tổng quan.
 
-**Giữ nguyên:** 1 node = 1 lát cắt, bản đồ tất định, `node.id` theo D-08, BKT, luật Đạt, gợi ý theo bậc và lượt (D-74), đáp án mẫu chỉ mở khi xong câu, mọi chữ AI viết đều qua cổng gác, INV-01 … INV-13.
+**Giữ nguyên:** 1 node = 1 lát cắt, bản đồ tất định, `node.id` theo D-08, BKT, luật Đạt, gợi ý theo bậc và lượt (D-74), đáp án mẫu chỉ mở khi xong câu, mọi chữ AI viết đều qua cổng gác, INV-01 … INV-13, trừ INV-02 đổi "4 lời gọi" thành 5 lời gọi (thêm `explain-selection`, D-82).
 
 ## 2. Luật chung khi sửa doc
 
@@ -52,12 +52,14 @@ Thiện chốt cuối cùng trong `spec/02`. Đổi tên nào thì báo cả nh�
 - `GraphEdge` thêm `via_entities: string[]` (rỗng nếu cạnh không qua thực thể).
 - `StaticEngineResult` thêm `groups: Array<{ group_id: string; key: string; key_kind: "ENTITY" | "ROUTE_PREFIX" | "STANDALONE"; node_ids: string[] }>`. `key` là nhãn dự phòng khi AI chưa đặt tên.
 
-**Ingest (D-83):** `IngestOutput` thêm `readme_excerpt: string | null` (đoạn đầu README, đã che secret, tối đa `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description: string | null`.
+**Ingest (D-83):** `IngestOutput` thêm `readme_excerpt: string | null` (đoạn đầu README, đã che secret, tối đa `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description: string | null`. `StaticEngineResult` mang 2 trường này sang, vì `analyze-overview` đọc kết quả engine của phiên.
 
 **Tổng quan (D-83):**
 - `RepoOverviewRaw = { summary: string; groups: Array<{ group_id: string; name: string }>; node_titles: Array<{ node_id: string; title: string }> }`. `summary` tối đa 2 câu.
 - `RepoOverviewView = { facts: …(giữ như cũ); ai: RepoOverviewRaw | null }`.
 - Bỏ `ERR_OVERVIEW_NOT_READY`, vì tổng quan không còn chờ node.
+
+**Cổng gác (`21`):** `GuardCall` thêm `"explain"`. `GuardCode` thêm `O5` (thiếu hoặc trùng tên bài, nhóm), `O6` (tên quá dài hoặc quá ngắn), `E1` … `E4` (giải thích đoạn chọn).
 
 **Giải thích đoạn chọn (D-82):**
 - `POST /api/explain-selection`.
@@ -90,12 +92,13 @@ Thiện chốt cuối cùng trong `spec/02`. Đổi tên nào thì báo cả nh�
 
 ### Thiện (vai A)
 
-**Giữ file:** `spec/02`, `spec/03`, `spec/01`. **Làm `02` trước**, vì mọi người cần kiểu dữ liệu để code.
+**Giữ file:** `spec/02`, `spec/03`, `spec/01`, `spec/04`. **Làm `02` trước**, vì mọi người cần kiểu dữ liệu để code. Phần code nhận thêm luồng 3 Java từ Quý.
 
 - `02`: thêm và sửa kiểu ở Mục 3 của file này; thêm `CONFIG`; thêm mã lỗi và mã HTTP; bỏ `ERR_OVERVIEW_NOT_READY`.
 - `03`: thêm endpoint `explain-selection` vào bảng endpoint và luồng ghi (kiểm vùng chọn từ snapshot ⇒ cache ⇒ gọi AI ⇒ cổng gác ⇒ ghi cache); thêm khóa cache `SELECTION_EXPLAIN` ở Mục 3.3; Mục 6.6: `analyze-overview` không còn chờ node; đếm lượt `explain` mỗi phiên.
-- `01`: sơ đồ thành phần và luồng 5.1 (tổng quan gọi trước, tải trước node sau), số lời gọi AI là 5. Không đổi INV.
-- Xong khi: `02` ≤ 52 000; tên trong `02` khớp Mục 3 hoặc đã báo nhóm tên mới.
+- `01`: sơ đồ thành phần và luồng 5.1 (tổng quan gọi trước, tải trước node sau). **Sửa INV-02** thành 5 lời gọi, thêm `explain-selection` (D-82). Các INV khác giữ nguyên.
+- `04`: sơ đồ và chỗ ghi "4 lời gọi" đổi thành 5 lời gọi; `03` Mục 8 (`GEMINI_API_KEY`) cũng vậy.
+- Xong khi: `02` ≤ 52 000, `04` ≤ 42 000; tên trong `02` khớp Mục 3 hoặc đã báo nhóm tên mới; `grep "4 lời gọi" docs/spec` không còn kết quả.
 
 ### Phat107 (vai D, kiêm ingest)
 
@@ -125,9 +128,9 @@ Thiện chốt cuối cùng trong `spec/02`. Đổi tên nào thì báo cả nh�
 - `00`: thêm D-85 cho luật nối bài theo phụ thuộc dữ liệu (B-39, thay D-07, D-73, sửa D-55), giữ trần 50 000.
 - Xong khi: `11` ≤ 46 000; có test cho gom nhóm trên `shop-api` và BrewLite.
 
-### Lê Ngọc Quý (vai B, Java)
+### Lê Ngọc Quý (luồng 6, giao diện)
 
-Không sửa doc đợt này. Tiếp tục Java theo lộ trình, giữ mốc 19:00.
+Không sửa doc đợt này. Đọc Mục 1, Mục 3 và `spec/30` (Phat107 viết), rồi code luồng 6 theo `prototype.html`. Java chuyển cho Thiện.
 
 ### Người quay lại sau
 

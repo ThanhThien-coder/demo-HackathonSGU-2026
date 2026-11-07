@@ -412,7 +412,7 @@ describe("ENG / X-01 / X-07: Repo demo shop-api trong RAM và kiểm thử xuyê
   // X-01: Nghiệm thu tập 6 cạnh, Capstone và điểm bắt đầu shop-api.
   // Hướng cạnh theo D-07 (dễ → khó) và D-12 (Capstone phức tạp nhất), nên N6, N7 đứng trước N5.
   // ---------------------------------------------------------------------------
-  it("X-01: Tập 6 cạnh shop-api gồm đúng N1->N2, N2->N4, N4->N5, N3->N5, N6->N5, N7->N5, N5 là Capstone, N1, N3, N6, N7 là điểm bắt đầu", async () => {
+  it("X-01, T-ENG-48: Tập 6 cạnh shop-api gồm đúng N1->N2, N2->N4, N4->N5, N3->N5, N5->N6, N5->N7, N5 là Capstone, N1, N3 là điểm bắt đầu", async () => {
     const zipBytes = createShopApiZip();
 
     const res = await runEngine({
@@ -440,14 +440,14 @@ describe("ENG / X-01 / X-07: Repo demo shop-api trong RAM và kiểm thử xuyê
       .map((e) => `${getNodeLabel(e.source)}->${getNodeLabel(e.target)}`)
       .sort();
 
-    // 1. Kiểm tra đúng 6 cạnh N1->N2, N2->N4, N4->N5, N3->N5, N6->N5, N7->N5
+    // 1. Kiểm tra đúng 6 cạnh N1->N2, N2->N4, N4->N5, N3->N5, N5->N6, N5->N7 (D-85)
     expect(edgePairs).toEqual([
       "N1->N2",
       "N2->N4",
       "N3->N5",
       "N4->N5",
-      "N6->N5",
-      "N7->N5",
+      "N5->N6",
+      "N5->N7",
     ]);
 
     // 2. N5 là Capstone (D-12)
@@ -455,12 +455,12 @@ describe("ENG / X-01 / X-07: Repo demo shop-api trong RAM và kiểm thử xuyê
     expect(capstone).toBeDefined();
     expect(getNodeLabel(capstone!.id)).toBe("N5");
 
-    // 3. N1, N3, N6, N7 là điểm bắt đầu (prerequisites = [])
+    // 3. N1, N3 là điểm bắt đầu (prerequisites = [])
     const startNodes = res.nodes
       .filter((n) => n.prerequisites.length === 0)
       .map((n) => getNodeLabel(n.id))
       .sort();
-    expect(startNodes).toEqual(["N1", "N3", "N6", "N7"]);
+    expect(startNodes).toEqual(["N1", "N3"]);
   });
 
   // ---------------------------------------------------------------------------
@@ -527,7 +527,7 @@ describe("ENG / X-01 / X-07: Repo demo shop-api trong RAM và kiểm thử xuyê
     const fns = (title: string) => res.nodes.find((n) => n.title === title)?.trace_steps.map((s) => s.function_name) ?? [];
     expect(fns("List Products")).toEqual(["router.get('/products')", "ProductService.listProducts", "CategoryRepo.findById"]);
     expect(fns("Order Checkout")).toContain("OrderService.checkout");
-    expect(fns("Create Register")).toContain("AuthService.register");
+    expect(fns("Register")).toContain("AuthService.register");
     expect(res.nodes.find((n) => n.is_capstone)?.title).toBe("Order Checkout");
   });
 

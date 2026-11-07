@@ -20,6 +20,11 @@ export function parseGithubUrl(raw: string): GithubRepoInfo {
   }
 
   // 2. Chuẩn hóa theo thứ tự (ING-11)
+  // Scheme và host về chữ thường, giữ nguyên owner và repo (lỗi B-15)
+  s = s.replace(
+    /^(?:git@github\.com:|(?:https?:\/\/)?(?:www\.)?github\.com(?=\/))/i,
+    (prefix) => prefix.toLowerCase()
+  );
   // git@github.com: => https://github.com/
   if (s.startsWith("git@github.com:")) {
     s = "https://github.com/" + s.slice("git@github.com:".length);

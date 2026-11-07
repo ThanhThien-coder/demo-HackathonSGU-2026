@@ -6,7 +6,7 @@
 
 ## Đọc nhanh
 
-- Nhận văn bản do 4 lời gọi AI sinh (phân tích node, tổng quan, câu hỏi, gợi ý / nhận xét khi chấm) và câu trả lời của người học; kiểm bằng code, không dùng AI. Trả bản đã kiểm, hoặc xử lý theo từng lời gọi: gạch mục sai, gọi lại, bản khung, `DROPPED`, mẫu tĩnh, `injectionGrading`.
+- Nhận văn bản do 5 lời gọi AI sinh (phân tích node, tổng quan, câu hỏi, gợi ý / nhận xét khi chấm, giải thích đoạn chọn) và câu trả lời của người học; kiểm bằng code, không dùng AI. Trả bản đã kiểm, hoặc xử lý theo từng lời gọi: gạch mục sai, gọi lại, bản khung, `DROPPED`, mẫu tĩnh, `injectionGrading`.
 - Mọi văn bản AI qua cổng gác trước khi cache hoặc hiển thị (INV-08). Cổng gác không kiểm được nghĩa đúng sai (GUARD-21) ⇒ không bao giờ tuyên bố "chặn 100% ảo giác".
 - Câu trả lời người học: kiểm độ dài và trùng (lỗi không tính lượt), rồi regex câu lệnh tấn công, rồi mới gọi AI chấm.
 - Output AI của repo demo phải duyệt tay (bắt buộc ở H+17) rồi đóng băng; không bao giờ sửa tay output AI (GUARD-19).
@@ -30,7 +30,7 @@ flowchart TB
 | 1 | Bảng 5 điểm kiểm | — |
 | 2 | Công cụ chung: chuẩn hóa, chốt tên, từ cấm, số dòng, bằng chứng | `guard/{text,names,forbidden,lines}.ts` — `isValidName`, `forbiddenKeywords`, `findForbidden`, `invalidLineRefs`, `symbolInStep` |
 | 3 | Kiểm phân tích node | `guard/analysis.ts` — `checkAnalysis` |
-| 4 | Kiểm tổng quan repo | `guard/overview.ts` — `checkOverview` |
+| 4 | Kiểm tổng quan repo, tên bài, tên nhóm | `guard/overview.ts` — `checkOverview` |
 | 5 | Kiểm câu hỏi | `guard/questions.ts` — `checkQuestions` |
 | 6 | Kiểm gợi ý, nhận xét khi chấm | `guard/followup.ts` — `verifyFollowUp` |
 | 7 | Regex câu lệnh tấn công | `guard/injection.ts` — `isInjection` |
@@ -38,6 +38,7 @@ flowchart TB
 | 9 | Nút "Báo sai" | server: `03` Mục 6.4 |
 | 10 | Duyệt tay, đóng băng, số đo | `scripts/review-run.ts`, `scripts/record-bundle.ts`, `review/` |
 | 11 | Giới hạn phải nói thật | — |
+| 12 | Kiểm giải thích đoạn chọn | `guard/explain.ts` — `checkExplain` |
 
 ---
 
@@ -48,9 +49,10 @@ Mọi văn bản AI qua cổng gác trước khi cache hoặc hiển thị (INV-
 | Lời gọi | Hàm | Trường bị kiểm | Sai thì |
 | :-- | :-- | :-- | :-- |
 | analyze | `checkAnalysis` (GUARD-10) | kỹ năng, mẫu, bước, điểm hay, điểm dở, mọi chữ | Gạch từng mục cấu trúc sai; chữ sai ⇒ `skeleton_only` ⇒ gọi lại; 0 kỹ năng ⇒ `null` ⇒ gọi lại |
-| overview | `checkOverview` (GUARD-11) | kiểu, tầng, nhận xét, mọi chữ | Gạch mục không căn cứ; chữ sai ⇒ `null` ⇒ gọi lại |
+| overview | `checkOverview` (GUARD-11) | nhóm, tên bài, mọi chữ | Gạch mục id lạ; thiếu, trùng tên hoặc chữ sai ⇒ `null` ⇒ gọi lại |
 | questions | `checkQuestions` (GUARD-12) | số câu, kỹ năng, góc, ý bắt buộc, câu hỏi / đáp án / `fix` | Câu hỏng ⇒ gọi lại riêng câu đó ⇒ `DROPPED` |
 | grade | `verifyFollowUp` (GUARD-13), GUARD-14 | gợi ý, feedback, thuật ngữ | Mẫu tĩnh (`20` AI-32); không gọi lại |
+| explain | `checkExplain` (GUARD-23) | loại, kỹ năng, mọi chữ | Gạch kỹ năng sai; chữ sai ⇒ `null`, không gọi lại |
 | câu trả lời | GUARD-15, GUARD-16 | regex tấn công, độ dài, trùng | `injectionGrading` / lỗi `ERR_ANSWER_*` (không tính lượt) |
 
 ---
@@ -103,6 +105,7 @@ interface NameScope { files: readonly string[]; words: Set<string>; extra: Set<s
 export function nodeScope(node: HybridArchitecturalNode, graph: StaticEngineResult): NameScope;   // analyze, questions
 export function repoScope(graph: StaticEngineResult): NameScope;                                 // overview
 export function gradeScope(t: GradeContext, answer: string): NameScope;                         // grade (GradeContext: 20 AI-27, D-36)
+export function explainScope(node: HybridArchitecturalNode, stepNumber: number, refNames: string[], graph: StaticEngineResult): NameScope; // explain: code bước, dto_snippet, refNames, file của node
 
 export function isValidName(s: string, sc: NameScope): boolean {
   const t = s.trim().replace(/^\.\//, "");
@@ -123,7 +126,7 @@ export const checkNames = (texts: string[], sc: NameScope): string[] =>         
 | `repoScope` | `graph.file_index` | `symbol_whitelist` ∪ `file_index` ∪ `nodeCodeText` mọi node | `id` + `title` mọi node | có node `STRUCTURAL` |
 | `gradeScope` | `t.steps[].file_path` | `steps` (`function_name`, `file_path`) ∪ `feynman_question` ∪ `reference_answer` ∪ `answer` (không có code, D-36) | ∅ | `false` |
 
-Chỉ chuỗi trong dấu `` ` `` bị kiểm (AI-09). Chuỗi bị kiểm ở mọi trường chữ của 4 lời gọi, **trừ** `fix` (chỉ kiểm từ cấm).
+Chỉ chuỗi trong dấu `` ` `` bị kiểm (AI-09). Chuỗi bị kiểm ở mọi trường chữ của 5 lời gọi, **trừ** `fix` (chỉ kiểm từ cấm).
 
 ### Relaxed Mode (GUARD-05)
 
@@ -250,12 +253,14 @@ export function checkAnalysis(raw: NodeAnalysisRaw, node: HybridArchitecturalNod
 
 ## 4. `checkOverview` — `guard/overview.ts` (GUARD-11)
 
-`checkOverview(raw: RepoOverviewRaw, graph: StaticEngineResult, analyses: Record<string, NodeAnalysis>, issues: GuardIssue[] = []): RepoOverviewRaw | null`
+`checkOverview(raw: RepoOverviewRaw, graph: StaticEngineResult, issues: GuardIssue[] = []): RepoOverviewRaw | null` (D-83)
 
-1. `architecture_style` ngoài danh mục ⇒ `"OTHER"`.
-2. `layers`: `layer` phải là `ArchitecturalLayer`; `nodes` chỉ giữ id có thật **và** có bước mang `layer` đó; trùng `layer` ⇒ giữ mục đầu; `nodes` rỗng ⇒ bỏ mục.
-3. `notes`: `nodes` chỉ giữ id có thật; giữ nhận xét khi còn ≥ 1 node **và** mọi node trong đó có bản phân tích với `weak_points.length > 0` (tổng quan không được nêu điểm dở mới); ngược lại gạch.
-4. Chữ (`summary`, `main_flow`, `layers[].role`, `notes[].text` còn giữ): `O1` rỗng · `O2` tên sai (`checkNames(·, repoScope(graph))`) · `O3` từ cấm (`findForbidden(·, forbiddenKeywords(fp, code mọi node))`) · `O4` có số dòng (`invalidLineRefs(·, ∅)`); sai ⇒ thêm `GuardIssue` rồi `null` (gọi lại; hết lượt ⇒ `ai = null`).
+1. `groups`: chỉ giữ `group_id` có trong `graph.groups`; trùng id ⇒ giữ mục đầu. Thiếu nhóm nào ⇒ `O5`.
+2. `node_titles`: chỉ giữ `node_id` có thật; trùng id ⇒ giữ mục đầu. Thiếu node nào, hoặc 2 node trùng `title` sau chuẩn hóa (GUARD-02) ⇒ `O5`.
+3. Độ dài: `summary` quá 2 câu ⇒ cắt còn 2 câu. `groups[].name` quá 4 từ, `node_titles[].title` ngoài 2–6 từ ⇒ `O6`.
+4. Chữ (`summary`, `groups[].name`, `node_titles[].title`): `O1` rỗng · `O2` tên sai (`checkNames(·, repoScope(graph))`) · `O3` từ cấm (`findForbidden(·, forbiddenKeywords(fp, code mọi node))`) · `O4` có số dòng (`invalidLineRefs(·, ∅)`).
+
+Có mã lỗi ⇒ thêm `GuardIssue` rồi `null` (gọi lại kèm lý do, `20` AI-37; hết lượt ⇒ `ai = null`).
 
 ---
 
@@ -267,7 +272,7 @@ export function checkQuestions(raw: { questions: GeneratedQuestionRaw[] }, items
   graph: StaticEngineResult, analysis: NodeAnalysis): QuestionCheck[];
 ```
 
-Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi trong `issues` theo bảng Q1–Q8; tên từ `checkNames`, `findForbidden` đưa vào `name`. Câu qua khi mọi mục sau đúng:
+Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi trong `issues` theo bảng Q1–Q9; tên từ `checkNames`, `findForbidden` đưa vào `name`. Câu qua khi mọi mục sau đúng:
 
 | # | Kiểm |
 | :-: | :-- |
@@ -279,8 +284,10 @@ Câu thứ `i` của `raw` ứng với `items[i]` (theo vị trí). Mã lỗi tr
 | Q6 | `WEAKNESS`: lấy điểm dở cùng `skill`; từ cuối của `symbol` (sau `norm`) ∈ `identWords(feynman_question + reference_answer)` (câu hỏi **hoặc** đáp án). Không có điểm dở cùng kỹ năng ⇒ hỏng |
 | Q7 | `FLOW`: `flowSteps(reference_answer) ≥ min(CONFIG.FLOW_ANSWER_MIN_STEPS, item.step_indices.length)` |
 | Q8 | `CHANGE`: ≥ 1 chuỗi backtick trong `reference_answer` là file của node (`f === b` hoặc `f.endsWith("/" + b)`, `f ∈ node.files`) |
+| Q9 | `FLOW`: `feynman_question` không khớp `FLOW_GENERIC_RE` (hỏi chung "đi qua những bước / hàm nào", chép phần giải thích bước là trả lời được — C-04) |
 
 `flowSteps`: `common` = từ có trong code **mọi** bước của `step_indices` (khi có ≥ 2 bước). Bước `s` được tính khi có chuỗi backtick `b` trong `reference_answer` sao cho `b` là file của bước `s`, **hoặc** một từ dạng tên (không thuộc `LANGUAGE_WORDS`) của `b` nằm trong `identWords(function_name + snippet của s) \ common`.
+`FLOW_GENERIC_RE = /(?:những|các)\s+(?:bước|hàm|tầng|lớp|thành phần)(?:\s+[^\s?.,]+){0,6}\s+nào/iu` (không cờ `g`).
 
 `ARCHITECTURE` không có kiểm riêng ngoài Q1–Q5. Code không kiểm: câu có đúng trọng tâm, có lộ đáp án, có lặp phần X-Ray, đáp án có đúng (GUARD-21 ⇒ duyệt tay).
 
@@ -322,7 +329,7 @@ So khớp **lỏng**: `points[].quote` sau `normText` (bỏ dấu câu ở hai �
 export function logGuardBlock(call: GuardCall, attempt: number, nodeId: string | null, issues: GuardIssue[]): void;   // guard/log.ts
 ```
 
-Bị chặn = `checkAnalysis` trả `null` hoặc `skeleton_only`, `checkOverview` trả `null`, một câu hỏi hỏng, `follow_up_ok` hoặc `feedback_ok` là `false`. Mỗi lần ghi 1 dòng `GuardLogEntry` (`02` Mục 5, `04` Mục 9): `codes` lấy từ `issues`, bỏ trùng; không ghi `name`, `step`, code, văn bản AI, bài làm. Không thêm bảng Postgres. `scripts/review-run.ts` đếm số lần chặn theo `GuardCode` từ các dòng của chính lần chạy và ghi vào kết quả chạy.
+Bị chặn = `checkAnalysis` trả `null` hoặc `skeleton_only`, `checkOverview` trả `null`, `checkExplain` trả `null`, một câu hỏi hỏng, `follow_up_ok` hoặc `feedback_ok` là `false`. Mỗi lần ghi 1 dòng `GuardLogEntry` (`02` Mục 5, `04` Mục 9): `codes` lấy từ `issues`, bỏ trùng; không ghi `name`, `step`, code, văn bản AI, bài làm. Không thêm bảng Postgres. `scripts/review-run.ts` đếm số lần chặn theo `GuardCode` từ các dòng của chính lần chạy và ghi vào kết quả chạy.
 
 ---
 
@@ -487,6 +494,19 @@ Code bảo đảm AI **chỉ đúng chỗ, dùng tên có thật, không nhắc 
 
 ---
 
+## 12. `checkExplain` — `guard/explain.ts` (GUARD-23)
+
+`checkExplain(raw: ExplainSelectionRaw, scope: NameScope, forbidden: string[], issues: GuardIssue[] = []): ExplainSelectionRaw | null` (D-82). `scope` = `explainScope(node, step_number, references[].name, graph)`; `forbidden` = `forbiddenKeywords(fp, code của bước)`.
+
+1. `kind` ngoài `KEYWORD`, `NAME`, `CODE`; `what` rỗng; `here` rỗng ⇒ `E1`. `analogy` được rỗng.
+2. `skill` không thuộc `SWE_SKILLS` ⇒ `skill = null`, không chặn.
+3. Độ dài: `what` quá 3 câu, `here` quá 2 câu, `analogy` quá 1 câu ⇒ cắt.
+4. Chữ (`what`, `here`, `analogy`): `E2` tên sai (`checkNames(·, scope)`) · `E3` từ cấm (`findForbidden(·, forbidden)`) · `E4` có số dòng (`invalidLineRefs(·, ∅)`).
+
+Có mã lỗi ⇒ `null`, không gọi lại (`20` AI-38), ghi log GUARD-22 với `call = "explain"`. Không so với câu hỏi đang mở (D-82).
+
+---
+
 ## Test bắt buộc
 
 Fixture `50` Mục 1–2; `tech_stack = ["express","typeorm","pg","zod","jsonwebtoken"]`; `MUST_HAVE_POINTS_MIN/MAX = 2/3`, `FLOW_ANSWER_MIN_STEPS = 2`, `ANSWER_MIN_CHARS = 15`, `ANSWER_MAX_CHARS = 2000`, `ANSWER_DUPLICATE_SIMILARITY = 0.8`.
@@ -497,10 +517,12 @@ Fixture `50` Mục 1–2; `tech_stack = ["express","typeorm","pg","zod","jsonweb
 | GUARD-10 | 2.1 nhưng `steps` chỉ có 2 mục ⇒ `skeleton_only = true`, 2 kỹ năng giữ, `reason = ""`, `steps = []` |
 | GUARD-10 | Text bước 2 có `` `verifyToken` `` hoặc "dòng 99" ⇒ `skeleton_only = true` |
 | GUARD-10 | Điểm dở kỹ năng `AUTH_SECURITY` (đã gạch) ⇒ gạch; 2 điểm dở cùng `DB_OPTIMIZATION` ⇒ giữ điểm đầu; mọi kỹ năng sai ⇒ `null` |
-| GUARD-11 | `50` 2.2 ⇒ gạch nhận xét N7; giữ phần còn lại. `MIDDLEWARE` gán thêm N3 ⇒ N3 bị bỏ khỏi mục đó. `summary` có "dòng 5" ⇒ `null` |
-| GUARD-12 | `50` 2.3 (Q1 `WEAKNESS` bước `[2]`, Q2 `FLOW` bước `[1,2,3]`) ⇒ cả 2 qua |
+| GUARD-11 | `shop-api` 7 bài, `node_titles` thiếu 1 bài ⇒ `O5`, `null`. Hai bài cùng title "Xem sản phẩm" ⇒ `O5`. `groups` có id lạ ⇒ bỏ mục đó, giữ phần còn lại. `summary` 3 câu ⇒ còn 2 câu. Title "Xem dòng 5" ⇒ `O4`, `null` |
+| GUARD-23 | `here` có `` `verifyToken` `` (không có trong bước, `references`, `dto_snippet`) ⇒ `E2`, `null`. `skill = "FOO"` ⇒ `skill = null`, giữ phần còn lại. `what` 5 câu ⇒ còn 3 câu. `what` rỗng ⇒ `E1`, `null` |
+| GUARD-12 | `50` 2.3 (Q1 `FLOW` bước `[1,2,3]`, Q2 `WEAKNESS` bước `[2]`) ⇒ cả 2 qua |
 | GUARD-12 | Q1 `reference_answer` có "Redis" ⇒ Q1 hỏng (Q5). Q1 không có `findById` ở câu hỏi lẫn đáp án ⇒ hỏng (Q6). Q1 có "dòng 9" (bước 1, ngoài `[2]`) hoặc "dòng 30" ⇒ hỏng (Q4); "dòng 16–18" ⇒ qua |
 | GUARD-12 | Q2 đáp án chỉ có `` `findOne` `` ⇒ 1 bước < 2 ⇒ hỏng (Q7). Câu `CHANGE` không nêu file ⇒ hỏng; nêu `` `product.controller.ts` `` ⇒ qua. 1 ý bắt buộc ⇒ hỏng |
+| GUARD-12 | Câu `FLOW` "Luồng xử lý đi qua những hàm nào trước khi trả danh sách?" ⇒ hỏng (Q9); "Khi danh sách có 2 sản phẩm, loại hàng được gắn vào từng sản phẩm ở bước nào?" ⇒ không hỏng vì Q9 |
 | GUARD-04 | Phạm vi N3 / N2: `findOne`, `jwt.verify`, `JWT_SECRET`, `user_id` (code `userId`), `'Hết hàng'`, `201`, `for` ⇒ hợp lệ; `redisClient`, `verifyToken` ⇒ không |
 | GUARD-05 | `` `userService.fooBar` ``: node `STRUCTURAL` ⇒ hợp lệ; node `RESOLVED` ⇒ không. `symbolInStep("fooBar")` ở node `STRUCTURAL` ⇒ vẫn `false` |
 | GUARD-06 | Stack trên ⇒ cấm đủ 12 công nghệ. Thêm `ioredis` ⇒ redis hết cấm; `@aws-sdk/client-s3` ⇒ aws hết cấm; `mongoose` ⇒ mongodb hết cấm. Code bước có chú thích "dùng redis" ⇒ redis hết cấm cho node đó |

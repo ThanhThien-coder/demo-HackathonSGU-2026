@@ -14,12 +14,13 @@ vi.mock("../gemini", async (importOriginal) => {
   return {
     ...actual,
     callLLMOnce: vi.fn(),
-    retryDelay: vi.fn(),
+    retryDelay: vi.fn(async () => true), // D-74 R1: true = được gọi lại
   };
 });
 
 vi.mock("../guard/log", () => ({
   logGuardBlock: vi.fn(),
+  logWeakPointsFiltered: vi.fn(),
 }));
 
 vi.mock("@/server/quota", () => ({
@@ -35,9 +36,10 @@ import {
 } from "../analyze";
 import { callLLMOnce, retryDelay } from "../gemini";
 import { checkAnalysis } from "../guard/analysis";
-import { logGuardBlock } from "../guard/log";
+import { logGuardBlock, logWeakPointsFiltered } from "../guard/log";
 import {
   ANALYZE_SCHEMA,
+  ANALYZE_SYSTEM,
   analyzeRequest,
   SKILL_CATALOGUE,
 } from "../prompts/analyze";
@@ -174,6 +176,22 @@ describe("analyzeNode (C06 / AI-15, AI-18, AI-37)", () => {
     expect(vi.mocked(callLLMOnce).mock.calls.length).toBeLessThanOrEqual(
       1 + CONFIG.LLM_MAX_RETRIES,
     );
+  });
+
+  it("AI-12 (R1): 429 mà retryDelay trả false (Google bắt chờ quá trần) ⇒ không gọi lại, chỉ 1 request", async () => {
+    vi.mocked(callLLMOnce).mockResolvedValueOnce({
+      ok: false,
+      kind: "TRANSIENT",
+      status: 429,
+      retry_after_ms: CONFIG.LLM_RETRY_DELAY_MAX_MS + 1,
+      tokens_in: 0,
+      tokens_out: 0,
+    });
+    vi.mocked(retryDelay).mockResolvedValueOnce(false);
+
+    const result = await analyzeNode(session, graph, nodeN3);
+    expect(result).toBeNull();
+    expect(callLLMOnce).toHaveBeenCalledTimes(1);
   });
 
   it("D2: N6, callLLMOnce trả TRANSIENT cả 2 lần ⇒ analyzeNode trả null", async () => {
@@ -424,6 +442,42 @@ describe("analyzeNode (C06 / AI-15, AI-18, AI-37)", () => {
     expect(parsed?.skills.length).toBe(rawN3.skills.length);
   });
 
+  it("C-09: điểm dở bị cổng gác lọc mà bản phân tích vẫn đạt ⇒ logWeakPointsFiltered 1 lần, có số theo lý do", async () => {
+    vi.mocked(callLLMOnce).mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...rawN3,
+        weak_points: [
+          ...rawN3.weak_points,
+          { skill: "ERROR_HANDLING", step: 2, symbol: "findById", what: "x", consequence: "y" },
+        ],
+      },
+      tokens_in: 10,
+      tokens_out: 5,
+    });
+
+    const result = await analyzeNode(session, graph, nodeN3);
+    expect(result?.skeleton_only).toBe(false);
+    expect(logWeakPointsFiltered).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(logWeakPointsFiltered).mock.calls[0][0]).toBe(1);
+    expect(vi.mocked(logWeakPointsFiltered).mock.calls[0][1]).toBe(nodeN3.id);
+    expect(vi.mocked(logWeakPointsFiltered).mock.calls[0][2]).toMatchObject({ raw: 2, kept: 1, skill_not_chosen: 1 });
+  });
+
+  it("C-09: không điểm dở nào bị lọc ⇒ không ghi log weak_points_filtered", async () => {
+    vi.mocked(callLLMOnce).mockResolvedValueOnce({ ok: true, value: rawN3, tokens_in: 10, tokens_out: 5 });
+    await analyzeNode(session, graph, nodeN3);
+    expect(logWeakPointsFiltered).not.toHaveBeenCalled();
+  });
+
+  it("C-06: prompt bắt soát 4 mặt trước khi kết luận không có điểm dở, bỏ câu 'Không chắc thì mảng rỗng'", () => {
+    const req = analyzeRequest(session, graph, nodeN3);
+    expect(req.system).toContain("soát lần lượt 4 mặt");
+    expect(req.system).toContain("PHẢI gồm kỹ năng của mọi điểm dở");
+    expect(ANALYZE_SCHEMA.propertyOrdering?.[0]).toBe("weak_points");
+    expect(req.system).not.toContain("Không chắc thì mảng rỗng");
+  });
+
   it("ANALYZE_SCHEMA có type OBJECT và chứa đủ properties", () => {
     expect(ANALYZE_SCHEMA.type).toBe("OBJECT");
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("skills");
@@ -431,5 +485,14 @@ describe("analyzeNode (C06 / AI-15, AI-18, AI-37)", () => {
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("steps");
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("strengths");
     expect(ANALYZE_SCHEMA.properties).toHaveProperty("weak_points");
+  });
+});
+
+describe("C-07 — prompt phân tích (AI-16)", () => {
+  it("AI-16 (C-07): summary đúng 2 câu, câu 1 là việc của người dùng; steps[].text viết cho người mới", () => {
+    expect(ANALYZE_SYSTEM).toContain("summary = đúng 2 câu: câu 1 nói phần này giúp người dùng làm gì");
+    expect(ANALYZE_SYSTEM).toContain("câu 2 nói các bước chia việc ra sao");
+    expect(ANALYZE_SYSTEM).toContain("text = 1–2 câu ngắn cho người mới");
+    expect(ANALYZE_SYSTEM).not.toContain("summary = tối đa 2 câu");
   });
 });

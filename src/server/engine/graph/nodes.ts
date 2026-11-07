@@ -6,17 +6,30 @@ import {
   type GraphEdge,
   type HybridArchitecturalNode,
   type IngestionReport,
+  type StaticEngineResult,
 } from "@/contracts";
 import { IngestionError } from "../ingest/types";
 import { getAdapter } from "./registry";
 import { cognitiveComplexity } from "./complexity";
 import { hash6, nameCandidate, slug } from "./naming";
+import { isTestPath } from "../ingest/priority";
 import { tarjanScc } from "./tarjan";
 import type {
   Candidate,
   EngineContext,
   FunctionInfo,
 } from "./types";
+import {
+  buildDataEdges,
+  buildGroups,
+  readForeignKeys,
+  readLessonData,
+  toNodeEntities,
+  type LessonData,
+} from "./data-deps";
+
+// ENG-91: bước không có câu lệnh, chỉ còn dòng trống hoặc ngoặc đóng.
+const EMPTY_STEP_REGEX = /^[\s})\];,]*$/;
 
 /**
  * Tính điểm Cognitive Complexity cho một AST statement theo ENG-71.
@@ -28,11 +41,13 @@ function calculateStmtComplexity(n: Node): number {
     const isControl =
       type === "if_statement" ||
       type === "for_statement" ||
+      type === "enhanced_for_statement" ||
       type === "for_in_statement" ||
       type === "for_of_statement" ||
       type === "while_statement" ||
       type === "do_statement" ||
       type === "switch_statement" ||
+      type === "switch_expression" ||
       type === "match_statement" ||
       type === "catch_clause" ||
       type === "except_clause" ||
@@ -104,11 +119,18 @@ export function buildAlgoCandidates(
           n.type === "function_declaration" ||
           n.type === "function_expression" ||
           n.type === "arrow_function" ||
-          n.type === "method_definition";
+          n.type === "method_definition" ||
+          n.type === "method_declaration" ||
+          n.type === "constructor_declaration" ||
+          n.type === "compact_constructor_declaration";
         if (isFn) {
           const s = n.startPosition.row + 1;
           const e = n.endPosition.row + 1;
-          if (s <= fn.line_start && e >= fn.line_end) {
+          const isMatch =
+            pf.language === "JAVA"
+              ? e === fn.line_end || (s <= fn.line_start && e >= fn.line_end)
+              : s <= fn.line_start && e >= fn.line_end;
+          if (isMatch) {
             const span = e - s;
             if (span < minSpan) {
               minSpan = span;
@@ -139,6 +161,7 @@ export function buildAlgoCandidates(
 
       const isLoop =
         child.type === "for_statement" ||
+        child.type === "enhanced_for_statement" ||
         child.type === "for_in_statement" ||
         child.type === "for_of_statement" ||
         child.type === "while_statement" ||
@@ -279,17 +302,28 @@ export function buildAlgoCandidates(
       }
     }
 
-    // Clamp các bước > CONFIG.STEP_MAX_LINES (ENG-87)
+    // Clamp các bước > CONFIG.STEP_MAX_LINES (ENG-87). Marker có map = 0 (ENG-86).
     for (const st of traceSteps) {
       const sLines = st.snippet.split("\n");
       if (sLines.length > CONFIG.STEP_MAX_LINES) {
-        const kept = sLines.slice(0, CONFIG.STEP_MAX_LINES - 1);
-        const omitted = sLines.length - kept.length;
-        kept.push(`  ${commentPrefix} … (${omitted} dòng)`);
-        st.snippet = kept.join("\n");
-        st.snippet_line_map = st.snippet_line_map.slice(0, CONFIG.STEP_MAX_LINES);
+        const keepCount = CONFIG.STEP_MAX_LINES - 1;
+        const kept = sLines.slice(0, keepCount);
+        const dropped = sLines.slice(keepCount);
+        const firstDropped = dropped.find((l) => l.trim() !== "") ?? "";
+        const indent = firstDropped.slice(0, firstDropped.length - firstDropped.trimStart().length);
+        const keptMap = st.snippet_line_map.slice(0, keepCount);
+        st.snippet = [...kept, `${indent}${commentPrefix} … (${dropped.length} dòng)`].join("\n");
+        st.snippet_line_map = [...keptMap, 0];
+        st.line_end = Math.max(...keptMap);
       }
     }
+
+    // ENG-91: bỏ bước rỗng (không có câu lệnh, chỉ còn dòng trống hoặc ngoặc đóng)
+    const codeSteps = traceSteps.filter((st) => !EMPTY_STEP_REGEX.test(st.snippet));
+    if (codeSteps.length === 0) continue;
+    codeSteps.forEach((st, idx) => {
+      st.step_number = idx + 1;
+    });
 
     const rankScore = ctx.rank.get(fn.file_path) ?? 0;
 
@@ -297,7 +331,7 @@ export function buildAlgoCandidates(
       id: `algo-${fn.key}`,
       node_type: "ALGORITHMIC_CORE",
       entry_symbol: fn.key,
-      trace_steps: traceSteps,
+      trace_steps: codeSteps,
       dto_snippet: "",
       cognitive_complexity: fn.complexity,
       rank_score: rankScore,
@@ -370,7 +404,7 @@ export function transitiveReduction(
 export function computeEdgesOnKept(
   keptIds: string[],
   g0Adj: Map<string, Set<string>>,
-  rawEdges?: { source: { id: string }; target: { id: string }; isVnodeSequential?: boolean }[]
+  edgeInfo?: (source: string, target: string) => Pick<GraphEdge, "confidence" | "via_entities">
 ): GraphEdge[] {
   const keptIdSet = new Set(keptIds);
   const kAdj = new Map<string, Set<string>>();
@@ -398,20 +432,13 @@ export function computeEdgesOnKept(
   const finalEdges: GraphEdge[] = [];
   for (const [src, tgts] of kReducedAdj) {
     for (const tgt of tgts) {
-      const edgeId = `${src}->${tgt}`;
-      let confidence: "RESOLVED" | "INFERRED" = "RESOLVED";
-      const edgeObj = rawEdges?.find((e) => e.source.id === src && e.target.id === tgt);
-      if (edgeObj && edgeObj.isVnodeSequential) {
-        confidence = "RESOLVED";
-      } else {
-        confidence = "RESOLVED";
-      }
-
+      const info = edgeInfo?.(src, tgt) ?? { confidence: "RESOLVED" as const, via_entities: [] };
       finalEdges.push({
-        id: edgeId,
+        id: `${src}->${tgt}`,
         source: src,
         target: tgt,
-        confidence,
+        confidence: info.confidence,
+        via_entities: info.via_entities,
       });
     }
   }
@@ -422,14 +449,38 @@ export function computeEdgesOnKept(
 /**
  * Ghép node, sinh id, dựng cạnh, Display Budget, Capstone — spec 11 Mục 11.
  */
+/** Candidate có file đầu (`files[0]`) mang cờ ING-87. */
+export function isTestCandidate(c: Candidate): boolean {
+  const file = c.trace_steps[0]?.file_path;
+  return !!file && isTestPath(file);
+}
+
+// ENG-110: đủ candidate sạch ⇒ bỏ candidate mang cờ; thiếu ⇒ bù cho đủ; không có candidate sạch ⇒ giữ nguyên
+function dropTestCandidates(candidates: Candidate[]): Candidate[] {
+  const clean = candidates.filter((c) => !isTestCandidate(c));
+  if (clean.length === 0 || clean.length === candidates.length) return candidates;
+  const missing = CONFIG.DISPLAY_MIN_NODES - clean.length;
+  if (missing <= 0) return clean;
+  const fill = candidates
+    .filter(isTestCandidate)
+    .sort(
+      (a, b) =>
+        b.rank_score - a.rank_score ||
+        b.cognitive_complexity - a.cognitive_complexity ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    )
+    .slice(0, missing);
+  return [...clean, ...fill];
+}
+
 export function assembleGraph(
   candidates: Candidate[],
   ctx: EngineContext,
   report: IngestionReport
-): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[] } {
+): { nodes: HybridArchitecturalNode[]; edges: GraphEdge[]; groups: StaticEngineResult["groups"] } {
   // ENG-40 / B07: Bỏ candidate có trace_steps rỗng trước bước gộp ENG-110 (không cộng vào omitted_node_count)
-  const validCandidates = candidates.filter(
-    (c) => c.trace_steps && c.trace_steps.length > 0
+  const validCandidates = dropTestCandidates(
+    candidates.filter((c) => c.trace_steps && c.trace_steps.length > 0)
   );
   if (validCandidates.length === 0) {
     throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
@@ -474,7 +525,37 @@ export function assembleGraph(
     }
   }
 
-  // 3. ENG-112 Dựng cạnh D-07, D-56
+  // 3. ENG-112, ENG-118 Dựng G0: cạnh dữ liệu, rồi D-07, D-56
+  const candidateById = new Map(mergedCandidates.map((c) => [c.id, c]));
+  const isEasier = (aId: string, bId: string): boolean => {
+    const a = candidateById.get(aId);
+    const b = candidateById.get(bId);
+    if (!a || !b) return false;
+    if (a.cognitive_complexity !== b.cognitive_complexity) {
+      return a.cognitive_complexity < b.cognitive_complexity;
+    }
+    if (a.rank_score !== b.rank_score) return a.rank_score > b.rank_score;
+    return a.id < b.id;
+  };
+
+  const lessonData = new Map<string, LessonData>(
+    mergedCandidates.map((c) => [c.id, readLessonData(c, ctx)])
+  );
+  const dataEdges = buildDataEdges(
+    mergedCandidates.map((c) => ({ id: c.id, data: lessonData.get(c.id)! })),
+    readForeignKeys(ctx),
+    isEasier
+  );
+  const hasDataEdge = new Set<string>();
+  for (const edge of dataEdges.values()) {
+    hasDataEdge.add(edge.source);
+    hasDataEdge.add(edge.target);
+  }
+  // ENG-118 (3): bài không có thực thể từ code, chưa có cạnh ⇒ nhận cặp D-07
+  const wantsSharedEdge = (c: Candidate): boolean =>
+    !hasDataEdge.has(c.id) &&
+    !Array.from(lessonData.get(c.id)?.entities.values() ?? []).some((e) => e.fromCode);
+
   const callGraphAdj = new Map<string, Set<string>>();
   for (const edge of ctx.edges) {
     let targets = callGraphAdj.get(edge.caller);
@@ -543,8 +624,12 @@ export function assembleGraph(
 
       let hasRelation = false;
 
-      // D-07: hàm chung
-      if (a.functions.length > 0 && b.functions.length > 0) {
+      // D-07: hàm chung, chỉ cho bài theo ENG-118 (3)
+      if (
+        a.functions.length > 0 &&
+        b.functions.length > 0 &&
+        (wantsSharedEdge(a) || wantsSharedEdge(b))
+      ) {
         const common = a.functions.some((fa) => b.functions.includes(fa));
         if (common) hasRelation = true;
       }
@@ -562,16 +647,7 @@ export function assembleGraph(
 
       if (hasRelation) {
         // Chiều cạnh: A -> B nếu A "dễ hơn" B (ENG-112)
-        let aIsEasier = false;
-        if (a.cognitive_complexity !== b.cognitive_complexity) {
-          aIsEasier = a.cognitive_complexity < b.cognitive_complexity;
-        } else if (a.rank_score !== b.rank_score) {
-          aIsEasier = a.rank_score > b.rank_score;
-        } else {
-          aIsEasier = a.id < b.id;
-        }
-
-        if (aIsEasier) {
+        if (isEasier(a.id, b.id)) {
           rawEdges.push({ source: a, target: b });
         } else {
           rawEdges.push({ source: b, target: a });
@@ -588,22 +664,19 @@ export function assembleGraph(
   for (const re of rawEdges) {
     g0Adj.get(re.source.id)?.add(re.target.id);
   }
+  for (const edge of dataEdges.values()) {
+    g0Adj.get(edge.source)?.add(edge.target);
+  }
 
-  // Kiểm tra G0 không chu trình bằng Tarjan (assert)
+  // ENG-118 (5): G0 không chu trình
   const candidateIds = mergedCandidates.map((c) => c.id);
   const sccs = tarjanScc(candidateIds, g0Adj);
   for (const scc of sccs) {
     if (scc.length > 1) {
-      // Phá chu trình nếu có bằng cách chỉ giữ cạnh theo thứ tự dễ hơn
+      // Trong SCC chỉ giữ cạnh từ bài dễ tới bài khó
       for (const u of scc) {
         for (const v of scc) {
-          if (u !== v) {
-            const candU = mergedCandidates.find((c) => c.id === u);
-            const candV = mergedCandidates.find((c) => c.id === v);
-            if (candU && candV && candU.cognitive_complexity >= candV.cognitive_complexity) {
-              g0Adj.get(u)?.delete(v);
-            }
-          }
+          if (u !== v && !isEasier(u, v)) g0Adj.get(u)?.delete(v);
         }
       }
     }
@@ -686,21 +759,41 @@ export function assembleGraph(
       criticalPath.slice(0, CONFIG.CRITICAL_PATH_MAX_NODES)
     );
 
-    // Thêm các node còn lại theo thứ tự ưu tiên ENG-114
-    const remaining = mergedCandidates
-      .filter((c) => !keptIdsSet.has(c.id))
-      .sort((a, b) => {
-        const aIsVip = a.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
-        const bIsVip = b.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
-        if (bIsVip !== aIsVip) return bIsVip - aIsVip;
-        if (b.rank_score !== a.rank_score) return b.rank_score - a.rank_score;
-        if (b.cognitive_complexity !== a.cognitive_complexity) {
-          return b.cognitive_complexity - a.cognitive_complexity;
-        }
-        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-      });
+    // Thêm các node còn lại theo ENG-114 (2), D-88
+    const byPriority = (a: Candidate, b: Candidate): number => {
+      const aIsVip = a.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
+      const bIsVip = b.cognitive_complexity > CONFIG.VIP_COMPLEXITY_MIN ? 1 : 0;
+      if (bIsVip !== aIsVip) return bIsVip - aIsVip;
+      if (b.rank_score !== a.rank_score) return b.rank_score - a.rank_score;
+      if (b.cognitive_complexity !== a.cognitive_complexity) {
+        return b.cognitive_complexity - a.cognitive_complexity;
+      }
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    };
+    const isHttp = (c: Candidate): number => (c.binding?.kind === "HTTP" ? 1 : 0);
 
-    for (const r of remaining) {
+    const remaining = mergedCandidates.filter((c) => !keptIdsSet.has(c.id));
+    const algos = remaining.filter((c) => c.kind === "ALGO").sort(byPriority);
+    const flows = remaining
+      .filter((c) => c.kind !== "ALGO")
+      .sort((a, b) => isHttp(b) - isHttp(a) || byPriority(a, b));
+
+    const algosOnPath = mergedCandidates.filter(
+      (c) => c.kind === "ALGO" && keptIdsSet.has(c.id)
+    ).length;
+    const algoQuota = Math.min(
+      algos.length,
+      Math.max(0, CONFIG.VIP_FALLBACK_TOP_K - algosOnPath)
+    );
+    const flowQuota = Math.max(0, maxNodes - keptIdsSet.size - algoQuota);
+
+    const pickOrder = [
+      ...flows.slice(0, flowQuota),
+      ...algos.slice(0, algoQuota),
+      ...flows.slice(flowQuota),
+      ...algos.slice(algoQuota),
+    ];
+    for (const r of pickOrder) {
       if (keptIdsSet.size >= maxNodes) break;
       keptIdsSet.add(r.id);
     }
@@ -716,11 +809,29 @@ export function assembleGraph(
 
   // 6. Cạnh trên tập giữ K = rút gọn bắc cầu của {(u,v) in K^2 : v đến được từ u trong G0}
   const keptIdSet = new Set(keptCandidates.map((c) => c.id));
-  const finalEdges = computeEdgesOnKept(
-    Array.from(keptIdSet),
-    g0Adj,
-    rawEdges
-  );
+  // ENG-112 ý 6: thực thể và độ tin cậy của cạnh
+  const codeEntities = (id: string): Set<string> =>
+    new Set(
+      Array.from(lessonData.get(id)?.entities ?? [])
+        .filter(([, entity]) => entity.fromCode)
+        .map(([name]) => name)
+    );
+  const edgeInfo = (source: string, target: string): Pick<GraphEdge, "confidence" | "via_entities"> => {
+    const inCode = (name: string) => codeEntities(source).has(name) && codeEntities(target).has(name);
+    const direct = dataEdges.get(`${source}->${target}`);
+    if (direct && g0Adj.get(source)?.has(target)) {
+      const via = Array.from(direct.via).sort();
+      return { confidence: via.some(inCode) ? "RESOLVED" : "INFERRED", via_entities: via };
+    }
+    if (g0Adj.get(source)?.has(target)) return { confidence: "RESOLVED", via_entities: [] };
+    const targetNames = lessonData.get(target)?.entities;
+    const shared = Array.from(lessonData.get(source)?.entities.keys() ?? [])
+      .filter((name) => targetNames?.has(name))
+      .sort();
+    return { confidence: shared.some(inCode) || shared.length === 0 ? "RESOLVED" : "INFERRED", via_entities: shared };
+  };
+
+  const finalEdges = computeEdgesOnKept(Array.from(keptIdSet), g0Adj, edgeInfo);
 
   const inDegreeMap = new Map<string, string[]>();
   for (const id of keptIdSet) inDegreeMap.set(id, []);
@@ -733,7 +844,8 @@ export function assembleGraph(
   let maxComp = -1;
   let maxRank = -1;
 
-  for (const c of keptCandidates) {
+  const cleanKept = keptCandidates.filter((c) => !isTestCandidate(c));
+  for (const c of cleanKept.length > 0 ? cleanKept : keptCandidates) {
     if (c.cognitive_complexity > maxComp) {
       maxComp = c.cognitive_complexity;
       maxRank = c.rank_score;
@@ -802,6 +914,8 @@ export function assembleGraph(
       },
       trace_steps: c.trace_steps,
       dto_snippet: c.dto_snippet,
+      group_id: "",
+      entities: toNodeEntities(lessonData.get(c.id)),
     };
 
     finalNodes.push(node);
@@ -814,5 +928,7 @@ export function assembleGraph(
     throw new IngestionError("ERR_NO_ARCHITECTURAL_SLICE", "Không tìm thấy lát cắt kiến trúc nào");
   }
 
-  return { nodes: finalNodes, edges: finalEdges };
+  const groups = buildGroups(finalNodes, finalEdges, lessonData);
+
+  return { nodes: finalNodes, edges: finalEdges, groups };
 }

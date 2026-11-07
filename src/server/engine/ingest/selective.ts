@@ -8,68 +8,9 @@ import type {
   ZipEntryMeta,
 } from "./types";
 import { classifyEntry, DEFAULT_LANGUAGE_REGISTRY } from "./prune";
-import { selectFiles } from "./priority";
+import { isTestPath, selectFiles } from "./priority";
 import { detectScope } from "./fingerprint";
 import { decodeAndFilter } from "./unzip";
-
-const TEST_SEGMENTS = new Set([
-  "test",
-  "tests",
-  "__tests__",
-  "spec",
-  "specs",
-  "example",
-  "examples",
-  "demo",
-  "demos",
-  "e2e",
-  "fixtures",
-  "__mocks__",
-  "migrations",
-  "seeds",
-  "docs",
-  "scripts",
-  "testdata",
-  "bench",
-  "benches",
-  "benchmark",
-  "benchmarks",
-]);
-
-/**
- * Kiểm tra xem đường dẫn có mang cờ test theo ING-87 không
- */
-function isTestPath(filePath: string): boolean {
-  const segments = filePath.split("/");
-  for (const seg of segments) {
-    const lower = seg.toLowerCase();
-    if (TEST_SEGMENTS.has(lower)) {
-      return true;
-    }
-    if (seg.startsWith(".") && seg !== "." && seg !== "..") {
-      return true;
-    }
-    if (lower.endsWith("_src")) {
-      return true;
-    }
-  }
-
-  const basename = segments[segments.length - 1];
-  const dotIdx = basename.lastIndexOf(".");
-  const stem = dotIdx > 0 ? basename.slice(0, dotIdx) : basename;
-  const lowerStem = stem.toLowerCase();
-
-  if (
-    lowerStem.endsWith(".test") ||
-    lowerStem.endsWith(".spec") ||
-    lowerStem.endsWith("_test") ||
-    lowerStem.startsWith("test_")
-  ) {
-    return true;
-  }
-
-  return false;
-}
 
 /**
  * Chuẩn hóa một đường dẫn theo ING-60
@@ -219,6 +160,20 @@ async function fetchRawFile(
  * Xử lý tải chọn lọc khi stream zip bị cắt theo docs/spec/10_ENGINE_INGEST.md Mục 4A (D-63, ING-46..49)
  */
 export async function selectiveFetch(
+  input: SelectiveFetchInput
+): Promise<SelectiveFetchResult | null> {
+  // Lùi về zip đã giữ (ING-49) thì bỏ cảnh báo phạm vi và số đo đã ghi dở, để không nói sai và không đếm đôi (lỗi B-32)
+  const warningsBefore = input.report.warnings.length;
+  const skippedBefore = { ...input.report.skipped };
+  const result = await selectiveFetchImpl(input);
+  if (!result) {
+    input.report.warnings.length = warningsBefore;
+    Object.assign(input.report.skipped, skippedBefore);
+  }
+  return result;
+}
+
+async function selectiveFetchImpl(
   input: SelectiveFetchInput
 ): Promise<SelectiveFetchResult | null> {
   const token = input.token ?? process.env.GITHUB_TOKEN;
@@ -397,35 +352,45 @@ export async function selectiveFetch(
     let inflated_total = 0;
     let inflated_cap_hit = false;
 
-    // Tải manifests trước
-    for (const mf of plan.manifests) {
+    // Tải manifests trước, chỉ manifest trong scope và ở gốc repo, song song theo SELECTIVE_FETCH_CONCURRENCY (lỗi B-32)
+    const offset = scopeDecision.root_dir_offset;
+    const scopedManifests = plan.manifests.filter(
+      (mf) => !offset || mf.path.startsWith(offset) || !mf.path.includes("/")
+    );
+    const manifestConcurrency = CONFIG.SELECTIVE_FETCH_CONCURRENCY;
+
+    for (let i = 0; i < scopedManifests.length; i += manifestConcurrency) {
       if (controller.signal.aborted) {
         if (input.signal?.aborted) throw input.signal.reason;
         return null;
       }
 
-      const buf = await fetchRawFile(
-        input.owner,
-        input.repo,
-        sha,
-        mf.path,
-        token,
-        controller.signal
+      const batch = scopedManifests.slice(i, i + manifestConcurrency);
+      const bufs = await Promise.all(
+        batch.map((mf) =>
+          fetchRawFile(input.owner, input.repo, sha, mf.path, token, controller.signal)
+        )
       );
-      if (!buf) {
-        return null;
-      }
 
-      if (buf.length > CONFIG.MAX_MANIFEST_BYTES) {
-        input.report.warnings.push(
-          `Tệp cấu hình ${mf.path} vượt quá giới hạn ${Math.round(CONFIG.MAX_MANIFEST_BYTES / 1024)} KB nên bị bỏ qua.`
-        );
-        continue;
-      }
+      // Nhận kết quả theo thứ tự plan để đầu ra tất định
+      for (let j = 0; j < batch.length; j++) {
+        const mf = batch[j]!;
+        const buf = bufs[j];
+        if (!buf) {
+          return null;
+        }
 
-      const text = decodeAndFilter(buf, input.report, { check_minified: false });
-      if (text !== null) {
-        manifests.set(mf.path, text);
+        if (buf.length > CONFIG.MAX_MANIFEST_BYTES) {
+          input.report.warnings.push(
+            `Tệp cấu hình ${mf.path} vượt quá giới hạn ${Math.round(CONFIG.MAX_MANIFEST_BYTES / 1024)} KB nên bị bỏ qua.`
+          );
+          continue;
+        }
+
+        const text = decodeAndFilter(buf, input.report, { check_minified: false });
+        if (text !== null) {
+          manifests.set(mf.path, text);
+        }
       }
     }
 

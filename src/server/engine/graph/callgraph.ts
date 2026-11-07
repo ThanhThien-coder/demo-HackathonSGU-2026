@@ -10,6 +10,7 @@ import type {
   SymbolIndex,
   ImportedSymbol,
 } from "./types";
+import { buildJavaCallGraph } from "./spring";
 
 const HTTP_VERBS = new Set([
   "get",
@@ -246,6 +247,101 @@ function resolveHandlerKey(
   return `${filePath}#${text}`;
 }
 
+// `12` Mục 1: gói cung cấp receiver route
+const ROUTER_PACKAGES = new Set(["express", "fastify", "koa-router", "@koa/router"]);
+const ROUTER_FACTORY = /^(express|Router|express\.Router|fastify|Fastify|require\(['"](express|fastify|koa-router|@koa\/router)['"]\)(\.Router)?)$/;
+const ROUTER_NAME = /^(app|router|server|fastify)$|Router$/i;
+const INTERNAL_IMPORT = /^(\.|@\/|~\/|#)/;
+const FIXED_VALUE_TYPES = new Set([
+  "string", "template_string", "number", "true", "false", "null", "undefined", "object", "array", "regex",
+]);
+
+interface RouteScope {
+  routers: Set<string>; // Biến gán từ express(), Router(), fastify()…
+  fixedValues: Set<string>; // Biến gán giá trị cố định
+}
+
+function isRouterFactory(callee: Node | null, filePath: string, idx: SymbolIndex): boolean {
+  if (!callee) return false;
+  const text = callee.text.replace(/\s+/g, "");
+  if (ROUTER_FACTORY.test(text)) return true;
+  const imported = idx.imports.get(filePath)?.get(text.split(".")[0] ?? "");
+  return !!imported?.import_source && ROUTER_PACKAGES.has(imported.import_source);
+}
+
+function collectRouteScope(root: Node, filePath: string, idx: SymbolIndex): RouteScope {
+  const scope: RouteScope = { routers: new Set(), fixedValues: new Set() };
+  for (const decl of root.descendantsOfType("variable_declarator")) {
+    const name = decl?.childForFieldName("name");
+    let value = decl?.childForFieldName("value") ?? null;
+    if (!name || name.type !== "identifier" || !value) continue;
+    if (value.type === "await_expression") value = value.namedChild(0);
+    if (!value) continue;
+    if (FIXED_VALUE_TYPES.has(value.type)) {
+      scope.fixedValues.add(name.text);
+    } else if (value.type === "call_expression") {
+      if (isRouterFactory(value.childForFieldName("function"), filePath, idx)) scope.routers.add(name.text);
+    } else if (value.type === "new_expression") {
+      if (isRouterFactory(value.childForFieldName("constructor"), filePath, idx)) scope.routers.add(name.text);
+    }
+  }
+  return scope;
+}
+
+// `12` Mục 1: R từ express(), Router()… trong file, hoặc tham số, field, import nội bộ đúng tên; gói ngoài khác ⇒ không phải route
+function isRouteReceiver(obj: Node, filePath: string, idx: SymbolIndex, scope: RouteScope): boolean {
+  let r: Node | null = obj;
+  while (r?.type === "call_expression") {
+    const fn: Node | null = r.childForFieldName("function");
+    if (isRouterFactory(fn, filePath, idx)) return true;
+    if (fn?.type !== "member_expression") return false;
+    const prop = fn.childForFieldName("property")?.text ?? "";
+    if (prop !== "route" && !HTTP_VERBS.has(prop)) return false;
+    r = fn.childForFieldName("object");
+  }
+  if (!r) return false;
+
+  let name: string;
+  if (r.type === "identifier") {
+    name = r.text;
+    if (scope.routers.has(name)) return true;
+    const imported = idx.imports.get(filePath)?.get(name);
+    const source = imported?.import_source;
+    if (imported && !imported.source_file && source && !INTERNAL_IMPORT.test(source) && !ROUTER_PACKAGES.has(source)) {
+      return false;
+    }
+  } else if (r.type === "member_expression") {
+    name = r.childForFieldName("property")?.text ?? "";
+  } else {
+    return false;
+  }
+  return ROUTER_NAME.test(name);
+}
+
+// Chuỗi router.route('/p').get(a).post(b): trả về receiver (router) và path của route() (lỗi B-29)
+function resolveRouteChain(obj: Node): { receiver: Node; pathStr: string | null } | null {
+  let r: Node = obj;
+  while (r.type === "call_expression") {
+    const fn: Node | null = r.childForFieldName("function");
+    if (!fn || fn.type !== "member_expression") return null;
+    const prop = fn.childForFieldName("property")?.text ?? "";
+    const base = fn.childForFieldName("object");
+    if (!base) return null;
+    if (prop === "route") {
+      const args = r.childForFieldName("arguments");
+      return { receiver: base, pathStr: extractStaticString(args?.namedChild(0) ?? null) };
+    }
+    if (!HTTP_VERBS.has(prop)) return null;
+    r = base;
+  }
+  return null;
+}
+
+function isHandlerArg(arg: Node, scope: RouteScope): boolean {
+  if (FIXED_VALUE_TYPES.has(arg.type)) return false;
+  return !(arg.type === "identifier" && scope.fixedValues.has(arg.text));
+}
+
 export interface CallGraphResult {
   edges: FunctionCallEdge[];
   external: ExternalCall[];
@@ -299,6 +395,7 @@ export function buildCallGraph(
   }
 
   for (const file of files) {
+    if (file.language === "JAVA") continue;
     const filePath = file.path;
     const lang = file.language;
     const root = file.tree.rootNode;
@@ -535,6 +632,8 @@ export function buildCallGraph(
       }
     }
 
+    let routeScope: RouteScope | null = null;
+
     function visit(node: Node): void {
       // 1. Nhận diện Route Express / Koa / Fastify (ENG-40)
       if (
@@ -549,14 +648,18 @@ export function buildCallGraph(
             const verb = prop.text.toLowerCase();
             if (HTTP_VERBS.has(verb)) {
               const argsNode = node.childForFieldName("arguments");
-              if (argsNode && argsNode.namedChildCount >= 2) {
+              // R.route('/p').get(h): path nằm ở route(), lời gọi động từ có thể chỉ có 1 đối số (B-29)
+              const chain = obj.type === "call_expression" ? resolveRouteChain(obj) : null;
+              const firstMw = chain ? 0 : 1;
+              if (argsNode && argsNode.namedChildCount >= firstMw + 1) {
                 const firstArg = argsNode.namedChild(0);
-                const pathStr = extractStaticString(firstArg);
+                const pathStr = chain ? chain.pathStr : extractStaticString(firstArg);
 
                 // Handler là arg cuối cùng, middlewares là các arg ở giữa
                 const argCount = argsNode.namedChildCount;
                 const lastArg = argsNode.namedChild(argCount - 1);
-                if (lastArg) {
+                routeScope ??= collectRouteScope(root, filePath, idx);
+                if (lastArg && isHandlerArg(lastArg, routeScope) && isRouteReceiver(obj, filePath, idx, routeScope)) {
                   const handlerKey = resolveHandlerKey(
                     lastArg,
                     filePath,
@@ -568,7 +671,7 @@ export function buildCallGraph(
 
                   if (handlerKey) {
                     const middlewares: string[] = [];
-                    for (let i = 1; i < argCount - 1; i++) {
+                    for (let i = firstMw; i < argCount - 1; i++) {
                       const mwArg = argsNode.namedChild(i);
                       if (mwArg) {
                         const mwText =
@@ -579,7 +682,7 @@ export function buildCallGraph(
                       }
                     }
 
-                    const displayName = `${obj.text}.${verb}('${pathStr ?? ""}')`;
+                    const displayName = `${(chain ? chain.receiver : obj).text}.${verb}('${pathStr ?? ""}')`;
 
                     const binding: RouteBinding = {
                       file_path: filePath,
@@ -613,7 +716,7 @@ export function buildCallGraph(
                       const mwKey = idx.symbols.has(mwDirectKey)
                         ? mwDirectKey
                         : resolveHandlerKey(
-                            argsNode.namedChild(1)!,
+                            argsNode.namedChild(firstMw)!,
                             filePath,
                             verb,
                             null,
@@ -1543,6 +1646,11 @@ export function buildCallGraph(
 
     visit(root);
   }
+
+  const javaResult = buildJavaCallGraph(files, idx);
+  rawEdges.push(...javaResult.edges);
+  external.push(...javaResult.external);
+  bindings.push(...javaResult.bindings);
 
   // ENG-33: Gộp cạnh theo (caller, callee), loại bỏ self-loop và cạnh tới CLASS (ENG-30, ENG-60)
   const edgeMap = new Map<string, FunctionCallEdge>();

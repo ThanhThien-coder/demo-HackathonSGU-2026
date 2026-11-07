@@ -16,7 +16,7 @@ File này là nơi duy nhất ghi lỗi và việc sửa lỗi. Không tạo fil
 
 ### Mẫu thêm lỗi
 
-Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-42`, `D-24`, `C-13`, `A-09`.
+Mã mới lấy số kế tiếp của vai, không dùng lại mã đã bỏ (`D-02`, `A-06`). Hiện kế tiếp là `B-43`, `D-24`, `C-13`, `A-10`.
 
 ```markdown
 ### B-40 · Nặng | Vừa | Nhẹ · Tên ngắn
@@ -34,11 +34,11 @@ Trạng thái dùng một trong các giá trị: `chưa làm` · `cần xác min
 
 | Vai | Nặng | Vừa | Nhẹ | Tổng |
 | :-- | --: | --: | --: | --: |
-| B — Engine | 6 | 18 | 16 | 40 |
+| B — Engine | 6 | 19 | 16 | 41 |
 | D — Giao diện | 4 | 10 | 8 | 22 |
 | C — AI | 1 | 11 | 0 | 12 |
-| A — Tích hợp, deploy | 1 | 4 | 2 | 7 |
-| **Tổng** | **12** | **43** | **26** | **81** |
+| A — Tích hợp, deploy | 2 | 4 | 2 | 8 |
+| **Tổng** | **13** | **44** | **26** | **83** |
 
 Bảng trên đã tính 12 lỗi ở mục [Lỗi mới ngày 06/11/2026](#lỗi-mới-ngày-06112026) và 11 việc ở mục [Việc mới theo quy trình học mới](#việc-mới-theo-quy-trình-học-mới).
 
@@ -82,12 +82,12 @@ Cột **Thử sửa** là kết quả sửa thử trên bản sao tạm rồi ch
 | B04 | B-22 | Che secret bỏ sót | Spec | ING-110, `ingest/secrets.ts` | Không | Một phần: `SECRET_KEY` của repo Django đã được che, chưa thêm token Stripe, Slack, URL `https` |
 | B04 | B-09 + B-23 + B-24 | Vân tay đọc sai gói, sai ngôn ngữ | Code | B-09 chỉ lọc lúc hiển thị, không đổi `tech_stack`; B-23, B-24 ở `ingest/fingerprint.ts` | Có với B-09 | B-23 đã vá, chưa đo riêng; còn lại chưa thử |
 | B05 | B-01 | NestJS hiện code method khác | Code | `graph/symbols.ts`, có ở `b/fix-nest-buoc-dau` | Có | Hết: BrewLite 9 → 17/17 bài có dòng đầu riêng |
-| B05 | B-03 + B-34 | Nhận nhầm route: `config.get`, `msw` | Code | `graph/callgraph.ts` (TASK_20) | Có với B-03 | Hết: route giả BrewLite 2 → 0, `bulletproof-react` 13 → 0. Luật handler phải vẫn nhận `const h = makeHandler(cfg)`, bản thử chặn nhầm nên 1 test đỏ |
+| B05 | B-03 + B-34 | Nhận nhầm route: `config.get`, `msw` | Code | `graph/callgraph.ts` | Có với B-03 | Hết: route giả BrewLite 2 → 0, `bulletproof-react` 13 → 0. Luật handler phải vẫn nhận `const h = makeHandler(cfg)`, bản thử chặn nhầm nên 1 test đỏ |
 | B05 | B-25 + B-26 | Đọc tsconfig sai, mất alias `@/` | Code | `graph/resolvers/ts_js.ts`, `ingest/fingerprint.ts` | Có khi chọn `frontend/` | Một phần: BrewLite 147 → 0, `taxonomy` 274 → 43, `full-stack-fastapi-template` 248 → 201. Phần còn lại chưa rõ nguyên nhân |
 | B06 | B-06 | Prisma không tới tầng dữ liệu | Code | `graph/slicing.ts` | Có | Hết: BrewLite 0/19 → 14/17 |
 | B06 | B-33 | Engine chậm khi nhiều route | Code | `graph/slicing.ts` | Không | Một phần: `django/django` 121 → 32 giây, còn chỗ chậm khác |
-| B07 | B-02 + B-20 | File test thành bài học | Spec | ING-87, `graph/nodes.ts`, `ingest/priority.ts` (TASK_20) | Có | Hết: file test BrewLite 1 → 0, `nestjs/nest` 12 → 0 |
-| B07 | B-04 + B-05 | Bài rời rạc, mở sẵn quá nhiều | Spec | D-07, D-55, `graph/nodes.ts` (TASK_21) | Có | Chưa thử |
+| B07 | B-02 + B-20 | File test thành bài học | Spec | ING-87, `graph/nodes.ts`, `ingest/priority.ts` | Có | Hết: file test BrewLite 1 → 0, `nestjs/nest` 12 → 0 |
+| B07 | B-04 + B-05 | Bài rời rạc, mở sẵn quá nhiều | Spec | D-07, D-55, `graph/nodes.ts`, làm theo B-39 | Có | Chưa thử |
 | B07 | B-27 | Lấy `<module>` làm bài thuật toán | Code | `graph/index.ts` | Có | Hết: 0 bài `<module>` trên các repo đo, Capstone BrewLite thành `Create Order` |
 | B07 | B-11 + B-28 | Bước thuật toán rỗng, sai số dòng | Code | `graph/nodes.ts` | Có với B-11 | Chưa thử riêng, B-27 đã bỏ bài `Order` gây B-11 |
 | B07 | B-29 + B-30 | Tên bước, tên bài khó hiểu | Spec, Code | Spec 11 Mục 13, `graph/naming.ts`, `graph/callgraph.ts` | Có | Chưa thử. Đổi tên là đổi id |
@@ -107,7 +107,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `getStartLineWithDecorators` trong `symbols.ts` quét mọi decorator trong class.
 - **Cần sửa:** method chỉ lấy decorator của chính nó.
 - **Kiểm tra:** quét repo NestJS chưa từng quét, mở `Get Order`, bước đầu chỉ có `findOne`.
-- **Trạng thái:** đã xác nhận trên site. Bản sửa ở nhánh `b/fix-nest-buoc-dau`, commit `1066d4d`, đã qua test, chưa vào `main`.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-nest-buoc-dau-2` lấy commit `1066d4d`, thêm ca comment giữa decorator và method. `npm test` 685 qua. Quét `kuuhakubee/CNPM_BrewLite` và `lujakob/nestjs-realworld-example-app`: bước 1 không còn lẫn method khác, số bài, số cạnh, `id` không đổi. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-02 · Nặng · Capstone lấy từ file test
 
@@ -115,7 +115,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-87 chỉ giảm ưu tiên file test, không loại khỏi node.
 - **Cần sửa:** trong `nodes.ts`, còn từ `DISPLAY_MIN_NODES` candidate không mang cờ test thì bỏ candidate mang cờ. `isTestPath` trong `selective.ts` chưa export và `priority.ts` có bản logic riêng, nên gom về một hàm dùng chung rồi mới dùng lại.
 - **Kiểm tra:** Capstone BrewLite là `Create Order`, không còn node từ `.spec`.
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_20).
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-route-file-test`. Đã sửa ENG-110, D-12: thiếu bài sạch thì bù vừa đủ `CONFIG.DISPLAY_MIN_NODES`, không có bài sạch thì giữ nguyên, Capstone ưu tiên bài sạch. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: 17 bài, không còn bài từ `.spec`, Capstone `Create Order`. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-03 · Vừa · `config.get()` thành route giả
 
@@ -125,7 +125,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
   1. Đối số cuối phải là hàm, lời gọi bọc, hoặc tên tham chiếu tới hàm. Chuỗi, số, boolean, object, tên hằng thì không tạo route.
   2. Receiver phải có nguồn từ `express()`, `Router()` theo `12` Mục 1. Code hiện chưa kiểm điều này.
 - **Kiểm tra:** BrewLite không còn 2 bài trên và vẫn đủ 17 route thật. Có test `cache.get('k', loadFn)` không sinh route.
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_20).
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-route-file-test`. Đã kiểm receiver và đối số cuối. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: hết `List Jwt_expires_ins`, `Charge`, còn đủ 17 bài. Có test `cache.get('k', loadFn)`.
 
 ### B-04 · Vừa · Quá nhiều bài mở sẵn
 
@@ -133,7 +133,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** quyết định D-07 chỉ nối bài gọi chung hàm, nên nhiều bài không có bài cha.
 - **Cần sửa:** thêm `addTreeEdges` trong `nodes.ts`, nối bài theo module thành cây, cạnh thêm là `INFERRED` và có khóa bài (đề xuất D-73).
 - **Kiểm tra:** BrewLite mở lúc đầu không quá 6 bài.
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21). Đổi cách khóa bài nên cần thử kỹ trước khi demo.
+- **Trạng thái:** chờ kiểm. Làm theo B-39. BrewLite mở lúc đầu 6 bài: 4 điểm bắt đầu, 2 học riêng.
 
 ### B-05 · Vừa · Node tách rời, bản đồ quá dài
 
@@ -141,7 +141,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** như B-04, cộng quyết định D-55 đưa mọi bài không có cha lên hàng đầu.
 - **Cần sửa:** làm cùng B-04, rồi đo lại. Bản đồ chỉ đọc được khi đã sửa thêm lỗi D-01.
 - **Kiểm tra:** BrewLite hết node lẻ, còn khoảng 3 cây (theo mô phỏng).
-- **Trạng thái:** đã xác nhận trên site, chưa làm (TASK_21).
+- **Trạng thái:** chờ kiểm. Làm theo B-39. BrewLite còn 2 bài lẻ đúng nghĩa học riêng (`App Hello`, `List Healths`), 15 cạnh.
 
 ### B-06 · Vừa · Không có luồng tới tầng dữ liệu
 
@@ -151,7 +151,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Không nới regex receiver chung, vì `client` đã khớp cả `httpClient.get`. Ghi rõ luật `prisma.` trong spec 11 Mục 8. Đổi `ENGINE_VERSION`.
 - **Kiểm tra:** bước gọi Prisma có nhãn `DATA_ACCESS`, các bài BrewLite có gọi Prisma đều tới tầng dữ liệu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật trên BrewLite, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `isDataSinkCall` bỏ `this.` rồi xét mọi đoạn của receiver có `prisma`, `tx`, `trx`. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: 14/17 bài tới `DATA_ACCESS`, đọc bài `Create Order`, `Get Order` đúng luồng. `nestjs-realworld` 19/20, `node-express-boilerplate` 12/14. Đã đổi `ENGINE_VERSION` thành `1.7.0`. **Còn lại:** `node-express-realworld` có 8 bài gọi `prisma.x.y` mà không có bước `DATA_ACCESS`: hàm có `throw new HttpException` từ `http-exception.model.ts`, nên ENG-82 coi là có gọi tầng dữ liệu. Code đúng chữ spec, cần chốt có tính constructor ở file `model` hay không. Chỉ sai nhãn, `entities` của B-39 đọc mọi layer nên không ảnh hưởng.
 
 ### B-07 · Nặng · Repo Java, Go, Dart bị báo sai hoặc phân tích sai
 
@@ -159,7 +159,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** spec 11 Mục 1 có 7 ngôn ngữ `RESOLVED` và 9 `STRUCTURAL`, nhưng `LANGUAGE_REGISTRY` chỉ có 4. `.java`, `.go`, `.dart` cũng không nằm trong `KNOWN_NO_GRAMMAR`, nên engine coi như không có code và `ERR_UNSUPPORTED_LANGUAGE` không chạy. Điểm 10 trong README Vai B ghi việc này từ trước nhưng chưa ai chốt.
 - **Cần sửa:** tối thiểu, nhận các đuôi spec có nhưng chưa có grammar: repo chủ yếu ngôn ngữ đó thì trả `ERR_UNSUPPORTED_LANGUAGE`, repo trộn thì cảnh báo chỉ phân tích một phần. Muốn hỗ trợ thật thì thêm phiếu B11 cho grammar và resolver. Sửa spec cho khớp phạm vi đã chốt, theo việc S-05.
 - **Kiểm tra:** 4 repo trên báo đúng ngôn ngữ, không còn `no_code`, không gọi repo Go là `JAVASCRIPT`.
-- **Trạng thái:** đã chạy thật trên engine, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `b/fix-b12-b07-ngon-ngu`: Go, Dart, tầng `STRUCTURAL` đã vào `KNOWN_NO_GRAMMAR`. Chạy thật ngày 06/11: `gin-gonic/examples` vẫn 13 node `JAVASCRIPT`, `flutter/samples` vẫn 2 node `PYTHON`, vì `assertNotEmpty` trong `fingerprint.ts` thoát ngay khi còn file code, trái ING-131. Repo trộn cũng chưa có cảnh báo. Cần Phat107 sửa file này. Hai repo Java chờ B-38.
 
 ### B-09 · Nhẹ · Danh sách thư viện lẫn đồ dev
 
@@ -177,19 +177,19 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** bài `Order` có Bước 3 ở dòng 65, file chỉ có 64 dòng code. AI vẫn viết mô tả cho bước rỗng.
 - **Cần sửa:** áp đúng luật "Bỏ bước rỗng" của ENG-91 trong `nodes.ts`.
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. Ca dòng ngoài file đã hết nhờ B-27. Đo 5 repo còn 4 bước `ALGO_TERMINATION` chỉ có `}`, tính là bước rỗng theo ENG-91. `nodes.ts` bỏ bước chỉ có dòng trống, ngoặc đóng rồi đánh số lại. Quét `pallets/click`, `nestjs/nest`, `pallets/flask`, `expressjs/express`, repo này: 0 bước rỗng. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-12 · Nhẹ · Lỗi nạp query bị bỏ qua
 
 - **Hiện tượng:** `catch` trong `loadAll` ở `parser.ts` nuốt lỗi khi nạp file `.scm`. Nếu query hỏng, engine vẫn chạy nhưng có thể mất symbol mà không báo gì. Hiện 4 query đều nạp được.
 - **Cần sửa:** ngôn ngữ `RESOLVED` thiếu query thì báo lỗi, thêm test `getQuery` khác `null`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b12-b07-ngon-ngu`: `loadAll` báo lỗi kèm tên ngôn ngữ, có test. Typecheck, lint, 741 test xanh.
 
 ### B-13 · Nhẹ · Grammar chưa nạp lúc khởi động
 
 - **Hiện tượng:** spec ghi `initParsers` chạy 1 lần khi server khởi động, code gọi lúc `parseAll`, nên request đầu chậm hơn.
 - **Cần sửa:** gọi ở bước khởi động, làm cùng A-04.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a02-a04-log-khoi-dong`: `src/instrumentation.ts` gọi `initParsers`, lỗi chỉ log `warn` vì trên Vercel chỉ route ingest có file grammar. Chưa thử trên Vercel.
 
 ### B-14 · Vừa · Thăm dò GitHub dễ hết giờ với repo mới
 
@@ -197,14 +197,14 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `PREFLIGHT_TIMEOUT_MS` chỉ 300ms, còn lần gọi đầu tới mỗi repo thường lâu hơn. Việc này xảy ra với từng repo mới trong cùng một tiến trình, nên không chỉ do server khởi động lạnh. Chưa rõ phần chậm nằm ở đâu phía GitHub.
 - **Cần sửa:** đo trên Vercel rồi tăng trần, ví dụ 1000–1500ms. Đây là `src/contracts/config.ts`, cần báo Vai A và sửa spec.
 - **Kiểm tra:** dán repo chưa dùng lần nào, không phải chờ thử lại và không báo `ERR_NETWORK_TIMEOUT`.
-- **Trạng thái:** đã đo ở máy local, chưa đo trên Vercel. Vercel cũng bị thì nâng lên Nặng.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b14-ingest`. `probeRepo` gọi `archive/HEAD.zip` trước (trần `PREFLIGHT_TIMEOUT_MS` = 1500), chỉ khi 404 mới gọi trang repo với `PREFLIGHT_PAGE_TIMEOUT_MS`; 301 sang repo khác thì gọi lại 1 lần. `resolveRef` nhận `head_zip` từ probe, không gọi lại HEAD.zip. Đổi `probe.ts`, `refs.ts`, `index.ts`, test `tai.test.ts`, `van-tay.test.ts`. Typecheck sạch, lint 0 lỗi (6 cảnh báo cũ), 744 test qua. Chưa dán repo mới trên mạng thật, chưa đo Vercel (A12 còn ô đo). Đã đổi `ENGINE_VERSION` thành `1.7.0`. `ref_label` là SHA vẫn thuộc B-16.
 
 ### B-15 · Nhẹ · Link viết hoa bị từ chối
 
 - **Hiện tượng:** `https://GitHub.com/...` và `HTTPS://github.com/...` báo `ERR_INVALID_GITHUB_URL`, dù trình duyệt mở được.
 - **Nguyên nhân:** `url.ts` so chuỗi phân biệt hoa thường. Spec cũng không nói tới trường hợp này.
 - **Cần sửa:** chuẩn hóa phần scheme và host về chữ thường, giữ nguyên owner và repo.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b15-b21-hoa-thuong`. `url.ts` đưa scheme và host (`https://`, `www.`, `github.com`, `git@github.com:`) về chữ thường trước khi chuẩn hóa, giữ nguyên owner và repo; ING-11 đã có luật này. 10 ca trong `hoa-thuong.test.ts` (`https://GitHub.com/...`, `HTTPS://github.com/...`, `GITHUB.COM/...`, `git@GitHub.com:...`); host khác vẫn bị từ chối. Chạy thật `HTTPS://GitHub.com/kuuhakubee/CNPM_BrewLite` qua `runIngest`: nhận được repo. Typecheck sạch, lint 0 lỗi, 890 test qua.
 
 ### B-16 · Nhẹ · `ref_label` chứa SHA thay vì tên nhánh
 
@@ -212,7 +212,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-32 giả định link chuyển hướng của `archive/HEAD.zip` chứa tên nhánh, nhưng GitHub hiện trả commit SHA. `refs.ts` gán `ref_label = ref` nên SHA đi vào chỗ của tên nhánh.
 - **Cần sửa:** trong `resolveRef`, `ref` là SHA 40 ký tự thì đặt `ref_label = null`, giữ nguyên `ref`. Sửa ING-32 theo. Muốn hiện tên nhánh thật thì phải lấy thêm từ nguồn khác.
 - **Kiểm tra:** nạp BrewLite, thanh trên chỉ còn `@ 5da6ad1`.
-- **Trạng thái:** đã thấy trên site, chưa làm. Làm cùng D-14.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b16-ref-label`. `headZipToResolvedRef` trong `refs.ts`: `ref` là SHA 40 hex thì `ref_label = null`, giữ nguyên `ref`; tên nhánh dài 40 ký tự không phải hex vẫn là nhãn. Spec ING-32 đã có luật này. Có 2 test trong `tai.test.ts`. Chạy thật BrewLite: `ref_label = null`, `snapshot_id` bắt đầu `6cd0cf1`. `CockpitHeader.tsx` đã hiện `· @ <sha7>` khi nhãn là `null`, nên không sửa file Vai D; phần bố cục thanh trên vẫn là D-14. Typecheck sạch, lint 0 lỗi, 837 test qua. Chưa đổi `ENGINE_VERSION`.
 
 ### B-17 · Vừa · Monorepo chọn nhầm gói nhỏ rồi báo lỗi
 
@@ -220,7 +220,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** ING-80 trường hợp (a) có client và server thì luôn chọn server, không xét server lớn bao nhiêu và không có đường lùi khi scope không dựng được bài.
 - **Cần sửa:** khi scope tự chọn gây `ERR_NO_ARCHITECTURAL_SLICE`, thử ứng viên kế tiếp rồi tới toàn repo. Cần thêm client vào ứng viên và sửa spec.
 - **Kiểm tra:** `create-t3-turbo` ra được bản đồ, BrewLite vẫn chọn `backend/`.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b17-monorepo`. `detectScope` trả `candidates` gồm cả client (server rồi client, `bytes` giảm dần). `ingest/rescope.ts` có `getScopeFallbacks` và `rescopeIngest` (dựng lại vân tay từ code đã tải, không tải lại zip). `runEngine` ở `engine/index.ts` (đã được đồng ý sửa) bắt `ERR_NO_ARCHITECTURAL_SLICE` khi scope tự chọn, thử lần lượt ứng viên rồi `""`, hết thì giữ lỗi đầu; scope tường minh và lỗi khác không lùi. Test: `rescope.test.ts`, `__tests__/scope-lui.test.ts` (dùng mock `buildGraph`). Chạy thật `t3-oss/create-t3-turbo`: ra bản đồ 3 bài, offset `packages/ui/` (trước: `ERR_NO_ARCHITECTURAL_SLICE`). BrewLite vẫn chọn server (`apps/api/`, 13 bài). Hạn chế: tập file đã nạp giữ nguyên theo scope đầu; offset lùi tới `packages/ui/` cho ít bài, chưa chọn được `apps/nextjs` vì tên không thuộc danh sách client. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-18 · Nhẹ · Chống zip bomb chưa dừng giải nén thật
 
@@ -228,29 +228,29 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `extractFromLocalOffset` chỉ bật cờ `exceeded`, dữ liệu vẫn đẩy vào `Inflate` trong một lần gọi đồng bộ nên không dừng được. Timer `STREAM_TIMEOUT_MS` cũng không chạy được giữa chừng. `listEntriesStreaming` bỏ qua `signal`. Manifest còn không qua kiểm tỉ lệ nén của ING-88.
 - **Cần sửa:** đẩy dữ liệu nén theo từng phần nhỏ, vượt trần thì dừng ngay. Streaming đặt trần tổng và kiểm `signal`. Manifest qua cùng lớp kiểm.
 - **Kiểm tra:** test đo thời gian: zip trên dừng dưới 100ms.
-- **Trạng thái:** đã chạy thật với 512 MB, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b18-zip-doc`. `unzip.ts`: đẩy dữ liệu nén vào bộ giải nén theo phần 1 KB, vượt trần kích thước hoặc tỉ lệ nén thật (`MAX_COMPRESSION_RATIO`, bắt cả header khai gian `size`) thì dừng ngay. Streaming dùng `CappedUnzipInflate` có `terminate()` (`UnzipInflate` của fflate không có nên `file.terminate()` không dừng được), kiểm `signal` và hạn `STREAM_TIMEOUT_MS` tự đo giữa các phần vì vòng lặp đồng bộ nên timer ngoài không chạy được; `listEntriesStreaming` giờ nhận `signal`; manifest qua cùng lớp kiểm (vượt trần bị bỏ kèm cảnh báo như cũ). Đo thật zip 0,52 MB bung 512 MB khai `size` 10 KB: `inflateSelected` 2,8 s → 28 ms, `listEntriesStreaming` 2,4 s → 27 ms. 5 test trong `zip-doc.test.ts` (cả 3 đường: mục lục, streaming liệt kê, streaming lượt 2, đều dưới 250 ms, chạy riêng khoảng 30–75 ms, bản chưa sửa 400–800 ms; signal hủy; zip thường không đổi). Lần chạy cả bộ test đầu tiên có 1 ca đo thời gian đỏ do ngưỡng 100 ms quá sát khi chạy song song, đã nới lên 250 ms. Chưa làm: trần tổng byte giải nén cho cả lượt liệt kê streaming (spec nói "trần tổng", chưa có hằng số trong `CONFIG`, không tự đặt); khoảng 28 ms đo trên máy này, máy chậm có thể cao hơn. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-19 · Nhẹ · Zip nén trên macOS không cắt được thư mục gốc
 
 - **Hiện tượng:** zip có `proj/...` và `__MACOSX/...` giữ nguyên tiền tố `proj/`, nên `backend/`, `frontend/` không được nhận và không phát hiện monorepo.
 - **Nguyên nhân:** `findCommonPrefix` xét cả `__MACOSX/`. ING-71 cũng không có thư mục này.
 - **Cần sửa:** bỏ `__MACOSX/` và file `._*` trước khi tìm tiền tố chung, sửa ING-60 và ING-71.
-- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b19-macosx`. `normalizeEntries` trong `unzip.ts` bỏ `__MACOSX/` và file `._*` trước khi tìm segment chung (`isMacJunk`), nên `proj/...` kèm `__MACOSX/proj/...` được cắt `proj/` và nhận ra `backend/`, `frontend/`; cả chế độ mục lục và streaming dùng chung hàm này. 6 test trong `zip-macos.test.ts` (zip dựng giống Finder, streaming, nhận monorepo `backend/` + `frontend/`, zip GitHub thường không đổi, `my._file.ts` không bị coi là rác). Spec ING-60 (3) và ING-71 đã có luật này. Zip dựng thử, chưa thử zip nén thật bằng Finder. Rác macOS giờ bị loại hẳn ở bước đọc mục lục nên không còn tính vào `skipped.garbage`. Typecheck sạch, lint 0 lỗi, 900 test qua.
 
 ### B-20 · Vừa · Thư mục `integration/` không bị coi là test
 
 - **Hiện tượng:** `nestjs/nest` có 12/20 node lấy từ `integration/`, là code kiểm thử của repo. Trong 100 file giữ lại, `packages/common` chỉ còn 7 file.
 - **Nguyên nhân:** danh sách ING-87 không có `integration`, `sample`, `samples`. Các file bằng điểm được xếp theo tên nên `integration/` lấy chỗ trước `packages/`.
-- **Cần sửa:** thêm các segment này vào ING-87 và `priority.ts`, làm cùng TASK_20 vì task đó dùng chung cờ test.
+- **Cần sửa:** thêm các segment này vào ING-87 và `priority.ts`, làm cùng B-02 vì dùng chung cờ test.
 - **Kiểm tra:** `nestjs/nest` không còn node từ `integration/`.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-route-file-test`. Một hàm `isTestPath` ở `priority.ts`. Đã sửa ING-87: `integration`, `sample`, `samples` chỉ tính ở segment đầu đường dẫn, để không bỏ nhầm `src/integration/`. Quét `nestjs/nest` qua zip: bài có cờ 12 → 0.
 
 ### B-21 · Nhẹ · Nhập thư mục sai hoa thường bị báo không có code
 
 - **Hiện tượng:** repo có `Backend/`, nhập `backend` ở "Đổi thư mục" nhận `ERR_NO_SOURCE_FILES_FOUND`.
 - **Nguyên nhân:** `detectScope` so `startsWith` phân biệt hoa thường, trong khi phần tự dò thì không.
 - **Cần sửa:** so không phân biệt hoa thường rồi dùng đúng tên thư mục thật.
-- **Trạng thái:** đã chạy với zip dựng thử, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b15-b21-hoa-thuong`. `detectScope` so thư mục tường minh không phân biệt hoa thường, dùng tên thật trong repo (`backend` → `Backend/`); khớp đúng hoa thường thì giữ nguyên; không khớp thì vẫn `ERR_NO_SOURCE_FILES_FOUND`. 5 ca trong `hoa-thuong.test.ts`. Chạy thật `subdir_override: "APPS/API"` trên BrewLite: offset `apps/api/`. Chưa làm: `snapshot.subdir` vẫn lưu đúng chuỗi người dùng nhập (`APPS/API`), chưa đổi sang tên thật; chưa sửa spec 10 Mục 8 ý 1 (đã có luật này).
 
 ### B-22 · Vừa · Che secret bỏ sót nhiều mẫu phổ biến
 
@@ -260,28 +260,29 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** mở rộng ING-110 và `secrets.ts`: tên khóa có hậu tố (`SECRET_KEY`, `*_PASSWORD_*`), khóa có nháy, thêm các dạng token trên. Đổi `ENGINE_VERSION` vì code đã lưu trong cache vẫn chưa được che.
 - **Cần sửa thêm:** `RESET_PASSWORD: 'resetPassword'` đang bị che dù chỉ là hằng, chuỗi hex `'0...'` bị coi là số điện thoại. "Khóa bí mật đã che" ở `CockpitHeader.tsx` đếm cả email: `miguelgrinberg/microblog` báo 9 nhưng cả 9 đều là email.
 - **Kiểm tra:** thêm các mẫu trên vào test, repo Django trên không còn `SECRET_KEY` thật.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b22-secrets`. `secrets.ts` che thêm: `SECRET_KEY`, `app.secret_key`, `JWT_SECRET_KEY`, `"password":`, `'apiKey':`, `DB_PASSWORD_PROD`, Stripe, Slack, URL `https` có `user:pass`, private key viết trong một dòng. Có test cho từng mẫu. Typecheck sạch, lint 0 lỗi, 758 test qua. Đã quét repo thật `gothinkster/django-realworld-example-app` (ngày 06/11): `SECRET_KEY` trong `conduit/settings.py` giờ thành `<REDACTED_SECRET>`, chỉ 1 chỗ bị che, không che nhầm chỗ khác. Repo này chỉ có mẫu `SECRET_KEY`, các mẫu còn lại mới có test, chưa thử repo thật. Chưa làm: `RESET_PASSWORD: 'resetPassword'` vẫn bị che (spec chưa có luật loại hằng), chuỗi hex bị coi là số điện thoại (ở `maskSensitive`), đếm email ở `CockpitHeader.tsx` (file Vai D). Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-23 · Nhẹ · Đọc thiếu gói trong Pipfile, Cargo.toml, pubspec.yaml
 
 - **Hiện tượng:** Pipfile chỉ có `[packages]` cho danh sách rỗng. Pipfile có `pytz` trước `fastapi` cũng rỗng, nên không nhận ra framework. `Cargo.toml` và `pubspec.yaml` có mục gói nằm cuối file cũng rỗng.
 - **Nguyên nhân:** `fingerprint.ts` dùng `\z` trong regex. JavaScript không có `\z`, ký hiệu này khớp chữ `z` thường, nên regex không nhận ra cuối file và dừng ở chữ `z` đầu tiên.
 - **Cần sửa:** đổi `\z` thành `$(?![\s\S])` như nhánh poetry, thêm test.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. Đổi 3 chỗ `\z` (Pipfile, pubspec, Cargo) thành `$(?![\s\S])`. Tìm thêm: regex pubspec dùng `\s*` nuốt luôn dấu thụt đầu của gói đầu tiên nên gói đầu bị mất, đã đổi thành `[ 	]*?
+`. Test trong `goi-ngon-ngu.test.ts` (Pipfile có `pytz` trước `fastapi`, Cargo, pubspec, tên gói chứa chữ `z`). Chạy thật `flutter/samples`: nhận framework Flutter, 68 gói trong `tech_stack`. Typecheck sạch, lint 0 lỗi, 876 test qua.
 
 ### B-24 · Nhẹ · Repo Vue JavaScript bị báo TypeScript
 
 - **Hiện tượng:** `gothinkster/vue-realworld-example-app` có 19 file `.vue` đều là JavaScript, nhưng `primary_language` là `TYPESCRIPT`.
 - **Nguyên nhân:** `buildFingerprint` cộng mọi `.vue`, `.svelte` vào `TYPESCRIPT`, không dùng ngôn ngữ ING-101 đã tìm được.
 - **Cần sửa:** tính phần `.vue`, `.svelte` theo `file_language` sau khi trích xuất. File không được giữ thì mới dùng giá trị mặc định.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b23-b24-goi`. `buildFingerprint` nhận thêm tham số tùy chọn `fileLanguage` (từ `runIngest` và `rescopeIngest`): `.vue`, `.svelte` tính theo file ảo `.js` hoặc `.ts` của ING-101; file không được giữ thì mặc định `TYPESCRIPT`. 3 test trong `goi-ngon-ngu.test.ts`. Chạy thật `gothinkster/vue-realworld-example-app`: `primary_language` thành `JAVASCRIPT` (58 949 byte, kèm 868 byte `TYPESCRIPT` từ file `.ts`). Chưa đổi `ENGINE_VERSION`. Hàm `buildFingerprint` có thêm tham số so với chữ ký trong spec 10 Mục 12 (đã có thêm `registry` từ trước); chưa sửa spec.
 
 ### B-25 · Nhẹ · Báo nhầm tsconfig hợp lệ là hỏng
 
 - **Hiện tượng:** `nestjs/nest` có 30 cảnh báo, gần hết là "Tệp cấu hình .../tsconfig.json bị hỏng định dạng". Các file đó vẫn dùng được.
 - **Nguyên nhân:** `cleanJson` xóa comment bằng regex mà không phân biệt chuỗi, nên `"https://..."`, `"@/*"` và `"src/**/*"` bị coi là comment. tsconfig được phép có dấu phẩy thừa, nên hàm này chạy và làm hỏng file.
 - **Cần sửa:** bỏ comment có xét chuỗi, hoặc dùng parser JSONC. `tsconfig.json` chỉ dùng cho alias, không nên hiện cảnh báo cho người học.
-- **Trạng thái:** đã chạy thật, chưa làm. Lỗi cùng kiểu ở trình đọc alias ghi tại B-26.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b25-b26-tsconfig`. Thêm `src/server/engine/jsonc.ts` (bỏ comment có xét chuỗi, bỏ dấu phẩy thừa), `fingerprint.ts` dùng chung. tsconfig/jsconfig hỏng không còn cảnh báo cho người học, `package.json` hỏng vẫn cảnh báo. Quét thật `nestjs/nest`: 0 cảnh báo tsconfig (trước 30). Test trong `graph/__tests__/tsconfig.test.ts`. Typecheck sạch, lint 0 lỗi, 770 test qua.
 
 ### B-26 · Vừa · Không đọc được alias `@/` nên mất cạnh gọi hàm
 
@@ -290,23 +291,23 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** tìm tsconfig gần file đang xét nhất và tính `paths` theo thư mục đó. Dùng chung parser JSONC với B-25.
 - **Kiểm tra:** 3 repo trên không còn `@/...` trong external, `frontend/` của BrewLite có cạnh gọi.
 - **Ảnh hưởng demo:** không ảnh hưởng `backend/` của BrewLite. Có ảnh hưởng khi đổi sang `frontend/`.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b25-b26-tsconfig`. `ts_js.ts` đọc mọi tsconfig/jsconfig trong manifests (parser JSONC chung với B-25), mỗi file dùng tsconfig gần nhất, `baseUrl` tính từ thư mục chứa tsconfig, và mẫu `@/*` giữ dấu `/` nên không nuốt `@nestjs/core`. Quét thật (import `@/...` còn tính là gói ngoài): `CNPM_BrewLite` 147 → 0 (cạnh gọi 72), `shadcn-ui/taxonomy` 274 → 43, `full-stack-fastapi-template/frontend` 248 → 30, `nestjs/nest` 0. Phần còn lại ở `taxonomy` và `fastapi` nghi do trần số file (`truncated`, quota loại 26 và 49 file), chưa chứng minh. Chưa kiểm trực tiếp cạnh gọi khi chọn `frontend/` của BrewLite vì repo đã đổi cấu trúc thành `apps/web`. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-27 · Vừa · Bài học lấy cả `<module>` làm thuật toán
 
 - **Hiện tượng:** BrewLite có bài `Order` với 3 bước đều là `<module>` của file test. `node-express-realworld` có bài `:slug / Article` với `<module>` của `article.controller.ts`, đoạn bỏ qua tới 214 dòng. Cả 2 repo này và `node-express-boilerplate` đều có Capstone là node `<module>`. `pallets/click` có nhiều bài `<module>` tương tự.
 - **Nguyên nhân:** code cấp cao nhất được coi là hàm `<module>`, gồm cả các handler ẩn danh, nên độ phức tạp cộng dồn rất cao. `pickVipFunctions` không loại nó nên thành bài `ALGORITHMIC_CORE`.
-- **Cần sửa:** loại `<module>` khỏi chọn VIP và ENG-90, trừ chế độ `PROCEDURAL`. Liên quan B-02 và B-11: TASK_20 chỉ bỏ được file test, không bỏ được trường hợp này.
+- **Cần sửa:** loại `<module>` khỏi chọn VIP và ENG-90, trừ chế độ `PROCEDURAL`. Liên quan B-02 và B-11: B-02 chỉ bỏ được file test, không bỏ được trường hợp này.
 - **Kiểm tra:** không còn node `ALGORITHMIC_CORE` có `function_name` là `<module>`.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `graph/index.ts` loại `<module>` khỏi ứng viên ENG-90 (a), (b), PROCEDURAL đi nhánh riêng nên không đổi. Test `ENG-90: <module>` đỏ trước khi sửa. Quét 7 repo (BrewLite, `nestjs/nest`, `bulletproof-react`, `node-express-realworld`, `node-express-boilerplate`, `pallets/click`, repo này): 0 node `ALGORITHMIC_CORE` có `function_name` là `<module>`. Capstone `realworld` là `Update Article`, `nestjs/nest` là `Create Redactor`. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-28 · Nhẹ · Dòng "bỏ qua" của bài thuật toán có số dòng thật
 
 - **Hiện tượng:** dòng `// … (24 dòng)` có `snippet_line_map` khác 0, đo được 8 dòng trên 6 repo. Spec yêu cầu marker có map bằng 0.
 - **Nguyên nhân:** phần cắt bước trong `nodes.ts` (quanh dòng 288) chèn marker rồi chỉ cắt mảng map, không dựng lại. Các dòng sau marker cũng có thể lệch số.
 - **Cần sửa:** dựng lại `snippet_line_map` khi chèn marker.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. `nodes.ts` dựng lại `snippet_line_map`, marker có map 0, thụt lề theo dòng bị bỏ đầu, `line_end` theo map. Quét 5 repo trên: marker sai 47 → 0, `line_start`, `line_end` lệch map 47 → 0. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-29 · Nhẹ · Route dạng `.route()` hiện tên nhiều dòng
 
@@ -314,7 +315,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** `callgraph.ts` lấy nguyên text receiver làm `display_name`.
 - **Cần sửa:** dựng tên gọn như `router.delete('/:userId')`.
 - **Kiểm tra:** chạy `hagopj13/node-express-boilerplate`, tên bước nằm trên 1 dòng và có path.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b29-route-name`. `callgraph.ts` thêm `resolveRouteChain`: với `R.route(path).get(a).post(b)`, mỗi động từ thành 1 binding có `path` lấy từ `route()`, `display_name` 1 dòng `router.delete('/:userId')`, nhận cả động từ chỉ có 1 đối số; cú pháp thường và `cache.get('k')` không đổi. Có 4 test trong `route-chain.test.ts`. Chạy thật `hagopj13/node-express-boilerplate`: bước route nằm 1 dòng và có path (`router.get('/:userId')`, `router.delete('/:userId')`, `router.post('/')`). Tên bài vẫn còn `Get User` và `Get User #2` (cho `GET /` và `GET /:userId`): đó là luật đặt tên của B-30, chưa sửa ở đây. `callgraph.ts` thuộc luồng Minh, cần báo để tránh xung đột. Typecheck sạch, lint 0 lỗi, test xanh. Chưa đổi `ENGINE_VERSION`.
 
 ### B-30 · Vừa · Tên bài tự sinh khó hiểu hoặc sai nghĩa
 
@@ -324,7 +325,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Lưu ý:** id node có `slug(base_title)`, đổi tên là đổi id. Phải đổi `ENGINE_VERSION`, và tiến độ của phiên cũ không dùng lại được.
 - **Kiểm tra:** cập nhật bảng T-ENG-22, tên 6 repo trên đọc được thành câu.
 - **Ảnh hưởng demo:** có.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b30-ten-bai`. `naming.ts` làm theo spec 11 Mục 13 Bậc 1 đã sửa: `ACTION_SEGMENTS` dùng thẳng (`Cancel Order`, `Login`, `Health`; bỏ `auth`), `DELETE` nhiều đoạn giữ động từ (`Delete Article Comment`), tách `-` và `_`, có tham số xen thì chèn tài nguyên (`List User Orders`). Thêm bảng T-ENG-22b trong `node.test.ts` (13 ca). Sửa 2 test cũ theo luật mới (`User Register` → `Register User`, `Create Register` → `Register`). Chạy thật: BrewLite ra `Health`, `Login`, `Register`; microblog ra `Search`, `List Reset Password Requests`, không còn `List Logins`, `List Searchs`; boilerplate ra `Create Forgot Password`. Còn lại ngoài luật đã chốt: `Get User` và `Get User #2` (GET `/` và `GET /:userId` cùng đoạn `users`, vì path `/` không có đoạn tĩnh), `List Explores`, `Order Me`. Đổi tên là đổi `id` nên phải đổi `ENGINE_VERSION` (vào mốc `1.8.0`), chưa đổi; tiến độ của phiên cũ không dùng lại được. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-31 · Vừa · Test và bản offline không theo repo demo thật
 
@@ -332,7 +333,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** Q-03 trong `00_QUYET_DINH.md` chưa chốt repo demo, nên tiêu chí vẫn bám `shop-api`.
 - **Cần sửa:** chốt Q-03. Nếu là BrewLite thì thêm repo mẫu NestJS và Prisma trong `repo-demo.test.ts`, thêm ngưỡng `cnpm_brewlite:toi_data` vào lệnh kiểm, và thu lại bản offline nếu demo cần.
 - **Ảnh hưởng demo:** có, vì lỗi của repo demo không được test chặn.
-- **Trạng thái:** đã kiểm, cần nhóm chốt Q-03.
+- **Trạng thái:** đang làm. Q-03 chốt `gothinkster/spring-boot-realworld-example-app`. Nhánh `a/chot-viec-thien`: `spring-demo.test.ts` là repo mẫu Spring có ngưỡng `DISPLAY_MIN_NODES`, đủ 3 tầng, tất định. Còn: thu lại `public/demo/mock_bundle.json` theo repo demo, cần AI thật và tài khoản bot.
 
 ### B-32 · Vừa · Monorepo lớn hết hạn tải chọn lọc vì tải manifest từng file
 
@@ -341,7 +342,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** tải manifest song song theo `SELECTIVE_FETCH_CONCURRENCY`, chỉ tải manifest trong scope và ở gốc. Xóa cảnh báo phạm vi khi lùi.
 - **Kiểm tra:** `vercel/next.js` có `selective_fetch = true`.
 - **Ảnh hưởng demo:** không, BrewLite không cần tải chọn lọc.
-- **Trạng thái:** đã chạy thật ở chế độ ẩn danh, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b32-manifest-song-song`. `selective.ts`: tải manifest theo lô song song `SELECTIVE_FETCH_CONCURRENCY`, chỉ manifest trong scope và ở gốc, nhận kết quả theo thứ tự plan nên đầu ra tất định; khi lùi về zip (ING-49) thì bỏ cảnh báo phạm vi và khôi phục số đo `skipped` đã ghi dở (trước đó cảnh báo "đang phân tích X" vẫn còn và số đo bị đếm đôi). 4 test mock GitHub trong `chon-loc-song-song.test.ts` (song song và không quá 16, chỉ manifest trong scope, tất định, cảnh báo bị xóa khi lùi). **Chưa chạy thật** `vercel/next.js`, `calcom/cal.com`: cần `GITHUB_TOKEN` mà luật nhóm không cho đọc `.env*`; người có token cần đo `selective_fetch = true` và thời gian. Typecheck sạch, lint 0 lỗi, test xanh.
 
 ### B-33 · Vừa · Engine rất chậm khi có nhiều route
 
@@ -350,16 +351,16 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** lập chỉ mục hàm theo file và cạnh theo caller một lần, rồi dùng lại cho mọi entry.
 - **Kiểm tra:** `django/django` dưới 10 giây, kết quả đồ thị không đổi.
 - **Ảnh hưởng demo:** không, chỉ gặp với repo rất lớn.
-- **Trạng thái:** đã đo bằng CPU profile, chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b33-toc-do`. Đo bằng CPU profile: nặng nhất là vòng tìm dòng trong hàm ở `buildSlice` và `findFunctionNode` dò lại cả cây cho mỗi hàm. Sửa: lập sẵn dòng thuộc hàm, mẫu regex theo tên biến, danh sách node hàm theo file. `buildGraph`: `django/django` 5,9 → 2,9 giây, `nestjs/nest` 21,1 → 3,0, `pallets/click` 17,1 → 3,9, repo này 26,6 → 9,5, BrewLite 2,2 → 1,2. So băm `nodes`, `edges`, `groups`, `symbol_whitelist`, `file_index` trước và sau: giống hệt trên cả 5 repo, repo này so trên cùng commit.
 
 ### B-34 · Vừa · Mock API bị nhận là route Express
 
 - **Hiện tượng:** `alan2207/bulletproof-react` là app React nhưng bị báo `WEB_BACKEND`, framework Express. Cả 20 bài lấy từ mock `http.get(...)` của thư viện `msw`, tên bài là `<anon@l111>`, không có bài nào từ giao diện thật.
-- **Nguyên nhân:** spec 12 Mục 1 yêu cầu `R` phải đến từ `express()`, `Router()` hoặc `fastify()`, nhưng `callgraph.ts` chỉ xét tên method. Luật handler của TASK_20 không chặn được ca này vì đối số cuối đúng là hàm. Framework Express đến từ `express` trong `devDependencies` (liên quan B-09). URL dạng template làm path rỗng, nên tên bài rơi về `<anon@l111>`.
-- **Cần sửa:** kiểm nguồn gốc của `R`, làm cùng TASK_20. Bỏ file mock theo ING-87 (`mocks`, `__mocks__`), và không cho tên bài chứa `<`, `>`.
+- **Nguyên nhân:** spec 12 Mục 1 yêu cầu `R` phải đến từ `express()`, `Router()` hoặc `fastify()`, nhưng `callgraph.ts` chỉ xét tên method. Luật handler không chặn được ca này vì đối số cuối đúng là hàm. Framework Express đến từ `express` trong `devDependencies` (liên quan B-09). URL dạng template làm path rỗng, nên tên bài rơi về `<anon@l111>`.
+- **Cần sửa:** kiểm nguồn gốc của `R`, làm cùng B-03. Bỏ file mock theo ING-87 (`mocks`, `__mocks__`), và không cho tên bài chứa `<`, `>`.
 - **Kiểm tra:** repo trên không còn route từ `msw`.
 - **Ảnh hưởng demo:** không có với BrewLite.
-- **Trạng thái:** đã chạy thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Phần trước đã xong ở nhánh `b/fix-route-file-test` (nhận route theo receiver, cờ `mocks`: `bulletproof-react` từ 13 bài mock về 0). Phần còn lại ở nhánh `b/fix-b34-con-lai`: (1) spec 10 Mục 12 ý 3 thêm luật gói chỉ có ở `devDependencies` không tính cho `WEB_BACKEND` và nhãn `@nestjs/core`, `express`, `fastify`, `koa`; `fingerprint.ts` thêm `dev_only_packages` và `runtimePackagesSet`; `tech_stack` giữ đủ gói; thêm ca vào T-ING-29; (2) `naming.ts`: Bậc 2 bỏ khóa tổng hợp bắt đầu bằng `<`, thêm `sanitizeTitle` giữ đúng bộ ký tự của Mục 13 ý 8, áp cho mọi tên bài. Chạy thật: `bulletproof-react` hết Express, thành `WEB_FRONTEND`, framework Next.js; `fastify/fastify-example-todo` hết tên chứa `<`, `>`, `@` (còn `:name / Get #2`… do Bậc 3, không thuộc B-34); BrewLite không đổi (13 bài, NestJS). Test: `dev-deps.test.ts` (8 ca), T-ENG-22c trong `node.test.ts`. Chỉ xử lý backend JS; devDependencies của framework khác (Django, Flask…) chưa xét. `spec/10` 43 929 byte (trần 44 000). Chưa đổi `ENGINE_VERSION`: đổi tên bài là đổi id, vào mốc `1.8.0`. Typecheck sạch, lint 0 lỗi, 925 test qua.
 
 ---
 
@@ -470,25 +471,25 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** mọi loại lỗi Gemini đều hiện "Chưa phân tích được", nên lỗi `thinkingBudget` rất khó tìm.
 - **Cần sửa:** ghi mã lỗi trong `catch` của `callLLMOnce` ở `gemini.ts`, không ghi khóa hay nội dung nhạy cảm. Luật log đã có trong quyết định D-74 (`20` AI-12).
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `callLLMOnce` ghi 1 dòng log `warn` (`event: "llm_error"`, loại lời gọi, `kind`, `status`, `retry_after_ms`, lý do ngắn) cho mọi lần lỗi, không ghi khóa và prompt. Test AI-12 (C-01) xanh; `typecheck`, `lint`, `npm test` xanh.
 
 ### C-02 · Vừa · Giới hạn token có thể quá thấp
 
 - **Hiện tượng:** `ANALYZE` chỉ có 900 token đầu ra, tiếng Việt có thể bị cắt.
 - **Cần sửa:** phân tích hết repo demo trên AI thật, đếm bài lỗi rồi chỉnh `LLM_MAX_OUTPUT_TOKENS` nếu cần.
-- **Trạng thái:** cần đo trên AI thật.
+- **Trạng thái:** chờ kiểm. Phân tích thật 13 bài BrewLite: `Create Order` (5 bước) bị cắt ở 900 (`NOT_STOP`) lần đầu, gọi lại vừa đủ (~754); bài 2–4 bước ra 309–669 token. Ước ~150 + 150/bước ⇒ bài 7 bước ~1 200. Nâng `ANALYZE` lên 1400 (`02`, `config.ts`); chạy lại `Create Order`: 1 request, 729 token.
 
 ### C-03 · Vừa · Câu hỏi gắn sai dòng code
 
 - **Hiện tượng:** bài `Order` nói `Object.keys` dòng 10 kết hợp `canTransition` dòng 21 "thay vì viết thủ công". Thực tế dòng 21–25 chính là ca viết tay, biến `ALL` chỉ dùng ở dòng 44 và 49. Đáp án tham khảo cũng sai theo.
 - **Cần sửa:** sửa prompt và thêm ca này vào `review/loi_da_gap.md`, rồi kiểm bằng duyệt tay. Không viết kiểm tra bằng code cho lỗi này, vì cổng gác không kiểm được nghĩa đúng sai (GUARD-21).
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật câu hỏi 8 (quan hệ phải đúng như `<code_data>`) đã thêm ở C-08. Chạy thật BrewLite `Update Order Status` và `Auth Login` (6 câu, 3 lượt): mọi quan hệ và số dòng khớp code. Bản BrewLite hiện tại không còn `canTransition` nên chưa dựng lại đúng ca cũ.
 
 ### C-04 · Vừa · Câu hỏi chỉ lặp lại phần giải thích
 
 - **Hiện tượng:** Câu 1 bài `Auth Me` trả lời được bằng cách chép Luồng thực thi.
 - **Cần sửa:** yêu cầu prompt hỏi suy luận thay vì nhắc lại. Spec 21 ghi code không kiểm lỗi này, phải duyệt tay.
-- **Trạng thái:** đã xác nhận trên site, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật `FLOW` chế độ A (AI-25) đặt tình huống cụ thể; thêm cổng gác GUARD-12 `Q9` (`FLOW_GENERIC_RE`): câu `FLOW` dạng "đi qua những bước / hàm nào" ⇒ gọi lại riêng câu đó. Test xanh. Chạy thật câu 1 của `Update Order Status`, `Auth Login`: lần này AI không viết mẫu hỏi chung nên `Q9` chưa bật; `Auth Login` vẫn có câu "được chuyển tiếp như thế nào" (chép được một phần) — regex chỉ bắt đúng mẫu chữ, phần nghĩa vẫn phải duyệt tay (GUARD-21).
 
 ### C-05 · Vừa · Tổng quan AI không ra sau khi phân tích hết bài
 
@@ -497,7 +498,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Cần sửa:** code theo luật gọi lại mới trong quyết định D-74 (`20` AI-12), ở `retryDelay` và `callLLMOnce` của `src/server/ai/gemini.ts`.
 - **Kiểm tra:** test AI-12 mới xanh; chạy lại probe, tổng quan có kết quả.
 - **Ghi chú 06/11:** quyết định D-83 chuyển tổng quan lên đầu phiên, trước loạt `analyze-node`, nên bớt gặp 429. Vẫn phải sửa `retryDelay` như trên. Phần tổng quan mới là C-12.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `retryDelay` đọc `retryDelay` của Google, chờ `max(LLM_RETRY_DELAY_MS, retryDelay)` + jitter, vượt `LLM_RETRY_DELAY_MAX_MS` thì không gọi lại; `analyze`, `overview`, `questions`, `callLLMWithRetry` dừng đúng. Test AI-12 (R1) xanh. **Chưa chạy AI thật** (cần chạy lại sau C-12 vì tổng quan đổi thời điểm gọi).
 
 ### C-06 · Vừa · Điểm dở luôn rỗng
 
@@ -505,7 +506,7 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 - **Nguyên nhân:** nghi chủ yếu do prompt hoặc model (bản thô chưa qua gác cũng gần như luôn rỗng); chưa loại trừ cổng gác chặn bớt, cần ghi lý do chặn để biết. Prompt `analyze-node` có câu "Không chắc thì mảng rỗng — không bịa lỗi cho có", nghi model nhỏ hiểu quá chặt.
 - **Cần sửa:** chạy thêm 1–2 repo khác. Nếu vẫn rỗng thì sửa prompt `analyze-node` và đổi `PROMPT_VERSION`.
 - **Kiểm tra:** repo demo có ít nhất 1 bài có điểm dở hợp lý, qua duyệt tay.
-- **Trạng thái:** cần xác minh.
+- **Trạng thái:** chờ kiểm. Nguyên nhân đo được: schema viết `skills` trước `weak_points`, model chọn đủ 3 kỹ năng rồi gắn điểm dở vào kỹ năng chưa chọn nên A3 lọc (log `weak_points_filtered`, lý do `skill_not_chosen`). Đã sửa prompt và thứ tự schema, không nới A3. Đo `realworld` 12 bài, mỗi cách 1 lần: trước 0/12 bài có điểm dở sau cổng gác, sau 2/12, cả 2 hợp lý qua duyệt tay. **Chưa đo trên repo demo** (Q-03 chưa chốt), mới đo 1 lần nên chưa kết luận chắc. `PROMPT_VERSION` code đổi `1.0.0` ⇒ `1.1.0` cho khớp `02`, để cache phân tích cũ hết hiệu lực. Ca ghi ở `review/loi_da_gap.md`.
 
 ---
 
@@ -515,13 +516,13 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `deploy` thất bại 6 lần gần nhất vì thiếu xác thực GCP. Site Vercel không bị ảnh hưởng.
 - **Cần sửa:** đặt secret theo `deploy.yml`, hoặc tắt workflow nếu nhóm chỉ dùng Vercel.
-- **Trạng thái:** đã xác nhận, chờ quyết Q-C.
+- **Trạng thái:** đã xác nhận. Theo Q-C: giữ workflow, không tắt. Từ 12:00 ngày 07/11/2026 ban giám khảo cấp Google Cloud thì đặt secret theo `deploy.yml` và deploy lên đó. Trước đó workflow vẫn đỏ, site chạy Vercel.
 
 ### A-02 · Vừa · Lỗi thật bị che
 
 - **Hiện tượng:** `toErrorResponse` đổi lỗi lạ thành `ERR_PERSISTENCE_UNAVAILABLE`, log chỉ có tên lỗi.
 - **Cần sửa:** ghi thêm thông tin an toàn để tìm lỗi trong `src/server/errors.ts`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a02-a04-log-khoi-dong`: log `error_name`, `error_message` đã che secret, có test với `password=` và chuỗi kết nối Postgres. Typecheck, lint, 752 test, build xanh.
 
 ### A-03 · Vừa · Lỗi 401 chưa rõ nguyên nhân
 
@@ -533,13 +534,13 @@ B10 không có nhóm riêng: B-34 tìm thấy khi chạy B10 nhưng gốc nằm 
 
 - **Hiện tượng:** `assertGeminiEnv` chỉ chạy khi gọi Gemini.
 - **Cần sửa:** gọi ở bước khởi động, ví dụ `instrumentation.ts`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a02-a04-log-khoi-dong`. Chạy `next start` thật: thiếu `GEMINI_API_KEY` với `studio` ⇒ `Failed to prepare server`, nhưng tiến trình không tự thoát; `vertex` không có key ⇒ `/api/health` 200. Chưa thử trên Vercel.
 
 ### A-05 · Nhẹ · A06 chưa trả `analyses`
 
 - **Hiện tượng:** `src/app/api/ingest/route.ts` còn `analyses: {}`.
 - **Cần sửa:** trả phân tích có sẵn khi mở lại phiên theo `03` Mục 6.6.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `a/fix-a05-analyses`: `ingest` đọc `ai_cache` theo khóa `NODE_ANALYSIS`, trả `NodeAnalysisView`, dòng hỏng thì bỏ. Typecheck, lint, 767 test, build xanh. Test dùng DB mock, chưa chạy với Postgres thật.
 
 ---
 
@@ -646,9 +647,9 @@ Agent không tự trả lời các câu này. Nhóm chốt xong thì đổi cộ
 
 | Mã | Câu hỏi | Đề xuất | Việc bị chặn | Trạng thái |
 | :-- | :-- | :-- | :-- | :-- |
-| Q-A | Luật đạt bài, xem chi tiết bên dưới | Giữ luật, hiện "Đạt 2/3 câu" | Một phần D-09 | chờ quyết |
+| Q-A | Luật đạt bài, xem chi tiết bên dưới | Giữ luật, hiện "Đạt 2/3 câu" | Một phần D-09 | giữ luật, hiện "Đạt 2/3 câu", Thiện chốt 06/11/2026 |
 | Q-B | Có thêm quyết định D-73, nối bài thành cây theo module không? | Có, nhưng phải thử kỹ khóa bài | B-04, B-05, S-13 | cây, Minh chốt 05/11/2026 |
-| Q-C | Host chính của vòng 2 là Cloud Run hay Vercel? | Vercel, tắt workflow Cloud Run, vì GCP còn thiếu secret | A-01, S-11 | chờ quyết |
+| Q-C | Host chính của vòng 2 là Cloud Run hay Vercel? | Vercel, tắt workflow Cloud Run, vì GCP còn thiếu secret | A-01, S-11 | Google Cloud từ 12:00 ngày 07/11/2026, ban giám khảo cấp tài khoản. Trước đó vẫn chạy Vercel. Thiện chốt 06/11/2026 |
 | Q-D | Spec 30 theo giao diện thật hay đổi code về 3 cột? | Viết lại spec theo giao diện thật | S-07 | giao diện mới, Minh chốt 05/11/2026 |
 | Q-E | 6 file spec đã vượt trần byte: nâng trần hay cắt bớt? | Nâng trần cho `02`, `10`, `20`, `21`, `30`, ghi một quyết định, cắt `00` | Việc spec có cột Chờ là Q-E | nâng trần, quyết định D-75 |
 | Q-F | Có nâng `ENGINE_VERSION` lên `1.7.0` và gom các đổi engine vào một lần không? | Có | Bước đổi phiên bản của B-01 … B-07 | không cần giữ phiên cũ, đợt 1 lên `1.7.0`, đợt 2 lên `1.8.0`, Minh chốt 05/11/2026 |
@@ -693,7 +694,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đề xuất không chọn hàm trả về JSX làm VIP, hoặc không tính `? :`, `&&` nằm trong JSX. Ghi quyết định mới vào `00`, sửa `11` Mục 7 và `complexity.ts`, đổi `ENGINE_VERSION`. Làm cùng B-27.
 - **Kiểm tra:** quét code `main`, không còn bài `ALGORITHMIC_CORE` nào trỏ tới file `.tsx`. Quét riêng phần server vẫn còn bài thuật toán thật như `Tarjan Scc`.
 - **Ảnh hưởng demo:** chỉ khi repo demo có giao diện React.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b27-module`. Quyết định D-86, Minh chốt 06/11/2026: hàm có `return` trả JSX không là ứng viên ENG-90, không đổi ENG-71. Thêm `returnsJsx` ở `complexity.ts`, T-ENG-51. Quét repo này: 0 bài `ALGORITHMIC_CORE` trỏ tới `.tsx`, vẫn còn `Tarjan Scc`, `Build Graph`. Hàm chỉ có callback trả JSX vẫn được chọn. Đã đổi `ENGINE_VERSION` thành `1.7.0`.
 
 ### B-36 · Vừa · Cắt còn 20 bài thì bài server bị mất
 
@@ -702,7 +703,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đề xuất ưu tiên bài luồng trên đường chính trước bài thuật toán. Ghi quyết định mới vào `00`, sửa ENG-114 và `nodes.ts`, đổi `ENGINE_VERSION`. Làm sau B-35 rồi đo lại, vì B-35 có thể đã giảm phần lớn lỗi này.
 - **Kiểm tra:** quét code `main`, phần lớn bài giữ lại là luồng server. Chạy thêm repo fullstack lớn mà nhóm gặp lỗi này.
 - **Ảnh hưởng demo:** chỉ khi repo demo có trên 20 bài và có giao diện.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b36-budget`. Quyết định D-88, Minh chốt 06/11/2026: sau đường chính giữ tối đa `CONFIG.VIP_FALLBACK_TOP_K` node thuật toán, chỗ còn lại cho bài API, rồi bài khác, thiếu loại nào thì loại kia lấp. Không chọn "bài luồng trước hẳn" vì xóa sạch bài thuật toán. Quét repo này: 20 bài gồm 13/13 API, 1 trang, 6 thuật toán, có lại `/api/sessions`, `/api/health`, `/api/me`. `nestjs/nest` 14 luồng, 6 thuật toán. `cal.com` 18 API, 1 thuật toán. BrewLite không đổi vì dưới 20 bài. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.8.0`.
 
 ### B-37 · Nặng · Lát cắt toàn hàm vặt, thiếu phần xử lý chính
 
@@ -711,7 +712,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đo xem bước nào bị bỏ ở đâu, rồi chốt luật bỏ hàm vặt khỏi lát cắt. Đề xuất: hàm ngắn, không đụng database, được nhiều route gọi. Ghi quyết định mới vào `00`, sửa ENG-80, ENG-81, ENG-88 nếu cần, và `slicing.ts`. Đổi `ENGINE_VERSION`.
 - **Kiểm tra:** quét code `main`, bài `Create Evaluate-feynman` có `evaluateFeynman` và hàm chấm, các bài API không còn chung chuỗi xác thực. Chạy thêm trên BrewLite.
 - **Ảnh hưởng demo:** cần đo trên BrewLite.
-- **Trạng thái:** đã chạy thật, chưa làm. Cần quyết định mới.
+- **Trạng thái:** đang làm. Nhánh `b/fix-b27-module`. Đo trên repo này: ENG-81 làm mất 35/439 bước, ENG-88 làm mất 320/439, nên giả thuyết ENG-88 là đúng. Đã sửa code theo spec: ENG-80 sắp callee theo (dòng, cột) call site, ENG-88 bỏ bước lá hop lớn nhất, chỉ bảo vệ đường tới criterion. Thêm D-87, Minh chốt 06/11/2026: bỏ hàm có mặt ở ≥ 50% số lát cắt và ≥ 3 lát cắt, không là entry, middleware, cây con không có `DATA_SINK`. Quét repo này: bài API hết chuỗi xác thực, `Create Evaluate-feynman` có `evaluateFeynman`. BrewLite giữ 17 bài, 9 cạnh, Capstone `Create Order`. **Còn thiếu:** `gradeWithAI` chưa vào bài, vì bước `evaluateFeynman` bị kẹp ở `CONFIG.STEP_MAX_LINES` và bài chạm `CONFIG.NODE_MAX_LINES`. Repo này dùng `sql` dạng tagged template nên không có `DATA_SINK`, 0/11 bài tới `DATA_ACCESS`. 2 hằng số D-87 đang để cục bộ ở `slicing.ts`, chờ Luồng 5 chuyển vào `CONFIG`.
 
 ### D-16 · Vừa · Khung code nối mọi file thành một file dài
 
@@ -744,7 +745,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Cần sửa:** đổi thành câu 1 nói phần này giúp người dùng làm gì, câu 2 nói các bước chia việc. Sửa `20`, prompt, đổi `PROMPT_VERSION`, thêm ca vào `review/loi_da_gap.md`. Không đổi contract. Sau đó Vai D đưa câu 1 lên đầu tab X-Ray.
 - **Kiểm tra:** chạy AI thật trên repo demo, duyệt tay ít nhất 3 bài, câu đầu nói đúng việc của người dùng.
 - **Ghi chú 06/11:** quyết định D-84 dùng câu 1 này làm dòng "Vai trò" của thẻ vai trò (D-22). Sửa thêm `steps[].text` cho người mới đọc, vì tour (D-19) hiện từng câu này.
-- **Trạng thái:** đã kiểm prompt, chưa chạy AI thật, chưa làm.
+- **Trạng thái:** chờ kiểm. Luật 2, 3 của prompt phân tích chép đúng `20` AI-16; gộp vào PR C-12 để dùng chung `PROMPT_VERSION` `1.2.0`. Chạy AI thật 4 bài BrewLite (`Create Order`, `Auth Register`, `List Products`, `Payment Create-url`), duyệt tay: 4/4 câu 1 nói việc của người dùng, bước có giải thích thuật ngữ trong ngoặc. `Create Order` 5 bước ra 739 token, gần trần 900 (xem C-02).
 
 ### C-08 · Vừa · Code AI chưa theo quyết định D-74
 
@@ -752,7 +753,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Nguyên nhân:** quyết định D-74 chốt sau khi code AI của `main` đã xong. `feat/giao-dien-ide` đã có các phần này nhưng dùng tên file khác spec, nên phải viết lại trên `main`, không chép thẳng.
 - **Cần sửa:** làm theo các ô D-74 trong phiếu `vai-C/C07-cau-hoi.md`, `vai-C/C08-cham.md`. Phần trần `retryDelay` thuộc C-05.
 - **Kiểm tra:** test AI-31 xanh theo từng bậc. Chạy AI thật một câu qua 3 lượt sai, gợi ý đổi đúng bảng trong quyết định D-74.
-- **Trạng thái:** đã kiểm code, chưa làm.
+- **Trạng thái:** chờ kiểm. A1 gợi ý theo bậc × lượt; A5a `<previous_answer>`, `<previous_points>` từ lượt 2; A5b `<learner_history>` (đọc ý hụt trong `generateQuestions`, DB lỗi thì bỏ khối); M1 `<referenced_steps>` chỉ tên (snapshot lỗi thì bỏ khối); luật câu hỏi 8, 9, 10. Code mới ở `src/server/ai/history.ts`; `evaluate.ts` thêm vài dòng truyền dữ liệu A5a, M1; test A4 trong `src/app/api/__tests__/evaluate.test.ts` sửa theo `50` (NOVICE lượt 1 ra `CODE_POINTER`). Test xanh (700). Chạy AI thật N3 Q1, 3 bậc × 2 lượt: gợi ý đúng bảng D-74, cả 6 gợi ý của AI qua cổng gác. `PROMPT_VERSION` giữ `1.1.0` (chấm, câu hỏi không cache), lên `1.2.0` cùng C-12.
 
 ### A-07 · Vừa · Chưa có test tích hợp đủ luồng trên `main`
 
@@ -760,7 +761,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
 - **Nguyên nhân:** test cần database riêng, nhưng máy nhóm và CI chưa đặt sẵn.
 - **Cần sửa:** dựng Postgres riêng cho test, trên máy hoặc service của CI, không trỏ tới database thật. Chuyển `flow.test.ts` về `main` và đổi lại fixture theo code `main`.
 - **Kiểm tra:** chạy test với `TEST_DATABASE_URL`, không ca tích hợp nào bị bỏ qua. Chạy tay trọn một bài và kiểm điểm BKT qua `/api/me`.
-- **Trạng thái:** đã kiểm code, chưa làm.
+- **Trạng thái:** đang làm. Nhánh `a/chot-viec-thien`: `ci.yml` có service Postgres và `TEST_DATABASE_URL`; `postgres-that.test.ts` chạy cả migration `0002`; thêm `tests/integration/hoc-sai-dung.test.ts`: trả lời sai, nhận gợi ý, trả lời đúng, kiểm điểm qua `/api/me`. Chạy trên Postgres thật ở máy: 5/5 ca đạt. Chưa chạy trên CI. 21 ca của `flow.test.ts` chưa chuyển, vì gọi service chỉ có trên `feat/giao-dien-ide`, phải viết lại. Chưa chạy tay trọn một bài.
 
 ### C-09 · Vừa · Có điểm hay nhưng không có điểm dở
 
@@ -778,7 +779,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   
   Không ép số điểm dở tối thiểu, vì AI sẽ bịa lỗi.
 - **Kiểm tra:** chạy AI thật trên repo demo, có số liệu bản thô và bản sau cổng gác. Bài có lỗi thật, ví dụ truy vấn trong vòng lặp, phải có điểm dở hợp lý qua duyệt tay.
-- **Trạng thái:** cần xác minh.
+- **Trạng thái:** chờ kiểm, làm cùng C-06 (xem trạng thái C-06).
 
 ### B-38 · Nặng · Mở hỗ trợ Java để demo bằng repo Java
 
@@ -794,13 +795,13 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   7. Chốt một repo Java làm repo demo, rồi dựng lại gói Offline và kịch bản demo theo repo đó.
 - **Kiểm tra:** quét `spring-petclinic` và `SGU-quan-ly-nha-hang`: `primary_language` là Java, tier `RESOLVED`, tên bài theo route đúng, có bài đi đủ controller, service, repository và tới `DATA_ACCESS`. Chạy AI thật trọn một bài trên repo demo Java.
 - **Ảnh hưởng demo:** có, đổi repo demo và kịch bản vấn đáp.
-- **Trạng thái:** chưa làm. Phải sửa quyết định D-76 trước khi code.
+- **Trạng thái:** đang làm. Bước 2–5 đã vào `main`, Q-03 chốt `gothinkster/spring-boot-realworld-example-app`. Nhánh `a/chot-viec-thien`: `spring.ts` sửa class `@Repository` có thân thành cạnh thường, `spring-demo.test.ts` là repo mẫu Spring trong test. Quét thật: repo demo 19 bài, 19 theo route, 7 bài đủ `ENTRY_POINT`, `BUSINESS_LOGIC`, `DATA_ACCESS`, 15 cạnh; `spring-petclinic` 17 bài, 14 theo route, 6 bài đủ tầng. Còn: `ENGINE_VERSION` đổi sau B-39, gói Offline, chạy AI thật trên repo demo.
 
 ### B-39 · Nặng · Bản đồ không nối các chức năng với nhau
 
 - **Hiện tượng:** `main` có nhiều chức năng không nối với nhau nên bị kéo thành một hàng. `feat/giao-dien-ide` nối theo thư mục nên ra các cột không có nghĩa, ví dụ `App Hello → Health`, `Auth Me → Login → Register`, tức Đăng nhập đứng trước Đăng ký. Sơ đồ cần có là các chức năng nối theo nghiệp vụ: Đăng ký và Danh sách sản phẩm là điểm bắt đầu, cùng dẫn tới Thanh toán, còn Health và bài thuật toán học riêng.
 - **Nguyên nhân:** quyết định D-07 chỉ nối 2 bài khi dùng chung hàm, nên chức năng không chung hàm thì không có cạnh. Quyết định D-73 và `lessonTree` của `feat` nối theo thư mục, không theo nghiệp vụ. Tài liệu gốc của sơ đồ mẫu cũng ghi cạnh là "thứ tự học giả định", tức chưa từng có thuật toán sinh ra nó.
-- **Cần sửa:** đổi sang đồ thị phụ thuộc dữ liệu giữa các chức năng, theo ý "có dữ liệu rồi mới dùng được". Bản này thay hướng nối theo module của B-04, B-05 và TASK_21.
+- **Cần sửa:** đổi sang đồ thị phụ thuộc dữ liệu giữa các chức năng, theo ý "có dữ liệu rồi mới dùng được". Bản này thay hướng nối theo module của B-04, B-05.
   1. **Đọc thực thể:** mỗi bài có tập thực thể và thao tác tạo, đọc, sửa, xóa, lấy từ bước `DATA_ACCESS`. Làm cho Prisma, TypeORM, Mongoose, JPA. Không đọc được thì lấy tài nguyên từ route, ví dụ `POST /orders` là tạo `orders`.
   2. **Đọc khóa ngoại:** `@relation` của Prisma, `@ManyToOne` của TypeORM và JPA.
   3. **Tìm nguồn của thực thể:** bài dễ nhất có thao tác tạo. Không có bài tạo vì dữ liệu nhập sẵn thì lấy bài dễ nhất đụng tới thực thể đó.
@@ -820,7 +821,7 @@ Các lỗi này nằm ở cuối file theo yêu cầu của Minh, chưa xếp v�
   BrewLite ra `Auth Register` và `List Products` cùng dẫn tới `Create Order`, rồi tới các bài thanh toán, còn `List Healths` học riêng. Realworld ra `Create User → Create Article → Create Article Comments`. Bài tạo có thể có nhiều bài con, như `Create Article` có 9 bài con. `Auth Register` đang mất lệnh `create` do B-37, nên phải nhờ luật ở bước 3.
 - **Kiểm tra:** BrewLite ra đúng các nhóm trên, không còn `Auth Me → Login → Register`. Repo demo Java ra sơ đồ theo nghiệp vụ. Bài học riêng mở được ngay, bài có cha vẫn khóa đúng.
 - **Ảnh hưởng demo:** có, ban giám khảo thấy bản đồ ngay từ đầu.
-- **Trạng thái:** đã thử bản tạm trên 2 repo, chưa làm. Cần quyết định mới.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `graph/data-deps.ts` theo ENG-116 … ENG-119, cột Học riêng ở `layout.ts`, đọc `schema.prisma` (`prune.ts`, `fingerprint.ts`). `shop-api` ra đúng T-ENG-48. Quét `CNPM_BREWLITE_ASSIGNMENT_01`: `Auth Register → Create Order`, hết `Auth Me → Login → Register`, `List Healths` học riêng, chạy 2 lần cùng kết quả. **Lệch T-ENG-49:** điểm bắt đầu là `Get Product`, không phải `List Products`, vì `Get Product` dễ hơn theo luật "bài dễ nhất". `Create Order Cancel`, `Update Order Status` vào nhóm `User` vì thực thể ghi đầu tiên là `User`. Chưa đổi `ENGINE_VERSION`, gom vào mốc `1.8.0`.
 
 ## Việc mới theo quy trình học mới
 
@@ -830,15 +831,23 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Hiện tượng:** bản đồ là một danh sách bài ngang hàng, không biết bài nào thuộc chức năng nào, đọc ghi dữ liệu gì.
 - **Cần sửa:** theo D-84, cùng đợt với B-39: mỗi bài có `entities`, cạnh có `via_entities`, `StaticEngineResult.groups` gom tất định. Sửa `11`, `graph/nodes.ts`, `graph/index.ts`.
-- **Kiểm tra:** `shop-api` ra 3 nhóm như `prototype.html`; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
-- **Trạng thái:** chưa làm.
+- **Kiểm tra:** `shop-api` ra 4 nhóm theo T-ENG-48; BrewLite có nhóm theo thực thể; chạy 2 lần ra cùng kết quả.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b39-noi-du-lieu`. Thêm `entities`, `group_id`, `via_entities`, `groups` vào `src/contracts/engine.ts` đúng `spec/02`, `toClientResult` trả đủ. `shop-api` ra 4 nhóm theo T-ENG-48, BrewLite có nhóm theo thực thể, chạy 2 lần cùng kết quả.
 
 ### B-41 · Nhẹ · Bước nạp repo bỏ README
 
 - **Hiện tượng:** tổng quan mới (D-83) cần biết sản phẩm làm gì, nhưng bước nạp repo không giữ README hay mô tả manifest.
 - **Cần sửa:** giữ `readme_excerpt` (đã che secret, cắt theo `CONFIG.OVERVIEW_README_MAX_CHARS`) và `manifest_description`. Sửa `10`, `src/server/engine/ingest/*`.
 - **Kiểm tra:** repo có README ra đoạn đầu; repo không có ra `null`; secret trong README bị che.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42` (tên nhánh lỡ đặt, nội dung là B-41). Theo ING-123: `pickReadmeEntry` (README ở offset, không có thì ở gốc, path nhỏ nhất, bỏ nếu quá `MAX_MANIFEST_BYTES`), `buildProjectText` (che secret rồi cắt `OVERVIEW_README_MAX_CHARS`, `manifest_description` từ `package.json`, `pyproject.toml`, `pom.xml`), nối vào `runIngest`. README giải nén riêng, không vào `code` hay `manifests`, không tính số file. Thêm 2 trường vào `IngestOutput` (`src/contracts/engine-internal.ts`, theo `spec/02` đã merge). Quét thật: BrewLite có README 2000 ký tự và mô tả `BrewLite - Backend NestJS + Prisma + PostgreSQL`; `nestjs/nest` có cả hai; Django có README, mô tả `null`. Test `mo-ta.test.ts` (T-ING-35, T-ING-36). Typecheck sạch, lint 0 lỗi, test xanh. Chưa làm: chép hai trường vào `StaticEngineResult` (`graph/index.ts`, thuộc Minh, cùng B-40); đường tải chọn lọc (`selective.ts`) trả `null` vì README nằm ngoài phần đã tải; chưa sửa `spec/10` Mục 8 vì đã có ING-123.
+
+### B-42 · Vừa · Package `com.example.demo` bị coi là file test
+
+- **Hiện tượng:** chưa đo trên repo thật. `com/example/demo` là package mặc định của Spring Initializr, nên `src/main/java/com/example/demo/**` có cờ test.
+- **Nguyên nhân:** `example`, `demo` nằm trong danh sách segment của ING-87, áp cho cả package Java. `isTestPath` ở `priority.ts` được dùng ở chấm điểm file, chọn file, và lọc candidate ở `nodes.ts`.
+- **Cần sửa:** đường dẫn trong `src/main/` không xét segment ING-87. Sửa `10` ING-87 và `priority.ts`. `spring.ts` đã dùng riêng luật ENT-44 nên không vướng lỗi này.
+- **Kiểm tra:** quét 1 repo Spring dùng `com.example.demo`, ra đủ bài theo route.
+- **Trạng thái:** chờ kiểm. Nhánh `b/fix-b42-java-demo`. Đã xác minh trên repo thật: `SimonHarmonicMinor/spring-security-dynamic-roles-inheritance-model-example` có 23 trong 29 file, `ninuxGithub/spring-boot-vue-separate` có 50 trong 63 file nằm dưới `src/main/java/com/example/demo/` đều mang cờ test. Sửa: `isTestPath` trong `priority.ts` từ `src/main/` trở xuống chỉ xét tên file (`.test`, `.spec`, `_test`, `test_`); segment cờ test nằm trước `src/main` vẫn tính (`examples/x/src/main/...`); spec 10 ING-87 thêm 1 câu. Sau sửa: số file trong `src/main` mang cờ test về 0 ở cả hai repo (còn 6 và 1 file ở `src/test`, đúng). Số bài và tên bài không đổi vì Spring đã dùng luật ENT-44 riêng; lỗi ảnh hưởng chấm điểm file, chọn file và lọc candidate của `nodes.ts`. Test `co-test-src-main.test.ts` (13 ca). `spec/10` 43 982 byte (trần 44 000, còn 18 byte). Typecheck sạch, lint 0 lỗi, 957 test qua. Chưa đổi `ENGINE_VERSION`.
 
 ### D-19 · Nặng · X-Ray chưa là tour
 
@@ -856,42 +865,50 @@ Theo quyết định D-81 … D-84 ngày 06/11/2026 và bản vẽ [`prototype.h
 
 - **Cần sửa:** theo D-71, D-83, D-84: bản đồ chia nhóm, tên AI kèm nhãn "AI đặt tên" và tên code ở dòng nhỏ; Tổng quan 2 nhịp, phần tất định hiện ngay, phần AI hiện khi có; nút bắt đầu ở bài gốc của đường chính.
 - **Kiểm tra:** tắt AI vẫn có nhóm, tên engine và câu dự phòng; bật AI thì tên và bức tranh chung hiện thêm.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** phần Tổng quan chờ kiểm (D18): cột giữa hiện Tổng quan khi chưa chọn bài, câu dự phòng + thẻ nhóm + nút "Bắt đầu với"; ingest xong gọi `analyze-overview` 1 lần, về rồi mới tải trước 2 bài; lỗi ⇒ giữ nhịp 1, không báo lỗi. Sửa luôn lỗi trước đây không gọi tổng quan khi chưa mở bài. Nhóm dự phòng theo đầu route khi engine chưa có `groups` (`overviewGroups`). Test T-UI-10 xanh. Phần bản đồ nhóm là D17, chưa làm.
 
 ### D-22 · Vừa · Chưa có thẻ vai trò
 
 - **Cần sửa:** theo D-84: tên và route, "Vai trò", "Cần trước", "Mở ra cho", "Dữ liệu"; thiếu dữ liệu thì ẩn dòng.
 - **Kiểm tra:** bài "Xem danh sách sản phẩm" ra đủ 4 dòng như `prototype.html`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm (D16): component `RoleCard` + `buildRoleCard` (`src/lib/role-card.ts`), nhãn Tạo · Đọc · Sửa · Xóa, thiếu dữ liệu ẩn dòng, chưa có phân tích ⇒ shimmer "đang phân tích…". Test T-UI-03 xanh. **Chưa gắn vào tour**: D12 (Phat107) đặt `<RoleCard node={node} onStartTour={…} />` ở bước 0.
 
 ### D-23 · Vừa · Chưa có giải thích đoạn chọn
 
 - **Cần sửa:** theo D-82: bôi đen trong khung code hiện nút "Giải thích"; popover hiện tiêu đề, "Là gì", "Ở đây", "Ví dụ đời thường", kỹ năng liên quan, "Còn dùng ở"; trạng thái chờ, lỗi, hết lượt, bị chặn; nhớ kết quả trên trình duyệt.
 - **Kiểm tra:** bôi đen `await` ra giải thích; bôi lại đúng chỗ đó hiện liền, không gửi request.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** phần lõi chờ kiểm (D19): `explainSelectionSafe` (`api.ts`), action `explainSelection` + nhớ ở `ui.explanations` (`workbench.ts`), `code/SelectionPopover` đủ mục và trạng thái (chờ, `null`, lỗi + "Thử lại", hết lượt tắt nút, Offline không có nút). Test T-UI-11 xanh. **Chưa gắn vào khung code**: chờ D11 (Thiện) có `onSelect`.
 
 ### C-10 · Vừa · Câu đầu chưa là câu kể luồng
 
 - **Cần sửa:** theo D-81: câu đầu của mỗi run có `focus` = `FLOW`. Sửa `22` Mục 6, `src/lib/plan.ts`, test T-PLAN.
 - **Kiểm tra:** mọi run có câu 1 là `FLOW`; các luật D-34 vẫn đúng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. BKT-50 trong `planNodeQuestions`, áp sau BKT-46, BKT-49. 8 ca T-PLAN khớp bảng `22` Mục 6, phủ 3 nhánh: đưa câu `FLOW` lên đầu (P-A, P-G1, P-H), đổi câu thành `FLOW` (P-B, P-D2), thêm câu `FLOW` (P-C, P-D); kế hoạch 1 câu của D-34 thành 2 câu (P-D). 6 ca trong `src/__tests__/kich-ban-ham.test.ts` (A3, B1, C4, C6, C7, E2) sửa phần kế hoạch theo BKT-50. `spec/50` Mục 3 chưa cập nhật: C6, C7 giờ có thêm câu `FLOW` cùng kỹ năng, số BKT của kịch bản cần tính lại.
 
 ### C-11 · Vừa · Chưa có lời gọi giải thích đoạn chọn
 
 - **Cần sửa:** theo D-82: prompt, schema, cổng gác, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION`. Sửa `20`, `21`, `src/server/ai/*`. Endpoint ở A-08.
 - **Kiểm tra:** chạy AI thật 3 vùng chọn (từ khóa, tên, đoạn code); tên bịa bị chặn; vùng chọn sai ra `ERR_SELECTION_INVALID`.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. `prompts/explain.ts`, `explain.ts` (tên xuyên bài, cache `SELECTION_EXPLAIN`, giới hạn `EXPLAIN_MAX_PER_SESSION` đếm ở `ai_usage`, quota, gọi AI, cổng gác), `guard/explain.ts` (GUARD-23), `explainScope`; route của Thiện gọi hàm này thay chỗ chờ; thêm migration `0002_explain_selection.sql` (chưa chạy lên Supabase). Chạy AI thật N3 bước 2: `await` ⇒ `KEYWORD`, `findById` ⇒ `NAME`, vòng `for` ⇒ `CODE`, cả 3 qua cổng gác, ~1 300 token vào, ~130 ra. Tên bịa (`verifyToken`) bị chặn ở test GUARD-23; vùng chọn sai ra 400 ở test route.
 
 ### C-12 · Nặng · Tổng quan chờ hết node, chưa đặt tên
 
 - **Cần sửa:** theo D-83: `analyze-overview` gọi ngay sau khi quét, đầu vào gói ngữ cảnh, ra `RepoOverviewRaw` mới; cổng gác mới; câu dự phòng do code dựng. Sửa `20`, `21`, `src/server/ai/*`.
 - **Kiểm tra:** quét `shop-api` và BrewLite, tổng quan có trước khi phân tích bài nào; mỗi bài đúng 1 tên, không trùng.
-- **Trạng thái:** chưa làm.
+- **Trạng thái:** chờ kiểm. Gói ngữ cảnh, prompt, schema mới; `checkOverview` theo GUARD-11 (O5, O6); `analyzeOverview(session, graph)` không cần bản phân tích; route bỏ đoạn chờ hết node; store gọi tổng quan trước khi tải trước node; `PROMPT_VERSION` `1.2.0`. Nhóm, thực thể, README đọc kiểu "có thì dùng" tới khi có B-40, B-41. Chạy AI thật, chưa có bản phân tích nào: `shop-api` 7/7 tên, BrewLite 13/13 tên, không trùng, 1 request mỗi repo. Trần `LLM_MAX_OUTPUT_TOKENS.OVERVIEW` 600 làm BrewLite bị cắt (`NOT_STOP`) nên nâng lên 1500 (13 bài ra 635 token). `shop-api` với nhóm giả: AI đặt "Tài khoản", "Sản phẩm", "Đơn hàng", "Báo cáo". Bundle offline `public/demo/mock_bundle.json` còn tổng quan kiểu cũ, cần ghi lại.
 
 ### A-08 · Nặng · Contract và endpoint cho quy trình mới
 
 - **Cần sửa:** `02` theo Mục 3 của `sua-doc-quy-trinh-moi.md`; endpoint `POST /api/explain-selection`; bỏ `ERR_OVERVIEW_NOT_READY`; mang frontend `feat/giao-dien-ide` về `main` làm nền cho luồng 6.
 - **Kiểm tra:** `npm run typecheck` xanh; gọi endpoint với vùng chọn sai ra 400.
+- **Trạng thái:** chờ kiểm. Nhánh `a/chot-viec-thien`. Route `explain-selection` đã gọi hàm của C-11; bỏ hẳn `ERR_OVERVIEW_NOT_READY` ở 10 file, `offline.ts` đổi sang `ERR_CLIENT_NETWORK`. Typecheck, lint, test xanh. Chưa gọi endpoint trên server thật. `RepoOverviewRaw` đã đổi ở C-12. Trường mới của node, cạnh, kết quả engine thuộc B-40. Frontend do bạn của Thiện tự làm.
+
+### A-09 · Nặng · `npm run dev` trả 500 ở trang học
+
+- **Hiện tượng:** `main` commit `6fa10eb`, chạy `npm run dev`, mở `/learn?offline=1` trả 500, log báo `UnhandledSchemeError: Reading from "node:fs/promises"`, dấu vết tới `src/server/engine/graph/parser.ts`. Bản deploy Vercel vẫn thành công.
+- **Nguyên nhân:** `src/instrumentation.ts` dùng `if (process.env.NEXT_RUNTIME !== "nodejs") return;` nên webpack vẫn gói `import("@/server/engine/graph/parser")` cho runtime edge.
+- **Cần sửa:** đổi thành `if (process.env.NEXT_RUNTIME === "nodejs") { … }` bọc toàn bộ thân hàm.
+- **Kiểm tra:** đã thử trên bản sao tạm: sửa dòng này thì `/learn?offline=1` trả 200, `Compiled /instrumentation` không còn lỗi. Máy không có `.env` cần đặt `GEMINI_BACKEND`, `GEMINI_API_KEY` mới khởi động được.
 - **Trạng thái:** chưa làm.
 
 ---
@@ -905,13 +922,13 @@ Thay các bảng **Chia luồng**, **Mốc trong ngày**, **Nếu trễ thì b�
 | Người | Sửa doc | Code, làm từ trái sang phải |
 | :-- | :-- | :-- |
 | Minh | `spec/11`, dòng D-85 | Luồng 1 như cũ; B-40 làm cùng B-39 ở bước 7 |
-| Phat107 | `spec/30`, `spec/10`, `vai-D/`, `prototype.html` | B-14, B-22, B-41 ⇒ **luồng 6**: D-16, D-19, D-20, D-17, D-18 ⇒ D-21, D-22, D-23 |
-| Lê Ngọc Quý | không | Java tới 19:00 ⇒ B-29, B-30 ⇒ phụ luồng 6 |
+| Phat107 | `spec/30`, `spec/10`, `vai-D/`, `prototype.html` | B-14, B-22, B-41 ⇒ B-16, B-29, B-30 ⇒ phụ luồng 6 (nhắn Quý trước khi sửa file) |
+| Lê Ngọc Quý | không (đọc `spec/30` của Phat107) | **Luồng 6 Giao diện** theo `prototype.html`: D-16, D-19, D-20, D-17, D-18 ⇒ D-21, D-22, D-23 |
 | Huynh Nhan | `spec/20`, `21`, `22`, `vai-C/` | C-01, C-05 ⇒ C-12 ⇒ C-06, C-09 ⇒ C-08 ⇒ C-07, C-10 ⇒ C-11 ⇒ C-03, C-04, C-02 nếu còn giờ |
-| Thiện | `spec/02` (làm trước), `03`, `01` | A-08 ⇒ luồng 5 như cũ; duyệt và merge |
+| Thiện | `spec/02` (làm trước), `03`, `01`, `04` | A-08 ⇒ **luồng 3 Java** (nhận từ Quý) ⇒ luồng 5 như cũ; duyệt và merge |
 | Người quay lại sau | `vai-D/the-khai-niem.md` | Phụ D-20 |
 
-**Luồng 6 · Giao diện** giữ `src/components/*`, các trang trong `src/app/` (trừ `src/app/api/*` của Thiện), `src/store/*`, file dữ liệu thẻ khái niệm.
+**Luồng 6 · Giao diện** (Lê Ngọc Quý) giữ `src/components/*`, các trang trong `src/app/` (trừ `src/app/api/*` của Thiện), `src/store/*`, file dữ liệu thẻ khái niệm.
 
 **Việc nào chờ việc nào.** Cột **Trong lúc chờ** là việc làm trước được, để không ai ngồi không.
 
@@ -927,11 +944,11 @@ Thay các bảng **Chia luồng**, **Mốc trong ngày**, **Nếu trễ thì b�
 | C-10 | Huynh Nhan | `spec/22` của chính mình | — | 21:00 |
 | C-12 | Huynh Nhan | `spec/02` (`RepoOverviewRaw` mới) | Viết prompt, cổng gác. Chưa có B-41 thì chạy không README; chưa có B-40 thì chưa đặt tên nhóm | 21:00 |
 | C-11 | Huynh Nhan | `spec/02` (kiểu `ExplainSelection*`) | Viết prompt và hàm server, test bằng dữ liệu giả | 22:00 |
-| D-16, D-19, D-17, D-18 | Phat107 | A-08 phần mang frontend về `main` | Đọc `prototype.html`, chuẩn bị component | 19:00 |
-| D-20 | Phat107 | `vai-D/the-khai-niem.md` | Dùng 3 thẻ mẫu trong `prototype.html` | 19:00 |
-| D-21 | Phat107 | C-12, B-40 | Làm phần tất định (nhóm theo đầu route, tên engine, câu dự phòng) với dữ liệu giả | Sau 22:00 |
-| D-22 | Phat107 | C-07, B-40 | Làm với các dòng đã có ("Cần trước", "Mở ra cho"), ẩn dòng thiếu | Sau 22:00 |
-| D-23 | Phat107 | C-11, A-08 endpoint | Làm popover với dữ liệu giả | Sau 22:00 |
+| D-16, D-19, D-17, D-18 | Lê Ngọc Quý | A-08 phần mang frontend về `main` | Đọc `prototype.html`, chuẩn bị component | 19:00 |
+| D-20 | Lê Ngọc Quý | `vai-D/the-khai-niem.md` | Dùng 3 thẻ mẫu trong `prototype.html` | 19:00 |
+| D-21 | Lê Ngọc Quý | C-12, B-40 | Làm phần tất định (nhóm theo đầu route, tên engine, câu dự phòng) với dữ liệu giả | Sau 22:00 |
+| D-22 | Lê Ngọc Quý | C-07, B-40 | Làm với các dòng đã có ("Cần trước", "Mở ra cho"), ẩn dòng thiếu | Sau 22:00 |
+| D-23 | Lê Ngọc Quý | C-11, A-08 endpoint | Làm popover với dữ liệu giả | Sau 22:00 |
 | `vai-D/the-khai-niem.md` | Người quay lại sau | không | — | 19:00 |
 | Sửa pitch | Người lo pitch | D-19 … D-23 chạy được | — | Trước khi ngủ |
 
@@ -1016,13 +1033,13 @@ Làm từ trên xuống. Cột **Chờ** rỗng thì làm được ngay sau Bư�
 | Bước | Mã | Việc | Chờ |
 | --: | :-- | :-- | :-- |
 | 1 | B-01 | Lấy commit `1066d4d`, không làm lại | |
-| 2 | B-03, B-34, B-02, B-20 | TASK_20: nhận route đúng, bỏ file test và mock | Bước 1 |
+| 2 | B-03, B-34, B-02, B-20 | Nhận route đúng, bỏ file test và mock | Bước 1 |
 | 3 | B-27, B-35 | Bỏ `<module>` và component giao diện khỏi bài thuật toán | Luật B-35 |
 | 4 | B-37, B-06 | Đo trước bước nào bị bỏ, rồi sửa lát cắt và Prisma | Luật B-37 |
 | 5 | B-11, B-28 | Bỏ bước rỗng, dựng lại `snippet_line_map` | Bước 3 |
 | | | **Đổi `ENGINE_VERSION` thành `1.7.0`, báo cả nhóm** | Bước 1–5 |
 | 6 | B-36 | Sửa luật cắt còn 20 bài | Luật B-36 |
-| 7 | B-39, B-04, B-05 | Nối bài theo phụ thuộc dữ liệu. Không làm TASK_21, đo lại B-04, B-05 sau khi xong | Bước 4, 6, luật B-39 |
+| 7 | B-39, B-04, B-05 | Nối bài theo phụ thuộc dữ liệu. Không nối theo module, đo lại B-04, B-05 sau khi xong | Bước 4, 6, luật B-39 |
 | 8 | B-33 | Tăng tốc `buildSlice` | Bước 7 |
 
 **Luồng 2 · Ingest**
@@ -1038,6 +1055,7 @@ Làm từ trên xuống. Cột **Chờ** rỗng thì làm được ngay sau Bư�
 | 7 | B-32 | Tải manifest song song | Luồng 1 xong bước 2, vì cùng sửa `selective.ts` |
 | 8 | B-18, B-19 | Zip độc, zip macOS | |
 | 9 | B-29, B-30 | Tên bước, tên bài. Đổi tên là đổi id, nên vào `1.8.0` | Mốc 1 |
+| 10 | B-34 | Phần còn lại: framework lấy từ `devDependencies`, tên bài có `<`, `>` | Bước 9 |
 
 **Luồng 3 · Java**
 

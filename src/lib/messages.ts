@@ -42,8 +42,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
     "Bài học này chưa được mở khóa hoặc bạn đã hoàn thành bài học trước đó.",
   ERR_ANALYSIS_NOT_READY:
     "Hệ thống AI đang phân tích bài học này. Vui lòng chờ trong giây lát.",
-  ERR_OVERVIEW_NOT_READY:
-    "Hệ thống đang tiếp tục phân tích các thành phần còn lại để dựng bức tranh toàn cảnh.",
   ERR_QUESTION_FINISHED:
     "Câu hỏi này đã kết thúc trước đó. Dữ liệu đang được đồng bộ lại.",
   ERR_ATTEMPT_OUT_OF_SYNC:
@@ -58,6 +56,10 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
     "Câu trả lời chứa từ ngữ không phù hợp — vui lòng diễn đạt lại bằng ngôn ngữ chuẩn mực.",
   ERR_REPORT_NOT_ALLOWED:
     "Chỉ có thể báo sai cho câu hỏi có kết quả chưa đạt, tối đa 1 lần mỗi câu.",
+  ERR_SELECTION_INVALID:
+    "Vùng chọn không khớp với mã nguồn hiển thị hoặc vượt quá độ dài cho phép.",
+  ERR_EXPLAIN_LIMIT:
+    "Phiên học này đã dùng hết lượt yêu cầu AI giải thích đoạn chọn.",
 
   // AI errors
   ERR_AI_UNAVAILABLE:

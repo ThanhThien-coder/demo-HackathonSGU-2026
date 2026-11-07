@@ -106,6 +106,10 @@ export function flowSteps(
   return countedSteps;
 }
 
+// GUARD-12 Q9 (C-04)
+export const FLOW_GENERIC_RE =
+  /(?:những|các)\s+(?:bước|hàm|tầng|lớp|thành phần)(?:\s+[^\s?.,]+){0,6}\s+nào/iu;
+
 /**
  * Kiểm tra các câu hỏi do AI sinh ra theo GUARD-12 spec 21 Mục 5.
  * Câu thứ i của raw ứng với items[i] (theo vị trí).
@@ -234,6 +238,11 @@ export function checkQuestions(
       ) {
         issues.push({ code: "Q7" });
       }
+    }
+
+    // Q9: FLOW: feynman_question không khớp FLOW_GENERIC_RE (C-04)
+    if (item.focus === "FLOW" && FLOW_GENERIC_RE.test(q.feynman_question)) {
+      issues.push({ code: "Q9" });
     }
 
     // Q8: CHANGE: ≥ 1 chuỗi backtick trong reference_answer là file của node (f === b hoặc f.endsWith("/" + b), f ∈ node.files)

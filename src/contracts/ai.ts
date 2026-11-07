@@ -39,19 +39,17 @@ export interface NodeAnalysisView {     // Gửi trình duyệt (Tab 1)
 }
 
 // ---------- 5.2 analyze-overview ----------
-export interface RepoOverviewRaw {
-  architecture_style: ArchitecturePattern;
-  summary: string;
-  layers: Array<{ layer: ArchitecturalLayer; role: string; nodes: string[] }>;
-  main_flow: string;
-  notes: Array<{ text: string; nodes: string[] }>;
+export interface RepoOverviewRaw {      // = responseSchema của lời gọi overview (D-83)
+  summary: string;                      // Tối đa 2 câu
+  groups: Array<{ group_id: string; name: string }>;
+  node_titles: Array<{ node_id: string; title: string }>;   // Tên tiếng Việt; node.id không đổi (D-08)
 }
 export interface RepoOverviewView {
   facts: {                              // Do code tính
     archetype: ProjectArchetype; framework: string | null; tech_stack: string[];
     root_node_ids: string[]; main_path_node_ids: string[];
   };
-  ai: RepoOverviewRaw | null;           // null ⇒ AI hỏng sau thử lại, chỉ hiện phần facts
+  ai: RepoOverviewRaw | null;           // null ⇒ AI hỏng sau thử lại hoặc bị cổng gác chặn, chỉ hiện phần facts (D-83)
 }
 
 // ---------- 5.3 enrich-node (đặt câu hỏi) ----------
@@ -106,11 +104,12 @@ export interface GradingRaw {           // = responseSchema của lời gọi ch
 }
 // Đầu vào chấm đọc từ node_runs.questions (03), không có code_context (D-36)
 
-export type GuardCall = "analyze" | "overview" | "questions" | "grade";
-export type GuardCode =                                  // 21: A1–A7, O1–O4, Q1–Q8, G1–G2
+export type GuardCall = "analyze" | "overview" | "questions" | "grade" | "explain";
+export type GuardCode =                                  // 21: A1–A7, O1–O6, Q1–Q9, E1–E4, G1–G2
   | "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7"
-  | "O1" | "O2" | "O3" | "O4"
-  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8"
+  | "O1" | "O2" | "O3" | "O4" | "O5" | "O6"
+  | "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8" | "Q9"
+  | "E1" | "E2" | "E3" | "E4"
   | "G1" | "G2";
 export interface GuardIssue {                            // Lý do cổng gác, do code dựng (GUARD-22)
   code: GuardCode;
@@ -126,4 +125,13 @@ export interface GuardLogEntry {                         // Một dòng log mỗ
   codes: GuardCode[];                                    // Không trùng
   prompt_version: string;
   llm_model: string;
+}
+
+// ---------- 5.5 explain-selection (D-82) ----------
+export interface ExplainSelectionRaw {  // = responseSchema của lời gọi explain
+  kind: "KEYWORD" | "NAME" | "CODE";
+  what: string;                         // 2–3 câu
+  here: string;                         // 1–2 câu
+  analogy: string;                      // 0–1 câu, "" nếu không hợp
+  skill: SWESkill | null;
 }

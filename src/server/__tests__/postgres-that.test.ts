@@ -87,8 +87,16 @@ describe.skipIf(!TEST_DB)("luồng lưu trên Postgres thật", () => {
         CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS 'SELECT NULL::uuid';
         DO $$ BEGIN CREATE ROLE authenticated; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       `);
-      const migration = path.resolve(SRC_DIR, "../supabase/migrations/0001_init.sql");
+      const migrationsDir = path.resolve(SRC_DIR, "../supabase/migrations");
+      const migration = path.resolve(migrationsDir, "0001_init.sql");
       await db.sql.unsafe(fs.readFileSync(migration, "utf8"));
+      const otherFiles = fs
+        .readdirSync(migrationsDir)
+        .filter((file) => file.endsWith(".sql") && file !== "0001_init.sql")
+        .sort();
+      for (const file of otherFiles) {
+        await db.sql.unsafe(fs.readFileSync(path.join(migrationsDir, file), "utf8"));
+      }
     }
     await db.sql`INSERT INTO auth.users (id) VALUES (${userId})`;
     await db.sql`INSERT INTO profiles (user_id) VALUES (${userId})`;

@@ -24,7 +24,6 @@ describe("T27: ERROR_MESSAGES compliance and coverage", () => {
     // Learning
     "ERR_NODE_NOT_AVAILABLE",
     "ERR_ANALYSIS_NOT_READY",
-    "ERR_OVERVIEW_NOT_READY",
     "ERR_QUESTION_FINISHED",
     "ERR_ATTEMPT_OUT_OF_SYNC",
     "ERR_ANSWER_TOO_SHORT",
@@ -32,6 +31,8 @@ describe("T27: ERROR_MESSAGES compliance and coverage", () => {
     "ERR_ANSWER_DUPLICATE",
     "ERR_ANSWER_INAPPROPRIATE",
     "ERR_REPORT_NOT_ALLOWED",
+    "ERR_SELECTION_INVALID",
+    "ERR_EXPLAIN_LIMIT",
 
     // AI
     "ERR_AI_UNAVAILABLE",

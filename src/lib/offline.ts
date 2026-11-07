@@ -676,7 +676,7 @@ export function offlineGetOverview(): ApiResult<RepoOverviewView> {
       data: null,
       error: {
         error: {
-          code: "ERR_OVERVIEW_NOT_READY",
+          code: "ERR_CLIENT_NETWORK",
           message: "Chưa nạp gói dữ liệu offline.",
           retryable: false,
         },
