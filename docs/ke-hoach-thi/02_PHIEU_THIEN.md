@@ -8,7 +8,7 @@
 ## Luật chung cho mọi phiếu (áp cho cả 5 người)
 
 1. **Repo thi bắt đầu trống, chưa có `src/`.** Mọi code được AI viết mới từ đầu trong giờ thi, theo phiếu này và `docs/spec/`. Phiếu đã ghi đủ tên file, tên hàm, chữ ký và luồng; không cần tra thêm nguồn nào khác.
-2. Thư mục `docs/` (gồm `docs/spec/`, `docs/ke-hoach-thi/`, `docs/prototype.html`) nằm ngay trong repo thi để AI đọc, và **đã có trong `.gitignore`** từ commit đầu (TH-01). Không ai dùng `git add -f`.
+2. Thư mục `docs/` (spec, kế hoạch, prototype, pitch…) được Thiện commit lên `main` lúc 12:00 trong **1 commit riêng** (TH-01); cả đội `git pull` là có. Trong giờ thi **không ai sửa, xóa hay add file trong `docs/`**. Không ai dùng `git add -f`.
 3. Chỉ sửa file trong mục "File được sửa". Cần sửa file khác thì nhắn người giữ file đó. Cần sửa `src/contracts/*` sau 13:00 thì nhắn Thiện.
 4. Tên hàm, tên kiểu, chữ ký ghi trong phiếu là **hợp đồng giữa 5 người**. Không tự đổi tên. Muốn đổi thì nhắn người dùng hàm đó trước.
 5. Mỗi phiếu làm trên nhánh `<ten>/<ma-phieu>`, ví dụ `thien/th-05`. Commit nhỏ, khoảng 200 dòng trở xuống. Message có dạng `feat(phạm-vi): việc đã làm`.

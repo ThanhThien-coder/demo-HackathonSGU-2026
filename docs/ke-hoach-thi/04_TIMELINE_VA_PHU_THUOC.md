@@ -87,7 +87,7 @@ Cột "Mốc" là thứ **phải có** khi hết dòng đó. Lịch tổng duy�
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | 10:00–11:00 | H−2 | Điểm danh. Kiểm máy theo `06` Mục 4. Thử mạng di động dự phòng | Kiểm máy | Kiểm máy | Kiểm máy | Kiểm máy | 5 máy qua checklist, chưa ai commit | Thiện |
 | 11:00–11:30 | H−1 | Kiểm repo thi trống, public, đủ 5 collaborator; nộp link BTC; hỏi BTC Q-01 | Đọc phiếu MI, soạn sẵn prompt agent (không viết code) | Đọc phiếu NH, soạn prompt | Đọc phiếu PH, soạn prompt | Đọc phiếu QU, soạn prompt | Link repo đã nộp | Thiện |
-| 11:30–12:00 | H−0,5 | Minh điền repo TS/JS dự phòng vào `07_GHI_CHU_VA_CHOT.md` Mục 1 (13 câu khác đã chốt sáng 07/11); nhắc mỗi người: chỉ chép `docs/` vào repo thi sau khi pull `.gitignore` (`03_GIT_PUSH_PULL.md` Mục 2) | Chờ | Chờ | Chờ | Chờ | **Không có commit nào trước 12:00** | Thiện |
+| 11:30–12:00 | H−0,5 | Minh điền repo TS/JS dự phòng vào `07_GHI_CHU_VA_CHOT.md` Mục 1 (13 câu khác đã chốt sáng 07/11); nhắc mỗi người: không tự chép `docs/`, chờ TH-01 rồi `git pull` (`03_GIT_PUSH_PULL.md` Mục 2) | Chờ | Chờ | Chờ | Chờ | **Không có commit nào trước 12:00** | Thiện |
 | 12:00–12:30 | H+0 | **TH-01** commit đầu 12:00–12:20, báo cả đội pull; rồi **TH-02** | Pull lúc 12:20 ⇒ **MI-01** | Pull ⇒ **NH-01** | Pull ⇒ **PH-01** | Pull ⇒ **QU-01** | 12:20 cả đội đã pull commit đầu | Thiện |
 | 12:30–13:00 | H+0,5 | TH-02; duyệt PR của MI-01, NH-01, PH-01, QU-01 | MI-01 | NH-01, gọi thử Gemini đo độ trễ | PH-01 | QU-01 | **13:00 contracts chốt; cả 5 người có commit trên `main`** | Thiện, lệnh `git shortlog -sn` |
 | 13:00–14:00 | H+1 | **TH-03** (đến 13:20), **TH-04** | **MI-02** | **NH-02** (đến 13:30), **NH-03** | **PH-02** | **QU-02** | CI chạy trên PR | Thiện |

@@ -12,7 +12,7 @@
 - [ ] Key Google AI Studio của riêng mình gọi thử được 1 lần.
 - [ ] Đã nhận lời mời Collaborator vào repo thi.
 - [ ] **Clone repo thi vào 1 thư mục mới, trống.** Thư mục này không có file code nào khác. Không mở repo nào khác trong cửa sổ Claude dùng để thi.
-- [ ] Có sẵn bản chép thư mục `docs/` (bộ này) ở **chỗ khác** trên máy. **Chưa** chép vào repo thi.
+- [ ] **Thiện:** đã clone nhánh `docs-thi` vào một thư mục riêng (không phải repo thi) để chép `docs/` ở TH-01. 4 người còn lại không cần: `docs/` có sẵn trên `main` sau khi pull.
 - [ ] Đọc mục lục phiếu của mình (`02_PHIEU_<TEN>.md`) và phiếu đầu tiên. Đọc thẻ của mình ở Mục 6 file này.
 - [ ] **Không ai commit, không ai tạo gì trên repo thi trước 12:00.**
 
@@ -20,8 +20,8 @@
 
 | Lúc | Thiện | Minh, Nhân, Phát, Quý |
 | :-- | :-- | :-- |
-| 12:00 | Làm **TH-01**: phần làm tay ở đầu phiếu (tạo app Next.js, thêm `docs/` vào `.gitignore`, chép `docs/`), rồi dán prompt. Claude đẩy commit đầu lên `main`. Nhắn nhóm "đã push" | Chờ, không làm gì trên repo |
-| 12:20 | Bắt đầu TH-02 | 1. `git pull` · 2. `npm ci` · 3. **Sau đó** mới chép thư mục `docs/` vào repo · 4. Chạy `git status`: **không** được thấy `docs/`. Thấy thì dừng, báo Thiện · 5. Bắt đầu phiếu đầu tiên |
+| 12:00 | Làm **TH-01**: phần làm tay ở đầu phiếu (tạo app Next.js, `.gitignore` **không** có `docs/`, chép `docs/` vào), rồi dán prompt. Claude đẩy 2 commit lên `main`: khung dự án, rồi `docs/`. Nhắn nhóm "đã push" | Chờ, không làm gì trên repo |
+| 12:20 | Bắt đầu TH-02 | 1. `git pull` (có sẵn `docs/`, **không** tự chép) · 2. `npm ci` · 3. Chạy `git status`: phải sạch · 4. Bắt đầu phiếu đầu tiên |
 
 ## 3. Vòng lặp cho mỗi phiếu (lặp lại cả đêm)
 
@@ -50,7 +50,7 @@
 | Tình huống | Làm gì |
 | :-- | :-- |
 | Claude chạy quá **30 phút** chưa xong | Dừng. Chia phiếu nhỏ hơn, làm lại **tối đa 1 lần**. Vẫn sai thì tự code tay phần còn lại. Báo người giao việc |
-| `git status` thấy `docs/` | Dừng, không commit. Báo Thiện kiểm `.gitignore` |
+| `git status` thấy thay đổi trong `docs/` | Dừng, không commit thay đổi đó. Báo Thiện |
 | Claude muốn sửa file ngoài mục "File được sửa" | Không cho. Nhắn người giữ file đó (contracts: Thiện) |
 | Xung đột khi merge `main` vào nhánh mà Claude không tự gỡ được | Báo người giữ file còn lại, gỡ cùng nhau |
 | Lỗi quyền, lỗi đăng nhập `gh` | `gh auth status`; vẫn lỗi thì báo Thiện |
@@ -63,7 +63,8 @@
 - Commit hộ người khác, đặt `Co-authored-by` thay người khác.
 - `--date`, `GIT_COMMITTER_DATE`, `--amend`, rebase nhánh đã push.
 - Squash merge hoặc Rebase merge.
-- Đưa code viết sẵn từ trước vào repo thi, dù chia nhỏ.
+- Đưa code viết sẵn từ trước vào repo thi, dù chia nhỏ. Đưa nhánh `docs-thi` (commit trước 12:00) vào repo thi.
+- Sửa, xóa file trong `docs/` trong giờ thi.
 - Mở hoặc dán file `.env*` khi đang chia sẻ màn hình; đặt key AI vào biến `NEXT_PUBLIC_*`.
 - Push sau **09:00**.
 

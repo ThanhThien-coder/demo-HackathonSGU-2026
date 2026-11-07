@@ -127,13 +127,13 @@ Mỗi câu trả lời dùng trên sân khấu phải đã chạy 3/3 lần ổn
 | Node 22 (`node -v`), `npm -v`, `git --version`, `gcloud --version` | Cả 5 | Đúng phiên bản |
 | `git config user.email` đúng email đã xác minh trên GitHub của mình | Cả 5 | Thiện xem tận mắt |
 | Clone repo thi vào thư mục mới, **trống**; trong thư mục làm việc của agent không có file code nào từ trước | Cả 5 | — |
-| Có sẵn bản chép thư mục `docs/` (bộ docs thi đã chuẩn bị) ở chỗ khác trên máy, **chưa** chép vào repo thi | Cả 5 | — |
-| Thư mục `docs/` chép vào repo thi **sau khi** `.gitignore` (có dòng `docs/`) đã có trên máy: Thiện chép sau khi TH-01 push (`create-next-app` cần thư mục trống); 4 người còn lại chép sau khi pull lúc 12:20; `git status` không hiện `docs/` (`03_GIT_PUSH_PULL.md` Mục 2) | Cả 5 | Agent đọc được |
+| Clone nhánh `docs-thi` vào thư mục riêng (không phải repo thi) để chép `docs/` ở TH-01 | Thiện | — |
+| `docs/` lên repo thi sau 12:00 trong 1 commit riêng của Thiện (TH-01, sau `create-next-app` vì lệnh này cần thư mục trống); 4 người còn lại chỉ `git pull`, không tự chép (`03_GIT_PUSH_PULL.md` Mục 2) | Cả 5 | Agent đọc được |
 | Key AI Studio riêng chạy được ở máy | Cả 5 | 1 lần gọi thử thành công |
 | Thử mạng hội trường và mạng di động | Quý | Ghi tốc độ vào sổ đo |
 | Tạo repo thi **public, trống**, không tick README/license/.gitignore; mời 4 người; cấp `Maintain` cho Nhân | Thiện | 4 người đã nhận lời mời |
 | Claude Code chạy được trên máy (Quý: Codex CLI); `gh --version` có; `gh auth login` bằng tài khoản GitHub của **chính mình** (`gh auth status` hiện đúng tên) | Cả 5 | Claude mở được trong 1 thư mục thử |
 | Nhãn PR `fix-demo` và `sau-dong-bang`: **không** tạo trước giờ thi (repo phải trống khi BTC kiểm). Thiện tạo lúc 13:00 trong TH-03 | Thiện | — |
 | Nộp link repo cho BTC | Thiện | BTC xác nhận |
-| Hỏi BTC: Q-01 (giờ ngừng code), Q-15 (áp phích), Q-17 (slide chuẩn bị trước) | Thiện | Ghi câu trả lời vào `07_GHI_CHU_VA_CHOT.md` Mục 1 |
+| Hỏi BTC: Q-01 (giờ ngừng code), Q-15 (áp phích), Q-17 (slide chuẩn bị trước), **xác nhận được commit thư mục `docs/` (tài liệu đặc tả soạn trước, không phải code) vào repo thi, tốt nhất bằng văn bản** | Thiện | Ghi câu trả lời vào `07_GHI_CHU_VA_CHOT.md` Mục 1 |
 | **Không ai commit trước 12:00** | Cả 5 | — |

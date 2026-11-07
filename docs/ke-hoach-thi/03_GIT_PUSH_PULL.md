@@ -10,30 +10,31 @@
 4. **Không đưa code viết sẵn từ trước vào repo thi**, dù chép nguyên file hay chia nhỏ ra nhiều commit. Chia nhỏ code có sẵn để lịch sử commit trông tự nhiên cũng là vi phạm.
 5. Mỗi người commit bằng **chính tài khoản của mình**, không commit hộ, không đặt `Co-authored-by` thay người khác.
 6. Không mạo danh, không sửa thời gian commit. Cấm `--date`, cấm `GIT_COMMITTER_DATE`, cấm `--amend` để sửa giờ, cấm `rebase` để đổi lịch sử đã push.
-7. Không commit: thư mục `docs/` (chứa `docs/spec/`, `docs/ke-hoach-thi/`, `docs/prototype.html`), `.kb/`, `.env*` (trừ `.env.example`), `AGENTS.md`, `CLAUDE.md`. Không dùng `git add -f`.
+7. Không commit: `.kb/`, `.env*` (trừ `.env.example`), `AGENTS.md`, `CLAUDE.md`, `.claude/`. Thư mục `docs/` chỉ được commit **1 lần** bởi Thiện ở TH-01 (Mục 2); sau đó không ai sửa file trong `docs/`. Không dùng `git add -f`.
 8. Commit nhỏ, khoảng **200 dòng trở xuống**, message rõ nghĩa: `feat(engine): cắt link về gốc repo`, `fix(ai): …`, `test(…)`, `chore(…)`.
 
-## 2. Thư mục `docs/` và `.gitignore` (bắt buộc, làm đúng thứ tự)
+## 2. Thư mục `docs/` trong repo thi (bắt buộc, làm đúng thứ tự)
 
-Lúc bắt đầu thi, repo thi **chưa có `src/`, chưa có file code nào**. Mỗi người đặt thư mục `docs/` ngay trong repo thi để AI đọc làm kim chỉ nam. `docs/` gồm:
+Lúc bắt đầu thi, repo thi **trống**. Thư mục `docs/` của đội (bộ docs thi, lấy từ nhánh `docs-thi`) được đưa lên repo thi **sau 12:00**, trong 1 commit riêng, để AI của cả 5 người đọc làm kim chỉ nam. `docs/` gồm:
 
 - `docs/spec/` (toàn bộ đặc tả),
-- `docs/ke-hoach-thi/` (bộ kế hoạch này, gồm các phiếu `02_PHIEU_<TEN>.md`),
+- `docs/ke-hoach-thi/` (bộ kế hoạch này, gồm các phiếu),
 - `docs/prototype.html` (bản vẽ giao diện),
 - `docs/pitch/`, `docs/doc-de-hieu/`, `docs/references/` (cho người đọc và làm slide; prompt trong phiếu không bắt AI đọc).
 
-**`docs/` phải nằm trong `.gitignore` ngay từ commit đầu**, để vừa để sẵn trong repo cho AI đọc, vừa không bị commit nhầm lên GitHub:
+Thứ tự:
 
-1. 12:00, Thiện (TH-01): clone repo thi trống ⇒ chạy `create-next-app` khi thư mục **chỉ có `.git`** ⇒ viết `.gitignore` có các dòng `docs/`, `.kb/`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.env*`, `!.env.example` ⇒ commit, push ⇒ **sau đó** mới chép thư mục `docs/` vào.
-2. 12:20, 4 người còn lại: `git pull` (đã có `.gitignore`) ⇒ **sau đó** mới chép `docs/` vào thư mục repo thi trên máy mình.
-3. Kiểm ngay: `git status` không được hiện `docs/`. Nếu hiện thì dừng, không commit, báo Thiện.
-4. Không bao giờ dùng `git add -f` hay `git add docs`.
+1. 12:00, Thiện (TH-01): clone repo thi trống ⇒ chạy `create-next-app` khi thư mục **chỉ có `.git`** ⇒ `.gitignore` có `.kb/`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.env*`, `!.env.example` (**không** có `docs/`) ⇒ chép thư mục `docs/` vào ⇒ commit 1: khung dự án; commit 2: `docs: tài liệu đặc tả và kế hoạch của đội` ⇒ push.
+2. 12:20, 4 người còn lại: `git pull` là có `docs/`. **Không tự chép `docs/`** vào nữa.
+3. **Không đưa nhánh `docs-thi` hay commit cũ của nó vào repo thi.** Các commit đó có giờ trước 12:00; BTC chỉ nhận commit trong giờ thi. Chỉ chép file rồi tạo commit mới.
+4. Trong giờ thi không ai sửa, xóa hay add file trong `docs/`. `git status` thấy thay đổi trong `docs/` thì dừng, không commit, báo Thiện.
+5. Không bao giờ dùng `git add -f`.
 
 ### 2.1. Chuẩn bị trên mỗi máy (trước 11:30)
 
 - `git config user.name` và `git config user.email` đúng tài khoản GitHub của chính mình. Email phải đã xác minh trên GitHub, nếu không thì commit không hiện tên trong danh sách Contributors.
 - Clone repo thi **vào một thư mục mới, trống**. Agent chỉ được mở thư mục repo thi. Trong thư mục này không có file code nào từ trước.
-- Chuẩn bị sẵn bản chép của thư mục `docs/` ở chỗ khác trên máy (ổ USB hoặc thư mục riêng), để chép vào repo thi theo đúng thứ tự ở Mục 2.
+- **Thiện:** clone nhánh `docs-thi` vào một thư mục riêng (không phải thư mục repo thi) để chép `docs/` vào repo thi ở TH-01. 4 người còn lại không cần, `docs/` có sẵn sau khi pull.
 - Đăng nhập `gh` (nếu dùng) bằng tài khoản của mình.
 
 ## 3. Nhánh và PR
